@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1057231812018-og37q3716edoapqd8ouaoveivk1jht1f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "fr.ziyon.campzone",
+            "certificate_hash": "cb908e37758227e550aae5c338e440d4c2f28354"
+          }
+        },
+        {
           "client_id": "1057231812018-pdm5032nog793l69fkoanfjc3ffo5867.apps.googleusercontent.com",
           "client_type": 3
         }

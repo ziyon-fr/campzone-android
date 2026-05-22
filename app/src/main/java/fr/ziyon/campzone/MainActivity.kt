@@ -1,63 +1,39 @@
 package fr.ziyon.campzone
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import dagger.hilt.android.AndroidEntryPoint
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
-import fr.ziyon.campzone.core.designsystem.CzSpacing
-import fr.ziyon.campzone.core.designsystem.czColors
+import fr.ziyon.campzone.core.navigation.DeepLinkInbox
+import fr.ziyon.campzone.core.navigation.toCampzoneDeepLink
+import fr.ziyon.campzone.ui.auth.AuthGate
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private val deepLinkInbox = DeepLinkInbox()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        deepLinkInbox.offer(intent.toCampzoneDeepLink())
         enableEdgeToEdge()
         setContent {
             CampzoneTheme {
-                Scaffold(
+                AuthGate(
+                    deepLinkInbox = deepLinkInbox,
                     modifier = Modifier.fillMaxSize(),
-                    containerColor = MaterialTheme.colorScheme.background,
-                ) { innerPadding ->
-                    CampzonePlaceholder(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                            .padding(CzSpacing.base),
-                    )
-                }
+                )
             }
         }
     }
-}
 
-@Composable
-private fun CampzonePlaceholder(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = "Campzone",
-            color = MaterialTheme.czColors.textPrimary,
-            style = MaterialTheme.typography.displayLarge,
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    CampzoneTheme {
-        CampzonePlaceholder()
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        deepLinkInbox.offer(intent.toCampzoneDeepLink())
     }
 }

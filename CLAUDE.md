@@ -31,6 +31,22 @@ change, change iOS first (schema + `firestore-rbac.rules`,
 owner-deployed), then update `02/03/04` and copy to the web repo. Never
 let the three platforms drift.
 
+## Mandatory iOS parity rule
+
+Every AI agent must read this file and the relevant `docs/` entries
+above before making any project change. For any new or modified UI view,
+also open the matching iOS SwiftUI source under:
+
+`/Users/leon/Desktop/Business Projects/Campzone/Campzone`
+
+The shipped iOS app is the source of truth for view structure, copy,
+visual style, interaction flow, navigation state, and Firestore payload
+behavior. Android Compose views must try to match the iOS equivalent
+first, then adapt only where Android platform conventions or missing
+Android plumbing require it. When `docs/` and Android code disagree,
+check the iOS implementation and align Android with iOS; if the docs
+need updating, note that the iOS source remains authoritative.
+
 ## Non-negotiables
 
 - **Replicate the Firestore schema exactly** - field names, enum raw

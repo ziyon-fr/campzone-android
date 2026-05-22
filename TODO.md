@@ -40,27 +40,27 @@
 - [x] Touch targets ≥48dp, content descriptions on all interactive elements, font scale via `sp`
 
 ### A4. Navigation Shell (`core/navigation/`)
-- [ ] `AppRoute` sealed hierarchy (typed routes, no raw strings) — 4 tabs: Home, Campings, Announcements, Profile
-- [ ] Single-Activity `MainActivity` with Compose `NavHost`
-- [ ] Intent filter for `campzone://` deep-link scheme; park cold-start links until auth/nav is ready (see `05-deep-linking.md`)
-- [ ] Bottom navigation with 4 tabs; push feature screens via typed routes
+- [x] `AppRoute` sealed hierarchy (typed routes, no raw strings) — 4 tabs: Home, Campings, Announcements, Profile
+- [x] Single-Activity `MainActivity` with Compose `NavHost`
+- [x] Intent filter for `campzone://` deep-link scheme; park cold-start links until auth/nav is ready (see `05-deep-linking.md`)
+- [x] Bottom navigation with 4 tabs; push feature screens via typed routes
 
 ### A5. Permission Evaluator (`core/permissions/`)
-- [ ] `AppPermission` sealed class / evaluator mirroring the `03-rbac-and-security.md` permission matrix exactly
-- [ ] Church-scope rule: non-admin leadership gates apply only when `camping.organizerLevel.type == "church"` AND `value == user.church` (case-insensitive)
-- [ ] Unit-test every permission against the matrix in `03` (all 9 roles × all permissions)
+- [x] `AppPermission` sealed class / evaluator mirroring the `03-rbac-and-security.md` permission matrix exactly
+- [x] Church-scope rule: non-admin leadership gates apply only when `camping.organizerLevel.type == "church"` AND `value == user.church` (case-insensitive)
+- [x] Unit-test every permission against the matrix in `03` (all 9 roles × all permissions)
 
 ### A6. Auth & Session (`ui/auth/`)
-- [ ] Sign-in screen: Google + Apple buttons
-- [ ] On first sign-in: create `users/{uid}` doc with `role: "guest"`, `createdAt: serverTimestamp()`, `onboardingCompleted: false` — **merge: true**; do not overwrite existing `email`/`displayName`/`photoURL`
-- [ ] Session state: `StateFlow<AuthState>` (signed-out / onboarding-incomplete / signed-in)
-- [ ] Sign-out clears local session; navigates to auth screen
+- [x] Sign-in screen: Google + Apple buttons ( follow iOS design)
+- [x] On first sign-in: create `users/{uid}` doc with `role: "guest"`, `createdAt: serverTimestamp()`, `onboardingCompleted: false` — **merge: true**; do not overwrite existing `email`/`displayName`/`photoURL`
+- [x] Session state: `StateFlow<AuthState>` (signed-out / onboarding-incomplete / signed-in)
+- [x] Sign-out clears local session; navigates to auth screen
 
 ### A7. Onboarding (`ui/onboarding/`)
-- [ ] Collect: age (derive `ageGroup`), church, preferred language, gender
-- [ ] Write `users/{uid}` with `onboardingCompleted: true`, `languages: [preferredLanguage]` (single element) — **merge: true**
-- [ ] Apply `07` pre-write checklist: `age`/`ageGroup`/`gender` are **delete-when-nil** if blank; no extra keys
-- [ ] Gate: show onboarding when `onboardingCompleted == false`; request FCM permission **after** onboarding completes (not at launch)
+- [x] Collect: age (derive `ageGroup`), church, preferred language, gender
+- [x] Write `users/{uid}` with `onboardingCompleted: true`, `languages: [preferredLanguage]` (single element) — **merge: true**
+- [x] Apply `07` pre-write checklist: `age`/`ageGroup`/`gender` are **delete-when-nil** if blank; no extra keys
+- [x] Gate: show onboarding when `onboardingCompleted == false`; request FCM permission **after** onboarding completes (not at launch)
 
 ### A8. Profile View/Edit + Account Deletion (`ui/profile/`)
 - [ ] Profile screen: display all `users/{uid}` fields

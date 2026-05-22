@@ -8,5 +8,5 @@
         Leave blank until Google Sign-In is enabled in the console; the auth
         screen will surface the configuration error at runtime.
     -->
-    <string name="firebase_google_web_client_id" translatable="false"></string>
+    <string name="firebase_google_web_client_id" translatable="false">1057231812018-pdm5032nog793l69fkoanfjc3ffo5867.apps.googleusercontent.com</string>
 </resources>
