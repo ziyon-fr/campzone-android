@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew assembleDebug)",
+      "Read(//Library/Java/JavaVirtualMachines/**)",
+      "Bash(/usr/libexec/java_home -V)",
+      "Bash(find /Users/leon/Library/Java -name \"java\" -type f 2>/dev/null | head -5; find /Applications -name \"java\" -type f 2>/dev/null | head -5; ls ~/Library/Android/sdk/build-tools/ 2>/dev/null | head -3)",
+      "Bash(curl -s \"https://plugins.gradle.org/search?term=com.google.devtools.ksp\")",
+      "Bash(curl -s \"https://dl.google.com/dl/android/maven2/com/google/devtools/ksp/com.google.devtools.ksp.gradle.plugin/maven-metadata.xml\")",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/com/google/devtools/ksp/com.google.devtools.ksp.gradle.plugin/maven-metadata.xml\")",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/com/google/dagger/hilt-android-gradle-plugin/maven-metadata.xml\")",
+      "Bash(./gradlew assembleDebug --console=plain)",
+      "Bash(ls \"/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java\" 2>/dev/null && echo \"FOUND_AS_JBR\"; /usr/libexec/java_home -V 2>&1 | head -20)",
+      "Bash(export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\")",
+      "Bash(export PATH=\"$JAVA_HOME/bin:$PATH\")",
+      "Bash(./gradlew testDebugUnitTest --console=plain)"
+    ]
+  }
+}

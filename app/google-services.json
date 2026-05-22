@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "1057231812018",
+    "project_id": "campzone-aeb7e",
+    "storage_bucket": "campzone-aeb7e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1057231812018:android:4048618d1a10a6dd2720ab",
+        "android_client_info": {
+          "package_name": "fr.ziyon.campzone"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1057231812018-pdm5032nog793l69fkoanfjc3ffo5867.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8-57k12NajbrRw2V9LkAjhhy04SFuYYM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1057231812018-pdm5032nog793l69fkoanfjc3ffo5867.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1057231812018-tq8h3kjrba2fvqit8ru2q9befpg7l518.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "fr.ziyon.Campzone"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

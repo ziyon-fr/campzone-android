@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Campzone</string>
+
+    <!--
+        Firebase Web Client ID (Firebase console → Authentication → Sign-in
+        method → Google → Web client ID). Required by Credential Manager to
+        request a Google ID token verifiable against the Firebase project.
+        Leave blank until Google Sign-In is enabled in the console; the auth
+        screen will surface the configuration error at runtime.
+    -->
+    <string name="firebase_google_web_client_id" translatable="false"></string>
+</resources>
