@@ -118,7 +118,11 @@ fun AuthGate(
             uiState = uiState,
             onGoogleSignIn = { activity?.let(viewModel::signInWithGoogle) },
             onAppleSignIn = { activity?.let(viewModel::signInWithApple) },
+            onEmailSignIn = viewModel::signInWithEmail,
+            onEmailSignUp = viewModel::signUpWithEmail,
+            onPasswordReset = viewModel::sendPasswordReset,
             onDismissError = viewModel::dismissError,
+            onDismissEmailResetMessage = viewModel::dismissEmailResetMessage,
             modifier = modifier,
         )
 
@@ -141,9 +145,12 @@ fun AuthGate(
         }
 
         is AuthState.SignedIn -> {
+            val signedInState = authState as AuthState.SignedIn
             RequestNotificationPermissionAfterOnboarding()
             CampzoneNavigationShell(
                 deepLinkInbox = deepLinkInbox,
+                authenticatedUser = signedInState.user,
+                onSignOut = viewModel::signOut,
                 modifier = modifier.fillMaxSize(),
                 authReady = true,
             )
@@ -173,11 +180,13 @@ fun AuthScreen(
     uiState: AuthUiState,
     onGoogleSignIn: () -> Unit,
     onAppleSignIn: () -> Unit,
+    onEmailSignIn: (String, String) -> Unit,
+    onEmailSignUp: (String, String, String?) -> Unit,
+    onPasswordReset: (String) -> Unit,
     onDismissError: () -> Unit,
+    onDismissEmailResetMessage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var emailAuthNotice by rememberSaveable { mutableStateOf<String?>(null) }
-
     Box(modifier = modifier.fillMaxSize()) {
         AuthNightBackground(modifier = Modifier.fillMaxSize())
 
@@ -200,13 +209,13 @@ fun AuthScreen(
 
                 AuthGlassPanel(
                     uiState = uiState,
-                    emailAuthNotice = emailAuthNotice,
                     onGoogleSignIn = onGoogleSignIn,
                     onAppleSignIn = onAppleSignIn,
+                    onEmailSignIn = onEmailSignIn,
+                    onEmailSignUp = onEmailSignUp,
+                    onPasswordReset = onPasswordReset,
                     onDismissError = onDismissError,
-                    onEmailAuthUnavailable = {
-                        emailAuthNotice = "O acesso por e-mail ainda não está conectado no Android."
-                    },
+                    onDismissEmailResetMessage = onDismissEmailResetMessage,
                     modifier = Modifier.padding(top = CzSpacing.xxl),
                 )
             }
@@ -268,15 +277,18 @@ private fun AuthBrandSection(modifier: Modifier = Modifier) {
 @Composable
 private fun AuthGlassPanel(
     uiState: AuthUiState,
-    emailAuthNotice: String?,
     onGoogleSignIn: () -> Unit,
     onAppleSignIn: () -> Unit,
+    onEmailSignIn: (String, String) -> Unit,
+    onEmailSignUp: (String, String, String?) -> Unit,
+    onPasswordReset: (String) -> Unit,
     onDismissError: () -> Unit,
-    onEmailAuthUnavailable: () -> Unit,
+    onDismissEmailResetMessage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(CzRadius.xl)
     val isProviderBusy = uiState.isSigningInWithGoogle || uiState.isSigningInWithApple
+    val isEmailBusy = uiState.isSigningInWithEmail || uiState.isSendingPasswordReset
 
     Column(
         modifier = modifier
@@ -302,7 +314,7 @@ private fun AuthGlassPanel(
             mark = "A",
             onClick = onAppleSignIn,
             isLoading = uiState.isSigningInWithApple,
-            enabled = !uiState.isSigningInWithGoogle,
+            enabled = !uiState.isSigningInWithGoogle && !isEmailBusy,
             containerColor = Color.White,
             contentColor = Color(0xFF111111),
             borderColor = Color.White.copy(alpha = 0.7f),
@@ -313,7 +325,7 @@ private fun AuthGlassPanel(
             mark = "G",
             onClick = onGoogleSignIn,
             isLoading = uiState.isSigningInWithGoogle,
-            enabled = !uiState.isSigningInWithApple,
+            enabled = !uiState.isSigningInWithApple && !isEmailBusy,
             containerColor = AuthPine.copy(alpha = 0.72f),
             contentColor = AuthCream,
             borderColor = AuthLeaf.copy(alpha = 0.45f),
@@ -323,8 +335,13 @@ private fun AuthGlassPanel(
 
         EmailAuthForm(
             enabled = !isProviderBusy,
-            notice = emailAuthNotice,
-            onUnavailableAction = onEmailAuthUnavailable,
+            isBusy = uiState.isSigningInWithEmail,
+            isSendingReset = uiState.isSendingPasswordReset,
+            notice = uiState.emailResetMessage,
+            onSignIn = onEmailSignIn,
+            onSignUp = onEmailSignUp,
+            onPasswordReset = onPasswordReset,
+            onClearNotice = onDismissEmailResetMessage,
         )
 
         AuthLegalText()
@@ -433,8 +450,13 @@ private enum class EmailMode {
 @Composable
 private fun EmailAuthForm(
     enabled: Boolean,
+    isBusy: Boolean,
+    isSendingReset: Boolean,
     notice: String?,
-    onUnavailableAction: () -> Unit,
+    onSignIn: (String, String) -> Unit,
+    onSignUp: (String, String, String?) -> Unit,
+    onPasswordReset: (String) -> Unit,
+    onClearNotice: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var mode by rememberSaveable { mutableStateOf(EmailMode.SignIn) }
@@ -443,11 +465,21 @@ private fun EmailAuthForm(
     var password by rememberSaveable { mutableStateOf("") }
     var isPasswordVisible by rememberSaveable { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    val canSubmit = email.isNotBlank() && password.isNotBlank()
+    val canSubmit = email.trim().isNotEmpty() && password.isNotBlank()
+    val fieldsEnabled = enabled && !isBusy && !isSendingReset
     val submit = {
-        if (canSubmit && enabled) {
+        if (canSubmit && fieldsEnabled) {
             focusManager.clearFocus()
-            onUnavailableAction()
+            onClearNotice()
+            if (mode == EmailMode.SignIn) {
+                onSignIn(email, password)
+            } else {
+                onSignUp(
+                    email,
+                    password,
+                    displayName.trim().takeUnless { it.isBlank() },
+                )
+            }
         }
     }
 
@@ -462,7 +494,7 @@ private fun EmailAuthForm(
                 label = "Nome completo",
                 placeholder = "Nome de exibição",
                 glyph = FieldGlyph.Person,
-                enabled = enabled,
+                enabled = fieldsEnabled,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
                     imeAction = ImeAction.Next,
@@ -479,7 +511,7 @@ private fun EmailAuthForm(
             label = "Email",
             placeholder = "you@ exemplo.com",
             glyph = FieldGlyph.Email,
-            enabled = enabled,
+            enabled = fieldsEnabled,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Email,
                 imeAction = ImeAction.Next,
@@ -495,7 +527,7 @@ private fun EmailAuthForm(
             label = "Senha",
             placeholder = "Sua senha",
             glyph = FieldGlyph.Lock,
-            enabled = enabled,
+            enabled = fieldsEnabled,
             visualTransformation = if (isPasswordVisible) {
                 VisualTransformation.None
             } else {
@@ -509,7 +541,7 @@ private fun EmailAuthForm(
             trailingContent = {
                 IconButton(
                     onClick = { isPasswordVisible = !isPasswordVisible },
-                    enabled = enabled,
+                    enabled = fieldsEnabled,
                     modifier = Modifier.semantics {
                         contentDescription = if (isPasswordVisible) {
                             "Ocultar senha"
@@ -528,7 +560,7 @@ private fun EmailAuthForm(
 
         Button(
             onClick = submit,
-            enabled = canSubmit && enabled,
+            enabled = canSubmit && fieldsEnabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
@@ -540,16 +572,28 @@ private fun EmailAuthForm(
                 disabledContentColor = Color.White.copy(alpha = 0.72f),
             ),
         ) {
-            Text(
-                text = if (mode == EmailMode.SignIn) "Entrar" else "Criar conta",
-                style = MaterialTheme.typography.titleSmall,
-            )
+            if (isBusy) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Text(
+                    text = if (mode == EmailMode.SignIn) "Entrar" else "Criar conta",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+            }
         }
 
         if (mode == EmailMode.SignIn) {
             TextButton(
-                onClick = onUnavailableAction,
-                enabled = enabled && email.isNotBlank(),
+                onClick = {
+                    focusManager.clearFocus()
+                    onClearNotice()
+                    onPasswordReset(email)
+                },
+                enabled = fieldsEnabled && !isSendingReset && email.trim().isNotEmpty(),
                 modifier = Modifier.align(Alignment.CenterHorizontally),
                 colors = ButtonDefaults.textButtonColors(
                     contentColor = AuthAmber.copy(alpha = 0.72f),
@@ -557,7 +601,7 @@ private fun EmailAuthForm(
                 ),
             ) {
                 Text(
-                    text = "Esqueceu a senha?",
+                    text = if (isSendingReset) "Enviando..." else "Esqueceu a senha?",
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
@@ -565,8 +609,11 @@ private fun EmailAuthForm(
 
         AuthModeToggle(
             mode = mode,
-            enabled = enabled,
-            onModeChange = { nextMode -> mode = nextMode },
+            enabled = fieldsEnabled,
+            onModeChange = { nextMode ->
+                onClearNotice()
+                mode = nextMode
+            },
         )
 
         if (notice != null) {
@@ -932,7 +979,11 @@ private fun AuthScreenPreview() {
             uiState = AuthUiState(),
             onGoogleSignIn = {},
             onAppleSignIn = {},
+            onEmailSignIn = { _, _ -> },
+            onEmailSignUp = { _, _, _ -> },
+            onPasswordReset = {},
             onDismissError = {},
+            onDismissEmailResetMessage = {},
         )
     }
 }

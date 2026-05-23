@@ -2,7 +2,9 @@ package fr.ziyon.campzone.data.auth
 
 import android.app.Activity
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -20,6 +22,9 @@ interface AuthSessionRepository {
     val authState: StateFlow<AuthState>
     suspend fun signInWithGoogle(activity: Activity)
     suspend fun signInWithApple(activity: Activity)
+    suspend fun signInWithEmail(email: String, password: String)
+    suspend fun signUpWithEmail(email: String, password: String, displayName: String?)
+    suspend fun sendPasswordReset(email: String)
     suspend fun completeOnboarding(user: AuthenticatedUser, profile: OnboardingProfile)
     fun signOut()
 }
@@ -59,6 +64,70 @@ class FirebaseAuthSessionRepository @Inject constructor(
             authProviders.appleOAuthProvider(),
         ).await()
         ensureUserDocument(result.user ?: error("Apple sign-in returned no Firebase user"), "apple")
+    }
+
+    override suspend fun signInWithEmail(email: String, password: String) {
+        val normalizedEmail = email.trim()
+        if (normalizedEmail.isEmpty() || password.isEmpty()) {
+            throw AuthSessionException("Enter both an email and a password.")
+        }
+
+        runCatching {
+            val result = auth.signInWithEmailAndPassword(normalizedEmail, password).await()
+            ensureUserDocument(
+                user = result.user ?: error("Email sign-in returned no Firebase user"),
+                lastAuthProvider = "email",
+            )
+        }.getOrElse { error ->
+            throw error.toEmailAuthException()
+        }
+    }
+
+    override suspend fun signUpWithEmail(
+        email: String,
+        password: String,
+        displayName: String?,
+    ) {
+        val normalizedEmail = email.trim()
+        if (normalizedEmail.isEmpty() || password.isEmpty()) {
+            throw AuthSessionException("Enter both an email and a password.")
+        }
+
+        val resolvedName = displayName?.trim()?.takeUnless { it.isBlank() }
+
+        runCatching {
+            val result = auth.createUserWithEmailAndPassword(normalizedEmail, password).await()
+            val user = result.user ?: error("Email sign-up returned no Firebase user")
+
+            if (resolvedName != null) {
+                user.updateProfile(
+                    UserProfileChangeRequest.Builder()
+                        .setDisplayName(resolvedName)
+                        .build(),
+                ).await()
+            }
+
+            ensureUserDocument(
+                user = user,
+                lastAuthProvider = "email",
+                displayNameOverride = resolvedName,
+            )
+        }.getOrElse { error ->
+            throw error.toEmailAuthException()
+        }
+    }
+
+    override suspend fun sendPasswordReset(email: String) {
+        val normalizedEmail = email.trim()
+        if (normalizedEmail.isEmpty()) {
+            throw AuthSessionException("That email address doesn't look right.")
+        }
+
+        runCatching {
+            auth.sendPasswordResetEmail(normalizedEmail).await()
+        }.getOrElse { error ->
+            throw error.toEmailAuthException()
+        }
     }
 
     override suspend fun completeOnboarding(user: AuthenticatedUser, profile: OnboardingProfile) {
@@ -102,11 +171,18 @@ class FirebaseAuthSessionRepository @Inject constructor(
             }
     }
 
-    private suspend fun ensureUserDocument(user: FirebaseUser, lastAuthProvider: String) {
+    private suspend fun ensureUserDocument(
+        user: FirebaseUser,
+        lastAuthProvider: String,
+        displayNameOverride: String? = null,
+    ) {
         val ref = firestore.collection(UsersCollection).document(user.uid)
         val existing = ref.get().await().takeIf { it.exists() }?.data
         val payload = SignInUserPayload.mergePayload(
-            identity = user.toSignInIdentity(lastAuthProvider),
+            identity = user.toSignInIdentity(
+                lastAuthProvider = lastAuthProvider,
+                displayNameOverride = displayNameOverride,
+            ),
             existing = existing,
             serverTimestamp = FieldValue.serverTimestamp(),
         )
@@ -130,6 +206,11 @@ class FirebaseAuthSessionRepository @Inject constructor(
                 ?: data.stringListValue("languages").firstOrNull().orEmpty(),
             gender = UserGender.fromWire(data.stringValue("gender")),
             onboardingCompleted = data["onboardingCompleted"] as? Boolean ?: false,
+            providerIds = data.stringListValue("providerIDs")
+                .ifEmpty {
+                    user.providerData
+                        .mapNotNull { it.providerId.takeUnless { providerId -> providerId == "firebase" } }
+                },
         )
     }
 
@@ -174,17 +255,51 @@ class FirebaseAuthSessionRepository @Inject constructor(
         batch.commit().await()
     }
 
-    private fun FirebaseUser.toSignInIdentity(lastAuthProvider: String): SignInIdentity =
+    private fun FirebaseUser.toSignInIdentity(
+        lastAuthProvider: String,
+        displayNameOverride: String? = null,
+    ): SignInIdentity =
         SignInIdentity(
             uid = uid,
             email = email,
-            displayName = displayName,
+            displayName = displayNameOverride ?: displayName,
             photoUrl = photoUrl?.toString(),
             providerIds = providerData
                 .mapNotNull { it.providerId.takeUnless { providerId -> providerId == "firebase" } }
-                .ifEmpty { listOf("${lastAuthProvider}.com") },
+                .ifEmpty { listOf(providerIdFallback(lastAuthProvider)) },
             lastAuthProvider = lastAuthProvider,
         )
+
+    private fun providerIdFallback(lastAuthProvider: String): String = when (lastAuthProvider) {
+        "apple" -> "apple.com"
+        "google" -> "google.com"
+        "email" -> "password"
+        else -> lastAuthProvider
+    }
+
+    private fun Throwable.toEmailAuthException(): Throwable {
+        if (this is AuthSessionException) return this
+        val errorCode = (this as? FirebaseAuthException)?.errorCode
+        val message = when (errorCode) {
+            "ERROR_INVALID_EMAIL" -> "That email address doesn't look right."
+            "ERROR_WEAK_PASSWORD" -> "Choose a stronger password (at least 6 characters)."
+            "ERROR_EMAIL_ALREADY_IN_USE" -> "An account already exists for that email. Try signing in instead."
+            "ERROR_WRONG_PASSWORD",
+            "ERROR_INVALID_CREDENTIAL" -> "The email or password is incorrect."
+            "ERROR_USER_NOT_FOUND" -> "We couldn't find an account for that email."
+            "ERROR_USER_DISABLED" -> "That account has been disabled. Contact support."
+            "ERROR_NETWORK_REQUEST_FAILED" -> "Network unavailable. Check your connection and try again."
+            "ERROR_TOO_MANY_REQUESTS" -> "Too many attempts. Wait a moment and try again."
+            else -> {
+                when (javaClass.simpleName) {
+                    "FirebaseNetworkException" -> "Network unavailable. Check your connection and try again."
+                    "FirebaseTooManyRequestsException" -> "Too many attempts. Wait a moment and try again."
+                    else -> message?.takeUnless { it.isBlank() } ?: "Authentication failed. Please try again."
+                }
+            }
+        }
+        return AuthSessionException(message)
+    }
 
     private fun Map<String, Any?>.stringValue(key: String): String? =
         (this[key] as? String)?.trim()?.takeUnless { it.isBlank() }
@@ -208,3 +323,5 @@ class FirebaseAuthSessionRepository @Inject constructor(
         const val CheckInsCollection = "checkIns"
     }
 }
+
+class AuthSessionException(message: String) : RuntimeException(message)

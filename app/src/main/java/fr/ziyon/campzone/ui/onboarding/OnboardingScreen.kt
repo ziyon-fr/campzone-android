@@ -359,7 +359,10 @@ private fun AgeGroupRow(ageGroup: CampingAgeGroup?, modifier: Modifier = Modifie
         }
     }
 }
-
+/*
+ review@ziyon.fr
+ @ReviewTeam2026
+ */
 @Composable
 private fun GenderSegmentedControl(
     selectedGender: UserGender,

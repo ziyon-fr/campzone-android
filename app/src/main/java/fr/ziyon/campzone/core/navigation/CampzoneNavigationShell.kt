@@ -16,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -30,10 +31,18 @@ import androidx.navigation.navArgument
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
+import fr.ziyon.campzone.R
+import fr.ziyon.campzone.core.permissions.UserRole
+import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.ui.profile.ProfileScreen
+import fr.ziyon.campzone.ui.profile.ProfileSettingsScreen
+import fr.ziyon.campzone.ui.profile.UserDataExportScreen
 
 @Composable
 fun CampzoneNavigationShell(
     deepLinkInbox: DeepLinkInbox,
+    authenticatedUser: AuthenticatedUser,
+    onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
     authReady: Boolean = true,
 ) {
@@ -68,16 +77,55 @@ fun CampzoneNavigationShell(
                 .padding(innerPadding),
         ) {
             composable(AppRoute.Home.route) {
-                TopLevelPlaceholderScreen(title = AppRoute.Home.label)
+                TopLevelPlaceholderScreen(title = stringResource(R.string.nav_home))
             }
             composable(AppRoute.Campings.route) {
-                TopLevelPlaceholderScreen(title = AppRoute.Campings.label)
+                TopLevelPlaceholderScreen(title = stringResource(R.string.nav_campings))
             }
             composable(AppRoute.Announcements.route) {
-                TopLevelPlaceholderScreen(title = AppRoute.Announcements.label)
+                TopLevelPlaceholderScreen(title = stringResource(R.string.nav_announcements))
             }
             composable(AppRoute.Profile.route) {
-                TopLevelPlaceholderScreen(title = AppRoute.Profile.label)
+                ProfileSettingsScreen(
+                    authenticatedUser = authenticatedUser,
+                    onEditProfile = { navController.navigate(AppRoute.ProfileEdit.route) },
+                    onOpenAchievements = { navController.navigate(AppRoute.ProfileAchievements.route) },
+                    onOpenNotifications = { navController.navigate(AppRoute.NotificationSettings.route) },
+                    onOpenFamilyParticipants = { navController.navigate(AppRoute.FamilyParticipants.route) },
+                    onOpenAdminTools = { navController.navigate(AppRoute.AdminTools.route) },
+                    onOpenDataExport = { navController.navigate(AppRoute.UserDataExport.route) },
+                    onOpenSupport = { navController.navigate(AppRoute.AppSupport.route) },
+                    onSignOut = onSignOut,
+                )
+            }
+            composable(AppRoute.ProfileEdit.route) {
+                ProfileScreen(
+                    authenticatedUser = authenticatedUser,
+                    onSignOut = onSignOut,
+                    onNavigateBack = { navController.popBackStack() },
+                    onOpenDataExport = { navController.navigate(AppRoute.UserDataExport.route) },
+                )
+            }
+            composable(AppRoute.ProfileAchievements.route) {
+                DetailPlaceholderScreen(title = stringResource(R.string.profile_my_achievements), value = authenticatedUser.uid)
+            }
+            composable(AppRoute.NotificationSettings.route) {
+                DetailPlaceholderScreen(title = stringResource(R.string.profile_notifications), value = stringResource(R.string.profile_coming_soon))
+            }
+            composable(AppRoute.FamilyParticipants.route) {
+                DetailPlaceholderScreen(title = stringResource(R.string.profile_family_participants), value = stringResource(R.string.profile_coming_soon))
+            }
+            composable(AppRoute.AdminTools.route) {
+                DetailPlaceholderScreen(title = stringResource(R.string.profile_admin_tools), value = stringResource(R.string.profile_coming_soon))
+            }
+            composable(AppRoute.UserDataExport.route) {
+                UserDataExportScreen(
+                    authenticatedUser = authenticatedUser,
+                    onNavigateBack = { navController.popBackStack() },
+                )
+            }
+            composable(AppRoute.AppSupport.route) {
+                DetailPlaceholderScreen(title = stringResource(R.string.profile_support_campzone), value = stringResource(R.string.profile_coming_soon))
             }
             composable(
                 route = AppRoutePattern.CampingDetail,
@@ -161,6 +209,7 @@ private fun CampzoneBottomNavigation(
         contentColor = colors.textPrimary,
     ) {
         AppRoute.topLevelTabs.forEach { tab ->
+            val tabContentDescription = tab.localizedContentDescription()
             NavigationBarItem(
                 selected = selectedTab == tab,
                 onClick = { onTabSelected(tab) },
@@ -172,7 +221,7 @@ private fun CampzoneBottomNavigation(
                 },
                 label = {
                     Text(
-                        text = tab.label,
+                        text = tab.localizedLabel(),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -185,7 +234,7 @@ private fun CampzoneBottomNavigation(
                     unselectedTextColor = colors.textSecondary,
                 ),
                 modifier = Modifier.semantics {
-                    contentDescription = tab.contentDescription
+                    contentDescription = tabContentDescription
                 },
             )
         }
@@ -254,10 +303,47 @@ private fun teamRouteArguments() = listOf(
     navArgument(AppRouteArgs.TeamId) { type = NavType.StringType },
 )
 
+@Composable
+private fun AppRoute.Tab.localizedLabel(): String =
+    stringResource(
+        when (this) {
+            AppRoute.Home -> R.string.nav_home
+            AppRoute.Campings -> R.string.nav_campings
+            AppRoute.Announcements -> R.string.nav_announcements
+            AppRoute.Profile -> R.string.nav_profile
+        },
+    )
+
+@Composable
+private fun AppRoute.Tab.localizedContentDescription(): String =
+    stringResource(
+        when (this) {
+            AppRoute.Home -> R.string.nav_home_tab
+            AppRoute.Campings -> R.string.nav_campings_tab
+            AppRoute.Announcements -> R.string.nav_announcements_tab
+            AppRoute.Profile -> R.string.nav_profile_tab
+        },
+    )
+
 @Preview(showBackground = true)
 @Composable
 private fun CampzoneNavigationShellPreview() {
     CampzoneTheme {
-        CampzoneNavigationShell(deepLinkInbox = DeepLinkInbox())
+        CampzoneNavigationShell(
+            deepLinkInbox = DeepLinkInbox(),
+            authenticatedUser = AuthenticatedUser(
+                uid = "preview",
+                email = "preview@example.com",
+                displayName = "Preview Camper",
+                photoUrl = null,
+                role = UserRole.Guest,
+                church = "Paris Central SDA",
+                age = 22,
+                preferredLanguage = "fr",
+                gender = null,
+                onboardingCompleted = true,
+            ),
+            onSignOut = {},
+        )
     }
 }

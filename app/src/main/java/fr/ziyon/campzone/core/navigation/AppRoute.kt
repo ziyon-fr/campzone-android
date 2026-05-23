@@ -39,6 +39,34 @@ sealed interface AppRoute {
         override val contentDescription = "Profile tab"
     }
 
+    data object ProfileEdit : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.ProfileEdit}"
+    }
+
+    data object ProfileAchievements : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.Achievements}"
+    }
+
+    data object NotificationSettings : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.NotificationSettings}"
+    }
+
+    data object FamilyParticipants : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.FamilyParticipants}"
+    }
+
+    data object AdminTools : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}"
+    }
+
+    data object UserDataExport : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.UserDataExport}"
+    }
+
+    data object AppSupport : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.AppSupport}"
+    }
+
     data class CampingDetail(val campingId: String) : AppRoute {
         override val route = "${AppRoutePath.Campings}/${campingId.asRouteSegment()}"
     }
@@ -102,6 +130,13 @@ internal object AppRoutePath {
     const val Campings = "campings"
     const val Announcements = "announcements"
     const val Profile = "profile"
+    const val ProfileEdit = "edit"
+    const val Achievements = "achievements"
+    const val NotificationSettings = "notifications"
+    const val FamilyParticipants = "family"
+    const val AdminTools = "admin"
+    const val UserDataExport = "export"
+    const val AppSupport = "support"
     const val Chat = "chat"
     const val Teams = "teams"
     const val Polls = "polls"

@@ -19,6 +19,7 @@ data class AuthenticatedUser(
     val preferredLanguage: String,
     val gender: UserGender?,
     val onboardingCompleted: Boolean,
+    val providerIds: List<String> = emptyList(),
 ) {
     val preferredDisplayName: String
         get() = displayName

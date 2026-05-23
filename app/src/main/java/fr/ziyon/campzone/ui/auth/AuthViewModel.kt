@@ -17,7 +17,10 @@ import javax.inject.Inject
 data class AuthUiState(
     val isSigningInWithGoogle: Boolean = false,
     val isSigningInWithApple: Boolean = false,
+    val isSigningInWithEmail: Boolean = false,
+    val isSendingPasswordReset: Boolean = false,
     val isCompletingOnboarding: Boolean = false,
+    val emailResetMessage: String? = null,
     val errorMessage: String? = null,
 )
 
@@ -44,6 +47,42 @@ class AuthViewModel @Inject constructor(
         )
     }
 
+    fun signInWithEmail(email: String, password: String) {
+        signIn(
+            start = { _uiState.value = AuthUiState(isSigningInWithEmail = true) },
+            action = { authSessionRepository.signInWithEmail(email, password) },
+        )
+    }
+
+    fun signUpWithEmail(email: String, password: String, displayName: String?) {
+        signIn(
+            start = { _uiState.value = AuthUiState(isSigningInWithEmail = true) },
+            action = { authSessionRepository.signUpWithEmail(email, password, displayName) },
+        )
+    }
+
+    fun sendPasswordReset(email: String) {
+        if (_uiState.value.isBusy) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isSendingPasswordReset = true,
+                emailResetMessage = null,
+                errorMessage = null,
+            )
+            runCatching { authSessionRepository.sendPasswordReset(email) }
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(
+                        isSendingPasswordReset = false,
+                        emailResetMessage = "Password reset email sent to ${email.trim()}.",
+                    )
+                }
+                .onFailure { error ->
+                    _uiState.value = AuthUiState(errorMessage = error.friendlyMessage())
+                }
+        }
+    }
+
     fun signOut() {
         authSessionRepository.signOut()
         _uiState.value = AuthUiState()
@@ -66,14 +105,15 @@ class AuthViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
+    fun dismissEmailResetMessage() {
+        _uiState.value = _uiState.value.copy(emailResetMessage = null)
+    }
+
     private fun signIn(
         start: () -> Unit,
         action: suspend () -> Unit,
     ) {
-        if (_uiState.value.isSigningInWithGoogle ||
-            _uiState.value.isSigningInWithApple ||
-            _uiState.value.isCompletingOnboarding
-        ) return
+        if (_uiState.value.isBusy) return
 
         viewModelScope.launch {
             start()
@@ -88,3 +128,10 @@ class AuthViewModel @Inject constructor(
     private fun Throwable.friendlyMessage(): String =
         message?.takeUnless { it.isBlank() } ?: "Sign-in failed. Please try again."
 }
+
+private val AuthUiState.isBusy: Boolean
+    get() = isSigningInWithGoogle ||
+        isSigningInWithApple ||
+        isSigningInWithEmail ||
+        isSendingPasswordReset ||
+        isCompletingOnboarding

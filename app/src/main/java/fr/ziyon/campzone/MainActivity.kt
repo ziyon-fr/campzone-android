@@ -14,7 +14,7 @@ import fr.ziyon.campzone.core.navigation.toCampzoneDeepLink
 import fr.ziyon.campzone.ui.auth.AuthGate
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity() {  
     private val deepLinkInbox = DeepLinkInbox()
 
     override fun onCreate(savedInstanceState: Bundle?) {
