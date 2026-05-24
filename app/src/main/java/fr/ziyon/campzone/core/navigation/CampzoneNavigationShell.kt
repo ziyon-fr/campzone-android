@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -21,6 +23,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -34,6 +37,7 @@ import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.ui.home.HomeScreen
 import fr.ziyon.campzone.ui.profile.ProfileScreen
 import fr.ziyon.campzone.ui.profile.ProfileSettingsScreen
 import fr.ziyon.campzone.ui.profile.UserDataExportScreen
@@ -76,9 +80,7 @@ fun CampzoneNavigationShell(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            composable(AppRoute.Home.route) {
-                TopLevelPlaceholderScreen(title = stringResource(R.string.nav_home))
-            }
+            composable(AppRoute.Home.route) { HomeScreen() }
             composable(AppRoute.Campings.route) {
                 TopLevelPlaceholderScreen(title = stringResource(R.string.nav_campings))
             }
@@ -210,13 +212,20 @@ private fun CampzoneBottomNavigation(
     ) {
         AppRoute.topLevelTabs.forEach { tab ->
             val tabContentDescription = tab.localizedContentDescription()
+            val tint = if (selectedTab == tab) {
+                MaterialTheme.czColors.ember
+            } else {
+                MaterialTheme.czColors.textPrimary
+            }
             NavigationBarItem(
                 selected = selectedTab == tab,
                 onClick = { onTabSelected(tab) },
                 icon = {
-                    Text(
-                        text = tab.iconLabel,
-                        style = MaterialTheme.typography.labelMedium,
+                    Icon(
+                        imageVector = tab.iconLabel,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = tint
                     )
                 },
                 label = {
@@ -229,7 +238,7 @@ private fun CampzoneBottomNavigation(
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = colors.onPrimary,
                     selectedTextColor = colors.textPrimary,
-                    indicatorColor = colors.primary,
+                    indicatorColor = colors.surface,
                     unselectedIconColor = colors.textSecondary,
                     unselectedTextColor = colors.textSecondary,
                 ),
@@ -276,7 +285,7 @@ private fun DetailPlaceholderScreen(
 }
 
 @Composable
-private fun ScreenColumn(
+fun ScreenColumn(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {

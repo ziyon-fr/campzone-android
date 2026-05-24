@@ -175,4 +175,9 @@
     <string name="language_kannada">Kannada</string>
     <string name="language_oromo">Oromo</string>
     <string name="language_romanian">Roumain</string>
+    <string name="app_route_tab_home">Accueil</string>
+    <string name="app_route_tab_camping">Camping</string>
+    <string name="app_route_tab_announcement">Annonces</string>
+    <string name="app_route_tab_profile">Profil</string>
+    <string name="home_slogan">Adventure Awaits</string>
 </resources>

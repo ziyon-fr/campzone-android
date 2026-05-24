@@ -13,7 +13,15 @@
       "Bash(ls \"/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java\" 2>/dev/null && echo \"FOUND_AS_JBR\"; /usr/libexec/java_home -V 2>&1 | head -20)",
       "Bash(export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\")",
       "Bash(export PATH=\"$JAVA_HOME/bin:$PATH\")",
-      "Bash(./gradlew testDebugUnitTest --console=plain)"
+      "Bash(./gradlew testDebugUnitTest --console=plain)",
+      "Bash(git --no-pager diff app/src/main/java/fr/ziyon/campzone/ui/profile/ProfileScreen.kt)",
+      "Read(//Users/leon/Desktop/Business Projects/Campzone/Campzone/**)",
+      "Read(//Users/leon/Desktop/Business Projects/Campzone/**)",
+      "Bash(./gradlew assembleDebug testDebugUnitTest --console=plain)",
+      "Bash(./gradlew assembleDebug testDebugUnitTest lint --console=plain)",
+      "Bash(git --no-pager diff .claude/settings.local.json)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

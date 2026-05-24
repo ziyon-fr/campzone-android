@@ -62,12 +62,12 @@
 - [x] Apply `07` pre-write checklist: `age`/`ageGroup`/`gender` are **delete-when-nil** if blank; no extra keys
 - [x] Gate: show onboarding when `onboardingCompleted == false`; request FCM permission **after** onboarding completes (not at launch)
 
-### A8. Profile View/Edit + Account Deletion (`ui/profile/`)
-- [ ] Profile screen: display all `users/{uid}` fields
-- [ ] Edit screen: update self-profile field allowlist only (`displayName`, `age`, `ageGroup`, `gender`, `church`, `skills`, `profession`, `education`, `pathfinderRank`, `phone`, `preferredLanguage`, `languages`, `role` ∈ {guest/user/adult} only)
-- [ ] **Denormalization fan-out on save** (`02` §10): update `registrations` (CG `userID==uid`), `teams.members[]` (CG), `checkIns` (CG `userID==uid`), `chat` (CG `senderID==uid`), `announcements` (`authorID==uid`), `polls` (CG `createdByID==uid`)
-- [ ] Profile photo upload: call `POST /cloudinary/sign` → upload multipart → persist `photoURL` + `photoPublicID` (delete-when-nil on clear)
-- [ ] Account deletion: set `pendingDeletionAt: serverTimestamp()` + `deletionRequestedBy: uid`; cancel = `FieldValue.delete()` on both fields; purge is server-side (30-day grace)
+### A8. Profile View/Edit + Account Deletion (`ui/profile/`) ✅
+- [x] Profile screen: display all `users/{uid}` fields
+- [x] Edit screen: update self-profile field allowlist only (`displayName`, `age`, `ageGroup`, `gender`, `church`, `skills`, `profession`, `education`, `pathfinderRank`, `phone`, `preferredLanguage`, `languages`, `role` ∈ {guest/user/adult} only)
+- [x] **Denormalization fan-out on save** (`02` §10): update `registrations` (CG `userID==uid`), `teams.members[]` (CG), `checkIns` (CG `userID==uid`), `chat` (CG `senderID==uid`), `announcements` (`authorID==uid`), `polls` (CG `createdByID==uid`)
+- [x] Profile photo upload: call `POST /cloudinary/sign` → upload multipart → persist `photoURL` + `photoPublicID` (delete-when-nil on clear)
+- [x] Account deletion: set `pendingDeletionAt: serverTimestamp()` + `deletionRequestedBy: uid`; cancel = `FieldValue.delete()` on both fields; purge is server-side (30-day grace)
 
 ### A9. Family Participants / Children (`ui/family/`)
 - [ ] CRUD for `users/{uid}/children/{childId}` — role `adult`/`admin` gate

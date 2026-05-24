@@ -15,10 +15,8 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -28,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.DownloadForOffline
 import androidx.compose.material.icons.rounded.Groups
@@ -44,6 +43,7 @@ import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Wc
 import androidx.compose.material.icons.rounded.Work
 import androidx.compose.material.icons.rounded.WorkspacePremium
+import androidx.compose.material.icons.rounded.Camera
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -76,9 +76,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -91,6 +91,7 @@ import fr.ziyon.campzone.core.designsystem.CzBadge
 import fr.ziyon.campzone.core.designsystem.CzBadgeTone
 import fr.ziyon.campzone.core.designsystem.CzButton
 import fr.ziyon.campzone.core.designsystem.CzButtonVariant
+import fr.ziyon.campzone.core.designsystem.CzColors
 import fr.ziyon.campzone.core.designsystem.CzErrorState
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
 import fr.ziyon.campzone.core.designsystem.CzRadius
@@ -269,6 +270,7 @@ private fun ProfileContent(
                     modifier = Modifier.weight(1f),
                     color = colors.textPrimary,
                     style = MaterialTheme.typography.headlineLarge,
+                    textAlign = TextAlign.Center
                 )
                 CzButton(
                     text = stringResource(R.string.common_save),
@@ -625,7 +627,7 @@ private fun ProfileAvatarHeader(
             }
             Surface(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(26.dp)
                     .clickable(enabled = !isUploadingPhoto, onClick = onChangePhoto),
                 shape = CircleShape,
                 color = MaterialTheme.czColors.primary,
@@ -633,10 +635,13 @@ private fun ProfileAvatarHeader(
                 border = BorderStroke(2.dp, MaterialTheme.colorScheme.background),
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "C",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    Icon(
+                        imageVector = Icons.Rounded.Camera,
+                        contentDescription = null,
+                        tint = CzColors.TextPrimaryDark,
+                        modifier = modifier.size(18.dp),
                     )
+
                 }
             }
         }
@@ -818,10 +823,10 @@ private fun ProfileActionRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
-            text = ">",
-            color = MaterialTheme.czColors.textSecondary,
-            style = MaterialTheme.typography.labelLarge,
+        Icon(
+            imageVector = Icons.Filled.ArrowForwardIos,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp)
         )
     }
 }
@@ -869,7 +874,12 @@ private fun <T> ProfileDropdown(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text("v", color = MaterialTheme.czColors.textSecondary)
+                Icon(
+                    imageVector = Icons.Filled.ArrowForwardIos,
+                    contentDescription = null,
+                    modifier = Modifier.size( 14.dp)
+                )
+
             }
             DropdownMenu(
                 expanded = expanded,

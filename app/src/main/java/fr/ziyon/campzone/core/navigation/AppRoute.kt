@@ -1,5 +1,11 @@
 package fr.ziyon.campzone.core.navigation
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.rounded.Announcement
+import androidx.compose.material.icons.rounded.Cabin
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.ui.graphics.vector.ImageVector
 import java.net.URLEncoder
 
 sealed interface AppRoute {
@@ -7,35 +13,35 @@ sealed interface AppRoute {
 
     sealed interface Tab : AppRoute {
         val label: String
-        val iconLabel: String
+        val iconLabel: ImageVector
         val contentDescription: String
     }
 
     data object Home : Tab {
         override val route = AppRoutePath.Home
         override val label = "Home"
-        override val iconLabel = "H"
+        override val iconLabel = Icons.Outlined.Home
         override val contentDescription = "Home tab"
     }
 
     data object Campings : Tab {
         override val route = AppRoutePath.Campings
         override val label = "Campings"
-        override val iconLabel = "C"
+        override val iconLabel = Icons.Rounded.Cabin
         override val contentDescription = "Campings tab"
     }
 
     data object Announcements : Tab {
         override val route = AppRoutePath.Announcements
         override val label = "Announcements"
-        override val iconLabel = "A"
+        override val iconLabel = Icons.Rounded.Announcement
         override val contentDescription = "Announcements tab"
     }
 
     data object Profile : Tab {
         override val route = AppRoutePath.Profile
         override val label = "Profile"
-        override val iconLabel = "P"
+        override val iconLabel = Icons.Rounded.Person
         override val contentDescription = "Profile tab"
     }
 

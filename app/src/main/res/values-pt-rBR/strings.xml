@@ -20,6 +20,11 @@
     <string name="nav_announcements_tab">Aba Anuncios</string>
     <string name="nav_profile_tab">Aba Perfil</string>
 
+    <string name="app_route_tab_home">Inicio</string>
+    <string name="app_route_tab_camping">Campings</string>
+    <string name="app_route_tab_announcement">Anuncios</string>
+    <string name="app_route_tab_profile">Perfil</string>
+
     <string name="profile_title">Perfil</string>
     <string name="profile_loading">Carregando perfil...</string>
     <string name="profile_saving">Salvando perfil...</string>
@@ -175,4 +180,5 @@
     <string name="language_kannada">Kannada</string>
     <string name="language_oromo">Oromo</string>
     <string name="language_romanian">Romeno</string>
+    <string name="home_slogan">A aventura te espera</string>
 </resources>

@@ -7,7 +7,7 @@ import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.PreferredLanguage
 import fr.ziyon.campzone.data.auth.UserGender
-import fr.ziyon.campzone.data.church.ChurchDatabaseRepository
+import fr.ziyon.campzone.data.church.ChurchDirectory
 import fr.ziyon.campzone.data.church.ChurchGroup
 import fr.ziyon.campzone.data.church.SDAChurch
 import fr.ziyon.campzone.data.profile.UserProfile
@@ -109,7 +109,7 @@ enum class ProfileValidationError {
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val repository: UserProfileRepository,
-    private val churchDatabaseRepository: ChurchDatabaseRepository,
+    private val churchDirectory: ChurchDirectory,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
@@ -166,7 +166,7 @@ class ProfileViewModel @Inject constructor(
                 isLoadingChurches = true,
                 churchError = null,
             )
-            runCatching { churchDatabaseRepository.loadChurches() }
+            runCatching { churchDirectory.loadChurches() }
                 .onSuccess { churches ->
                     _uiState.value = _uiState.value.copy(
                         isLoadingChurches = false,

@@ -19,11 +19,15 @@ data class ChurchGroup(
     val churches: List<SDAChurch>,
 )
 
+interface ChurchDirectory {
+    suspend fun loadChurches(): List<SDAChurch>
+}
+
 @Singleton
 class ChurchDatabaseRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
-) {
-    suspend fun loadChurches(): List<SDAChurch> {
+) : ChurchDirectory {
+    override suspend fun loadChurches(): List<SDAChurch> {
         val churches = firestore
             .collection(ChurchesCollection)
             .get()
