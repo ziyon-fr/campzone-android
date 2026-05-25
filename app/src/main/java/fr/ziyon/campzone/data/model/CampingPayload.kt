@@ -96,7 +96,7 @@ internal object CampingPayload {
         return map
     }
 
-    /** Guidelines update path (`updateData(["guidelines": ...])`) — gate `canManageGuidelines`. */
+    /** Guidelines update path (`updateData(["guidelines": ...])`) - gate `canEditGuidelines`. */
     fun guidelinesPayload(
         guidelines: String,
         serverTimestamp: Any,

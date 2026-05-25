@@ -371,7 +371,7 @@ class FamilyViewModel @Inject constructor(
 
     private fun canManageFamily(user: AuthenticatedUser): Boolean =
         permissions.hasPermission(
-            user = PermissionUser(role = user.role, church = user.church),
+            user = PermissionUser(role = user.role, userId = user.uid, church = user.church),
             permission = AppPermission.ManageFamilyRegistrations,
         )
 

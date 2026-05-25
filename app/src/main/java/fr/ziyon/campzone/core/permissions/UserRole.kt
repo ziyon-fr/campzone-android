@@ -3,12 +3,12 @@ package fr.ziyon.campzone.core.permissions
 enum class UserRole(val rawValue: String) {
     Guest("guest"),
     User("user"),
-    Adult("adult"),
     YouthDirector("youth_director"),
     Pastor("pastor"),
     GameMaster("game_master"),
     Leader("leader"),
     Photographer("photographer"),
+    Adult("adult"),
     Admin("admin");
 
     val isAdmin: Boolean

@@ -99,6 +99,7 @@ fun ProfileSettingsScreen(
     val permissionUser = remember(authenticatedUser.role, authenticatedUser.church) {
         PermissionUser(
             role = authenticatedUser.role,
+            userId = authenticatedUser.uid,
             church = authenticatedUser.church,
         )
     }

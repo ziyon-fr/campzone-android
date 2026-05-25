@@ -114,30 +114,49 @@ fun CampingEditorRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val permissionEvaluator = remember { AppPermissionEvaluator() }
     val permissionUser = remember(authenticatedUser) {
-        PermissionUser(role = authenticatedUser.role, church = authenticatedUser.church)
+        PermissionUser(
+            role = authenticatedUser.role,
+            userId = authenticatedUser.uid,
+            church = authenticatedUser.church,
+        )
     }
     val campingContext = remember(state.existingCamping) {
         state.existingCamping?.let {
             CampingPermissionContext(
                 organizerLevelType = it.organizerLevel.type.wireValue,
                 organizerLevelValue = it.organizerLevel.value,
+                createdByUid = it.createdByUid,
             )
         }
     }
-    val canManage = if (campingId == null) {
-        permissionEvaluator.hasPermission(permissionUser, AppPermission.CreateCamping)
-    } else {
-        permissionEvaluator.hasPermission(permissionUser, AppPermission.EditCamping, campingContext)
-            || state.existingCamping?.createdByUid == authenticatedUser.uid
+    val proposedOrganizerLevel = state.form.organizerLevel
+    val proposedCampingContext = remember(proposedOrganizerLevel) {
+        CampingPermissionContext(
+            organizerLevelType = proposedOrganizerLevel.type.wireValue,
+            organizerLevelValue = proposedOrganizerLevel.value,
+        )
     }
+    val canManage = if (campingId == null) {
+        permissionEvaluator.canCreateAnyCamping(permissionUser)
+    } else {
+        permissionEvaluator.canEditCamping(permissionUser, campingContext)
+    }
+    val canSave = permissionEvaluator.canSaveCamping(
+        user = permissionUser,
+        currentCamping = campingContext,
+        proposedCamping = proposedCampingContext,
+    )
     val canDelete = campingId != null &&
         (permissionUser.role.isAdmin || state.existingCamping?.createdByUid == authenticatedUser.uid)
     val canCancel = campingId != null &&
-        permissionEvaluator.hasPermission(permissionUser, AppPermission.CancelCamping, campingContext)
+        permissionEvaluator.canCancelCamping(permissionUser, campingContext)
 
     LaunchedEffect(campingId) {
         val defaultChurch = if (campingId == null
-            && permissionEvaluator.hasPermission(permissionUser, AppPermission.CreateCamping, CampingPermissionContext("church", authenticatedUser.church))
+            && permissionEvaluator.canCreateCamping(
+                permissionUser,
+                CampingPermissionContext("church", authenticatedUser.church),
+            )
             && !permissionUser.role.isAdmin
         ) authenticatedUser.church else null
         viewModel.prepareEditor(campingId, defaultChurch)
@@ -160,12 +179,13 @@ fun CampingEditorRoute(
         campingId = campingId,
         state = state,
         canManage = canManage,
+        canSave = canSave,
         canCancel = canCancel,
         canDelete = canDelete,
         snackbarHostState = snackbarHostState,
         onBack = onBack,
         onFormUpdate = viewModel::updateForm,
-        onSave = { viewModel.saveEditorForm(campingId) { onBack() } },
+        onSave = { if (canSave) viewModel.saveEditorForm(campingId) { onBack() } },
         onCancel = { campingId?.let { viewModel.cancelCamping(it) { onBack() } } },
         onDelete = { campingId?.let { viewModel.deleteCamping(it) { onBack() } } },
         onUploadLogo = viewModel::uploadLogo,
@@ -180,6 +200,7 @@ fun CampingEditorScreen(
     campingId: String?,
     state: CampingAdminUiState,
     canManage: Boolean,
+    canSave: Boolean,
     canCancel: Boolean,
     canDelete: Boolean,
     snackbarHostState: SnackbarHostState,
@@ -356,7 +377,7 @@ fun CampingEditorScreen(
                             color = MaterialTheme.czColors.ember,
                             strokeWidth = 2.dp,
                         )
-                    } else if (canManage) {
+                    } else if (canSave) {
                         TextButton(onClick = onSave) {
                             Text(
                                 text = stringResource(R.string.common_save),
@@ -1197,6 +1218,7 @@ private fun CampingEditorScreenPreview() {
             campingId = null,
             state = CampingAdminUiState(),
             canManage = true,
+            canSave = true,
             canCancel = false,
             canDelete = false,
             snackbarHostState = remember { SnackbarHostState() },
