@@ -154,6 +154,12 @@ fun CampzoneNavigationShell(
                     campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
+                    onOpenChat = { campingId ->
+                        navController.navigate(AppRoute.CampingChat(campingId).route)
+                    },
+                    onOpenPolls = { campingId ->
+                        navController.navigate(AppRoute.CampingPolls(campingId).route)
+                    },
                 )
             }
             composable(

@@ -24,7 +24,7 @@ internal fun campingDateRange(start: Date, end: Date): String {
 
 internal fun CampingRegistrationStatus.badgeTone(): CzBadgeTone = when (this) {
     CampingRegistrationStatus.Open -> CzBadgeTone.Success
-    CampingRegistrationStatus.Closed -> CzBadgeTone.Neutral
+    CampingRegistrationStatus.Closed -> CzBadgeTone.Warning
     CampingRegistrationStatus.Cancelled -> CzBadgeTone.Error
 }
 

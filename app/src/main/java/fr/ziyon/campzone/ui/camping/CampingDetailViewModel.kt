@@ -13,6 +13,7 @@ import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
+import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,7 +34,21 @@ data class CampingDetailUiState(
     val isLoading: Boolean = true,
     val camping: Camping? = null,
     val attendees: List<CampingAttendee> = emptyList(),
+    val userRegistration: CampingAttendee? = null,
     val canViewParticipantProfiles: Boolean = false,
+    val canRegisterForCampings: Boolean = false,
+    val canManageFamilyRegistrations: Boolean = false,
+    val canEditCamping: Boolean = false,
+    val canApproveRegistrations: Boolean = false,
+    val canManageSchedule: Boolean = false,
+    val canManageFoodMenu: Boolean = false,
+    val canManageTeams: Boolean = false,
+    val canManageGames: Boolean = false,
+    val canManageCheckIns: Boolean = false,
+    val canManageTransportation: Boolean = false,
+    val canAwardAchievements: Boolean = false,
+    val canManageAnyCamping: Boolean = false,
+    val wasCreatedByCurrentUser: Boolean = false,
     val isApprovedParticipant: Boolean = false,
     val attendeeSearch: String = "",
     val filters: CampingAttendeeFilters = CampingAttendeeFilters(),
@@ -44,6 +59,9 @@ data class CampingDetailUiState(
 
     val approvedAttendeeCount: Int
         get() = attendees.count { it.registrationStatus == RegistrationApprovalStatus.Approved }
+
+    val pendingAttendeeCount: Int
+        get() = attendees.count { it.registrationStatus == RegistrationApprovalStatus.Pending }
 
     /** True only when we can see the full roster (leadership); participants see a partial list. */
     val isAtCapacity: Boolean
@@ -73,6 +91,26 @@ data class CampingDetailUiState(
                         attendee.church.contains(query, ignoreCase = true))
             }
         }
+
+    val recentAttendees: List<CampingAttendee>
+        get() {
+            if (!canViewAttendees) return emptyList()
+            val source = if (canViewParticipantProfiles) {
+                attendees
+            } else {
+                attendees.filter { it.registrationStatus == RegistrationApprovalStatus.Approved }
+            }
+            return source.takeLast(3).asReversed()
+        }
+
+    val showRegisterCta: Boolean
+        get() = camping?.acceptsRegistrations == true &&
+            canRegisterForCampings &&
+            (userRegistration == null || canManageFamilyRegistrations)
+
+    val showManagementSection: Boolean
+        get() = canManageAnyCamping || canManageTransportation || wasCreatedByCurrentUser ||
+            canManageTeams || canManageSchedule
 
     private fun matchesFilters(attendee: CampingAttendee): Boolean {
         if (filters.church.isNotBlank() && !attendee.church.contains(filters.church, ignoreCase = true)) {
@@ -113,20 +151,45 @@ class CampingDetailViewModel @Inject constructor(
                         organizerLevelType = camping.organizerLevel.type.wireValue,
                         organizerLevelValue = camping.organizerLevel.value,
                     )
-                    val canViewProfiles = permissions.hasPermission(
-                        user = PermissionUser(role = user.role, church = user.church),
-                        permission = AppPermission.ViewParticipantProfiles,
+                    val permissionUser = PermissionUser(role = user.role, church = user.church)
+                    fun can(permission: AppPermission) = permissions.hasPermission(
+                        user = permissionUser,
+                        permission = permission,
                         camping = context,
                     )
-                    val isApproved = attendees.any {
-                        it.userId == user.uid &&
-                            it.registrationStatus == RegistrationApprovalStatus.Approved
+                    val userRegistrations = attendees.filter { attendee ->
+                        attendee.userId == user.uid ||
+                            attendee.guardianId == user.uid ||
+                            (attendee.participantKind == RegistrationParticipantKind.SelfParticipant &&
+                                attendee.id == user.uid)
+                    }
+                    val userRegistration = userRegistrations.firstOrNull {
+                        it.participantKind == RegistrationParticipantKind.SelfParticipant &&
+                            it.userId == user.uid
+                    } ?: userRegistrations.firstOrNull { it.id == user.uid }
+                    val canViewProfiles = can(AppPermission.ViewParticipantProfiles)
+                    val isApproved = userRegistrations.any {
+                        it.registrationStatus == RegistrationApprovalStatus.Approved
                     }
                     _uiState.value = CampingDetailUiState(
                         isLoading = false,
                         camping = camping,
                         attendees = attendees,
+                        userRegistration = userRegistration,
                         canViewParticipantProfiles = canViewProfiles,
+                        canRegisterForCampings = can(AppPermission.RegisterForCampings),
+                        canManageFamilyRegistrations = can(AppPermission.ManageFamilyRegistrations),
+                        canEditCamping = can(AppPermission.EditCamping),
+                        canApproveRegistrations = can(AppPermission.ApproveRegistrations),
+                        canManageSchedule = can(AppPermission.ManageSchedule),
+                        canManageFoodMenu = can(AppPermission.ManageFoodMenu),
+                        canManageTeams = can(AppPermission.ManageTeams),
+                        canManageGames = can(AppPermission.ManageGames),
+                        canManageCheckIns = can(AppPermission.ManageCheckIns),
+                        canManageTransportation = can(AppPermission.ManageTransportation),
+                        canAwardAchievements = can(AppPermission.AwardAchievements),
+                        canManageAnyCamping = user.role.isAdmin,
+                        wasCreatedByCurrentUser = camping.createdByUid == user.uid,
                         isApprovedParticipant = isApproved,
                     )
                 }
