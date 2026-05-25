@@ -16,8 +16,8 @@
 
 Stored on `users/{uid}.role` as these **exact** strings:
 
-`guest`, `user`, `adult`, `youth_director`, `pastor`, `game_master`,
-`leader`, `photographer`, `admin`.
+`guest`, `user`, `youth_director`, `pastor`, `game_master`, `leader`,
+`photographer`, `adult`, `admin`.
 
 Legacy values `senior` / `youth` are read as `user` (never written).
 
@@ -45,46 +45,73 @@ must replicate this exact gate before showing management UI.
 
 ## 2. Permission → role matrix
 
-`✓` = full/global, `C` = church-scoped (own-church campings only),
-blank = denied. Admin has **every** permission globally.
+The client enum **must match iOS `AppPermission` exactly**. Android uses
+PascalCase names (`ViewPublishedCampings`) for the Swift cases
+(`viewPublishedCampings`), but the case set and order are identical.
 
-| Permission | guest | user | adult | youth_director | pastor | game_master | leader | photographer | admin |
+`✓` = raw/global role permission. `C` = effective camping helper is
+church-scoped to own-church campings. Blank = denied. Admin has **every**
+permission globally. Several user-created camping helpers also allow the
+creator even when the raw role permission is absent; see helper notes
+below the table.
+
+| AppPermission | guest | user | adult | youth_director | pastor | game_master | leader | photographer | admin |
 |---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| View campings / announcements / songbook | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| View published campings | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Register for campings |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Manage family registrations |  |  | ✓ |  |  |  |  |  | ✓ |
-| Create/edit/cancel campings (global) |  |  |  |  |  |  |  |  | ✓ |
+| Approve registrations |  |  |  | C |  |  | C |  | ✓ |
+| Create campings |  |  |  |  |  |  |  |  | ✓ |
+| Edit campings |  |  |  |  |  |  |  |  | ✓ |
+| Cancel campings |  |  |  |  |  |  |  |  | ✓ |
 | Create own-church campings |  |  |  | C | C |  |  |  | ✓ |
 | Edit own-church campings |  |  |  | C | C |  |  |  | ✓ |
 | Cancel own-church campings |  |  |  | C | C |  |  |  | ✓ |
-| Approve registrations |  |  |  | C |  |  | C |  | ✓ |
-| Manage schedule / food menu |  |  |  | C | C |  | C |  | ✓ |
-| Manage teams |  |  |  | C |  | C¹ | C |  | ✓ |
-| Manage games |  |  |  | C | C | C¹ | C |  | ✓ |
-| Assign points |  |  |  | C |  | C¹ | C |  | ✓ |
-| Reveal winners |  |  |  |  |  | C¹ |  |  | ✓ |
-| Manage album media |  |  |  |  |  |  |  | C | ✓ |
-| Manage check-ins (own church) |  |  |  | C | C |  | C |  | ✓ |
-| Manage transportation (own church) |  |  |  | C | C |  | C |  | ✓ |
-| Award achievements |  |  |  | C | C | C¹ | C |  | ✓ |
-| Revoke achievements |  |  |  |  |  |  |  |  | ✓ |
-| View participant profiles |  |  |  | C | C | C¹ | C |  | ✓ |
-| Create/edit announcements |  |  |  | ✓ | ✓ |  | ✓ |  | ✓ |
+| View announcements | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Create announcements |  |  |  | ✓¹ | ✓¹ |  | ✓¹ |  | ✓ |
+| Edit announcements |  |  |  | ✓¹ | ✓¹ |  | ✓¹ |  | ✓ |
 | Delete announcements |  |  |  |  |  |  |  |  | ✓ |
-| Moderate content |  |  |  | ✓ | ✓ |  | ✓ |  | ✓ |
-| Edit guidelines (own church) |  |  |  | C | C |  | C |  | ✓ |
-| Assign own-church roles |  |  |  | C | C |  |  |  | ✓ |
+| View songbook | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Manage songbook |  |  |  |  |  |  |  |  | ✓ |
+| Manage schedule |  |  |  | C | C |  | C |  | ✓ |
+| Manage teams |  |  |  | C |  | C | C |  | ✓ |
+| Manage games |  |  |  | C | C | C | C |  | ✓ |
+| Assign points |  |  |  | C |  | C | C |  | ✓ |
+| Reveal winners |  |  |  |  |  | C |  |  | ✓ |
+| Manage album media |  |  |  |  |  |  |  | C | ✓ |
+| Manage transportation |  |  |  |  |  |  |  |  | ✓ |
+| Manage own-church transportation |  |  |  | C | C |  | C |  | ✓ |
+| Award achievements |  |  |  | C | C | C | C |  | ✓ |
+| Revoke achievements |  |  |  |  |  |  |  |  | ✓ |
+| Manage check-ins |  |  |  |  |  |  |  |  | ✓ |
+| Manage own-church check-ins |  |  |  | C | C |  | C |  | ✓ |
+| View participant profiles |  |  |  | C | C | C | C |  | ✓ |
 | Assign leadership roles |  |  |  |  |  |  |  |  | ✓ |
+| Assign own-church roles |  |  |  | C | C |  |  |  | ✓ |
 | View admin tools |  |  |  |  |  |  |  |  | ✓ |
+| Manage family registrations |  |  | ✓ |  |  |  |  |  | ✓ |
+| Edit guidelines |  |  |  |  |  |  |  |  | ✓ |
+| Edit own-church guidelines |  |  |  | C | C |  | C |  | ✓ |
 
-¹ `game_master` is **not** church-scoped by profile church in the iOS
-evaluator the same way (it has no church requirement in some paths) - it
-is granted these for campings it operates; treat as church-scoped for
-parity and rely on the server rule as the final authority.
+¹ Raw announcement create/edit permissions are role-level. Camping-scoped
+announcement management uses `canManageAnnouncements(for:)`, which scopes
+non-admin leadership to own-church campings and also allows the camping
+creator.
 
-`canManagePolls` / `canModerateCampingChat` reuse the announcement-editor
-gate (`canEditCamping` OR `editAnnouncements` scope). `canModerateTeamChat`
-= `canEditCamping` OR `canManageTeams` OR `canManageGames`.
+Derived helpers are **not** enum cases:
+
+- `canManageFoodMenu` follows `canManageSchedule`.
+- `canManagePolls` / `canModerateCampingChat` =
+  `canEditCamping` OR scoped `editAnnouncements`.
+- `canModerateTeamChat` = `canEditCamping` OR `canManageTeams` OR
+  `canManageGames`.
+- `canSaveCamping` mirrors the iOS editor: creating requires
+  `canCreateCamping` for the proposed organizer; editing requires
+  `canEditCamping` for the current camp and, unless the user is the camp
+  creator, `canCreateCamping` for the proposed organizer.
+- `canEditCamping`, `canManageSchedule`, `canManageTeams`,
+  `canManageAnnouncements`, `canApproveRegistrations`, and
+  `canViewParticipantProfiles` allow `createdByUID == auth.uid`, matching
+  iOS creator-owned camping behavior.
 
 Assignable roles when granting: admin → any role; own-church role
 assigners → only the self-assignable set (`guest`/`user`/`adult`), so a
@@ -121,11 +148,14 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
   `winnerRevealPolicy`; canceller may change `registrationStatus`+
   `updatedAt`; winner-revealer may change `winnerRevealPolicy` only.
   `delete`: admin OR `resource.data.createdByUID == auth.uid` (the
-  creator signature) OR own-church canceller.
+  creator signature) OR own-church canceller. Android camping detail/edit
+  views use the same iOS gates: the edit affordance is
+  `canEditCamping(current)`, while Save also validates the proposed
+  organizer through `canSaveCamping`.
   - `schedule/**`, `days/**`, `programs/**`: `read` public; write
     `canManageSchedule`.
   - `songs`: `read` public; write **admin only**.
-  - `guidelines`: `read` public; write `canManageGuidelines`.
+  - `guidelines`: `read` public; write `canEditGuidelines`.
   - `lodging`: `read` signed-in; write `canManageTeams`.
   - `venueMap`: `read` signed-in; write `canManageTeams` OR
     `canManageSchedule` (inline pin creation from the program editor).

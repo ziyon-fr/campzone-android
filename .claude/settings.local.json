@@ -26,7 +26,12 @@
       "Bash(./gradlew compileDebugKotlin --console=plain)",
       "Bash(echo \"EXIT=$?\")",
       "Bash(tail -25 /tmp/cz_test1.log; echo \"---- model test classes ----\"; ls app/build/test-results/testDebugUnitTest/ 2>/dev/null | grep -i model)",
-      "Bash(./gradlew assembleDebug lint --console=plain)"
+      "Bash(./gradlew assembleDebug lint --console=plain)",
+      "Bash(git push *)",
+      "Bash(./gradlew :app:compileDebugKotlin)",
+      "Bash(./gradlew :app:testDebugUnitTest)",
+      "Bash(./gradlew --stop)",
+      "Bash(./gradlew :app:compileDebugKotlin --rerun)"
     ]
   }
 }

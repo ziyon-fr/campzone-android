@@ -103,6 +103,22 @@ sealed interface AppRoute {
         override val route = "${TeamDetail(campingId, teamId).route}/${AppRoutePath.Chat}"
     }
 
+    data class PointHistory(
+        val campingId: String,
+        val teamId: String? = null,
+    ) : AppRoute {
+        override val route = buildString {
+            append(CampingDetail(campingId).route)
+            append("/")
+            append(AppRoutePath.PointHistory)
+            val resolvedTeamId = teamId?.takeUnless { it.isBlank() }
+            if (resolvedTeamId != null) {
+                append("/")
+                append(resolvedTeamId.asRouteSegment())
+            }
+        }
+    }
+
     data class CampingPolls(val campingId: String) : AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Polls}"
     }
@@ -112,6 +128,14 @@ sealed interface AppRoute {
         val pollId: String,
     ) : AppRoute {
         override val route = "${CampingPolls(campingId).route}/${pollId.asRouteSegment()}"
+    }
+
+    data object CampingCreate : AppRoute {
+        override val route = "${AppRoutePath.Campings}/${AppRoutePath.CampingCreate}"
+    }
+
+    data class CampingEdit(val campingId: String) : AppRoute {
+        override val route = "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.CampingEdit}"
     }
 
     companion object {
@@ -148,7 +172,10 @@ internal object AppRoutePath {
     const val AppSupport = "support"
     const val Chat = "chat"
     const val Teams = "teams"
+    const val PointHistory = "points"
     const val Polls = "polls"
+    const val CampingCreate = "create"
+    const val CampingEdit = "edit"
 }
 
 internal object AppRoutePattern {
@@ -158,8 +185,12 @@ internal object AppRoutePattern {
     const val CampingChat = "$CampingDetail/${AppRoutePath.Chat}"
     const val TeamDetail = "$CampingDetail/${AppRoutePath.Teams}/{${AppRouteArgs.TeamId}}"
     const val TeamChat = "$TeamDetail/${AppRoutePath.Chat}"
+    const val PointHistory = "$CampingDetail/${AppRoutePath.PointHistory}"
+    const val TeamPointHistory = "$PointHistory/{${AppRouteArgs.TeamId}}"
     const val CampingPolls = "$CampingDetail/${AppRoutePath.Polls}"
     const val PollDetail = "$CampingPolls/{${AppRouteArgs.PollId}}"
+    const val CampingCreate = "${AppRoutePath.Campings}/${AppRoutePath.CampingCreate}"
+    const val CampingEdit = "$CampingDetail/${AppRoutePath.CampingEdit}"
 }
 
 private fun String.asRouteSegment(): String =

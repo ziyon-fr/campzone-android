@@ -35,5 +35,9 @@ class AppRouteTest {
             "campings/camp%201/teams/team%201/chat",
             AppRoute.TeamChat("camp 1", "team 1").route,
         )
+        assertEquals(
+            "campings/camp%201/points/team%201",
+            AppRoute.PointHistory("camp 1", "team 1").route,
+        )
     }
 }

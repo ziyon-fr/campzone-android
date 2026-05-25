@@ -842,7 +842,7 @@ Documented in `04-backend-api.md`. Fields: `uid`, `kind`
 
 | Enum | Wire field(s) | Raw strings |
 |---|---|---|
-| `UserRole` | `role` | `guest`, `user`, `adult`, `youth_director`, `pastor`, `game_master`, `leader`, `photographer`, `admin`. Legacy read-only: `senior`,`youth` → `user` |
+| `UserRole` | `role` | `guest`, `user`, `youth_director`, `pastor`, `game_master`, `leader`, `photographer`, `adult`, `admin`. Legacy read-only: `senior`,`youth` → `user` |
 | `UserGender` | `gender` | `female`, `male`, `prefer_not_to_say` |
 | `CampingAgeGroup` | `ageGroup` | `kids`, `youth`, `adult` (age <13 / 13–35 / ≥36) |
 | `Language` | `preferredLanguage`,`languages[]` | ISO-639-1-ish: `en zh hi es fr ar bn pt ru ur id de ja sw mr te tr ta vi ko it th gu fa pl uk ms kn om ro` (stored as free strings - not validated) |
