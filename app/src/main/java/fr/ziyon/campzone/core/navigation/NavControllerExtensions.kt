@@ -38,6 +38,18 @@ fun NavHostController.navigateToDeepLink(deepLink: CampzoneDeepLink) {
             navigateTyped(AppRoute.TeamChat(deepLink.campingId, deepLink.teamId))
         }
 
+        is CampzoneDeepLink.TeamUpdate -> {
+            selectTabForDeepLink(AppRoute.Campings)
+            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.TeamDetail(deepLink.campingId, deepLink.teamId))
+        }
+
+        is CampzoneDeepLink.TeamPoints -> {
+            selectTabForDeepLink(AppRoute.Campings)
+            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.PointHistory(deepLink.campingId, deepLink.teamId))
+        }
+
         is CampzoneDeepLink.Poll -> {
             selectTabForDeepLink(AppRoute.Campings)
             navigateTyped(AppRoute.CampingDetail(deepLink.campingId))

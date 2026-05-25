@@ -1,69 +1,77 @@
 package fr.ziyon.campzone.core.permissions
 
 sealed interface AppPermission {
-    data object ViewPublicContent : AppPermission
+    data object ViewPublishedCampings : AppPermission
     data object RegisterForCampings : AppPermission
-    data object ManageFamilyRegistrations : AppPermission
-    data object CreateCamping : AppPermission
-    data object EditCamping : AppPermission
-    data object CancelCamping : AppPermission
     data object ApproveRegistrations : AppPermission
+    data object CreateCampings : AppPermission
+    data object EditCampings : AppPermission
+    data object CancelCampings : AppPermission
+    data object CreateOwnChurchCampings : AppPermission
+    data object EditOwnChurchCampings : AppPermission
+    data object CancelOwnChurchCampings : AppPermission
+    data object ViewAnnouncements : AppPermission
+    data object CreateAnnouncements : AppPermission
+    data object EditAnnouncements : AppPermission
+    data object DeleteAnnouncements : AppPermission
+    data object ViewSongbook : AppPermission
+    data object ManageSongbook : AppPermission
     data object ManageSchedule : AppPermission
-    data object ManageFoodMenu : AppPermission
     data object ManageTeams : AppPermission
     data object ManageGames : AppPermission
     data object AssignPoints : AppPermission
     data object RevealWinners : AppPermission
     data object ManageAlbumMedia : AppPermission
-    data object ManageCheckIns : AppPermission
     data object ManageTransportation : AppPermission
+    data object ManageOwnChurchTransportation : AppPermission
     data object AwardAchievements : AppPermission
     data object RevokeAchievements : AppPermission
+    data object ManageCheckIns : AppPermission
+    data object ManageOwnChurchCheckIns : AppPermission
     data object ViewParticipantProfiles : AppPermission
-    data object EditAnnouncements : AppPermission
-    data object DeleteAnnouncements : AppPermission
-    data object ModerateContent : AppPermission
-    data object ManageGuidelines : AppPermission
-    data object AssignOwnChurchRoles : AppPermission
     data object AssignLeadershipRoles : AppPermission
+    data object AssignOwnChurchRoles : AppPermission
     data object ViewAdminTools : AppPermission
-    data object ManageSongs : AppPermission
-    data object ManagePolls : AppPermission
-    data object ModerateCampingChat : AppPermission
-    data object ModerateTeamChat : AppPermission
+    data object ManageFamilyRegistrations : AppPermission
+    data object EditGuidelines : AppPermission
+    data object EditOwnChurchGuidelines : AppPermission
 
     companion object {
         val entries: List<AppPermission> = listOf(
-            ViewPublicContent,
+            ViewPublishedCampings,
             RegisterForCampings,
-            ManageFamilyRegistrations,
-            CreateCamping,
-            EditCamping,
-            CancelCamping,
             ApproveRegistrations,
+            CreateCampings,
+            EditCampings,
+            CancelCampings,
+            CreateOwnChurchCampings,
+            EditOwnChurchCampings,
+            CancelOwnChurchCampings,
+            ViewAnnouncements,
+            CreateAnnouncements,
+            EditAnnouncements,
+            DeleteAnnouncements,
+            ViewSongbook,
+            ManageSongbook,
             ManageSchedule,
-            ManageFoodMenu,
             ManageTeams,
             ManageGames,
             AssignPoints,
             RevealWinners,
             ManageAlbumMedia,
-            ManageCheckIns,
             ManageTransportation,
+            ManageOwnChurchTransportation,
             AwardAchievements,
             RevokeAchievements,
+            ManageCheckIns,
+            ManageOwnChurchCheckIns,
             ViewParticipantProfiles,
-            EditAnnouncements,
-            DeleteAnnouncements,
-            ModerateContent,
-            ManageGuidelines,
-            AssignOwnChurchRoles,
             AssignLeadershipRoles,
+            AssignOwnChurchRoles,
             ViewAdminTools,
-            ManageSongs,
-            ManagePolls,
-            ModerateCampingChat,
-            ModerateTeamChat,
+            ManageFamilyRegistrations,
+            EditGuidelines,
+            EditOwnChurchGuidelines,
         )
     }
 }

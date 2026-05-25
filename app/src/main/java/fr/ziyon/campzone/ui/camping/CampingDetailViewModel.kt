@@ -7,6 +7,7 @@ import fr.ziyon.campzone.core.permissions.AppPermission
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
+import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.CampingAgeGroup
 import fr.ziyon.campzone.data.camping.CampingService
@@ -135,11 +136,24 @@ class CampingDetailViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(CampingDetailUiState())
     val uiState: StateFlow<CampingDetailUiState> = _uiState.asStateFlow()
 
-    private var loadedId: String? = null
+    private data class LoadedRequestKey(
+        val campingId: String,
+        val userId: String,
+        val role: UserRole,
+        val church: String?,
+    )
+
+    private var loadedKey: LoadedRequestKey? = null
 
     fun load(campingId: String, user: AuthenticatedUser) {
-        if (loadedId == campingId && !_uiState.value.isLoading) return
-        loadedId = campingId
+        val requestKey = LoadedRequestKey(
+            campingId = campingId,
+            userId = user.uid,
+            role = user.role,
+            church = user.church?.trim()?.takeUnless { it.isBlank() },
+        )
+        if (loadedKey == requestKey && !_uiState.value.isLoading) return
+        loadedKey = requestKey
 
         viewModelScope.launch {
             _uiState.value = CampingDetailUiState(isLoading = true)
@@ -150,8 +164,13 @@ class CampingDetailViewModel @Inject constructor(
                     val context = CampingPermissionContext(
                         organizerLevelType = camping.organizerLevel.type.wireValue,
                         organizerLevelValue = camping.organizerLevel.value,
+                        createdByUid = camping.createdByUid,
                     )
-                    val permissionUser = PermissionUser(role = user.role, church = user.church)
+                    val permissionUser = PermissionUser(
+                        role = user.role,
+                        userId = user.uid,
+                        church = user.church,
+                    )
                     fun can(permission: AppPermission) = permissions.hasPermission(
                         user = permissionUser,
                         permission = permission,
@@ -167,7 +186,10 @@ class CampingDetailViewModel @Inject constructor(
                         it.participantKind == RegistrationParticipantKind.SelfParticipant &&
                             it.userId == user.uid
                     } ?: userRegistrations.firstOrNull { it.id == user.uid }
-                    val canViewProfiles = can(AppPermission.ViewParticipantProfiles)
+                    val canViewProfiles = permissions.canViewParticipantProfiles(
+                        permissionUser,
+                        context,
+                    )
                     val isApproved = userRegistrations.any {
                         it.registrationStatus == RegistrationApprovalStatus.Approved
                     }
@@ -179,21 +201,31 @@ class CampingDetailViewModel @Inject constructor(
                         canViewParticipantProfiles = canViewProfiles,
                         canRegisterForCampings = can(AppPermission.RegisterForCampings),
                         canManageFamilyRegistrations = can(AppPermission.ManageFamilyRegistrations),
-                        canEditCamping = can(AppPermission.EditCamping),
-                        canApproveRegistrations = can(AppPermission.ApproveRegistrations),
-                        canManageSchedule = can(AppPermission.ManageSchedule),
-                        canManageFoodMenu = can(AppPermission.ManageFoodMenu),
-                        canManageTeams = can(AppPermission.ManageTeams),
-                        canManageGames = can(AppPermission.ManageGames),
-                        canManageCheckIns = can(AppPermission.ManageCheckIns),
-                        canManageTransportation = can(AppPermission.ManageTransportation),
-                        canAwardAchievements = can(AppPermission.AwardAchievements),
-                        canManageAnyCamping = user.role.isAdmin,
+                        canEditCamping = permissions.canEditCamping(permissionUser, context),
+                        canApproveRegistrations = permissions.canApproveRegistrations(
+                            permissionUser,
+                            context,
+                        ),
+                        canManageSchedule = permissions.canManageSchedule(permissionUser, context),
+                        canManageFoodMenu = permissions.canManageFoodMenu(permissionUser, context),
+                        canManageTeams = permissions.canManageTeams(permissionUser, context),
+                        canManageGames = permissions.canManageGames(permissionUser, context),
+                        canManageCheckIns = permissions.canManageCheckIns(permissionUser, context),
+                        canManageTransportation = permissions.canManageTransportation(
+                            permissionUser,
+                            context,
+                        ),
+                        canAwardAchievements = permissions.canAwardAchievements(
+                            permissionUser,
+                            context,
+                        ),
+                        canManageAnyCamping = permissions.canManageAnyCamping(permissionUser),
                         wasCreatedByCurrentUser = camping.createdByUid == user.uid,
                         isApprovedParticipant = isApproved,
                     )
                 }
                 .onFailure { error ->
+                    loadedKey = null
                     _uiState.value = CampingDetailUiState(
                         isLoading = false,
                         errorMessage = error.message,

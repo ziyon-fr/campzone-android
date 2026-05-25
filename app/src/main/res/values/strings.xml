@@ -273,6 +273,7 @@
     <string name="camping_empty_message">Published camping events will appear here.</string>
     <string name="camping_empty_search_title">No results for \"%1$s\"</string>
     <string name="camping_empty_search_message">Try a different title, location, or description.</string>
+    <string name="camping_review_registrations">Review Registrations</string>
     <string name="camping_status_open">Registration open</string>
     <string name="camping_status_closed">Registration closed</string>
     <string name="camping_status_cancelled">Cancelled</string>
@@ -368,4 +369,89 @@
     <string name="organizer_type_regional">Regional</string>
     <string name="organizer_type_international">International</string>
     <string name="organizer_type_custom">Organizer</string>
+
+    <!-- B2: Camping editor -->
+    <string name="camping_editor_create_title">New Camping</string>
+    <string name="camping_editor_edit_title">Edit Camping</string>
+    <string name="camping_editor_section_basics">Basics</string>
+    <string name="camping_editor_section_logo">Logo</string>
+    <string name="camping_editor_section_location">Location</string>
+    <string name="camping_editor_section_timing">Timing</string>
+    <string name="camping_editor_section_organization">Organization</string>
+    <string name="camping_editor_section_fees">Fees &amp; Pricing</string>
+    <string name="camping_editor_section_transport">Transportation</string>
+    <string name="camping_editor_section_danger">Danger Zone</string>
+    <string name="camping_editor_title_label">Title</string>
+    <string name="camping_editor_title_hint">e.g. Camp Adventiste 2025</string>
+    <string name="camping_editor_description_label">Description</string>
+    <string name="camping_editor_description_hint">Describe the camping event…</string>
+    <string name="camping_editor_logo_cd">Camping logo</string>
+    <string name="camping_editor_logo_selected">Logo selected</string>
+    <string name="camping_editor_logo_none">No logo</string>
+    <string name="camping_editor_logo_hint">JPG or PNG, square preferred</string>
+    <string name="camping_editor_logo_choose">Choose image</string>
+    <string name="camping_editor_logo_replace">Replace</string>
+    <string name="camping_editor_location_hint">City, country or venue name</string>
+    <string name="camping_editor_location_change">Change</string>
+    <string name="camping_editor_location_nearby">Nearby</string>
+    <string name="camping_editor_location_recents">Recent</string>
+    <string name="camping_editor_date_start">Start date</string>
+    <string name="camping_editor_date_end">End date</string>
+    <string name="camping_editor_organizer_level">Organizer type</string>
+    <string name="camping_editor_church_label">Church</string>
+    <string name="camping_editor_church_hint">Select a church…</string>
+    <string name="camping_editor_organizer_church_hint">Church name</string>
+    <string name="camping_editor_organizer_regional_hint">Region or conference name</string>
+    <string name="camping_editor_organizer_intl_hint">Organization name</string>
+    <string name="camping_editor_organizer_custom_hint">Organizer name</string>
+    <string name="camping_editor_reg_status">Registration</string>
+    <string name="camping_editor_capacity">Capacity</string>
+    <string name="camping_editor_capacity_unlimited">Unlimited</string>
+    <string name="camping_editor_fee_amount">Amount</string>
+    <string name="camping_editor_fee_currency">Currency</string>
+    <string name="camping_editor_age_pricing">Age pricing</string>
+    <string name="camping_editor_add_age_price">Add age tier</string>
+    <string name="camping_editor_add_price_item">Add price item</string>
+    <string name="camping_editor_add_transport">Add option</string>
+    <string name="camping_editor_fix_errors">Please fix the following errors</string>
+    <string name="camping_editor_restricted_title">Access Restricted</string>
+    <string name="camping_editor_restricted_message">You don\'t have permission to manage this camping.</string>
+    <string name="camping_editor_delete_title">Delete Camping</string>
+    <string name="camping_editor_delete_message">This will permanently delete the camping and all its data. This action cannot be undone.</string>
+    <string name="camping_editor_delete_action">Delete camping</string>
+    <string name="camping_editor_cancel_camping_title">Cancel Camping</string>
+    <string name="camping_editor_cancel_camping_message">This will mark the camping as cancelled. Participants will be notified.</string>
+    <string name="camping_editor_cancel_camping_action">Cancel camping</string>
+    <string name="camping_editor_cancel_camping_confirm">Yes, cancel</string>
+    <!-- B2: Price item editor sheet -->
+    <string name="camping_editor_price_item_title">Price Item</string>
+    <string name="camping_editor_section_item">Item details</string>
+    <string name="camping_editor_price_item_name_hint">e.g. T-shirt, Insurance…</string>
+    <string name="camping_editor_price_item_details_hint">Optional description</string>
+    <string name="camping_editor_price_item_required">Mandatory for all participants</string>
+    <string name="camping_editor_payment_methods">Payment methods</string>
+    <string name="camping_editor_bank_transfer">Bank transfer details</string>
+    <string name="camping_editor_iban_hint">IBAN (e.g. FR76…)</string>
+    <string name="camping_editor_iban_holder_hint">Account holder name</string>
+    <!-- B2: Age price editor sheet -->
+    <string name="camping_editor_age_price_title">Age Pricing</string>
+    <string name="camping_editor_age_range">Age range</string>
+    <string name="camping_editor_age_price_label_hint">e.g. Child, Youth, Adult…</string>
+    <string name="camping_editor_age_from">Minimum age</string>
+    <string name="camping_editor_age_has_upper">Has upper age limit</string>
+    <string name="camping_editor_age_to">Maximum age</string>
+    <string name="camping_editor_age_price_amount">Price</string>
+    <!-- B2: Transportation option editor sheet -->
+    <string name="camping_editor_transport_title">Transport Option</string>
+    <string name="camping_editor_section_option">Option details</string>
+    <string name="camping_editor_transport_name_hint">e.g. Paris coach, Local shuttle…</string>
+    <string name="camping_editor_transport_mode">Mode</string>
+    <string name="camping_editor_transport_details_hint">Departure point, schedule…</string>
+    <string name="camping_editor_transport_ticket">Requires ticket</string>
+    <string name="camping_editor_transport_capacity">Capacity</string>
+    <string name="camping_editor_transport_fee">Fee (optional)</string>
+    <!-- Common (additions) -->
+    <string name="common_remove">Remove</string>
+    <string name="common_close">Close</string>
+    <string name="common_delete">Delete</string>
 </resources>

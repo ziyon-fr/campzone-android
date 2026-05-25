@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:name=".CampzoneApp"
@@ -32,6 +33,16 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data android:scheme="campzone" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="campzone-web.vercel.app"
+                    android:scheme="https" />
             </intent-filter>
         </activity>
         <provider

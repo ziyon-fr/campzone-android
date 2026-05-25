@@ -55,6 +55,61 @@ class CampingDetailViewModelTest {
     }
 
     @Test
+    fun pastorCanEditOwnChurchCampingDetail() = runTest {
+        val service = service(attendees = emptyList())
+        val viewModel = CampingDetailViewModel(service)
+
+        viewModel.load("camp-1", user(role = UserRole.Pastor, church = church, uid = "pastor-1"))
+
+        val state = viewModel.uiState.value
+        assertTrue(state.canEditCamping)
+        assertTrue(state.canManageSchedule)
+        assertFalse(state.canApproveRegistrations)
+        assertFalse(state.canManageTeams)
+    }
+
+    @Test
+    fun youthDirectorCanEditOwnChurchCampingDetail() = runTest {
+        val service = service(attendees = emptyList())
+        val viewModel = CampingDetailViewModel(service)
+
+        viewModel.load("camp-1", user(role = UserRole.YouthDirector, church = church, uid = "yd-1"))
+
+        val state = viewModel.uiState.value
+        assertTrue(state.canEditCamping)
+        assertTrue(state.canApproveRegistrations)
+        assertTrue(state.canManageTeams)
+    }
+
+    @Test
+    fun ownChurchLeadersCannotEditAnotherChurchCampingDetail() = runTest {
+        val service = service(
+            attendees = emptyList(),
+            organizerLevel = OrganizerLevel(OrganizerType.Church, "Lyon SDA"),
+        )
+        val viewModel = CampingDetailViewModel(service)
+
+        viewModel.load("camp-1", user(role = UserRole.Pastor, church = church, uid = "pastor-1"))
+
+        val state = viewModel.uiState.value
+        assertFalse(state.canEditCamping)
+        assertFalse(state.canManageSchedule)
+    }
+
+    @Test
+    fun campingDetailPermissionsRecomputeWhenUserChanges() = runTest {
+        val service = service(attendees = emptyList())
+        val viewModel = CampingDetailViewModel(service)
+
+        viewModel.load("camp-1", user(role = UserRole.Guest, church = "Other", uid = "guest-1"))
+        assertFalse(viewModel.uiState.value.canEditCamping)
+
+        viewModel.load("camp-1", user(role = UserRole.Pastor, church = church, uid = "pastor-1"))
+
+        assertTrue(viewModel.uiState.value.canEditCamping)
+    }
+
+    @Test
     fun approvedParticipantSeesApprovedAttendees() = runTest {
         val service = service(
             attendees = listOf(
@@ -97,7 +152,11 @@ class CampingDetailViewModelTest {
         assertNotNull(state.errorMessage)
     }
 
-    private fun service(attendees: List<CampingAttendee>) = FakeCampingService(
+    private fun service(
+        attendees: List<CampingAttendee>,
+        organizerLevel: OrganizerLevel = OrganizerLevel(OrganizerType.Church, church),
+        createdByUid: String? = null,
+    ) = FakeCampingService(
         initial = listOf(
             Camping(
                 id = "camp-1",
@@ -105,10 +164,11 @@ class CampingDetailViewModelTest {
                 description = "A week of fun",
                 startDate = Date(1_000_000),
                 endDate = Date(2_000_000),
-                organizerLevel = OrganizerLevel(OrganizerType.Church, church),
+                organizerLevel = organizerLevel,
                 location = "Lake Annecy",
                 registrationStatus = CampingRegistrationStatus.Open,
                 participantCapacity = 120,
+                createdByUid = createdByUid,
             ),
         ),
         attendeesByCamping = mapOf("camp-1" to attendees),

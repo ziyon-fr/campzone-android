@@ -1,5 +1,6 @@
 package fr.ziyon.campzone.core.permissions
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -8,175 +9,257 @@ class AppPermissionEvaluatorTest {
     private val evaluator = AppPermissionEvaluator()
     private val ownChurchCamping = CampingPermissionContext(
         organizerLevelType = "church",
-        organizerLevelValue = "Paris Central",
+        organizerLevelValue = "Paris Central SDA",
     )
     private val otherChurchCamping = CampingPermissionContext(
         organizerLevelType = "church",
-        organizerLevelValue = "Lyon",
+        organizerLevelValue = "Lyon SDA",
     )
     private val regionalCamping = CampingPermissionContext(
-        organizerLevelType = "region",
+        organizerLevelType = "regional",
         organizerLevelValue = "France",
     )
+    private val creatorCamping = regionalCamping.copy(createdByUid = "creator-user")
 
     @Test
-    fun evaluatesEveryRoleAgainstEveryPermissionInTheMatrix() {
-        UserRole.allWireRoles.forEach { role ->
-            AppPermission.entries.forEach { permission ->
-                val user = PermissionUser(role = role, church = "Paris Central")
-                val expectation = permissionExpectations.getValue(permission).getValue(role)
-
-                when (expectation) {
-                    ExpectedAccess.Denied -> {
-                        assertFalse(evaluator.hasPermission(user, permission))
-                        assertFalse(evaluator.hasPermission(user, permission, ownChurchCamping))
-                        assertFalse(evaluator.hasPermission(user, permission, otherChurchCamping))
-                    }
-
-                    ExpectedAccess.Global -> {
-                        assertTrue(evaluator.hasPermission(user, permission))
-                        assertTrue(evaluator.hasPermission(user, permission, ownChurchCamping))
-                        assertTrue(evaluator.hasPermission(user, permission, otherChurchCamping))
-                    }
-
-                    ExpectedAccess.ChurchScoped -> {
-                        assertFalse(evaluator.hasPermission(user, permission))
-                        assertTrue(evaluator.hasPermission(user, permission, ownChurchCamping))
-                        assertFalse(evaluator.hasPermission(user, permission, otherChurchCamping))
-                        assertFalse(evaluator.hasPermission(user, permission, regionalCamping))
-                    }
-                }
-            }
-        }
+    fun appPermissionEntriesMatchIosCasesAndOrder() {
+        assertEquals(
+            listOf(
+                AppPermission.ViewPublishedCampings,
+                AppPermission.RegisterForCampings,
+                AppPermission.ApproveRegistrations,
+                AppPermission.CreateCampings,
+                AppPermission.EditCampings,
+                AppPermission.CancelCampings,
+                AppPermission.CreateOwnChurchCampings,
+                AppPermission.EditOwnChurchCampings,
+                AppPermission.CancelOwnChurchCampings,
+                AppPermission.ViewAnnouncements,
+                AppPermission.CreateAnnouncements,
+                AppPermission.EditAnnouncements,
+                AppPermission.DeleteAnnouncements,
+                AppPermission.ViewSongbook,
+                AppPermission.ManageSongbook,
+                AppPermission.ManageSchedule,
+                AppPermission.ManageTeams,
+                AppPermission.ManageGames,
+                AppPermission.AssignPoints,
+                AppPermission.RevealWinners,
+                AppPermission.ManageAlbumMedia,
+                AppPermission.ManageTransportation,
+                AppPermission.ManageOwnChurchTransportation,
+                AppPermission.AwardAchievements,
+                AppPermission.RevokeAchievements,
+                AppPermission.ManageCheckIns,
+                AppPermission.ManageOwnChurchCheckIns,
+                AppPermission.ViewParticipantProfiles,
+                AppPermission.AssignLeadershipRoles,
+                AppPermission.AssignOwnChurchRoles,
+                AppPermission.ViewAdminTools,
+                AppPermission.ManageFamilyRegistrations,
+                AppPermission.EditGuidelines,
+                AppPermission.EditOwnChurchGuidelines,
+            ),
+            AppPermission.entries,
+        )
     }
 
     @Test
-    fun churchScopeRequiresChurchOrganizerTypeAndCaseInsensitiveMatchingValue() {
-        val user = PermissionUser(role = UserRole.Pastor, church = "PARIS CENTRAL")
-        val matchingCamping = CampingPermissionContext(
-            organizerLevelType = "Church",
-            organizerLevelValue = "paris central",
+    fun userRoleOrderAndSelfAssignmentMatchIos() {
+        assertEquals(
+            listOf(
+                UserRole.Guest,
+                UserRole.User,
+                UserRole.YouthDirector,
+                UserRole.Pastor,
+                UserRole.GameMaster,
+                UserRole.Leader,
+                UserRole.Photographer,
+                UserRole.Adult,
+                UserRole.Admin,
+            ),
+            UserRole.allWireRoles,
+        )
+        assertEquals(listOf(UserRole.Guest, UserRole.User, UserRole.Adult), UserRole.selfAssignableRoles.toList())
+    }
+
+    @Test
+    fun adminReceivesEveryPermissionAndAdminUi() {
+        val admin = PermissionUser(role = UserRole.Admin)
+
+        AppPermission.entries.forEach { permission ->
+            assertTrue(evaluator.can(admin, permission))
+            assertTrue(evaluator.hasPermission(admin, permission, regionalCamping))
+        }
+        assertTrue(evaluator.hasPermission(admin, AppPermission.ViewAdminTools))
+    }
+
+    @Test
+    fun rawRolePermissionsMatchIosPermissionSets() {
+        val guest = PermissionUser(role = UserRole.Guest)
+        val user = PermissionUser(role = UserRole.User)
+        val adult = PermissionUser(role = UserRole.Adult)
+        val youthDirector = PermissionUser(role = UserRole.YouthDirector)
+        val pastor = PermissionUser(role = UserRole.Pastor)
+        val gameMaster = PermissionUser(role = UserRole.GameMaster)
+        val leader = PermissionUser(role = UserRole.Leader)
+        val photographer = PermissionUser(role = UserRole.Photographer)
+
+        assertTrue(evaluator.can(guest, AppPermission.ViewPublishedCampings))
+        assertTrue(evaluator.can(guest, AppPermission.ViewAnnouncements))
+        assertTrue(evaluator.can(guest, AppPermission.ViewSongbook))
+        assertFalse(evaluator.can(guest, AppPermission.RegisterForCampings))
+
+        assertTrue(evaluator.can(user, AppPermission.RegisterForCampings))
+        assertFalse(evaluator.can(user, AppPermission.ViewAdminTools))
+
+        assertTrue(evaluator.can(adult, AppPermission.ManageFamilyRegistrations))
+        assertFalse(evaluator.can(adult, AppPermission.ManageAlbumMedia))
+
+        assertTrue(evaluator.can(youthDirector, AppPermission.ApproveRegistrations))
+        assertTrue(evaluator.can(youthDirector, AppPermission.ManageTeams))
+        assertTrue(evaluator.can(youthDirector, AppPermission.CreateOwnChurchCampings))
+        assertFalse(evaluator.can(youthDirector, AppPermission.CreateCampings))
+        assertFalse(evaluator.can(youthDirector, AppPermission.ManageCheckIns))
+
+        assertTrue(evaluator.can(pastor, AppPermission.ManageSchedule))
+        assertTrue(evaluator.can(pastor, AppPermission.CreateAnnouncements))
+        assertFalse(evaluator.can(pastor, AppPermission.ApproveRegistrations))
+        assertFalse(evaluator.can(pastor, AppPermission.ManageTeams))
+        assertFalse(evaluator.can(pastor, AppPermission.ManageSongbook))
+
+        assertTrue(evaluator.can(gameMaster, AppPermission.ManageGames))
+        assertTrue(evaluator.can(gameMaster, AppPermission.AssignPoints))
+        assertTrue(evaluator.can(gameMaster, AppPermission.RevealWinners))
+
+        assertTrue(evaluator.can(leader, AppPermission.ManageTeams))
+        assertTrue(evaluator.can(leader, AppPermission.ManageOwnChurchTransportation))
+        assertFalse(evaluator.can(leader, AppPermission.AssignLeadershipRoles))
+
+        assertTrue(evaluator.can(photographer, AppPermission.ManageAlbumMedia))
+        assertFalse(evaluator.can(photographer, AppPermission.ManageTeams))
+        assertFalse(evaluator.can(photographer, AppPermission.CreateAnnouncements))
+    }
+
+    @Test
+    fun scopedOperationalHelpersRequireOwnChurchCamping() {
+        val leader = PermissionUser(
+            role = UserRole.Leader,
+            church = "Paris Central SDA",
+        )
+        val gameMaster = PermissionUser(
+            role = UserRole.GameMaster,
+            church = "Paris Central SDA",
+        )
+        val photographer = PermissionUser(
+            role = UserRole.Photographer,
+            church = "Paris Central SDA",
         )
 
-        assertTrue(evaluator.hasPermission(user, AppPermission.ManageSchedule, matchingCamping))
-        assertFalse(evaluator.hasPermission(user, AppPermission.ManageSchedule, regionalCamping))
+        assertTrue(evaluator.canManageSchedule(leader, ownChurchCamping))
+        assertTrue(evaluator.canApproveRegistrations(leader, ownChurchCamping))
+        assertTrue(evaluator.canAssignPoints(leader, ownChurchCamping))
+        assertTrue(evaluator.canManageTransportation(leader, ownChurchCamping))
+        assertFalse(evaluator.canManageSchedule(leader, otherChurchCamping))
+        assertFalse(evaluator.canManageSchedule(leader, regionalCamping))
+
+        assertTrue(evaluator.canRevealWinners(gameMaster, ownChurchCamping))
+        assertFalse(evaluator.canRevealWinners(gameMaster, otherChurchCamping))
+        assertFalse(evaluator.canRevealWinners(gameMaster, regionalCamping))
+
+        assertTrue(evaluator.canManageAlbumMedia(photographer, ownChurchCamping))
+        assertFalse(evaluator.canManageAlbumMedia(photographer, otherChurchCamping))
     }
 
     @Test
-    fun roleAssignmentMatchesEscalationRules() {
-        val pastor = PermissionUser(role = UserRole.Pastor, church = "Paris Central")
-        val admin = PermissionUser(role = UserRole.Admin, church = null)
+    fun campingCreatorCanManageTheirOwnCampingOperations() {
+        val creator = PermissionUser(role = UserRole.User, userId = "creator-user")
+        val otherUser = PermissionUser(role = UserRole.User, userId = "other-user")
 
-        assertTrue(evaluator.canAssignRole(pastor, UserRole.Guest, ownChurchCamping))
-        assertTrue(evaluator.canAssignRole(pastor, UserRole.User, ownChurchCamping))
-        assertTrue(evaluator.canAssignRole(pastor, UserRole.Adult, ownChurchCamping))
-        assertFalse(evaluator.canAssignRole(pastor, UserRole.Leader, ownChurchCamping))
-        assertFalse(evaluator.canAssignRole(pastor, UserRole.User, otherChurchCamping))
-        assertTrue(evaluator.canAssignRole(admin, UserRole.Leader, otherChurchCamping))
+        assertTrue(evaluator.canEditCamping(creator, creatorCamping))
+        assertTrue(evaluator.canManageSchedule(creator, creatorCamping))
+        assertTrue(evaluator.canManageTeams(creator, creatorCamping))
+        assertTrue(evaluator.canManageAnnouncements(creator, creatorCamping))
+        assertTrue(evaluator.canApproveRegistrations(creator, creatorCamping))
+        assertTrue(evaluator.canViewParticipantProfiles(creator, creatorCamping))
+
+        assertFalse(evaluator.canEditCamping(otherUser, creatorCamping))
+        assertFalse(evaluator.canManageSchedule(otherUser, creatorCamping))
+        assertFalse(evaluator.canViewParticipantProfiles(otherUser, creatorCamping))
+    }
+
+    @Test
+    fun ownChurchLeadersCanEditAndSaveOnlyOwnChurchCampingForms() {
+        val youthDirector = PermissionUser(
+            role = UserRole.YouthDirector,
+            church = "Paris Central SDA",
+        )
+        val pastor = PermissionUser(
+            role = UserRole.Pastor,
+            church = "Paris Central SDA",
+        )
+
+        assertTrue(evaluator.canEditCamping(youthDirector, ownChurchCamping))
+        assertTrue(evaluator.canSaveCamping(youthDirector, ownChurchCamping, ownChurchCamping))
+        assertFalse(evaluator.canEditCamping(youthDirector, otherChurchCamping))
+        assertFalse(evaluator.canSaveCamping(youthDirector, ownChurchCamping, regionalCamping))
+
+        assertTrue(evaluator.canEditCamping(pastor, ownChurchCamping))
+        assertTrue(evaluator.canSaveCamping(pastor, ownChurchCamping, ownChurchCamping))
+        assertFalse(evaluator.canEditCamping(pastor, otherChurchCamping))
+        assertFalse(evaluator.canSaveCamping(pastor, ownChurchCamping, otherChurchCamping))
+    }
+
+    @Test
+    fun campingCreatorCanSaveOrganizerChangesForTheirCamping() {
+        val creator = PermissionUser(role = UserRole.User, userId = "creator-user")
+
+        assertTrue(evaluator.canSaveCamping(creator, creatorCamping, otherChurchCamping))
+        assertFalse(evaluator.canSaveCamping(creator, null, otherChurchCamping))
+    }
+
+    @Test
+    fun roleAssignmentIsLimitedToSameChurchBasicRoles() {
+        val youthDirector = PermissionUser(
+            role = UserRole.YouthDirector,
+            church = "Paris Central SDA",
+        )
+        val pastor = PermissionUser(
+            role = UserRole.Pastor,
+            church = "Paris Central SDA",
+        )
+        val admin = PermissionUser(role = UserRole.Admin)
+
+        assertTrue(evaluator.canAssignRole(youthDirector, "Paris Central SDA"))
+        assertFalse(evaluator.canAssignRole(youthDirector, "Lyon SDA"))
+        assertEquals(UserRole.selfAssignableRoles.toList(), evaluator.assignableRoles(youthDirector))
+
+        assertTrue(evaluator.canAssignRole(pastor, "Paris Central SDA"))
+        assertEquals(UserRole.selfAssignableRoles.toList(), evaluator.assignableRoles(pastor))
+
+        assertTrue(evaluator.canAssignRole(admin, null))
+        assertEquals(UserRole.allWireRoles, evaluator.assignableRoles(admin))
     }
 
     @Test
     fun legacyRoleValuesReadAsUserAndUnknownValuesReadAsGuest() {
         assertTrue(
-            evaluator.hasPermission(
-                PermissionUser(UserRole.fromWire("senior"), church = null),
+            evaluator.can(
+                PermissionUser(UserRole.fromWire("senior")),
                 AppPermission.RegisterForCampings,
             ),
         )
         assertTrue(
-            evaluator.hasPermission(
-                PermissionUser(UserRole.fromWire("youth"), church = null),
+            evaluator.can(
+                PermissionUser(UserRole.fromWire("youth")),
                 AppPermission.RegisterForCampings,
             ),
         )
         assertFalse(
-            evaluator.hasPermission(
-                PermissionUser(UserRole.fromWire("unknown"), church = null),
+            evaluator.can(
+                PermissionUser(UserRole.fromWire("unknown")),
                 AppPermission.RegisterForCampings,
             ),
-        )
-    }
-
-    private enum class ExpectedAccess {
-        Denied,
-        Global,
-        ChurchScoped,
-    }
-
-    private companion object {
-        private val denied = UserRole.allWireRoles.associateWith { ExpectedAccess.Denied }
-
-        private fun expectations(
-            global: Set<UserRole> = emptySet(),
-            scoped: Set<UserRole> = emptySet(),
-        ): Map<UserRole, ExpectedAccess> = denied.toMutableMap().apply {
-            global.forEach { this[it] = ExpectedAccess.Global }
-            scoped.forEach { this[it] = ExpectedAccess.ChurchScoped }
-            this[UserRole.Admin] = ExpectedAccess.Global
-        }
-
-        private val everyone = UserRole.allWireRoles.toSet()
-        private val signedIn = everyone - UserRole.Guest
-        private val campingCreators = setOf(UserRole.YouthDirector, UserRole.Pastor)
-        private val registrationApprovers = setOf(UserRole.YouthDirector, UserRole.Leader)
-        private val scheduleManagers = setOf(
-            UserRole.YouthDirector,
-            UserRole.Pastor,
-            UserRole.Leader,
-        )
-        private val teamManagers = setOf(
-            UserRole.YouthDirector,
-            UserRole.GameMaster,
-            UserRole.Leader,
-        )
-        private val gameManagers = setOf(
-            UserRole.YouthDirector,
-            UserRole.Pastor,
-            UserRole.GameMaster,
-            UserRole.Leader,
-        )
-        private val pointAssigners = setOf(
-            UserRole.YouthDirector,
-            UserRole.GameMaster,
-            UserRole.Leader,
-        )
-        private val announcementEditors = setOf(
-            UserRole.YouthDirector,
-            UserRole.Pastor,
-            UserRole.Leader,
-        )
-
-        private val permissionExpectations = mapOf(
-            AppPermission.ViewPublicContent to expectations(global = everyone),
-            AppPermission.RegisterForCampings to expectations(global = signedIn),
-            AppPermission.ManageFamilyRegistrations to expectations(global = setOf(UserRole.Adult)),
-            AppPermission.CreateCamping to expectations(scoped = campingCreators),
-            AppPermission.EditCamping to expectations(scoped = campingCreators),
-            AppPermission.CancelCamping to expectations(scoped = campingCreators),
-            AppPermission.ApproveRegistrations to expectations(scoped = registrationApprovers),
-            AppPermission.ManageSchedule to expectations(scoped = scheduleManagers),
-            AppPermission.ManageFoodMenu to expectations(scoped = scheduleManagers),
-            AppPermission.ManageTeams to expectations(scoped = teamManagers),
-            AppPermission.ManageGames to expectations(scoped = gameManagers),
-            AppPermission.AssignPoints to expectations(scoped = pointAssigners),
-            AppPermission.RevealWinners to expectations(scoped = setOf(UserRole.GameMaster)),
-            AppPermission.ManageAlbumMedia to expectations(scoped = setOf(UserRole.Photographer)),
-            AppPermission.ManageCheckIns to expectations(scoped = scheduleManagers),
-            AppPermission.ManageTransportation to expectations(scoped = scheduleManagers),
-            AppPermission.AwardAchievements to expectations(scoped = gameManagers),
-            AppPermission.RevokeAchievements to expectations(),
-            AppPermission.ViewParticipantProfiles to expectations(scoped = gameManagers),
-            AppPermission.EditAnnouncements to expectations(global = announcementEditors),
-            AppPermission.DeleteAnnouncements to expectations(),
-            AppPermission.ModerateContent to expectations(global = announcementEditors),
-            AppPermission.ManageGuidelines to expectations(scoped = scheduleManagers),
-            AppPermission.AssignOwnChurchRoles to expectations(scoped = campingCreators),
-            AppPermission.AssignLeadershipRoles to expectations(),
-            AppPermission.ViewAdminTools to expectations(),
-            AppPermission.ManageSongs to expectations(),
-            AppPermission.ManagePolls to expectations(global = announcementEditors),
-            AppPermission.ModerateCampingChat to expectations(global = announcementEditors),
-            AppPermission.ModerateTeamChat to expectations(scoped = gameManagers),
         )
     }
 }
