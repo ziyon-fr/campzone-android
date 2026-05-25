@@ -28,6 +28,10 @@ data class CzColorPalette(
     val onSecondary: Color,
     val onAccent: Color,
     val onError: Color,
+    val leaf: Color,
+    val night: Color,
+    val twilight: Color,
+    val textTertiary: Color
 )
 
 object CzColors {
@@ -62,6 +66,20 @@ object CzColors {
     val PineLight = Color(0xFF243824)
     val PineDark = Color(0xFF2F4A2F)
 
+    // Added FF to make these visible
+    val LeafDark = Color(0xFF5F9A72)
+    val LeafLight = Color(0xFF4A7C59)
+
+    // Replaced # with 0xFF and fixed duplicate names
+    val NightLight = Color(0xFF070E1A)
+    val NightDeep = Color(0xFF0B1324)
+
+    val TwilightLight = Color(0xFF1A0E30)
+    val TwilightDark = Color(0xFF241547)
+
+    /// textTertiary
+    val TextTertiary = Color(0xFF808080)
+
     val Light = CzColorPalette(
         background = BackgroundLight,
         surface = SurfaceLight,
@@ -82,6 +100,10 @@ object CzColors {
         onSecondary = TextPrimaryDark,
         onAccent = TextPrimaryLight,
         onError = TextPrimaryDark,
+        leaf = LeafLight,
+        night = NightLight,
+        twilight = TwilightLight,
+        textTertiary = TextTertiary
     )
 
     val Dark = CzColorPalette(
@@ -104,6 +126,10 @@ object CzColors {
         onSecondary = TextPrimaryDark,
         onAccent = BackgroundDark,
         onError = BackgroundDark,
+        leaf = LeafDark,
+        night = NightDeep,
+        twilight = TwilightDark,
+        textTertiary = TextTertiary
     )
 
     fun palette(darkTheme: Boolean): CzColorPalette = if (darkTheme) Dark else Light

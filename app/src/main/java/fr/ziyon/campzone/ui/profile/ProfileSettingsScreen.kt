@@ -1,5 +1,7 @@
 package fr.ziyon.campzone.ui.profile
 
+// Icons Imports
+// Foundations
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -18,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-// Icons Imports
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -40,10 +41,10 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material.icons.rounded.WorkspacePremium
-// Foundations
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -352,10 +353,10 @@ private fun ProfileSettingsCard(
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                 )
             }
-            Text(
-                text = ">",
-                color = colors.textSecondary,
-                style = MaterialTheme.typography.labelLarge,
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = colors.textSecondary
             )
         }
     }
@@ -426,7 +427,7 @@ private fun ProfileSettingsActionRow(
         title = title,
         value = value,
         modifier = modifier.clickable(onClick = onClick),
-        trailing = ">",
+        trailing = Icons.Default.ChevronRight,
     )
 }
 
@@ -481,7 +482,7 @@ private fun ProfileSettingsBaseRow(
     title: String,
     modifier: Modifier = Modifier,
     value: String? = null,
-    trailing: String? = null,
+    trailing: ImageVector? = null,
     valueContent: (@Composable () -> Unit)? = null,
 ) {
     val colors = MaterialTheme.czColors
@@ -519,10 +520,10 @@ private fun ProfileSettingsBaseRow(
             )
         }
         if (trailing != null) {
-            Text(
-                text = trailing,
-                color = colors.textSecondary,
-                style = MaterialTheme.typography.labelLarge,
+            Icon(
+                imageVector = trailing,
+                null,
+                tint = colors.textSecondary
             )
         }
     }

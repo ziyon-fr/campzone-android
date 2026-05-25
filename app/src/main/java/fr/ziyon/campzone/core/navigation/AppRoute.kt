@@ -1,12 +1,15 @@
 package fr.ziyon.campzone.core.navigation
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.rounded.Announcement
-import androidx.compose.material.icons.rounded.Cabin
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.graphics.vector.ImageVector
 import java.net.URLEncoder
+import androidx.compose.material.icons.filled.Landscape
+import androidx.compose.material.icons.rounded.PersonPinCircle
 
 sealed interface AppRoute {
     val route: String
@@ -20,14 +23,14 @@ sealed interface AppRoute {
     data object Home : Tab {
         override val route = AppRoutePath.Home
         override val label = "Home"
-        override val iconLabel = Icons.Outlined.Home
+        override val iconLabel = Icons.Filled.Home
         override val contentDescription = "Home tab"
     }
 
     data object Campings : Tab {
         override val route = AppRoutePath.Campings
         override val label = "Campings"
-        override val iconLabel = Icons.Rounded.Cabin
+        override val iconLabel = Icons.Default.Landscape
         override val contentDescription = "Campings tab"
     }
 
@@ -41,7 +44,7 @@ sealed interface AppRoute {
     data object Profile : Tab {
         override val route = AppRoutePath.Profile
         override val label = "Profile"
-        override val iconLabel = Icons.Rounded.Person
+        override val iconLabel = Icons.Default.AccountCircle
         override val contentDescription = "Profile tab"
     }
 

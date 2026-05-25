@@ -69,19 +69,19 @@
 - [x] Profile photo upload: call `POST /cloudinary/sign` → upload multipart → persist `photoURL` + `photoPublicID` (delete-when-nil on clear)
 - [x] Account deletion: set `pendingDeletionAt: serverTimestamp()` + `deletionRequestedBy: uid`; cancel = `FieldValue.delete()` on both fields; purge is server-side (30-day grace)
 
-### A9. Family Participants / Children (`ui/family/`)
-- [ ] CRUD for `users/{uid}/children/{childId}` — role `adult`/`admin` gate
-- [ ] Doc ID: client UUID (stable, mirrored in `id` field)
-- [ ] Required fields: `id`, `guardianID`, `displayName`, `age`, `gender`, `church`, `preferredLanguage`, `emergencyContactName`, `emergencyContactPhone`
-- [ ] `ageGroup` derived from `age`; `guardianConsentAt` delete-when-nil
-- [ ] `photoURL`/`photoPublicID` delete-when-nil; child photo upload via Cloudinary
-- [ ] Hard delete on remove
+### A9. Family Participants / Children (`ui/family/`) ✅
+- [x] CRUD for `users/{uid}/children/{childId}` — role `adult`/`admin` gate
+- [x] Doc ID: client UUID (stable, mirrored in `id` field)
+- [x] Required fields: `id`, `guardianID`, `displayName`, `age`, `gender`, `church`, `preferredLanguage`, `emergencyContactName`, `emergencyContactPhone`
+- [x] `ageGroup` derived from `age`; `guardianConsentAt` delete-when-nil
+- [x] `photoURL`/`photoPublicID` delete-when-nil; child photo upload via Cloudinary
+- [x] Hard delete on remove
 
-### A10. Data Models (`data/model/`)
-- [ ] Kotlin `data class`es for every entity in `02-firestore-schema.md` — exact wire field names, enum raw strings, nullability
-- [ ] Enum classes with explicit raw string values (copy **exactly** from `02` §8; case-sensitive)
-- [ ] **No POJO auto-mapping** (`toObject<T>()` forbidden); all (de)serialization via `Map<String, Any?>` in the service layer
-- [ ] Unit-test: serialize → deserialize round-trip against Firestore fixtures for every model
+### A10. Data Models (`data/model/`) ✅
+- [x] Kotlin `data class`es for every entity in `02-firestore-schema.md` — exact wire field names, enum raw strings, nullability
+- [x] Enum classes with explicit raw string values (copy **exactly** from `02` §8; case-sensitive)
+- [x] **No POJO auto-mapping** (`toObject<T>()` forbidden); all (de)serialization via `Map<String, Any?>` in the service layer
+- [x] Unit-test: serialize → deserialize round-trip against Firestore fixtures for every model
 
 ---
 
