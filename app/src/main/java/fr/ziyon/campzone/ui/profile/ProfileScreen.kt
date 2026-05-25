@@ -27,6 +27,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.DownloadForOffline
 import androidx.compose.material.icons.rounded.Groups
@@ -106,6 +107,7 @@ import fr.ziyon.campzone.data.auth.UserGender
 import fr.ziyon.campzone.data.church.ChurchGroup
 import fr.ziyon.campzone.data.church.SDAChurch
 import fr.ziyon.campzone.data.profile.UserProfile
+import fr.ziyon.campzone.ui.common.ChurchPickerSheet
 import java.text.DateFormat
 
 @Composable
@@ -824,7 +826,7 @@ private fun ProfileActionRow(
             overflow = TextOverflow.Ellipsis,
         )
         Icon(
-            imageVector = Icons.Filled.ArrowForwardIos,
+            imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
             modifier = Modifier.size(14.dp)
         )
@@ -875,7 +877,7 @@ private fun <T> ProfileDropdown(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Icon(
-                    imageVector = Icons.Filled.ArrowForwardIos,
+                    imageVector = Icons.Filled.ChevronRight,
                     contentDescription = null,
                     modifier = Modifier.size( 14.dp)
                 )
@@ -927,141 +929,6 @@ private fun LanguagePickerRow(
                     label = { Text(language.localizedName()) },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ChurchPickerSheet(
-    query: String,
-    groups: List<ChurchGroup>,
-    selectedChurch: String,
-    isLoading: Boolean,
-    errorMessage: String?,
-    onQueryChange: (String) -> Unit,
-    onSelectChurch: (SDAChurch) -> Unit,
-    onClear: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(max = 560.dp)
-            .padding(CzSpacing.xl),
-        verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(CzSpacing.base),
-        ) {
-            Text(
-                text = stringResource(R.string.profile_select_church_title),
-                modifier = Modifier.weight(1f),
-                color = MaterialTheme.czColors.textPrimary,
-                style = MaterialTheme.typography.titleLarge,
-            )
-            if (selectedChurch.isNotBlank()) {
-                TextButton(onClick = onClear) {
-                    Text(
-                        text = stringResource(R.string.common_clear),
-                        color = MaterialTheme.czColors.error,
-                    )
-                }
-            }
-        }
-
-        CzTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            label = stringResource(R.string.profile_search_churches),
-            modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { ProfileFieldIcon(Icons.Rounded.Search) },
-        )
-
-        when {
-            isLoading -> CzLoadingView(message = stringResource(R.string.profile_churches_loading))
-            errorMessage != null -> ProfileMessageContainer(tone = ProfileMessageTone.Error) {
-                Text(text = errorMessage, style = MaterialTheme.typography.bodySmall)
-            }
-            groups.isEmpty() -> Text(
-                text = query.takeUnless { it.isBlank() }?.let {
-                    stringResource(R.string.profile_no_church_results, it)
-                } ?: stringResource(R.string.profile_no_churches),
-                color = MaterialTheme.czColors.textSecondary,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            else -> Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
-            ) {
-                groups.forEach { group ->
-                    Text(
-                        text = group.country,
-                        color = MaterialTheme.czColors.textSecondary,
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                    group.churches.forEach { church ->
-                        ChurchPickerRow(
-                            church = church,
-                            isSelected = selectedChurch == church.name,
-                            onClick = { onSelectChurch(church) },
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChurchPickerRow(
-    church: SDAChurch,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(CzRadius.md))
-            .background(
-                if (isSelected) {
-                    MaterialTheme.czColors.primary.copy(alpha = 0.14f)
-                } else {
-                    Color.Transparent
-                },
-            )
-            .clickable(onClick = onClick)
-            .padding(CzSpacing.sm),
-        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = church.name,
-                color = MaterialTheme.czColors.textPrimary,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                ),
-            )
-            Text(
-                text = "${church.city} / ${church.region}",
-                color = MaterialTheme.czColors.textSecondary,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (isSelected) {
-            Text(
-                text = "OK",
-                color = MaterialTheme.czColors.primary,
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-            )
         }
     }
 }

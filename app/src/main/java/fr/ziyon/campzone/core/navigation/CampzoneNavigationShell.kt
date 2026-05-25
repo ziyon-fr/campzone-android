@@ -37,7 +37,10 @@ import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
-import fr.ziyon.campzone.ui.home.HomeScreen
+import fr.ziyon.campzone.ui.camping.CampingDetailRoute
+import fr.ziyon.campzone.ui.camping.CampingsRoute
+import fr.ziyon.campzone.ui.family.FamilyParticipantsScreen
+import fr.ziyon.campzone.ui.home.HomeRoute
 import fr.ziyon.campzone.ui.profile.ProfileScreen
 import fr.ziyon.campzone.ui.profile.ProfileSettingsScreen
 import fr.ziyon.campzone.ui.profile.UserDataExportScreen
@@ -80,9 +83,20 @@ fun CampzoneNavigationShell(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            composable(AppRoute.Home.route) { HomeScreen() }
+            composable(AppRoute.Home.route) {
+                HomeRoute(
+                    onOpenCamping = { campingId ->
+                        navController.navigate(AppRoute.CampingDetail(campingId).route)
+                    },
+                )
+            }
             composable(AppRoute.Campings.route) {
-                TopLevelPlaceholderScreen(title = stringResource(R.string.nav_campings))
+                CampingsRoute(
+                    authenticatedUser = authenticatedUser,
+                    onOpenCamping = { campingId ->
+                        navController.navigate(AppRoute.CampingDetail(campingId).route)
+                    },
+                )
             }
             composable(AppRoute.Announcements.route) {
                 TopLevelPlaceholderScreen(title = stringResource(R.string.nav_announcements))
@@ -115,7 +129,10 @@ fun CampzoneNavigationShell(
                 DetailPlaceholderScreen(title = stringResource(R.string.profile_notifications), value = stringResource(R.string.profile_coming_soon))
             }
             composable(AppRoute.FamilyParticipants.route) {
-                DetailPlaceholderScreen(title = stringResource(R.string.profile_family_participants), value = stringResource(R.string.profile_coming_soon))
+                FamilyParticipantsScreen(
+                    authenticatedUser = authenticatedUser,
+                    onNavigateBack = { navController.popBackStack() },
+                )
             }
             composable(AppRoute.AdminTools.route) {
                 DetailPlaceholderScreen(title = stringResource(R.string.profile_admin_tools), value = stringResource(R.string.profile_coming_soon))
@@ -133,9 +150,16 @@ fun CampzoneNavigationShell(
                 route = AppRoutePattern.CampingDetail,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
             ) { backStackEntry ->
-                DetailPlaceholderScreen(
-                    title = "Camping",
-                    value = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                CampingDetailRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenChat = { campingId ->
+                        navController.navigate(AppRoute.CampingChat(campingId).route)
+                    },
+                    onOpenPolls = { campingId ->
+                        navController.navigate(AppRoute.CampingPolls(campingId).route)
+                    },
                 )
             }
             composable(

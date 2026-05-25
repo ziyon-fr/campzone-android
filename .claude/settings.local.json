@@ -21,7 +21,12 @@
       "Bash(./gradlew assembleDebug testDebugUnitTest lint --console=plain)",
       "Bash(git --no-pager diff .claude/settings.local.json)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git checkout *)",
+      "Bash(./gradlew compileDebugKotlin --console=plain)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(tail -25 /tmp/cz_test1.log; echo \"---- model test classes ----\"; ls app/build/test-results/testDebugUnitTest/ 2>/dev/null | grep -i model)",
+      "Bash(./gradlew assembleDebug lint --console=plain)"
     ]
   }
 }

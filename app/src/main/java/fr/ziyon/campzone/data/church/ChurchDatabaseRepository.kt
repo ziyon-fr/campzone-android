@@ -19,6 +19,25 @@ data class ChurchGroup(
     val churches: List<SDAChurch>,
 )
 
+/** Filters churches by [query] and groups them by country, sorted for display. */
+fun List<SDAChurch>.groupedByCountry(query: String): List<ChurchGroup> {
+    val trimmed = query.trim()
+    val filtered = if (trimmed.isBlank()) {
+        this
+    } else {
+        filter { church ->
+            church.name.contains(trimmed, ignoreCase = true) ||
+                church.city.contains(trimmed, ignoreCase = true) ||
+                church.region.contains(trimmed, ignoreCase = true) ||
+                church.country.contains(trimmed, ignoreCase = true)
+        }
+    }
+    return filtered
+        .groupBy { it.country.ifBlank { "Other" } }
+        .map { (country, churches) -> ChurchGroup(country = country, churches = churches.sortedBy { it.name }) }
+        .sortedBy { it.country }
+}
+
 interface ChurchDirectory {
     suspend fun loadChurches(): List<SDAChurch>
 }

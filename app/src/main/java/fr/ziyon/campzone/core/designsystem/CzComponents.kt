@@ -25,6 +25,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -38,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -446,6 +448,28 @@ fun CzAvatar(
             )
         }
     }
+}
+
+@Composable
+fun SectionHeader(icon: ImageVector,title: String, content: @Composable () -> Unit) {
+    Column {
+        Row(horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.czColors.ember
+
+            )
+            Text(title,
+                fontStyle = MaterialTheme.typography.bodySmall.fontStyle,
+                color = MaterialTheme.czColors.textSecondary
+
+            )
+        }
+        content()
+    }
+
 }
 
 @Composable
