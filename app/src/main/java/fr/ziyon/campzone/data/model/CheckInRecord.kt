@@ -23,6 +23,7 @@ data class CheckInRecord(
     val gender: UserGender? = null,
     val photoUrl: String? = null,
     val checkedInAt: Date? = null,
+    val updatedAt: Date? = null,
 )
 
 internal fun Map<String, Any?>.toCheckInRecordOrNull(documentId: String): CheckInRecord? {
@@ -44,6 +45,7 @@ internal fun Map<String, Any?>.toCheckInRecordOrNull(documentId: String): CheckI
         gender = UserGender.fromWire(stringValue("gender")),
         photoUrl = stringValue("photoURL"),
         checkedInAt = dateValue("checkedInAt"),
+        updatedAt = dateValue("updatedAt"),
     )
 }
 

@@ -41,6 +41,7 @@ class CampingPayloadTest {
         // never write guidelines or winnerRevealPolicy on the normal path
         assertFalse(payload.containsKey("guidelines"))
         assertFalse(payload.containsKey("winnerRevealPolicy"))
+        assertFalse(payload.containsKey("attendees"))
     }
 
     @Test

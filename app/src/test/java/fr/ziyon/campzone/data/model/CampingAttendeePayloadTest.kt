@@ -67,8 +67,19 @@ class CampingAttendeePayloadTest {
 
     @Test
     fun roundTripsThroughDecoder() {
+        val paymentUpdatedAt = Date(12)
+        val approvedAt = Date(13)
         val original = selfAttendee().copy(gender = UserGender.Male)
         val payload = CampingAttendeePayload.registrationPayload(original, Date(7), includeCreatedAt = false)
+            .toMutableMap()
+            .apply {
+                put("registrationStatus", "approved")
+                put("paymentStatus", "paid")
+                put("paymentReference", "pi_123")
+                put("paymentUpdatedAt", paymentUpdatedAt)
+                put("approvedVia", "payment")
+                put("approvedAt", approvedAt)
+            }
         val decoded = payload.toCampingAttendeeOrNull(documentId = "uid-1")!!
 
         assertEquals("uid-1", decoded.id)
@@ -78,7 +89,12 @@ class CampingAttendeePayloadTest {
         assertEquals(original.age, decoded.age)
         assertEquals(UserGender.Male, decoded.gender)
         assertEquals(listOf("en"), decoded.languages)
-        assertEquals(RegistrationApprovalStatus.Pending, decoded.registrationStatus)
+        assertEquals(RegistrationApprovalStatus.Approved, decoded.registrationStatus)
+        assertEquals(TransportationPaymentStatus.Paid, decoded.paymentStatus)
+        assertEquals("pi_123", decoded.paymentReference)
+        assertEquals(paymentUpdatedAt, decoded.paymentUpdatedAt)
+        assertEquals("payment", decoded.approvedVia)
+        assertEquals(approvedAt, decoded.approvedAt)
         assertTrue(decoded.languages.isNotEmpty())
     }
 

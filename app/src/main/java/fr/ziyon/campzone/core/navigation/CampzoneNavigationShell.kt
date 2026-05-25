@@ -40,7 +40,7 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.ui.camping.CampingDetailRoute
 import fr.ziyon.campzone.ui.camping.CampingsRoute
 import fr.ziyon.campzone.ui.family.FamilyParticipantsScreen
-import fr.ziyon.campzone.ui.home.HomeScreen
+import fr.ziyon.campzone.ui.home.HomeRoute
 import fr.ziyon.campzone.ui.profile.ProfileScreen
 import fr.ziyon.campzone.ui.profile.ProfileSettingsScreen
 import fr.ziyon.campzone.ui.profile.UserDataExportScreen
@@ -83,9 +83,16 @@ fun CampzoneNavigationShell(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            composable(AppRoute.Home.route) { HomeScreen() }
+            composable(AppRoute.Home.route) {
+                HomeRoute(
+                    onOpenCamping = { campingId ->
+                        navController.navigate(AppRoute.CampingDetail(campingId).route)
+                    },
+                )
+            }
             composable(AppRoute.Campings.route) {
                 CampingsRoute(
+                    authenticatedUser = authenticatedUser,
                     onOpenCamping = { campingId ->
                         navController.navigate(AppRoute.CampingDetail(campingId).route)
                     },

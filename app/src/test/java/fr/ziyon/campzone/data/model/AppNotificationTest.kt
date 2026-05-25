@@ -30,6 +30,16 @@ class AppNotificationTest {
     }
 
     @Test
+    fun preservesCreatedAtAndUsesItAsFallbackSentAt() {
+        val createdAt = Timestamp(Date(1_700_000_000_000L))
+        val doc = mapOf("appID" to "campzone", "kind" to "announcement", "createdAt" to createdAt)
+        val decoded = doc.toAppNotificationOrNull("n1")!!
+
+        assertEquals(createdAt.toDate(), decoded.createdAt)
+        assertEquals(createdAt.toDate(), decoded.sentAt)
+    }
+
+    @Test
     fun acceptsTimestampSentAt() {
         val ts = Timestamp(Date(1_700_000_000_000L))
         val doc = mapOf("appID" to "campzone", "kind" to "poll", "sentAt" to ts)

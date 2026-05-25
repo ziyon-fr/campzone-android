@@ -19,6 +19,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import com.google.firebase.firestore.FieldValue
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -71,7 +72,11 @@ class FirebaseCampingService @Inject constructor(
                 val campings = snapshot?.documents
                     ?.mapNotNull { document -> document.data?.toCampingOrNull(document.id) }
                     .orEmpty()
-                trySend(campings)
+                launch {
+                    trySend(campings.map { camping ->
+                        camping.copy(attendees = loadAttendees(camping.id))
+                    })
+                }
             }
         awaitClose { registration.remove() }
     }
@@ -79,6 +84,7 @@ class FirebaseCampingService @Inject constructor(
     override suspend fun fetchCamping(id: String): Camping {
         val snapshot = campings().document(id).get().await()
         return snapshot.data?.toCampingOrNull(snapshot.id)
+            ?.let { it.copy(attendees = loadAttendees(it.id)) }
             ?: error("Camping could not be found.")
     }
 

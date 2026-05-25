@@ -20,6 +20,7 @@ data class AppNotification(
     val body: String,
     val topic: String,
     val sentAt: Date,
+    val createdAt: Date? = null,
     val announcementId: String? = null,
     val campingId: String? = null,
     val pollId: String? = null,
@@ -42,6 +43,7 @@ internal fun Map<String, Any?>.toAppNotificationOrNull(documentId: String): AppN
     val announcementId = stringValue("announcementID")
     val campingId = stringValue("campingID")
     val pollId = stringValue("pollID")
+    val createdAt = isoOrTimestamp("createdAt")
     val explicitKind = AppNotificationKind.fromWire(stringValue("kind"))
         ?: AppNotificationKind.fromWire(stringValue("type"))
     val kind = explicitKind ?: when {
@@ -58,7 +60,8 @@ internal fun Map<String, Any?>.toAppNotificationOrNull(documentId: String): AppN
         title = stringValue("title") ?: "Notification",
         body = rawStringValue("body").orEmpty(),
         topic = rawStringValue("topic").orEmpty(),
-        sentAt = isoOrTimestamp("sentAt") ?: isoOrTimestamp("createdAt") ?: AppNotification.DISTANT_PAST,
+        sentAt = isoOrTimestamp("sentAt") ?: createdAt ?: AppNotification.DISTANT_PAST,
+        createdAt = createdAt,
         announcementId = announcementId,
         campingId = campingId,
         pollId = pollId,

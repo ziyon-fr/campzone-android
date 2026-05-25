@@ -42,6 +42,7 @@ data class TeamMember(
     val userId: String,
     val displayName: String,
     val church: String,
+    val age: Int? = null,
     val role: TeamMemberRole = TeamMemberRole.Member,
     val personalScore: Int = 0,
     val notificationUserId: String? = null,
@@ -85,6 +86,7 @@ internal fun Map<String, Any?>.toTeamMemberOrNull(): TeamMember? {
         userId = userId,
         displayName = stringValue("displayName") ?: "Participant",
         church = rawStringValue("church").orEmpty(),
+        age = intValue("age"),
         role = TeamMemberRole.fromWire(stringValue("role")),
         personalScore = intValue("personalScore") ?: 0,
         notificationUserId = stringValue("notificationUserID"),
@@ -148,6 +150,7 @@ internal object TeamPayload {
             "preferredLanguage" to member.preferredLanguage,
             "languages" to member.languages,
         )
+        member.age?.let { map["age"] = it }
         member.notificationUserId?.trim()?.takeUnless { it.isBlank() }
             ?.let { map["notificationUserID"] = it }
         member.ageGroup?.let { map["ageGroup"] = it.wireValue }

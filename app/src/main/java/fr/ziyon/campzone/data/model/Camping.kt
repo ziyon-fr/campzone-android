@@ -34,6 +34,7 @@ data class Camping(
     val createdByName: String? = null,
     val createdAt: Date? = null,
     val updatedAt: Date? = null,
+    val attendees: List<CampingAttendee> = emptyList(),
 ) {
     val isPaid: Boolean
         get() = (registrationFeeCents ?: 0) > 0 ||
@@ -42,6 +43,21 @@ data class Camping(
 
     val acceptsRegistrations: Boolean
         get() = registrationStatus == CampingRegistrationStatus.Open
+
+    val approvedAttendees: List<CampingAttendee>
+        get() = attendees.filter { it.registrationStatus == RegistrationApprovalStatus.Approved }
+
+    val pendingAttendees: List<CampingAttendee>
+        get() = attendees.filter { it.registrationStatus == RegistrationApprovalStatus.Pending }
+
+    val waitlistedAttendees: List<CampingAttendee>
+        get() = attendees.filter { it.registrationStatus == RegistrationApprovalStatus.Waitlisted }
+
+    val isAtCapacity: Boolean
+        get() = participantCapacity?.let { approvedAttendees.size >= it } ?: false
+
+    val participantCount: Int
+        get() = approvedAttendees.size
 
     /** Lowest matching age band, else null (caller falls back to [registrationFeeCents]). */
     fun agePriceFor(age: Int): CampingAgePrice? =

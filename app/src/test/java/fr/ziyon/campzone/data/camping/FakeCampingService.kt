@@ -6,6 +6,7 @@ import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 
 /** In-memory [CampingService] for ViewModel tests and previews. */
 class FakeCampingService(
@@ -23,11 +24,11 @@ class FakeCampingService(
         if (shouldFail) {
             flow { throw RuntimeException("Stream failed") }
         } else {
-            campings
+            campings.map { list -> list.map(::withAttendees) }
         }
 
     override suspend fun fetchCamping(id: String): Camping =
-        campings.value.firstOrNull { it.id == id } ?: error("Camping not found")
+        campings.value.firstOrNull { it.id == id }?.let(::withAttendees) ?: error("Camping not found")
 
     override suspend fun loadAttendees(campingId: String): List<CampingAttendee> {
         if (attendeesFail) throw RuntimeException("Attendees denied")
@@ -56,4 +57,7 @@ class FakeCampingService(
         campings.value = campings.value.map { if (it.id == campingId) updated else it }
         return updated
     }
+
+    private fun withAttendees(camping: Camping): Camping =
+        camping.copy(attendees = attendeesByCamping[camping.id] ?: camping.attendees)
 }

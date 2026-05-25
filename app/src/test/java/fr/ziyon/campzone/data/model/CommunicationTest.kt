@@ -44,11 +44,14 @@ class CommunicationTest {
 
     @Test
     fun chatDecodeDropsMissingRequiredAndRoundTrips() {
+        val updatedAt = Date(11)
         val payload = ChatMessagePayload.sendPayload(
             ChatMessage(id = "m1", campingId = "camp-1", senderId = "u1", senderName = "Maria", text = "Hi"),
             TS, isTeamChat = false,
-        )
-        assertEquals("Hi", payload.toChatMessageOrNull("m1")?.text)
+        ).toMutableMap().apply { put("updatedAt", updatedAt) }
+        val decoded = payload.toChatMessageOrNull("m1")
+        assertEquals("Hi", decoded?.text)
+        assertEquals(updatedAt, decoded?.updatedAt)
 
         val broken = payload.toMutableMap().apply { remove("senderName") }
         assertNull(broken.toChatMessageOrNull("m1"))
@@ -111,14 +114,16 @@ class CommunicationTest {
     @Test
     fun pollClosesAtExplicitNullAndClientDate() {
         val now = Date(1_700_000_000_000L)
+        val updatedAt = Date(1_700_000_100_000L)
         val open = PollPayload.pollPayload(
             Poll(id = "p1", question = "Fav?", options = listOf(PollOption("o1", "A")), closesAt = null),
             now, includeCreatedAt = true,
-        )
+        ).toMutableMap().apply { put("updatedAt", updatedAt) }
         assertTrue(open.containsKey("closesAt")) // present…
         assertNull(open["closesAt"]) // …as explicit null
         assertEquals(now, open["createdAt"]) // client Date()
         assertEquals(true, open["showsResultsBeforeClose"]) // defaults true
+        assertEquals(updatedAt, open.toPoll("p1").updatedAt)
 
         val closing = PollPayload.pollPayload(
             Poll(id = "p1", question = "Q", closesAt = Date(1_700_000_500_000L)),

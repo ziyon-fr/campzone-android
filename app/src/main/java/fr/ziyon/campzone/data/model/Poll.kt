@@ -20,6 +20,7 @@ data class Poll(
     val createdByName: String = "",
     val createdAt: Date? = null,
     val closesAt: Date? = null,
+    val updatedAt: Date? = null,
 )
 
 data class PollOption(
@@ -48,6 +49,7 @@ internal fun Map<String, Any?>.toPoll(documentId: String): Poll =
         createdByName = rawStringValue("createdByName").orEmpty(),
         createdAt = dateValue("createdAt"),
         closesAt = dateValue("closesAt"),
+        updatedAt = dateValue("updatedAt"),
     )
 
 internal fun Map<String, Any?>.toPollOptionOrNull(): PollOption? {

@@ -75,7 +75,13 @@ class TeamPayloadTest {
     @Test
     fun roundTripsThroughDecoder() {
         val original = sampleTeam().copy(
-            members = listOf(member("u1", TeamMemberRole.Captain).copy(gender = UserGender.Male, personalScore = 7)),
+            members = listOf(
+                member("u1", TeamMemberRole.Captain).copy(
+                    age = 22,
+                    gender = UserGender.Male,
+                    personalScore = 7,
+                ),
+            ),
         )
         val payload = TeamPayload.teamPayload(original, Date(9), DEL, includeCreatedAt = false)
         val decoded = payload.toTeamOrNull(documentId = "team-1")!!
@@ -85,6 +91,7 @@ class TeamPayloadTest {
         assertEquals(original.colorHex, decoded.colorHex)
         assertEquals(listOf("u1"), decoded.memberUserIds)
         assertEquals(TeamMemberRole.Captain, decoded.members.first().role)
+        assertEquals(22, decoded.members.first().age)
         assertEquals(UserGender.Male, decoded.members.first().gender)
         assertEquals(7, decoded.members.first().personalScore)
     }

@@ -3,12 +3,15 @@ package fr.ziyon.campzone.ui.camping
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -22,13 +25,20 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import fr.ziyon.campzone.R
+import fr.ziyon.campzone.core.permissions.AppPermission
+import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
+import fr.ziyon.campzone.core.permissions.CampingPermissionContext
+import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzBadge
+import fr.ziyon.campzone.core.designsystem.CzBadgeTone
 import fr.ziyon.campzone.core.designsystem.CzCard
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzErrorState
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
+import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.CzTextField
 import fr.ziyon.campzone.core.designsystem.czColors
@@ -36,7 +46,9 @@ import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
+import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
@@ -54,6 +66,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.remember
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import java.util.Date
 import kotlin.math.max
 
@@ -61,14 +75,27 @@ import kotlin.math.max
 fun CampingsRoute(
     onOpenCamping: (String) -> Unit,
     modifier: Modifier = Modifier,
+    authenticatedUser: AuthenticatedUser? = null,
     viewModel: CampingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val permissionUser = authenticatedUser?.let { PermissionUser(role = it.role, church = it.church) }
+    val evaluator = remember { AppPermissionEvaluator() }
     CampingsScreen(
         state = state,
         onSearchChange = viewModel::updateSearch,
         onOpenCamping = onOpenCamping,
         onRetry = viewModel::retry,
+        showAdminInfo = { camping ->
+            evaluator.hasPermission(
+                user = permissionUser,
+                permission = AppPermission.ApproveRegistrations,
+                camping = CampingPermissionContext(
+                    organizerLevelType = camping.organizerLevel.type.wireValue,
+                    organizerLevelValue = camping.organizerLevel.value,
+                ),
+            )
+        },
         modifier = modifier,
     )
 }
@@ -79,6 +106,7 @@ fun CampingsScreen(
     onSearchChange: (String) -> Unit,
     onOpenCamping: (String) -> Unit,
     onRetry: () -> Unit,
+    showAdminInfo: (Camping) -> Boolean,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -140,7 +168,7 @@ fun CampingsScreen(
 
             is CampingsPhase.Loaded -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                contentPadding = PaddingValues(
                     start = CzSpacing.xl,
                     end = CzSpacing.xl,
                     top = CzSpacing.base,
@@ -150,19 +178,41 @@ fun CampingsScreen(
             ) {
                 phase.sections.forEach { section ->
                     item(key = "header-${section.id}") {
-                        Text(
-                            text = section.title,
-                            color = MaterialTheme.czColors.textSecondary,
-                            style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.padding(top = CzSpacing.sm, bottom = CzSpacing.xs),
-                        )
+                        MonthSectionHeader(section.title)
                     }
                     items(section.campings, key = { it.id }) { camping ->
-                        CampingCard(camping = camping, onClick = { onOpenCamping(camping.id) })
+                        CampingCard(
+                            camping = camping,
+                            onClick = { onOpenCamping(camping.id) },
+                            showAdminInfo = showAdminInfo(camping),
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MonthSectionHeader(title: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = CzSpacing.sm, bottom = CzSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.CalendarMonth,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.czColors.ember,
+        )
+        Text(
+            text = title.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
+            color = MaterialTheme.czColors.textSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 
@@ -185,10 +235,16 @@ private fun CampingCard(
         fillRatio < 0.8f -> MaterialTheme.czColors.warning
         else -> MaterialTheme.czColors.error
     }
+    val statusAccentColor = when (camping.registrationStatus) {
+        CampingRegistrationStatus.Open -> MaterialTheme.czColors.success
+        CampingRegistrationStatus.Closed -> MaterialTheme.czColors.textSecondary
+        CampingRegistrationStatus.Cancelled -> MaterialTheme.czColors.error
+    }
 
     CzCard(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(0.dp),
         contentDescription = camping.title,
     ) {
         Row(
@@ -202,7 +258,7 @@ private fun CampingCard(
                     .width(3.dp)
                     .heightIn(min = 120.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(camping.registrationStatus.badgeTone().containerColor)
+                    .background(statusAccentColor)
             )
 
             Column(
@@ -218,19 +274,7 @@ private fun CampingCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
 
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.czColors.surfaceVariant),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Festival,
-                            contentDescription = null,
-                            tint = MaterialTheme.czColors.textSecondary,
-                        )
-                    }
+                    CampingListLogoBadge(camping)
 
                     Spacer(modifier = Modifier.width(CzSpacing.sm))
 
@@ -355,10 +399,7 @@ private fun CampingCard(
                             Spacer(modifier = Modifier.weight(1f))
 
                             if (showAdminInfo && camping.pendingAttendees.isNotEmpty()) {
-                                CzBadge(
-                                    text = "${camping.pendingAttendees.size} pending",
-                                    tone = fr.ziyon.campzone.core.designsystem.BadgeTone.Warning,
-                                )
+                                PendingBadge(camping.pendingAttendees.size)
                             }
                         }
                     }
@@ -391,10 +432,7 @@ private fun CampingCard(
                         Spacer(modifier = Modifier.weight(1f))
 
                         if (showAdminInfo && camping.pendingAttendees.isNotEmpty()) {
-                            CzBadge(
-                                text = "${camping.pendingAttendees.size} pending",
-                                tone = fr.ziyon.campzone.core.designsystem.BadgeTone.Warning,
-                            )
+                            PendingBadge(camping.pendingAttendees.size)
                         }
                     }
                 }
@@ -407,6 +445,58 @@ private fun CampingCard(
                 modifier = Modifier.padding(end = CzSpacing.md),
             )
         }
+    }
+}
+
+@Composable
+private fun CampingListLogoBadge(camping: Camping) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(CzRadius.md))
+            .background(MaterialTheme.czColors.secondary.copy(alpha = 0.14f))
+            .border(1.dp, MaterialTheme.czColors.divider, RoundedCornerShape(CzRadius.md)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (!camping.logoUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = camping.logoUrl,
+                contentDescription = camping.title,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.Festival,
+                contentDescription = null,
+                tint = MaterialTheme.czColors.textSecondary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PendingBadge(count: Int) {
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(MaterialTheme.czColors.amber.copy(alpha = 0.12f))
+            .padding(horizontal = CzSpacing.xs, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Schedule,
+            contentDescription = null,
+            modifier = Modifier.size(12.dp),
+            tint = MaterialTheme.czColors.amber,
+        )
+        Text(
+            text = "$count pending",
+            color = MaterialTheme.czColors.amber,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+        )
     }
 }
 
@@ -440,6 +530,7 @@ private fun CampingsScreenPreview() {
             onSearchChange = {},
             onOpenCamping = {},
             onRetry = {},
+            showAdminInfo = { true },
         )
     }
 }

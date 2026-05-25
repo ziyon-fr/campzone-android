@@ -14,6 +14,7 @@ class CampOperationsTest {
 
     @Test
     fun checkInFullSetWithOmitWhenNilOptionals() {
+        val updatedAt = Date(11)
         val record = CheckInRecord(
             campingId = "camp-1",
             attendeeId = "att-1",
@@ -24,6 +25,8 @@ class CampOperationsTest {
             ageGroup = CampingAgeGroup.Youth,
         )
         val payload = CheckInRecordPayload.checkInPayload(record, TS)
+            .toMutableMap()
+            .apply { put("updatedAt", updatedAt) }
         assertEquals("qr", payload["method"])
         assertEquals(TS, payload["checkedInAt"])
         assertEquals("youth", payload["ageGroup"])
@@ -33,6 +36,7 @@ class CampOperationsTest {
         val decoded = payload.toCheckInRecordOrNull("att-1")!!
         assertEquals("att-1", decoded.attendeeId)
         assertEquals(CheckInMethod.Qr, decoded.method)
+        assertEquals(updatedAt, decoded.updatedAt)
 
         val broken = payload.toMutableMap().apply { remove("userID") }
         assertNull(broken.toCheckInRecordOrNull("att-1"))
