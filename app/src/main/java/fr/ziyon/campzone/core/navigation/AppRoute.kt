@@ -114,6 +114,14 @@ sealed interface AppRoute {
         override val route = "${CampingPolls(campingId).route}/${pollId.asRouteSegment()}"
     }
 
+    data object CampingCreate : AppRoute {
+        override val route = "${AppRoutePath.Campings}/${AppRoutePath.CampingCreate}"
+    }
+
+    data class CampingEdit(val campingId: String) : AppRoute {
+        override val route = "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.CampingEdit}"
+    }
+
     companion object {
         val topLevelTabs: List<Tab> = listOf(Home, Campings, Announcements, Profile)
 
@@ -149,6 +157,8 @@ internal object AppRoutePath {
     const val Chat = "chat"
     const val Teams = "teams"
     const val Polls = "polls"
+    const val CampingCreate = "create"
+    const val CampingEdit = "edit"
 }
 
 internal object AppRoutePattern {
@@ -160,6 +170,8 @@ internal object AppRoutePattern {
     const val TeamChat = "$TeamDetail/${AppRoutePath.Chat}"
     const val CampingPolls = "$CampingDetail/${AppRoutePath.Polls}"
     const val PollDetail = "$CampingPolls/{${AppRouteArgs.PollId}}"
+    const val CampingCreate = "${AppRoutePath.Campings}/${AppRoutePath.CampingCreate}"
+    const val CampingEdit = "$CampingDetail/${AppRoutePath.CampingEdit}"
 }
 
 private fun String.asRouteSegment(): String =

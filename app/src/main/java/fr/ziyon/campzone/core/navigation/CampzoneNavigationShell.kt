@@ -39,6 +39,7 @@ import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.ui.camping.CampingDetailRoute
 import fr.ziyon.campzone.ui.camping.CampingsRoute
+import fr.ziyon.campzone.ui.camping.admin.CampingEditorRoute
 import fr.ziyon.campzone.ui.family.FamilyParticipantsScreen
 import fr.ziyon.campzone.ui.home.HomeRoute
 import fr.ziyon.campzone.ui.profile.ProfileScreen
@@ -95,6 +96,9 @@ fun CampzoneNavigationShell(
                     authenticatedUser = authenticatedUser,
                     onOpenCamping = { campingId ->
                         navController.navigate(AppRoute.CampingDetail(campingId).route)
+                    },
+                    onCreateCamping = {
+                        navController.navigate(AppRoute.CampingCreate.route)
                     },
                 )
             }
@@ -160,6 +164,26 @@ fun CampzoneNavigationShell(
                     onOpenPolls = { campingId ->
                         navController.navigate(AppRoute.CampingPolls(campingId).route)
                     },
+                    onOpenEditCamping = { campingId ->
+                        navController.navigate(AppRoute.CampingEdit(campingId).route)
+                    },
+                )
+            }
+            composable(route = AppRoutePattern.CampingCreate) {
+                CampingEditorRoute(
+                    campingId = null,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingEdit,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                CampingEditorRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(

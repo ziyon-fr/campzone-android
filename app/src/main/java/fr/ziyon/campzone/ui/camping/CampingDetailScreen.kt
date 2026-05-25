@@ -119,6 +119,7 @@ fun CampingDetailRoute(
     modifier: Modifier = Modifier,
     onOpenChat: (String) -> Unit = {},
     onOpenPolls: (String) -> Unit = {},
+    onOpenEditCamping: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(campingId) { viewModel.load(campingId, authenticatedUser) }
@@ -144,6 +145,7 @@ fun CampingDetailRoute(
         },
         onOpenChat = onOpenChat,
         onOpenPolls = onOpenPolls,
+        onOpenEditCamping = onOpenEditCamping,
         modifier = modifier,
     )
 }

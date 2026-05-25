@@ -14,11 +14,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.data.church.ChurchDirectory
+import fr.ziyon.campzone.data.church.groupedByCountry
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
 import fr.ziyon.campzone.core.designsystem.CzRadius
@@ -170,5 +186,69 @@ private fun ChurchPickerRow(
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
             )
         }
+    }
+}
+
+// MARK: - Self-contained bottom sheet for use in the camping editor
+
+data class ChurchPickerUiState(
+    val query: String = "",
+    val churches: List<fr.ziyon.campzone.data.church.SDAChurch> = emptyList(),
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+) {
+    val filteredGroups: List<ChurchGroup> get() = churches.groupedByCountry(query)
+}
+
+@HiltViewModel
+class ChurchPickerViewModel @Inject constructor(
+    private val churchDirectory: ChurchDirectory,
+) : ViewModel() {
+    private val _uiState = MutableStateFlow(ChurchPickerUiState())
+    val uiState: StateFlow<ChurchPickerUiState> = _uiState.asStateFlow()
+
+    fun load() {
+        if (_uiState.value.churches.isNotEmpty()) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            runCatching { churchDirectory.loadChurches() }
+                .onSuccess { list -> _uiState.value = _uiState.value.copy(churches = list, isLoading = false) }
+                .onFailure { _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = "Could not load churches.") }
+        }
+    }
+
+    fun onQueryChange(query: String) {
+        _uiState.value = _uiState.value.copy(query = query)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChurchPickerBottomSheet(
+    selectedChurch: String,
+    onSelectChurch: (String) -> Unit,
+    onDismiss: () -> Unit,
+    viewModel: ChurchPickerViewModel = hiltViewModel(),
+) {
+    val state by viewModel.uiState.collectAsState()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.load() }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.background,
+    ) {
+        ChurchPickerSheet(
+            query = state.query,
+            groups = state.filteredGroups,
+            selectedChurch = selectedChurch,
+            isLoading = state.isLoading,
+            errorMessage = state.errorMessage,
+            onQueryChange = viewModel::onQueryChange,
+            onSelectChurch = { church -> onSelectChurch(church.name) },
+            onClear = { onSelectChurch("") },
+        )
     }
 }

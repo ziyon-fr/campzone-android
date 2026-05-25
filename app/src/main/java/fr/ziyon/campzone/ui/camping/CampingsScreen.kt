@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.rounded.Search
@@ -76,11 +77,13 @@ fun CampingsRoute(
     onOpenCamping: (String) -> Unit,
     modifier: Modifier = Modifier,
     authenticatedUser: AuthenticatedUser? = null,
+    onCreateCamping: () -> Unit = {},
     viewModel: CampingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
     val permissionUser = authenticatedUser?.let { PermissionUser(role = it.role, church = it.church) }
     val evaluator = remember { AppPermissionEvaluator() }
+    val canCreate = evaluator.hasPermission(permissionUser, AppPermission.CreateCamping)
     CampingsScreen(
         state = state,
         onSearchChange = viewModel::updateSearch,
@@ -96,6 +99,7 @@ fun CampingsRoute(
                 ),
             )
         },
+        onCreateCamping = if (canCreate) onCreateCamping else null,
         modifier = modifier,
     )
 }
@@ -108,24 +112,34 @@ fun CampingsScreen(
     onRetry: () -> Unit,
     showAdminInfo: (Camping) -> Boolean,
     modifier: Modifier = Modifier,
+    onCreateCamping: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = stringResource(R.string.nav_campings),
-            color = MaterialTheme.czColors.textPrimary,
-            style = MaterialTheme.typography.headlineMedium,
+        Row(
             modifier = Modifier
-                .padding(
-                start = CzSpacing.xl,
-                end = CzSpacing.xl,
-                top = CzSpacing.xl,
-                bottom = CzSpacing.sm,
+                .fillMaxWidth()
+                .padding(start = CzSpacing.xl, end = CzSpacing.md, top = CzSpacing.xl, bottom = CzSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.nav_campings),
+                color = MaterialTheme.czColors.textPrimary,
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.weight(1f),
             )
-
-        )
+            if (onCreateCamping != null) {
+                androidx.compose.material3.IconButton(onClick = onCreateCamping) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.camping_editor_create_title),
+                        tint = MaterialTheme.czColors.ember,
+                    )
+                }
+            }
+        }
         CzTextField(
             value = state.searchText,
             onValueChange = onSearchChange,
