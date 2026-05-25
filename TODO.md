@@ -105,18 +105,19 @@
 - [x] Camp guidelines tab: render `campings/{id}/guidelines` markdown
 - [x] `UiState` sealed: Loading / Loaded / Empty / Error
 
-### B2. Admin: Create / Edit / Cancel Camping (`ui/campings/admin/`)
+### B2. Admin: Create / Edit / Cancel Camping (`ui/campings/admin/`) ✅
 
-- [ ] Gate: `canCreateCamping` / `canEditCamping` / `canCancelCamping` from permission evaluator
-- [ ] Write camping via hand-built `Map<String, Any?>` (never auto-encode) — exact fields from `02` §3
-- [ ] Required: `title`, `description`, `startDate`, `endDate`, `organizerLevel ({type,value})`, `location`, `registrationStatus`
-- [ ] Optional delete-when-nil: `locationLatitude`, `locationLongitude`, `participantCapacity`, `logoURL`, `logoPublicID`, `registrationFeeCents`, `feeCurrency`
-- [ ] Always write (may be empty `[]`): `priceItems`, `agePrices`, `transportationOptions`
-- [ ] Stamp `createdByUID` + `createdByName` on create only (authorizes delete)
-- [ ] Logo upload: `POST /cloudinary/sign` → multipart → stable public_id `campzone/campings/{campingID}`
-- [ ] Cancel: write only `{ registrationStatus: "cancelled", updatedAt: serverTimestamp() }`
-- [ ] Delete: only if `canDeleteCamping` or `createdByUID == auth.uid`
-- [ ] Do NOT write `guidelines` or `winnerRevealPolicy` in the normal edit path
+- [x] Gate: `canCreateCamping` / `canEditCamping` / `canCancelCamping` from permission evaluator
+- [x] Write camping via hand-built `Map<String, Any?>` (never auto-encode) — exact fields from `02` §3
+- [x] Required: `title`, `description`, `startDate`, `endDate`, `organizerLevel ({type,value})`, `location`, `registrationStatus`
+- [x] Optional delete-when-nil: `locationLatitude`, `locationLongitude`, `participantCapacity`, `logoURL`, `logoPublicID`, `registrationFeeCents`, `feeCurrency`
+- [x] Always write (may be empty `[]`): `priceItems`, `agePrices`, `transportationOptions`
+- [x] Stamp `createdByUID` + `createdByName` on create only (authorizes delete)
+- [x] Logo upload: `POST /cloudinary/sign` → multipart → stable public_id `campzone/campings/{campingID}`
+- [x] Cancel: write only `{ registrationStatus: "cancelled", updatedAt: serverTimestamp() }`
+- [x] Delete: only if `canDeleteCamping` or `createdByUID == auth.uid`
+- [x] Do NOT write `guidelines` or `winnerRevealPolicy` in the normal edit path
+- [x] iOS parity: location search picker (Geocoder + nearby + recents), registration status all 3 states with color dots, timing amber dividers, transport 2-line cap, `CampingsScreen` admin card + StatusBadge + capsule capacity bar
 
 ### B3. Registration Flow (`ui/campings/register/`)
 
