@@ -101,6 +101,7 @@ import fr.ziyon.campzone.core.designsystem.CzLoadingView
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
+import fr.ziyon.campzone.core.navigation.CampzoneDeepLink
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.CampingAgeGroup
 import fr.ziyon.campzone.data.model.Camping
@@ -108,7 +109,6 @@ import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
-import java.net.URLEncoder
 import java.util.Date
 
 @Composable
@@ -132,7 +132,7 @@ fun CampingDetailRoute(
         onAttendeeSearchChange = viewModel::updateAttendeeSearch,
         onRetry = { viewModel.load(campingId, authenticatedUser) },
         onShareCamping = { camping ->
-            val deepLink = "campzone://camping/${camping.id.asUrlSegment()}"
+            val deepLink = CampzoneDeepLink.Camping(camping.id).canonicalShareUrlOrNull().orEmpty()
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_SUBJECT, camping.title)
@@ -1658,9 +1658,6 @@ private enum class CampingDetailTab {
     Schedule,
     Teams,
 }
-
-private fun String.asUrlSegment(): String =
-    URLEncoder.encode(this, Charsets.UTF_8.name()).replace("+", "%20")
 
 @Preview(showBackground = true)
 @Composable

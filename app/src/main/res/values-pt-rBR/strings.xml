@@ -381,6 +381,9 @@
     <string name="camping_editor_logo_choose">Escolher imagem</string>
     <string name="camping_editor_logo_replace">Substituir</string>
     <string name="camping_editor_location_hint">Cidade, país ou nome do local</string>
+    <string name="camping_editor_location_change">Alterar</string>
+    <string name="camping_editor_location_nearby">Próximo</string>
+    <string name="camping_editor_location_recents">Recentes</string>
     <string name="camping_editor_date_start">Data de início</string>
     <string name="camping_editor_date_end">Data de término</string>
     <string name="camping_editor_organizer_level">Tipo de organizador</string>

@@ -223,6 +223,24 @@ fun CampzoneNavigationShell(
                 )
             }
             composable(
+                route = AppRoutePattern.PointHistory,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                DetailPlaceholderScreen(
+                    title = "Point history",
+                    value = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                )
+            }
+            composable(
+                route = AppRoutePattern.TeamPointHistory,
+                arguments = teamRouteArguments(),
+            ) { backStackEntry ->
+                DetailPlaceholderScreen(
+                    title = "Point history",
+                    value = backStackEntry.stringArg(AppRouteArgs.TeamId),
+                )
+            }
+            composable(
                 route = AppRoutePattern.CampingPolls,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
             ) { backStackEntry ->

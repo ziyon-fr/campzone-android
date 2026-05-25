@@ -9,9 +9,20 @@ sealed interface CampzoneDeepLink {
     data class Announcement(val id: String) : CampzoneDeepLink
     data class Camping(val id: String) : CampzoneDeepLink
     data class CampingChat(val campingId: String) : CampzoneDeepLink
+
     data class TeamChat(
         val campingId: String,
         val teamId: String,
+    ) : CampzoneDeepLink
+
+    data class TeamUpdate(
+        val campingId: String,
+        val teamId: String,
+    ) : CampzoneDeepLink
+
+    data class TeamPoints(
+        val campingId: String,
+        val teamId: String?,
     ) : CampzoneDeepLink
 
     data class Poll(
@@ -22,42 +33,124 @@ sealed interface CampzoneDeepLink {
     data class RegistrationReview(val campingId: String) : CampzoneDeepLink
 
     fun canonicalShareUrlOrNull(): String? = when (this) {
-        is Announcement -> "campzone://announcement/${id.asUrlSegment()}"
-        is Camping -> "campzone://camping/${id.asUrlSegment()}"
+        is Announcement -> "https://${Companion.WebHost}/announcements/${id.asUrlSegment()}"
+        is Camping -> "https://${Companion.WebHost}/campings/${id.asUrlSegment()}"
         is CampingChat,
         is Poll,
         is RegistrationReview,
         is TeamChat,
+        is TeamPoints,
+        is TeamUpdate,
         -> null
     }
 
     companion object {
+        private const val CustomScheme = "campzone"
+        const val WebHost = "campzone-web.vercel.app"
+        private val PointEvents = setOf("scorechanged", "memberscorechanged", "penaltyapplied")
+        private val ExplicitDeepLinkKeys = arrayOf(
+            "deepLink",
+            "deeplink",
+            "deep_link",
+            "deepLinkURL",
+            "deepLinkUrl",
+            "url",
+            "link",
+        )
+
         fun fromCampzoneUrl(url: String?): CampzoneDeepLink? {
             if (url.isNullOrBlank()) return null
             val uri = runCatching { URI(url) }.getOrNull() ?: return null
-            if (!uri.scheme.equals("campzone", ignoreCase = true)) return null
+            val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return null
 
-            val host = uri.host?.lowercase(Locale.ROOT) ?: return null
-            val query = parseQuery(uri.rawQuery)
-            val firstPathComponent = uri.rawPath
+            val host = uri.host?.lowercase(Locale.ROOT).orEmpty()
+            val pathComponents = uri.rawPath
                 ?.split("/")
-                ?.firstOrNull { it.isNotBlank() }
-                ?.decodeUrlComponentOrNull()
-                ?.takeUnless { it.isBlank() }
+                ?.mapNotNull { component ->
+                    component.takeIf { it.isNotBlank() }?.decodeUrlComponentOrNull()
+                }
+                .orEmpty()
+            val query = parseQuery(uri.rawQuery)
 
-            return when (host) {
+            val route: String
+            val pathId: String?
+            when {
+                scheme == CustomScheme -> {
+                    route = host
+                    pathId = pathComponents.firstValue()
+                }
+
+                scheme == "https" && host == WebHost -> {
+                    route = pathComponents.getOrNull(0)?.lowercase(Locale.ROOT).orEmpty()
+                    pathId = pathComponents.getOrNull(1)?.takeUnless { it.isBlank() }
+                }
+
+                else -> return null
+            }
+
+            return when (route) {
                 "camping", "campings" -> {
-                    val id = firstPathComponent
+                    val id = pathId
                         ?: query.firstValue("id", "c", "campingID")
                         ?: return null
                     Camping(id)
                 }
 
                 "announcement", "announcements" -> {
-                    val id = firstPathComponent
+                    val id = pathId
                         ?: query.firstValue("id", "announcementID")
                         ?: return null
                     Announcement(id)
+                }
+
+                "chat", "camping-chat" -> {
+                    val campingId = pathId
+                        ?: query.firstValue("id", "c", "campingID")
+                        ?: return null
+                    CampingChat(campingId)
+                }
+
+                "team-chat" -> {
+                    val campingId = query.firstValue("c", "campingID") ?: return null
+                    val teamId = pathId
+                        ?: query.firstValue("teamID", "t")
+                        ?: return null
+                    TeamChat(campingId = campingId, teamId = teamId)
+                }
+
+                "team", "teams" -> {
+                    val campingId = query.firstValue("c", "campingID") ?: return null
+                    val teamId = pathId
+                        ?: query.firstValue("teamID", "t")
+                        ?: return null
+                    TeamUpdate(campingId = campingId, teamId = teamId)
+                }
+
+                "points", "point-history" -> {
+                    val campingId = pathId
+                        ?: query.firstValue("id", "c", "campingID")
+                        ?: return null
+                    TeamPoints(
+                        campingId = campingId,
+                        teamId = query.firstValue("teamID", "t"),
+                    )
+                }
+
+                "poll", "polls" -> {
+                    val campingId = query.firstValue("c", "campingID")
+                        ?: pathId
+                        ?: return null
+                    Poll(
+                        campingId = campingId,
+                        pollId = query.firstValue("pollID", "p"),
+                    )
+                }
+
+                "registration", "registration-review" -> {
+                    val campingId = pathId
+                        ?: query.firstValue("id", "c", "campingID")
+                        ?: return null
+                    RegistrationReview(campingId)
                 }
 
                 else -> null
@@ -65,20 +158,31 @@ sealed interface CampzoneDeepLink {
         }
 
         fun fromPayload(payload: Map<String, String?>): CampzoneDeepLink? {
+            payload.firstExplicitDeepLink()?.let { return it }
+
             val type = payload.firstValue("type", "kind")?.lowercase(Locale.ROOT)
             val campingId = payload.firstValue("campingID")
             val teamId = payload.firstValue("teamID")
             val pollId = payload.firstValue("pollID")
             val announcementId = payload.firstValue("announcementID")
+            val event = payload.firstValue("event")?.lowercase(Locale.ROOT)
 
             return when (type) {
                 "announcement" -> announcementId?.let(::Announcement)
-                "chat_message", "chatmessage" -> campingId?.let {
+                "chat_message", "chatmessage", "chat_mention", "chatmention" -> campingId?.let {
                     if (teamId.isNullOrBlank()) CampingChat(it) else TeamChat(it, teamId)
                 }
 
                 "poll" -> campingId?.let { Poll(it, pollId) }
                 "registration", "registration_request" -> campingId?.let(::RegistrationReview)
+                "team_update", "teamupdate" -> campingId?.let {
+                    when {
+                        event.isPointEvent() -> TeamPoints(campingId = it, teamId = teamId)
+                        !teamId.isNullOrBlank() -> TeamUpdate(campingId = it, teamId = teamId)
+                        else -> Camping(it)
+                    }
+                }
+
                 else -> inferFromPayload(
                     campingId = campingId,
                     teamId = teamId,
@@ -105,6 +209,13 @@ sealed interface CampzoneDeepLink {
             campingId != null -> Camping(campingId)
             else -> null
         }
+
+        private fun String?.isPointEvent(): Boolean = this in PointEvents
+
+        private fun Map<String, String?>.firstExplicitDeepLink(): CampzoneDeepLink? =
+            ExplicitDeepLinkKeys.firstNotNullOfOrNull { key ->
+                firstValue(key)?.let(::fromCampzoneUrl)
+            }
     }
 }
 
@@ -136,3 +247,6 @@ private fun String.decodeUrlComponentOrNull(): String? =
 
 private fun String.asUrlSegment(): String =
     URLEncoder.encode(this, Charsets.UTF_8.name()).replace("+", "%20")
+
+private fun List<String>.firstValue(): String? =
+    firstOrNull { it.isNotBlank() }?.trim()?.takeUnless { it.isBlank() }

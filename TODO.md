@@ -9,6 +9,7 @@
 ## Phase A — Foundation
 
 ### A1. Project & Gradle Setup ✅
+
 - [x] Finalize application ID — `fr.ziyon.campzone` (already set, matches Firebase Android app)
 - [x] Add Gradle version catalog (`gradle/libs.versions.toml`) entries:
   - Firebase BoM 33.7.0 + `firebase-auth-ktx`, `firebase-firestore-ktx`, `firebase-messaging-ktx`, `firebase-analytics-ktx`
@@ -25,12 +26,14 @@
 - [x] `android.disallowKotlinSourceSets=false` added to gradle.properties (KSP/AGP 9.x compatibility shim)
 
 ### A2. Firebase & Firestore Init
+
 - [x] Initialize Firebase in `CampzoneApp` (Application class); Hilt `@HiltAndroidApp`
 - [x] Enable Firestore **disk persistence** (`setLocalCacheSettings(persistentLocalCache(...))`) for offline parity — songbook/schedule/camp program prioritized
 - [x] Configure Firebase Auth providers: **Google** (Credential Manager / Google Identity) + **Apple** (`OAuthProvider("apple.com")` web flow)
 - [x] Register SHA-1/SHA-256 signing certs for Google Sign-In in the Firebase console
 
 ### A3. Design System (`core/designsystem/`)
+
 - [x] `CzColors` object — all semantic light/dark token pairs from `06-design-tokens.md` (ember palette, pine greens, cream neutrals)
 - [x] `CzSpacing` object — xs=4·sm=8·md=12·base=16·lg=20·xl=24·xxl=32·xxxl=48 (all dp)
 - [x] `CzRadius` object — xs=4·sm=8·md=12·lg=16·xl=20·xxl=24·full=999 (all dp)
@@ -40,29 +43,34 @@
 - [x] Touch targets ≥48dp, content descriptions on all interactive elements, font scale via `sp`
 
 ### A4. Navigation Shell (`core/navigation/`)
+
 - [x] `AppRoute` sealed hierarchy (typed routes, no raw strings) — 4 tabs: Home, Campings, Announcements, Profile
 - [x] Single-Activity `MainActivity` with Compose `NavHost`
 - [x] Intent filter for `campzone://` deep-link scheme; park cold-start links until auth/nav is ready (see `05-deep-linking.md`)
 - [x] Bottom navigation with 4 tabs; push feature screens via typed routes
 
 ### A5. Permission Evaluator (`core/permissions/`)
+
 - [x] `AppPermission` sealed class / evaluator mirroring the `03-rbac-and-security.md` permission matrix exactly
 - [x] Church-scope rule: non-admin leadership gates apply only when `camping.organizerLevel.type == "church"` AND `value == user.church` (case-insensitive)
 - [x] Unit-test every permission against the matrix in `03` (all 9 roles × all permissions)
 
 ### A6. Auth & Session (`ui/auth/`)
+
 - [x] Sign-in screen: Google + Apple buttons ( follow iOS design)
 - [x] On first sign-in: create `users/{uid}` doc with `role: "guest"`, `createdAt: serverTimestamp()`, `onboardingCompleted: false` — **merge: true**; do not overwrite existing `email`/`displayName`/`photoURL`
 - [x] Session state: `StateFlow<AuthState>` (signed-out / onboarding-incomplete / signed-in)
 - [x] Sign-out clears local session; navigates to auth screen
 
 ### A7. Onboarding (`ui/onboarding/`)
+
 - [x] Collect: age (derive `ageGroup`), church, preferred language, gender
 - [x] Write `users/{uid}` with `onboardingCompleted: true`, `languages: [preferredLanguage]` (single element) — **merge: true**
 - [x] Apply `07` pre-write checklist: `age`/`ageGroup`/`gender` are **delete-when-nil** if blank; no extra keys
 - [x] Gate: show onboarding when `onboardingCompleted == false`; request FCM permission **after** onboarding completes (not at launch)
 
 ### A8. Profile View/Edit + Account Deletion (`ui/profile/`) ✅
+
 - [x] Profile screen: display all `users/{uid}` fields
 - [x] Edit screen: update self-profile field allowlist only (`displayName`, `age`, `ageGroup`, `gender`, `church`, `skills`, `profession`, `education`, `pathfinderRank`, `phone`, `preferredLanguage`, `languages`, `role` ∈ {guest/user/adult} only)
 - [x] **Denormalization fan-out on save** (`02` §10): update `registrations` (CG `userID==uid`), `teams.members[]` (CG), `checkIns` (CG `userID==uid`), `chat` (CG `senderID==uid`), `announcements` (`authorID==uid`), `polls` (CG `createdByID==uid`)
@@ -70,6 +78,7 @@
 - [x] Account deletion: set `pendingDeletionAt: serverTimestamp()` + `deletionRequestedBy: uid`; cancel = `FieldValue.delete()` on both fields; purge is server-side (30-day grace)
 
 ### A9. Family Participants / Children (`ui/family/`) ✅
+
 - [x] CRUD for `users/{uid}/children/{childId}` — role `adult`/`admin` gate
 - [x] Doc ID: client UUID (stable, mirrored in `id` field)
 - [x] Required fields: `id`, `guardianID`, `displayName`, `age`, `gender`, `church`, `preferredLanguage`, `emergencyContactName`, `emergencyContactPhone`
@@ -78,6 +87,7 @@
 - [x] Hard delete on remove
 
 ### A10. Data Models (`data/model/`) ✅
+
 - [x] Kotlin `data class`es for every entity in `02-firestore-schema.md` — exact wire field names, enum raw strings, nullability
 - [x] Enum classes with explicit raw string values (copy **exactly** from `02` §8; case-sensitive)
 - [x] **No POJO auto-mapping** (`toObject<T>()` forbidden); all (de)serialization via `Map<String, Any?>` in the service layer
@@ -87,14 +97,16 @@
 
 ## Phase B — Core Content
 
-### B1. Campings List & Detail (`ui/campings/`)
-- [ ] List screen: read `campings` collection, ordered by `startDate` desc; group by year/month
-- [ ] Filter: by church, age group, language; search by title
-- [ ] Detail screen: display all camping fields; `registrationStatus` badge; capacity/waitlist indicator
-- [ ] Camp guidelines tab: render `campings/{id}/guidelines` markdown
-- [ ] `UiState` sealed: Loading / Loaded / Empty / Error
+### B1. Campings List & Detail (`ui/campings/`) ✅
+
+- [x] List screen: read `campings` collection, ordered by `startDate` desc; group by year/month
+- [x] Filter: by church, age group, language; search by title
+- [x] Detail screen: display all camping fields; `registrationStatus` badge; capacity/waitlist indicator
+- [x] Camp guidelines tab: render `campings/{id}/guidelines` markdown
+- [x] `UiState` sealed: Loading / Loaded / Empty / Error
 
 ### B2. Admin: Create / Edit / Cancel Camping (`ui/campings/admin/`)
+
 - [ ] Gate: `canCreateCamping` / `canEditCamping` / `canCancelCamping` from permission evaluator
 - [ ] Write camping via hand-built `Map<String, Any?>` (never auto-encode) — exact fields from `02` §3
 - [ ] Required: `title`, `description`, `startDate`, `endDate`, `organizerLevel ({type,value})`, `location`, `registrationStatus`
@@ -107,6 +119,7 @@
 - [ ] Do NOT write `guidelines` or `winnerRevealPolicy` in the normal edit path
 
 ### B3. Registration Flow (`ui/campings/register/`)
+
 - [ ] Self-registration: doc `registrations/{uid}` with `userID==uid`, `uid==uid`
 - [ ] Child registration: doc `registrations/{child.id}` with `guardianID`, `participantKind: "child"`
 - [ ] Transportation choice: `transportationChoice` (`own_car` / `provided_bus`); if `provided_bus` → create `transportationBookings/{participant.id}-bus`
@@ -117,12 +130,14 @@
 - [ ] Paid camp: initiate Stripe payment flow (see Phase D)
 
 ### B4. Registration Review (Admin/Leadership) (`ui/campings/registrations/`)
+
 - [ ] Gate: `canApproveRegistrations`; list all `registrations` subcollection
 - [ ] Approve/Reject: write only `{ registrationStatus, updatedAt }` (RBAC enforced)
 - [ ] Delete attendee: hard-delete registration doc → cascade: delete `checkIns/{attendeeId}`, `transportationBookings` where `participantID==attendeeId`, remove from team `members[]`
 - [ ] Attendee list visible only to registered+approved participants or leadership
 
 ### B5. Schedule (`ui/schedule/`)
+
 - [ ] Read `campings/{id}/schedule/config` + days + programs; merge-sorted by `startDate`
 - [ ] Display: grouped by day (`CampDay`); program cards with type icon, time, location
 - [ ] Admin editor: create/edit/delete programs and days
@@ -134,6 +149,7 @@
 - [ ] Gate: `canManageSchedule` for writes
 
 ### B6. Food Menu + Menu↔Program Sync (`ui/schedule/food/`)
+
 - [ ] CRUD for `campings/{id}/foodMenu/{entryId}` — doc ID: `"<yyyy-MM-dd>-<meal>"` (gregorian, en_US_POSIX, local TZ)
 - [ ] Gate: `canManageFoodMenu` (== schedule manager)
 - [ ] **Menu↔Program two-way sync** (`02` §4.5): on every save, write **both** the food menu doc and the generated program (`"menu-<menuId>"`)
@@ -142,6 +158,7 @@
   - Description format: each dish on `"- <dish>"` line; notes on blank line then `"Notes: <notes>"`
 
 ### B7. Announcements (`ui/announcements/`)
+
 - [ ] List screen: read `announcements` ordered `createdAt` desc, limit 100
 - [ ] Detail screen: render markdown `body`; show attachments (image/PDF)
 - [ ] Admin composer: create/edit — gate `canEditAnnouncements`; delete gate `admin` only
@@ -151,6 +168,7 @@
 - [ ] `authorPhotoURL` omit-when-nil
 
 ### B8. Songbook (`ui/songbook/`)
+
 - [ ] List screen: read `campings/{id}/songs`, ordered by `orderIndex`; highlight `isPinnedTheme`
 - [ ] Detail screen: lyrics + chords render (ChordPro-ish); audio player; YouTube link; PDF link
 - [ ] Favorites: `arrayUnion`/`arrayRemove` on `favoriteUserIDs`
@@ -161,6 +179,7 @@
 - [ ] Chord sheet: respect lossy `originalKey` decode (only specific keys map back; others → C major)
 
 ### B9. Camp Guidelines (`ui/campings/guidelines/`)
+
 - [ ] Display: render markdown from `campings/{id}/guidelines`
 - [ ] Edit: write only via guidelines update path (`updateData(["guidelines": ...])`); gate `canManageGuidelines`
 
@@ -169,6 +188,7 @@
 ## Phase C — Engagement
 
 ### C1. Teams (`ui/teams/`)
+
 - [ ] List + ranking: read `campings/{id}/teams`; compute `totalScore = points + Σmembers[].personalScore − Σpenalties[].points` on read (never stored)
 - [ ] Detail: members list, captain/vice-captain roles, scores, penalties
 - [ ] Admin: create/edit/delete teams; auto-balance members — gate `canManageTeams`
@@ -178,6 +198,7 @@
 - [ ] After team mutation: `POST /notifications/dispatch/team`
 
 ### C2. Games & Points (`ui/games/`)
+
 - [ ] CRUD for `campings/{id}/games/{gameId}` — gate `canManageGames`
 - [ ] Game `updatedAt` is client `Date()` (not serverTimestamp)
 - [ ] Award points: write `activities/{activityId}` first, then mutate team doc
@@ -187,11 +208,13 @@
 - [ ] `activities` list: gate `canManageGames` or `canRevealWinners` or (approved participant + `visibility=="immediate"`)
 
 ### C3. Winner Reveal (`ui/games/reveal/`)
+
 - [ ] Gate: `canRevealWinners`
 - [ ] Write only `winnerRevealPolicy` via dedicated update path — forbidden in normal camp edit
 - [ ] `winnerRevealPolicy.isRevealed` required if map is present
 
 ### C4. Chat (`ui/chat/`)
+
 - [ ] Camping-wide chat: `campings/{id}/chat` — read gate: approved participant or moderator
 - [ ] Team chat: `campings/{id}/teams/{teamId}/chat` — read gate: team member or `canModerateTeamChat`
 - [ ] Send: full `set` (no merge); `senderID == auth.uid`; `campingID == path`; text cap 500 chars (server cap 2000)
@@ -203,6 +226,7 @@
 - [ ] After send: `POST /notifications/dispatch/chat`
 
 ### C5. Polls (`ui/polls/`)
+
 - [ ] List/create: gate `canManagePolls`; participants see list when approved
 - [ ] Vote: transactional — decrement old option `voteCount`, increment new, write `votes/{auth.uid}`, update poll `options`
 - [ ] `poll.createdAt` / `closesAt` are **client `Date()`** (not serverTimestamp); `closesAt` written as explicit Firestore `null` when none
@@ -210,6 +234,7 @@
 - [ ] After create/close/reopen: `POST /notifications/dispatch/poll`
 
 ### C6. QR Check-In (`ui/checkin/`)
+
 - [ ] Scanner: decode QR payload `campzone://checkin?v=1&c=<campingID>&a=<attendeeID>&u=<userID>&iat=<unixSeconds>`
 - [ ] Write `checkIns/{attendeeId}` (doc ID == attendeeId); required: `campingID`, `attendeeID`, `userID`, `displayName`, `method`, `checkedInBy == auth.uid`; gate `canManageCheckIns`
 - [ ] `checkedInAt: serverTimestamp()`; gender/ageGroup/photoURL omit-when-nil
@@ -217,6 +242,7 @@
 - [ ] Guardian can read their child's single check-in doc (list denied)
 
 ### C7. Badges / Achievements (`ui/profile/badges/`)
+
 - [ ] Read-only display of `users/{uid}/badges/{achievementId}`
 - [ ] Filter by `AchievementCatalog` in-code (50 badges; unknown ids filtered out)
 - [ ] Catalog rarity/awardKind embedded in app — not in Firestore
@@ -224,17 +250,20 @@
 - [ ] Manual award: gate `canAwardAchievements`; write to `users/{targetUid}/badges/{achievementId}` (RBAC asserts `request.auth.uid != uid`)
 
 ### C8. Album Media (`ui/media/`)
+
 - [ ] Read gate: approved participant or album-manager
 - [ ] Upload: check `albumSettings/default.allowedUploadRoles` contains user's role; `POST /cloudinary/sign` → upload image/video; write `media/{mediaId}` (full set)
 - [ ] Admin delete/edit: gate `canManageAlbumMedia` or uploader
 - [ ] Load with Coil from Cloudinary URLs; thumbnail via `thumbnailURL`
 
 ### C9. Content Moderation (`ui/admin/moderation/`)
+
 - [ ] Report: create `contentReports/{uuid}` (full set, no merge); all required fields must be present — **brittle reader** (admin list aborts on missing field or unknown enum)
 - [ ] `target` enum: `announcement`/`camping`/`chatMessage` (**camelCase**)
 - [ ] Admin queue: read + update status (`dismissed`/`resolved`); gate `canModerateContent`
 
 ### C10. Notifications (`core/notifications/`)
+
 - [ ] `FirebaseMessagingService`: get FCM token; on token refresh, write to **both**:
   1. Firestore `users/{uid}/notificationTokens/{sha256hex}` — doc ID = lowercase hex SHA-256 of the raw token; `platform: "android"`
   2. `POST /notifications/devices` with `appID: "campzone"`, `platform: "android"` + user role + locale
@@ -245,6 +274,7 @@
 - [ ] Notification channels keyed by type: `announcement`, `chat_message`, `poll`, `schedule_reminder`, …
 
 ### C11. Analytics
+
 - [ ] Firebase Analytics; mirror iOS event set: `viewCamping`, `registerForCamping`, `cancelCamping`, `viewSchedule`, `viewSongbook`, `viewTeams`, `playSong`, `favoriteSong`, `searchCampings`, `signIn`, `signOut`
 
 ---
@@ -252,6 +282,7 @@
 ## Phase D — Operations & Growth
 
 ### D1. Transportation Tickets (`ui/transportation/`)
+
 - [ ] Read bookings: merge `userID==uid` + `guardianID==uid` queries
 - [ ] RBAC on create: `paymentStatus == "unpaid"`, `boardingStatus == "not_boarded"` literals
 - [ ] QR payload: `campzone://transport?v=1&c=<campingID>&b=<bookingID>&r=<registrationID>&p=<participantID>&t=<ticketToken>`
@@ -259,6 +290,7 @@
 - [ ] `validFrom`/`validUntil`: raw Date → Timestamp (not serverTimestamp)
 
 ### D2. Stripe Payments (`ui/payments/`)
+
 - [ ] Call `POST /payments/intent` with Firebase ID token; receive `paymentIntentClientSecret` + `ephemeralKeySecret` + `customerId` + `publishableKey`
 - [ ] Present Stripe Android **PaymentSheet** with the returned params
 - [ ] On PaymentSheet success → call `POST /payments/confirm`; backend auto-approves paid camps (`registrationStatus: "approved"`, `paymentStatus: "paid"`)
@@ -267,27 +299,32 @@
 - [ ] Never embed `STRIPE_SECRET_KEY`; payment audit doc is backend-only
 
 ### D3. Lodging (`ui/lodging/`)
+
 - [ ] CRUD for `campings/{id}/lodging/{unitId}` — gate `canManageTeams`
 - [ ] Read: signed-in users
 - [ ] Occupancy denormalized into `occupantIDs[]` on the unit doc (no separate assignment collection)
 - [ ] Gender policy filter: `any`/`male`/`female`/`family`
 
 ### D4. Post-Camp Feedback (`ui/feedback/`)
+
 - [ ] Submit: `campings/{id}/feedback/{uid}` (doc ID == auth.uid); RBAC enforces `overallRating` 1–5 and `feedbackId == auth.uid`
 - [ ] `submittedAt` overridden to `serverTimestamp()`; `isAnonymous` hides `displayName` in UI (still stored)
 - [ ] Admin results view: gate `canViewParticipantProfiles`
 
 ### D5. Venue Map (`ui/venuemap/`)
+
 - [ ] Read/write `campings/{id}/venueMap/config` (single doc, ID `config`)
 - [ ] Display: Cloudinary map image overlay + pins at `imageX`/`imageY` positions; optional real lat/lon
 - [ ] Admin: upload map image (delete-when-empty on clear); add/edit/delete pins; gate `canManageTeams` or `canManageSchedule`
 - [ ] Program↔venue link: write `program.venuePointID` (delete-when-empty) and keep pin `name` in `program.location`
 
 ### D6. "Family at Camp" View (`ui/family/camp/`)
+
 - [ ] Guardian read-only aggregate: compose `registrations` + `checkIns` + `teams` + schedule for own children
 - [ ] No new Firestore collection; guardian `checkIns` single-get allowed by RBAC
 
 ### D7. Admin Hub (`ui/admin/`)
+
 - [ ] Admin tools: user management (read/update `users` docs; admin can set any role)
 - [ ] Onboarding checklist UI; moderation queue (reuse C9)
 - [ ] Role assignment: admin → any; own-church `youth_director`/`pastor` → only `guest`/`user`/`adult`
@@ -298,6 +335,7 @@
 ## Cross-Cutting (All Phases)
 
 ### Data Contract Enforcement
+
 - [ ] Every write path passes the `07` pre-write checklist (doc ID, required fields, enum case, null/delete/omit encoding, timestamps, integer cents, RBAC fields, denormalization, dual notification stores)
 - [ ] `FieldValue.delete()` for delete-when-nil fields; explicit Firestore `null` for null-when-absent fields; omit for omit-when-nil fields
 - [ ] `createdAt: serverTimestamp()` on first create only; `updatedAt: serverTimestamp()` on every write
@@ -305,6 +343,7 @@
 - [ ] Deterministic doc IDs used exactly: `registrations/{attendeeId}`, `checkIns/{attendeeId}`, `feedback/{uid}`, `votes/{voterId}`, `schedule/config`, `venueMap/config`, `albumSettings/default`, `notificationSettings/default`
 
 ### Architecture
+
 - [ ] Each feature: `*Screen.kt` (Composable, no business logic) + `*ViewModel.kt` (`StateFlow<UiState>` sealed: Loading/Loaded/Empty/Error) + service interface + real impl + fake impl
 - [ ] Constructor DI via Hilt; no global mutable state
 - [ ] Firestore listeners registered in ViewModel init/`onStart`, removed in `onCleared()`; no stacking on recomposition
@@ -312,21 +351,25 @@
 - [ ] `@Preview` on every screen using fake service
 
 ### Localization
+
 - [ ] String resources in English keys; add `values-pt` (Portuguese) and `values-fr` (French) qualifiers
 - [ ] No hardcoded user-facing strings in Kotlin/Composable code
 
 ### Accessibility
+
 - [ ] `contentDescription` on all images and icon buttons
 - [ ] Touch targets ≥48dp; dynamic font scale (`sp` only)
 - [ ] TalkBack traversal order; contrast ratios per WCAG AA
 - [ ] `LocalReducedMotion` check before animations
 
 ### Offline
+
 - [ ] Firestore disk persistence enabled (Phase A2)
 - [ ] Songbook, schedule, and camp program data prioritized for local cache
 - [ ] UI handles offline gracefully (show cached data; surface offline indicator on write failure)
 
 ### Testing
+
 - [ ] Model round-trip unit tests (serialize → deserialize against fixtures) for every entity in `02`
 - [ ] ViewModel state-transition tests (coroutine test + fake service)
 - [ ] Permission evaluator unit tests (all 9 roles × all permissions)

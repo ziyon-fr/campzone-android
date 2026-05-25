@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -65,6 +66,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -446,11 +448,11 @@ fun CampingEditorScreen(
                     icon = "📍",
                     title = stringResource(R.string.camping_editor_section_location),
                 ) {
-                    CzTextField(
-                        value = form.location,
-                        onValueChange = { onFormUpdate(form.copy(location = it, locationLatitude = null, locationLongitude = null)) },
-                        label = stringResource(R.string.camping_editor_location_hint),
-                        modifier = Modifier.fillMaxWidth(),
+                    CampingLocationPickerSection(
+                        location = form.location,
+                        onLocationSelected = { name, lat, lng ->
+                            onFormUpdate(form.copy(location = name, locationLatitude = lat, locationLongitude = lng))
+                        },
                     )
                 }
             }
@@ -468,7 +470,15 @@ fun CampingEditorScreen(
                     )
                     val durationDays = durationDays(form.startDate, form.endDate)
                     if (durationDays > 0) {
-                        DurationBadge(days = durationDays)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                        ) {
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.czColors.amber)
+                            DurationBadge(days = durationDays)
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.czColors.amber)
+                        }
                     }
                     DateRow(
                         label = stringResource(R.string.camping_editor_date_end),
@@ -855,22 +865,17 @@ private fun DateRow(label: String, date: Date, onClick: () -> Unit) {
 
 @Composable
 private fun DurationBadge(days: Int) {
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center,
+    Surface(
+        shape = RoundedCornerShape(CzRadius.full),
+        color = MaterialTheme.czColors.amber.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, MaterialTheme.czColors.amber.copy(alpha = 0.25f)),
     ) {
-        Surface(
-            shape = RoundedCornerShape(CzRadius.full),
-            color = MaterialTheme.czColors.amber.copy(alpha = 0.12f),
-            border = BorderStroke(1.dp, MaterialTheme.czColors.amber.copy(alpha = 0.25f)),
-        ) {
-            Text(
-                text = "🌙 $days ${if (days == 1) "day" else "days"}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.czColors.amber,
-                modifier = Modifier.padding(horizontal = CzSpacing.md, vertical = CzSpacing.xs),
-            )
-        }
+        Text(
+            text = "🌙 $days ${if (days == 1) "day" else "days"}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.czColors.amber,
+            modifier = Modifier.padding(horizontal = CzSpacing.md, vertical = CzSpacing.xs),
+        )
     }
 }
 
@@ -943,21 +948,58 @@ private fun RegistrationStatusRow(
     selected: CampingRegistrationStatus,
     onSelect: (CampingRegistrationStatus) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(stringResource(R.string.camping_editor_reg_status), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.czColors.textSecondary)
+    Column {
+        Text(
+            text = stringResource(R.string.camping_editor_reg_status),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.czColors.textSecondary,
+        )
+        Spacer(Modifier.height(CzSpacing.xs))
         Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
-            CampingRegistrationStatus.entries.filter { it != CampingRegistrationStatus.Cancelled }
-                .forEach { status ->
-                    LevelChip(
-                        label = status.displayLabel(),
-                        isSelected = selected == status,
-                        onTap = { onSelect(status) },
-                    )
-                }
+            CampingRegistrationStatus.entries.forEach { status ->
+                StatusChip(
+                    status = status,
+                    isSelected = selected == status,
+                    onTap = { onSelect(status) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusChip(
+    status: CampingRegistrationStatus,
+    isSelected: Boolean,
+    onTap: () -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    val statusColor = when (status) {
+        CampingRegistrationStatus.Open -> colors.success
+        CampingRegistrationStatus.Closed -> colors.amber
+        CampingRegistrationStatus.Cancelled -> colors.error
+    }
+    Surface(
+        onClick = onTap,
+        shape = RoundedCornerShape(CzRadius.full),
+        color = if (isSelected) statusColor.copy(alpha = 0.15f) else colors.surface,
+        border = BorderStroke(1.dp, if (isSelected) statusColor else colors.divider),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+            modifier = Modifier.padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(statusColor, shape = CircleShape),
+            )
+            Text(
+                text = status.displayLabel(),
+                style = if (isSelected) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
+                color = if (isSelected) statusColor else colors.textSecondary,
+            )
         }
     }
 }
@@ -1093,7 +1135,13 @@ private fun TransportOptionSummaryRow(
     ) {
         Column(Modifier.weight(1f)) {
             Text(option.name.ifBlank { "Untitled" }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.czColors.textPrimary)
-            Text(option.details.ifBlank { option.mode.wireValue }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.czColors.textSecondary)
+            Text(
+                text = option.details.ifBlank { option.mode.wireValue },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.czColors.textSecondary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         option.feeCents?.let { fee ->
             if (fee > 0) {
