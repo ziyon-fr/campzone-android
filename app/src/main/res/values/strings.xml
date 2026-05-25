@@ -273,6 +273,7 @@
     <string name="camping_empty_message">Published camping events will appear here.</string>
     <string name="camping_empty_search_title">No results for \"%1$s\"</string>
     <string name="camping_empty_search_message">Try a different title, location, or description.</string>
+    <string name="camping_review_registrations">Review Registrations</string>
     <string name="camping_status_open">Registration open</string>
     <string name="camping_status_closed">Registration closed</string>
     <string name="camping_status_cancelled">Cancelled</string>

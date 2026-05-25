@@ -263,6 +263,7 @@
     <string name="camping_empty_message">Os acampamentos publicados aparecerão aqui.</string>
     <string name="camping_empty_search_title">Nenhum resultado para \"%1$s\"</string>
     <string name="camping_empty_search_message">Tente outro título, local ou descrição.</string>
+    <string name="camping_review_registrations">Revisar inscrições</string>
     <string name="camping_status_open">Inscrições abertas</string>
     <string name="camping_status_closed">Inscrições encerradas</string>
     <string name="camping_status_cancelled">Cancelado</string>
