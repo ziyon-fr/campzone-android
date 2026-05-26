@@ -120,6 +120,7 @@ fun CampingDetailRoute(
     authenticatedUser: AuthenticatedUser,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenGuidelines: (String) -> Unit = {},
     onOpenSchedule: (String) -> Unit = {},
     onOpenChat: (String) -> Unit = {},
     onOpenPolls: (String) -> Unit = {},
@@ -151,6 +152,7 @@ fun CampingDetailRoute(
             }
             context.startActivity(Intent.createChooser(shareIntent, camping.title))
         },
+        onOpenGuidelines = onOpenGuidelines,
         onOpenSchedule = onOpenSchedule,
         onOpenChat = onOpenChat,
         onOpenPolls = onOpenPolls,
