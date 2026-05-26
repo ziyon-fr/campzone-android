@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,6 +39,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -53,14 +57,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
-import fr.ziyon.campzone.core.designsystem.CzButton
-import fr.ziyon.campzone.core.designsystem.CzButtonVariant
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.CzTypeScale
@@ -134,6 +136,7 @@ fun AnnouncementComposerScreen(
     onPublish: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
+    var bodyPreviewMode by remember { mutableStateOf(false) }
 
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
@@ -234,6 +237,7 @@ fun AnnouncementComposerScreen(
                     .clip(RoundedCornerShape(CzRadius.lg))
                     .background(colors.surface),
             ) {
+                // Title field
                 TextField(
                     value = form.title,
                     onValueChange = { onUpdateForm { f -> f.copy(title = it) } },
@@ -251,29 +255,82 @@ fun AnnouncementComposerScreen(
                         cursorColor = colors.ember,
                     ),
                 )
-                HorizontalDivider(color = colors.divider, modifier = Modifier.padding(horizontal = CzSpacing.base))
-                TextField(
-                    value = form.body,
-                    onValueChange = { onUpdateForm { f -> f.copy(body = it) } },
-                    placeholder = {
-                        Text(
-                            "Write your announcement using Markdown…",
-                            style = CzTypeScale.body,
-                            color = colors.textSecondary,
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 5,
-                    maxLines = 20,
-                    textStyle = CzTypeScale.body.copy(color = colors.textPrimary),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        cursorColor = colors.ember,
-                    ),
+
+                HorizontalDivider(
+                    color = colors.divider,
+                    modifier = Modifier.padding(horizontal = CzSpacing.base),
                 )
+
+                // Write / Preview segmented toggle
+                SingleChoiceSegmentedButtonRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = CzSpacing.base, vertical = CzSpacing.xs),
+                ) {
+                    SegmentedButton(
+                        selected = !bodyPreviewMode,
+                        onClick = { bodyPreviewMode = false },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        label = { Text("Write", style = CzTypeScale.caption) },
+                    )
+                    SegmentedButton(
+                        selected = bodyPreviewMode,
+                        onClick = { bodyPreviewMode = true },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        label = { Text("Preview", style = CzTypeScale.caption) },
+                    )
+                }
+
+                HorizontalDivider(
+                    color = colors.divider,
+                    modifier = Modifier.padding(horizontal = CzSpacing.base),
+                )
+
+                // Body — Write or Preview
+                if (bodyPreviewMode) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(CzSpacing.md),
+                    ) {
+                        if (form.body.isBlank()) {
+                            Text(
+                                "Nothing to preview yet.",
+                                style = CzTypeScale.body,
+                                color = colors.textSecondary,
+                            )
+                        } else {
+                            MarkdownBody(
+                                text = form.body,
+                                textColor = colors.textPrimary.toArgb(),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                } else {
+                    TextField(
+                        value = form.body,
+                        onValueChange = { onUpdateForm { f -> f.copy(body = it) } },
+                        placeholder = {
+                            Text(
+                                "Write your announcement using Markdown…",
+                                style = CzTypeScale.body,
+                                color = colors.textSecondary,
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 5,
+                        maxLines = 20,
+                        textStyle = CzTypeScale.body.copy(color = colors.textPrimary),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            cursorColor = colors.ember,
+                        ),
+                    )
+                }
             }
 
             // ── Audience section ──────────────────────────────────────────────
@@ -296,7 +353,8 @@ fun AnnouncementComposerScreen(
                                 f.copy(
                                     audienceScopeRawValue = rawValue,
                                     campingId = if (newScope == AnnouncementAudienceScope.App) null else f.campingId,
-                                    notificationTargetRoleRawValue = if (newScope == AnnouncementAudienceScope.App) null else f.notificationTargetRoleRawValue,
+                                    notificationTargetRoleRawValue = if (newScope == AnnouncementAudienceScope.App) null
+                                    else f.notificationTargetRoleRawValue,
                                 )
                             }
                         },

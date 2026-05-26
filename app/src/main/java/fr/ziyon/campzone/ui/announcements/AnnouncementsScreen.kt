@@ -15,10 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -31,6 +32,7 @@ import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,7 +48,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.CzTypeScale
@@ -70,8 +71,14 @@ fun AnnouncementsRoute(
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val campings by viewModel.campings.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val unreadCount by viewModel.unreadCount.collectAsState()
+    val lastSeenAt by viewModel.lastSeenAt.collectAsState()
 
-    LaunchedEffect(Unit) { viewModel.loadIfNeeded() }
+    LaunchedEffect(Unit) {
+        viewModel.loadIfNeeded()
+        viewModel.markAnnouncementsSeen()
+    }
 
     LaunchedEffect(campings, authenticatedUser.uid) {
         viewModel.configureVisibility(authenticatedUser, campings, permissionUser, evaluator)
@@ -85,12 +92,16 @@ fun AnnouncementsRoute(
         uiState = uiState,
         searchQuery = searchQuery,
         canCompose = canCompose,
+        isRefreshing = isRefreshing,
+        unreadCount = unreadCount,
+        lastSeenAtMs = lastSeenAt,
         onSearchChange = viewModel::updateSearch,
         onOpenDetail = onOpenDetail,
         onOpenComposer = {
             viewModel.prepareNew()
             onOpenComposer()
         },
+        onRefresh = viewModel::refresh,
         onRetry = viewModel::load,
     )
 }
@@ -103,9 +114,13 @@ fun AnnouncementsScreen(
     uiState: AnnouncementsUiState,
     searchQuery: String,
     canCompose: Boolean,
+    isRefreshing: Boolean,
+    unreadCount: Int,
+    lastSeenAtMs: Long,
     onSearchChange: (String) -> Unit,
     onOpenDetail: (String) -> Unit,
     onOpenComposer: () -> Unit,
+    onRefresh: () -> Unit,
     onRetry: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
@@ -139,7 +154,11 @@ fun AnnouncementsScreen(
                             expanded = searchActive,
                             onExpandedChange = { searchActive = it },
                             placeholder = {
-                                Text("Search announcements", style = CzTypeScale.body, color = colors.textSecondary)
+                                Text(
+                                    "Search announcements",
+                                    style = CzTypeScale.body,
+                                    color = colors.textSecondary,
+                                )
                             },
                         )
                     },
@@ -157,112 +176,125 @@ fun AnnouncementsScreen(
             }
         },
     ) { innerPadding ->
-        LazyColumn(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = CzSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(CzSpacing.xl),
+                .padding(innerPadding),
         ) {
-            item { Spacer(Modifier.height(CzSpacing.md)) }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = CzSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.xl),
+            ) {
+                item { Spacer(Modifier.height(CzSpacing.md)) }
 
-            if (canCompose) {
-                item {
-                    ComposeActionCard(onClick = onOpenComposer)
+                if (canCompose) {
+                    item {
+                        ComposeActionCard(onClick = onOpenComposer)
+                    }
                 }
+
+                when (uiState) {
+                    is AnnouncementsUiState.Loading -> item {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Campaign,
+                                    contentDescription = null,
+                                    tint = colors.textSecondary,
+                                    modifier = Modifier.size(32.dp),
+                                )
+                                Text(
+                                    "Loading announcements…",
+                                    style = CzTypeScale.caption,
+                                    color = colors.textSecondary,
+                                )
+                            }
+                        }
+                    }
+
+                    is AnnouncementsUiState.Empty -> item {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Campaign,
+                                    contentDescription = null,
+                                    tint = colors.textSecondary,
+                                    modifier = Modifier.size(32.dp),
+                                )
+                                Text(
+                                    if (uiState.searchActive) "No results" else "No announcements",
+                                    style = CzTypeScale.body,
+                                    color = colors.textPrimary,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    if (uiState.searchActive) "Try a different search term."
+                                    else "Camp-wide updates will appear here as leaders publish them.",
+                                    style = CzTypeScale.caption,
+                                    color = colors.textSecondary,
+                                )
+                            }
+                        }
+                    }
+
+                    is AnnouncementsUiState.Error -> item {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(colors.surface)
+                                .clickable(onClick = onRetry)
+                                .padding(CzSpacing.lg),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                            ) {
+                                Text("Failed to load", style = CzTypeScale.body, color = colors.error)
+                                Text(
+                                    uiState.message,
+                                    style = CzTypeScale.caption,
+                                    color = colors.textSecondary,
+                                )
+                                Text("Tap to retry", style = CzTypeScale.caption, color = colors.ember)
+                            }
+                        }
+                    }
+
+                    is AnnouncementsUiState.Loaded -> item {
+                        AnnouncementsSection(
+                            announcements = uiState.announcements,
+                            unreadCount = unreadCount,
+                            lastSeenAtMs = lastSeenAtMs,
+                            onOpenDetail = onOpenDetail,
+                        )
+                    }
+                }
+
+                item { Spacer(Modifier.height(CzSpacing.xxl)) }
             }
-
-            when (uiState) {
-                is AnnouncementsUiState.Loading -> item {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-                        ) {
-                            Icon(
-                                Icons.Rounded.Campaign,
-                                contentDescription = null,
-                                tint = colors.textSecondary,
-                                modifier = Modifier.size(32.dp),
-                            )
-                            Text(
-                                "Loading announcements…",
-                                style = CzTypeScale.caption,
-                                color = colors.textSecondary,
-                            )
-                        }
-                    }
-                }
-
-                is AnnouncementsUiState.Empty -> item {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-                        ) {
-                            Icon(
-                                Icons.Rounded.Campaign,
-                                contentDescription = null,
-                                tint = colors.textSecondary,
-                                modifier = Modifier.size(32.dp),
-                            )
-                            Text(
-                                if (uiState.searchActive) "No results" else "No announcements",
-                                style = CzTypeScale.body,
-                                color = colors.textPrimary,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                if (uiState.searchActive) "Try a different search term."
-                                else "Camp-wide updates will appear here as leaders publish them.",
-                                style = CzTypeScale.caption,
-                                color = colors.textSecondary,
-                            )
-                        }
-                    }
-                }
-
-                is AnnouncementsUiState.Error -> item {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(colors.surface)
-                            .clickable(onClick = onRetry)
-                            .padding(CzSpacing.lg),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-                        ) {
-                            Text("Failed to load", style = CzTypeScale.body, color = colors.error)
-                            Text(uiState.message, style = CzTypeScale.caption, color = colors.textSecondary)
-                            Text("Tap to retry", style = CzTypeScale.caption, color = colors.ember)
-                        }
-                    }
-                }
-
-                is AnnouncementsUiState.Loaded -> item {
-                    AnnouncementsSection(
-                        announcements = uiState.announcements,
-                        onOpenDetail = onOpenDetail,
-                    )
-                }
-            }
-
-            item { Spacer(Modifier.height(CzSpacing.xxl)) }
         }
     }
 }
@@ -294,7 +326,12 @@ private fun ComposeActionCard(onClick: () -> Unit) {
             color = colors.textPrimary,
             modifier = Modifier.weight(1f),
         )
-        Text("›", style = CzTypeScale.caption, color = colors.textSecondary)
+        Icon(
+            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = colors.textSecondary,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -303,6 +340,8 @@ private fun ComposeActionCard(onClick: () -> Unit) {
 @Composable
 private fun AnnouncementsSection(
     announcements: List<Announcement>,
+    unreadCount: Int,
+    lastSeenAtMs: Long,
     onOpenDetail: (String) -> Unit,
 ) {
     val colors = MaterialTheme.czColors
@@ -324,6 +363,21 @@ private fun AnnouncementsSection(
                 color = colors.textSecondary,
             )
             Spacer(Modifier.weight(1f))
+            if (unreadCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(colors.amber)
+                        .padding(horizontal = CzSpacing.xs, vertical = 2.dp),
+                ) {
+                    Text(
+                        text = "$unreadCount new",
+                        style = CzTypeScale.caption2.copy(fontWeight = FontWeight.SemiBold),
+                        color = Color.White,
+                    )
+                }
+                Spacer(Modifier.width(CzSpacing.xs))
+            }
             Box(
                 modifier = Modifier
                     .clip(CircleShape)
@@ -346,8 +400,10 @@ private fun AnnouncementsSection(
                 .background(colors.surface),
         ) {
             announcements.forEachIndexed { idx, ann ->
+                val isUnread = (ann.createdAt?.time ?: 0L) > lastSeenAtMs
                 AnnouncementTimelineRow(
                     announcement = ann,
+                    isUnread = isUnread,
                     onClick = { onOpenDetail(ann.id) },
                 )
                 if (idx < announcements.size - 1) {
@@ -366,6 +422,7 @@ private fun AnnouncementsSection(
 @Composable
 private fun AnnouncementTimelineRow(
     announcement: Announcement,
+    isUnread: Boolean,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
@@ -377,12 +434,12 @@ private fun AnnouncementTimelineRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
     ) {
-        // Amber circle icon
+        // Amber circle icon — brighter when unread
         Box(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(colors.amber.copy(alpha = 0.12f)),
+                .background(colors.amber.copy(alpha = if (isUnread) 0.22f else 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -403,14 +460,28 @@ private fun AnnouncementTimelineRow(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = announcement.title,
-                    style = CzTypeScale.subhead,
-                    color = colors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
                     modifier = Modifier.weight(1f),
-                )
+                ) {
+                    if (isUnread) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(colors.amber),
+                        )
+                    }
+                    Text(
+                        text = announcement.title,
+                        style = if (isUnread) CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold)
+                                else CzTypeScale.subhead,
+                        color = colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Spacer(Modifier.width(CzSpacing.sm))
                 Text(
                     text = announcement.createdDateText,
@@ -434,12 +505,14 @@ private fun AnnouncementTimelineRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Text(
-                        text = "📎",
-                        style = CzTypeScale.caption2,
+                    Icon(
+                        Icons.Rounded.AttachFile,
+                        contentDescription = null,
+                        tint = colors.ember,
+                        modifier = Modifier.size(12.dp),
                     )
                     Text(
-                        text = "${announcement.attachments.size} attachment",
+                        text = "${announcement.attachments.size} attachment${if (announcement.attachments.size > 1) "s" else ""}",
                         style = CzTypeScale.caption2.copy(fontWeight = FontWeight.SemiBold),
                         color = colors.ember,
                     )
@@ -462,7 +535,12 @@ private fun AnnouncementTimelineRow(
             }
         }
 
-        Text("›", style = CzTypeScale.caption.copy(fontSize = 16.sp), color = colors.textSecondary)
+        Icon(
+            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = colors.textSecondary,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -476,9 +554,13 @@ private fun AnnouncementsScreenPreview() {
             uiState = AnnouncementsUiState.Loading,
             searchQuery = "",
             canCompose = true,
+            isRefreshing = false,
+            unreadCount = 0,
+            lastSeenAtMs = 0L,
             onSearchChange = {},
             onOpenDetail = {},
             onOpenComposer = {},
+            onRefresh = {},
             onRetry = {},
         )
     }

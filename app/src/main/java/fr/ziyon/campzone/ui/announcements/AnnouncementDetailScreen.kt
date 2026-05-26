@@ -1,5 +1,8 @@
 package fr.ziyon.campzone.ui.announcements
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import android.widget.TextView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,9 +26,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.Campaign
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Photo
 import androidx.compose.material.icons.outlined.Cabin
@@ -52,12 +57,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzRadius
@@ -297,6 +306,7 @@ private fun AnnouncementDetailContent(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
+    var expandedImageUrl by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = modifier
@@ -414,17 +424,29 @@ private fun AnnouncementDetailContent(
 
         // ── Attachments ───────────────────────────────────────────────────────
         if (announcement.attachments.isNotEmpty()) {
-            AttachmentsSection(attachments = announcement.attachments)
+            AttachmentsSection(
+                attachments = announcement.attachments,
+                onImageClick = { url -> expandedImageUrl = url },
+            )
         }
 
         Spacer(Modifier.height(CzSpacing.xxl))
+    }
+
+    // Full-screen image viewer
+    val imgUrl = expandedImageUrl
+    if (imgUrl != null) {
+        FullScreenImageViewer(
+            imageUrl = imgUrl,
+            onDismiss = { expandedImageUrl = null },
+        )
     }
 }
 
 // ── Markdown body ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun MarkdownBody(text: String, textColor: Int, modifier: Modifier = Modifier) {
+internal fun MarkdownBody(text: String, textColor: Int, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val markwon = remember { Markwon.create(context) }
     val spanned = remember(text) { markwon.toMarkdown(text) }
@@ -444,10 +466,59 @@ private fun MarkdownBody(text: String, textColor: Int, modifier: Modifier = Modi
     )
 }
 
+// ── Full-screen image viewer ──────────────────────────────────────────────────
+
+@Composable
+private fun FullScreenImageViewer(
+    imageUrl: String,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnClickOutside = true,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit,
+            )
+            // Close button — top-right
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 48.dp, end = 16.dp)
+                    .background(Color.Black.copy(alpha = 0.55f), CircleShape),
+            ) {
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = "Close image",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+    }
+}
+
 // ── Attachments section ───────────────────────────────────────────────────────
 
 @Composable
-private fun AttachmentsSection(attachments: List<AnnouncementAttachment>) {
+private fun AttachmentsSection(
+    attachments: List<AnnouncementAttachment>,
+    onImageClick: (String) -> Unit,
+) {
     val colors = MaterialTheme.czColors
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
         Row(
@@ -474,7 +545,10 @@ private fun AttachmentsSection(attachments: List<AnnouncementAttachment>) {
                 .background(colors.surface),
         ) {
             attachments.forEachIndexed { idx, attachment ->
-                AttachmentRow(attachment = attachment)
+                AttachmentRow(
+                    attachment = attachment,
+                    onImageClick = onImageClick,
+                )
                 if (idx < attachments.size - 1) {
                     HorizontalDivider(
                         modifier = Modifier.padding(start = CzSpacing.md),
@@ -487,8 +561,13 @@ private fun AttachmentsSection(attachments: List<AnnouncementAttachment>) {
 }
 
 @Composable
-private fun AttachmentRow(attachment: AnnouncementAttachment) {
+private fun AttachmentRow(
+    attachment: AnnouncementAttachment,
+    onImageClick: (String) -> Unit,
+) {
     val colors = MaterialTheme.czColors
+    val context = LocalContext.current
+
     when (attachment.kind) {
         AnnouncementAttachmentKind.Image -> {
             Column(
@@ -512,6 +591,7 @@ private fun AttachmentRow(attachment: AnnouncementAttachment) {
                         style = CzTypeScale.subhead,
                         color = colors.textPrimary,
                         maxLines = 1,
+                        modifier = Modifier.weight(1f),
                     )
                 }
                 if (attachment.downloadUrl.isNotBlank()) {
@@ -521,7 +601,9 @@ private fun AttachmentRow(attachment: AnnouncementAttachment) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(CzRadius.md))
-                            .height(200.dp),
+                            .height(200.dp)
+                            .clickable { onImageClick(attachment.downloadUrl) },
+                        contentScale = ContentScale.Crop,
                     )
                 }
             }
@@ -531,6 +613,13 @@ private fun AttachmentRow(attachment: AnnouncementAttachment) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(
+                        if (attachment.downloadUrl.isNotBlank()) {
+                            Modifier.clickable {
+                                openPdf(context, attachment.downloadUrl)
+                            }
+                        } else Modifier
+                    )
                     .padding(CzSpacing.md),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
@@ -546,20 +635,39 @@ private fun AttachmentRow(attachment: AnnouncementAttachment) {
                     style = CzTypeScale.subhead,
                     color = if (attachment.downloadUrl.isNotBlank()) colors.textPrimary else colors.textSecondary,
                     modifier = Modifier.weight(1f),
-                    maxLines = 1,
+                    maxLines = 2,
                 )
                 if (attachment.downloadUrl.isNotBlank()) {
                     Spacer(Modifier.width(CzSpacing.xs))
                     Icon(
-                        Icons.Rounded.Campaign,
+                        Icons.Rounded.OpenInNew,
                         contentDescription = "Open PDF",
                         tint = colors.ember,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
         }
     }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+private fun openPdf(context: android.content.Context, url: String) {
+    val uri = Uri.parse(url)
+    // Try dedicated PDF viewer first
+    val pdfIntent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "application/pdf")
+        addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    try {
+        context.startActivity(pdfIntent)
+        return
+    } catch (_: ActivityNotFoundException) { /* no PDF app */ }
+    // Fallback: open URL in browser
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+    } catch (_: Exception) { /* ignore */ }
 }
 
 // ── Preview ───────────────────────────────────────────────────────────────────

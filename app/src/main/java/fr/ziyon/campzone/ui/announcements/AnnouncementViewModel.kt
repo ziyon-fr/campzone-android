@@ -1,6 +1,7 @@
 package fr.ziyon.campzone.ui.announcements
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,6 +25,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 // ── UI state ─────────────────────────────────────────────────────────────────
@@ -74,6 +76,10 @@ class AnnouncementViewModel @Inject constructor(
     private val notificationDispatcher: AnnouncementNotificationDispatcher,
 ) : ViewModel() {
 
+    private val prefs: SharedPreferences by lazy {
+        appContext.getSharedPreferences("announcements_prefs", Context.MODE_PRIVATE)
+    }
+
     private val _uiState = MutableStateFlow<AnnouncementsUiState>(AnnouncementsUiState.Loading)
     val uiState: StateFlow<AnnouncementsUiState> = _uiState.asStateFlow()
 
@@ -82,6 +88,9 @@ class AnnouncementViewModel @Inject constructor(
 
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     private val _operationError = MutableStateFlow<String?>(null)
     val operationError: StateFlow<String?> = _operationError.asStateFlow()
@@ -94,6 +103,12 @@ class AnnouncementViewModel @Inject constructor(
 
     private val _campings = MutableStateFlow<List<Camping>>(emptyList())
     val campings: StateFlow<List<Camping>> = _campings.asStateFlow()
+
+    private val _unreadCount = MutableStateFlow(0)
+    val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
+
+    private val _lastSeenAt = MutableStateFlow(0L)
+    val lastSeenAt: StateFlow<Long> = _lastSeenAt.asStateFlow()
 
     val isEditing: Boolean get() = _editingId.value != null
 
@@ -128,6 +143,24 @@ class AnnouncementViewModel @Inject constructor(
                 _uiState.value = AnnouncementsUiState.Error(
                     e.message ?: "Failed to load announcements."
                 )
+            }
+        }
+    }
+
+    fun refresh() {
+        if (_isRefreshing.value) return
+        _isRefreshing.value = true
+        viewModelScope.launch {
+            _operationError.value = null
+            try {
+                val list = announcementService.loadAnnouncements().first()
+                allAnnouncements = list
+                hasLoaded = true
+                publishAnnouncements()
+            } catch (e: Exception) {
+                _operationError.value = e.message ?: "Failed to refresh."
+            } finally {
+                _isRefreshing.value = false
             }
         }
     }
@@ -358,6 +391,15 @@ class AnnouncementViewModel @Inject constructor(
         }
     }
 
+    // ── Unread ────────────────────────────────────────────────────────────────
+
+    fun markAnnouncementsSeen() {
+        val now = System.currentTimeMillis()
+        prefs.edit().putLong(KEY_LAST_SEEN_AT, now).apply()
+        _lastSeenAt.value = now
+        _unreadCount.value = 0
+    }
+
     // ── Private ───────────────────────────────────────────────────────────────
 
     private fun visibleAnnouncements(): List<Announcement> =
@@ -381,6 +423,16 @@ class AnnouncementViewModel @Inject constructor(
         } else {
             AnnouncementsUiState.Loaded(filtered)
         }
+
+        updateUnreadCount()
+    }
+
+    private fun updateUnreadCount() {
+        val lastSeen = prefs.getLong(KEY_LAST_SEEN_AT, 0L)
+        _lastSeenAt.value = lastSeen
+        _unreadCount.value = allAnnouncements.count { ann ->
+            (ann.createdAt?.time ?: 0L) > lastSeen
+        }
     }
 
     private fun campingPermissionContext(camping: Camping): CampingPermissionContext =
@@ -389,4 +441,8 @@ class AnnouncementViewModel @Inject constructor(
             organizerLevelValue = camping.organizerLevel.value,
             createdByUid = camping.createdByUid,
         )
+
+    private companion object {
+        const val KEY_LAST_SEEN_AT = "last_seen_at"
+    }
 }
