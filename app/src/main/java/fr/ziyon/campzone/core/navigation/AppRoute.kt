@@ -1,15 +1,12 @@
 package fr.ziyon.campzone.core.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Cabin
+import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.rounded.Announcement
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.graphics.vector.ImageVector
 import java.net.URLEncoder
-import androidx.compose.material.icons.filled.Landscape
-import androidx.compose.material.icons.rounded.PersonPinCircle
 
 sealed interface AppRoute {
     val route: String
@@ -23,28 +20,28 @@ sealed interface AppRoute {
     data object Home : Tab {
         override val route = AppRoutePath.Home
         override val label = "Home"
-        override val iconLabel = Icons.Filled.Home
+        override val iconLabel = Icons.Outlined.Home
         override val contentDescription = "Home tab"
     }
 
     data object Campings : Tab {
         override val route = AppRoutePath.Campings
         override val label = "Campings"
-        override val iconLabel = Icons.Default.Landscape
+        override val iconLabel = Icons.Outlined.Cabin
         override val contentDescription = "Campings tab"
     }
 
     data object Announcements : Tab {
         override val route = AppRoutePath.Announcements
         override val label = "Announcements"
-        override val iconLabel = Icons.Rounded.Announcement
+        override val iconLabel = Icons.Outlined.Campaign
         override val contentDescription = "Announcements tab"
     }
 
     data object Profile : Tab {
         override val route = AppRoutePath.Profile
         override val label = "Profile"
-        override val iconLabel = Icons.Default.AccountCircle
+        override val iconLabel = Icons.Outlined.AccountCircle
         override val contentDescription = "Profile tab"
     }
 
@@ -188,6 +185,10 @@ sealed interface AppRoute {
             "${CampingSchedule(campingId).route}/${AppRoutePath.ProgramEditor}"
     }
 
+    data object AnnouncementComposer : AppRoute {
+        override val route = "${AppRoutePath.Announcements}/${AppRoutePath.AnnouncementComposer}"
+    }
+
     data class CampingFoodMenu(val campingId: String) : AppRoute {
         override val route =
             "${CampingDetail(campingId).route}/${AppRoutePath.FoodMenu}"
@@ -246,6 +247,7 @@ internal object AppRoutePath {
     const val Schedule = "schedule"
     const val ProgramEditor = "program-editor"
     const val FoodMenu = "food-menu"
+    const val AnnouncementComposer = "compose"
 }
 
 internal object AppRoutePattern {
@@ -272,6 +274,7 @@ internal object AppRoutePattern {
     const val CampingScheduleProgramEditor = "$CampingSchedule/${AppRoutePath.ProgramEditor}"
     const val CampingFoodMenu = "$CampingDetail/${AppRoutePath.FoodMenu}"
     const val CampingFoodMenuEditor = "$CampingFoodMenu/${AppRoutePath.CampingEdit}"
+    const val AnnouncementComposer = "${AppRoutePath.Announcements}/${AppRoutePath.AnnouncementComposer}"
 }
 
 private fun String.asRouteSegment(): String =

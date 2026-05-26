@@ -90,6 +90,9 @@ dependencies {
     // Coil (image loading from Cloudinary URLs)
     implementation(libs.coil.compose)
 
+    // Markwon (Markdown → Spanned for announcement body)
+    implementation(libs.markwon.core)
+
     // Stripe PaymentSheet
     implementation(libs.stripe.android)
 

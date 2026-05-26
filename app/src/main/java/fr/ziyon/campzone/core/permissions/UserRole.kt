@@ -14,6 +14,19 @@ enum class UserRole(val rawValue: String) {
     val isAdmin: Boolean
         get() = this == Admin
 
+    val displayName: String
+        get() = when (this) {
+            Guest -> "Guest"
+            User -> "User"
+            Adult -> "Adult"
+            YouthDirector -> "Youth Director"
+            Pastor -> "Pastor"
+            GameMaster -> "Game Master"
+            Leader -> "Leader"
+            Photographer -> "Photographer"
+            Admin -> "Admin"
+        }
+
     val isLeadership: Boolean
         get() = this in leadershipRoles
 

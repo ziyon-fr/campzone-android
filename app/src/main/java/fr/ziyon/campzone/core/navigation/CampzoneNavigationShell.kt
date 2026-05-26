@@ -3,11 +3,11 @@ package fr.ziyon.campzone.core.navigation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -20,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.semantics.contentDescription
@@ -62,6 +63,12 @@ import fr.ziyon.campzone.ui.schedule.food.FoodMenuEditorScreen
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuRoute
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuViewModel
 import androidx.compose.runtime.remember
+import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
+import fr.ziyon.campzone.core.permissions.PermissionUser
+import fr.ziyon.campzone.ui.announcements.AnnouncementComposerRoute
+import fr.ziyon.campzone.ui.announcements.AnnouncementDetailRoute
+import fr.ziyon.campzone.ui.announcements.AnnouncementViewModel
+import fr.ziyon.campzone.ui.announcements.AnnouncementsRoute
 
 @Composable
 fun CampzoneNavigationShell(
@@ -106,6 +113,12 @@ fun CampzoneNavigationShell(
                     onOpenCamping = { campingId ->
                         navController.navigate(AppRoute.CampingDetail(campingId).route)
                     },
+                    onOpenProgram = { campingId, programId ->
+                        navController.navigate(AppRoute.CampingScheduleProgram(campingId, programId).route)
+                    },
+                    onOpenNotifications = {
+                        navController.navigate(AppRoute.NotificationSettings.route)
+                    },
                 )
             }
             composable(AppRoute.Campings.route) {
@@ -122,8 +135,72 @@ fun CampzoneNavigationShell(
                     },
                 )
             }
+            // ── Announcements ────────────────────────────────────────────────
+            // Composer must be before Detail to prevent "compose" matching {announcementId}
+            composable(AppRoutePattern.AnnouncementComposer) {
+                val announcementsEntry = remember(it) {
+                    navController.getBackStackEntry(AppRoute.Announcements.route)
+                }
+                val announcementViewModel: AnnouncementViewModel = hiltViewModel(announcementsEntry)
+                val permissionUser = PermissionUser(
+                    role = authenticatedUser.role,
+                    userId = authenticatedUser.uid,
+                    church = authenticatedUser.church,
+                )
+                val evaluator = remember { AppPermissionEvaluator() }
+                AnnouncementComposerRoute(
+                    viewModel = announcementViewModel,
+                    authenticatedUser = authenticatedUser,
+                    permissionUser = permissionUser,
+                    evaluator = evaluator,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                AppRoutePattern.AnnouncementDetail,
+                arguments = listOf(navArgument(AppRouteArgs.AnnouncementId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val announcementsEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(AppRoute.Announcements.route)
+                }
+                val announcementViewModel: AnnouncementViewModel = hiltViewModel(announcementsEntry)
+                val announcementId = backStackEntry.arguments?.getString(AppRouteArgs.AnnouncementId) ?: return@composable
+                val permissionUser = PermissionUser(
+                    role = authenticatedUser.role,
+                    userId = authenticatedUser.uid,
+                    church = authenticatedUser.church,
+                )
+                val evaluator = remember { AppPermissionEvaluator() }
+                AnnouncementDetailRoute(
+                    viewModel = announcementViewModel,
+                    announcementId = announcementId,
+                    authenticatedUser = authenticatedUser,
+                    permissionUser = permissionUser,
+                    evaluator = evaluator,
+                    onBack = { navController.popBackStack() },
+                    onOpenComposer = { navController.navigate(AppRoute.AnnouncementComposer.route) },
+                )
+            }
             composable(AppRoute.Announcements.route) {
-                TopLevelPlaceholderScreen(title = stringResource(R.string.nav_announcements))
+                val announcementViewModel: AnnouncementViewModel = hiltViewModel()
+                val permissionUser = PermissionUser(
+                    role = authenticatedUser.role,
+                    userId = authenticatedUser.uid,
+                    church = authenticatedUser.church,
+                )
+                val evaluator = remember { AppPermissionEvaluator() }
+                AnnouncementsRoute(
+                    viewModel = announcementViewModel,
+                    authenticatedUser = authenticatedUser,
+                    permissionUser = permissionUser,
+                    evaluator = evaluator,
+                    onOpenDetail = { id ->
+                        navController.navigate(AppRoute.AnnouncementDetail(id).route)
+                    },
+                    onOpenComposer = {
+                        navController.navigate(AppRoute.AnnouncementComposer.route)
+                    },
+                )
             }
             composable(AppRoute.Profile.route) {
                 ProfileSettingsScreen(
@@ -426,14 +503,23 @@ fun CampzoneNavigationShell(
                 val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
                 val programId = backStackEntry.stringArg(AppRouteArgs.ProgramId)
                 val scheduleEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(AppRoute.CampingSchedule(campingId).route)
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingSchedule(campingId).route)
+                    }.getOrNull()
                 }
-                val viewModel: ScheduleViewModel = hiltViewModel(scheduleEntry)
+                val viewModel: ScheduleViewModel = if (scheduleEntry != null) {
+                    hiltViewModel(scheduleEntry)
+                } else {
+                    hiltViewModel()
+                }
                 ProgramDetailScreen(
                     viewModel = viewModel,
                     campingId = campingId,
                     programId = programId,
                     onBack = { navController.popBackStack() },
+                    onOpenFoodMenu = {
+                        navController.navigate(AppRoute.CampingFoodMenu(campingId).route)
+                    },
                 )
             }
             // Food menu — register editor BEFORE the food menu list so it doesn't match as list
@@ -480,46 +566,52 @@ private fun CampzoneBottomNavigation(
 ) {
     val colors = MaterialTheme.czColors
 
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentColor = colors.textPrimary,
+    Column(
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        AppRoute.topLevelTabs.forEach { tab ->
-            val tabContentDescription = tab.localizedContentDescription()
-            val tint = if (selectedTab == tab) {
-                MaterialTheme.czColors.ember
-            } else {
-                MaterialTheme.czColors.textPrimary
+        HorizontalDivider(
+            color = colors.divider,
+            thickness = 1.dp,
+        )
+        NavigationBar(
+            containerColor = colors.background,
+            contentColor = colors.textSecondary,
+            tonalElevation = 0.dp,
+        ) {
+            AppRoute.topLevelTabs.forEach { tab ->
+                val selected = selectedTab == tab
+                val tabContentDescription = tab.localizedContentDescription()
+                NavigationBarItem(
+                    selected = selected,
+                    onClick = { onTabSelected(tab) },
+                    icon = {
+                        Icon(
+                            imageVector = tab.iconLabel,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = tab.localizedLabel(),
+                            color = if (selected) colors.ember else colors.textSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = colors.ember,
+                        selectedTextColor = colors.ember,
+                        indicatorColor = Color.Transparent,
+                        unselectedIconColor = colors.textSecondary,
+                        unselectedTextColor = colors.textSecondary,
+                    ),
+                    modifier = Modifier.semantics {
+                        contentDescription = tabContentDescription
+                    },
+                )
             }
-            NavigationBarItem(
-                selected = selectedTab == tab,
-                onClick = { onTabSelected(tab) },
-                icon = {
-                    Icon(
-                        imageVector = tab.iconLabel,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = tint
-                    )
-                },
-                label = {
-                    Text(
-                        text = tab.localizedLabel(),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = colors.onPrimary,
-                    selectedTextColor = colors.textPrimary,
-                    indicatorColor = colors.surface,
-                    unselectedIconColor = colors.textSecondary,
-                    unselectedTextColor = colors.textSecondary,
-                ),
-                modifier = Modifier.semantics {
-                    contentDescription = tabContentDescription
-                },
-            )
         }
     }
 }
