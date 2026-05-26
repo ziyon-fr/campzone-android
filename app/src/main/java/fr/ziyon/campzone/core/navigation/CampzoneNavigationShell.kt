@@ -3,8 +3,10 @@ package fr.ziyon.campzone.core.navigation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +39,7 @@ import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import androidx.hilt.navigation.compose.hiltViewModel
 import fr.ziyon.campzone.ui.camping.CampingDetailRoute
 import fr.ziyon.campzone.ui.camping.CampingsRoute
 import fr.ziyon.campzone.ui.camping.admin.CampingEditorRoute
@@ -50,6 +53,12 @@ import fr.ziyon.campzone.ui.payments.CampingRegistrationPaymentRoute
 import fr.ziyon.campzone.ui.profile.ProfileScreen
 import fr.ziyon.campzone.ui.profile.ProfileSettingsScreen
 import fr.ziyon.campzone.ui.profile.UserDataExportScreen
+import fr.ziyon.campzone.ui.schedule.ProgramDetailScreen
+import fr.ziyon.campzone.ui.schedule.ProgramEditorScreen
+import fr.ziyon.campzone.ui.schedule.ScheduleEditorScreen
+import fr.ziyon.campzone.ui.schedule.ScheduleRoute
+import fr.ziyon.campzone.ui.schedule.ScheduleViewModel
+import androidx.compose.runtime.remember
 
 @Composable
 fun CampzoneNavigationShell(
@@ -166,6 +175,9 @@ fun CampzoneNavigationShell(
                     campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
+                    onOpenSchedule = { campingId ->
+                        navController.navigate(AppRoute.CampingSchedule(campingId).route)
+                    },
                     onOpenChat = { campingId ->
                         navController.navigate(AppRoute.CampingChat(campingId).route)
                     },
@@ -343,6 +355,79 @@ fun CampzoneNavigationShell(
                 DetailPlaceholderScreen(
                     title = "Poll",
                     value = backStackEntry.stringArg(AppRouteArgs.PollId),
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingSchedule,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                ScheduleRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenEditor = {
+                        navController.navigate(AppRoute.CampingScheduleEditor(campingId).route)
+                    },
+                    onOpenProgram = { programId ->
+                        navController.navigate(AppRoute.CampingScheduleProgram(campingId, programId).route)
+                    },
+                )
+            }
+            // Register static schedule sub-routes BEFORE the dynamic {programId} route
+            composable(
+                route = AppRoutePattern.CampingScheduleEditor,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val scheduleEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(AppRoute.CampingSchedule(campingId).route)
+                }
+                val viewModel: ScheduleViewModel = hiltViewModel(scheduleEntry)
+                ScheduleEditorScreen(
+                    viewModel = viewModel,
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenProgramEditor = {
+                        navController.navigate(AppRoute.CampingScheduleProgramEditor(campingId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingScheduleProgramEditor,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val scheduleEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(AppRoute.CampingSchedule(campingId).route)
+                }
+                val viewModel: ScheduleViewModel = hiltViewModel(scheduleEntry)
+                ProgramEditorScreen(
+                    viewModel = viewModel,
+                    campingId = campingId,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingScheduleProgram,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.ProgramId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val programId = backStackEntry.stringArg(AppRouteArgs.ProgramId)
+                val scheduleEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(AppRoute.CampingSchedule(campingId).route)
+                }
+                val viewModel: ScheduleViewModel = hiltViewModel(scheduleEntry)
+                ProgramDetailScreen(
+                    viewModel = viewModel,
+                    campingId = campingId,
+                    programId = programId,
+                    onBack = { navController.popBackStack() },
                 )
             }
         }

@@ -165,6 +165,29 @@ sealed interface AppRoute {
             "${CampingAttendees(campingId).route}/${attendeeId.asRouteSegment()}"
     }
 
+    data class CampingSchedule(val campingId: String) : AppRoute {
+        override val route =
+            "${CampingDetail(campingId).route}/${AppRoutePath.Schedule}"
+    }
+
+    data class CampingScheduleEditor(val campingId: String) : AppRoute {
+        override val route =
+            "${CampingSchedule(campingId).route}/${AppRoutePath.CampingEdit}"
+    }
+
+    data class CampingScheduleProgram(
+        val campingId: String,
+        val programId: String,
+    ) : AppRoute {
+        override val route =
+            "${CampingSchedule(campingId).route}/${programId.asRouteSegment()}"
+    }
+
+    data class CampingScheduleProgramEditor(val campingId: String) : AppRoute {
+        override val route =
+            "${CampingSchedule(campingId).route}/${AppRoutePath.ProgramEditor}"
+    }
+
     companion object {
         val topLevelTabs: List<Tab> = listOf(Home, Campings, Announcements, Profile)
 
@@ -185,6 +208,7 @@ internal object AppRouteArgs {
     const val TeamId = "teamId"
     const val PollId = "pollId"
     const val AttendeeId = "attendeeId"
+    const val ProgramId = "programId"
 }
 
 internal object AppRoutePath {
@@ -209,6 +233,8 @@ internal object AppRoutePath {
     const val Attendees = "attendees"
     const val CampingCreate = "create"
     const val CampingEdit = "edit"
+    const val Schedule = "schedule"
+    const val ProgramEditor = "program-editor"
 }
 
 internal object AppRoutePattern {
@@ -229,6 +255,10 @@ internal object AppRoutePattern {
     const val AttendeeProfile = "$CampingAttendees/{${AppRouteArgs.AttendeeId}}"
     const val CampingCreate = "${AppRoutePath.Campings}/${AppRoutePath.CampingCreate}"
     const val CampingEdit = "$CampingDetail/${AppRoutePath.CampingEdit}"
+    const val CampingSchedule = "$CampingDetail/${AppRoutePath.Schedule}"
+    const val CampingScheduleEditor = "$CampingSchedule/${AppRoutePath.CampingEdit}"
+    const val CampingScheduleProgram = "$CampingSchedule/{${AppRouteArgs.ProgramId}}"
+    const val CampingScheduleProgramEditor = "$CampingSchedule/${AppRoutePath.ProgramEditor}"
 }
 
 private fun String.asRouteSegment(): String =

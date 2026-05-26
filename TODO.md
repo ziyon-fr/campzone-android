@@ -137,17 +137,17 @@
 - [x] Delete attendee: hard-delete registration doc → cascade: delete `checkIns/{attendeeId}`, `transportationBookings` where `participantID==attendeeId`, remove from team `members[]`
 - [x] Attendee list visible only to registered+approved participants or leadership
 
-### B5. Schedule (`ui/schedule/`)
+### B5. Schedule (`ui/schedule/`) ✅
 
-- [ ] Read `campings/{id}/schedule/config` + days + programs; merge-sorted by `startDate`
-- [ ] Display: grouped by day (`CampDay`); program cards with type icon, time, location
-- [ ] Admin editor: create/edit/delete programs and days
+- [x] Read `campings/{id}/schedule/config` + days + programs; merge-sorted by `startDate`
+- [x] Display: grouped by day (`CampDay`); program cards with type icon, time, location
+- [x] Admin editor: create/edit/delete programs and days
   - Program save: upsert `schedule/config`, **delete** old day doc if day changed, upsert day, upsert program; prune empty untitled days
   - **Always recompute `campDayID`** from `startDate` — never trust inbound value
   - Day doc ID: `"<campingID>-day-<yyyy-MM-dd>"` (gregorian, en_US_POSIX, local TZ)
   - `venuePointID` delete-when-empty
-- [ ] Reminder timing: write `schedule/config.reminderTiming` (`ScheduleReminderTiming` raw); call `POST /notifications/reminders`
-- [ ] Gate: `canManageSchedule` for writes
+- [x] Reminder timing: write `schedule/config.reminderTiming` (`ScheduleReminderTiming` raw); call `POST /notifications/reminders`
+- [x] Gate: `canManageSchedule` for writes
 
 ### B6. Food Menu + Menu↔Program Sync (`ui/schedule/food/`)
 
