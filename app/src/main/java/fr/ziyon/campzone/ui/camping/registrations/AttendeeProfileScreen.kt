@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -136,7 +137,7 @@ fun AttendeeProfileScreen(
             SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data) }
         },
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
                         text = stringResource(R.string.attendee_profile_title),
@@ -160,7 +161,9 @@ fun AttendeeProfileScreen(
     ) { innerPadding ->
         when {
             state.isLoading -> CzLoadingView(
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
                 message = stringResource(R.string.attendee_profile_loading),
             )
 

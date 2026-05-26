@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,6 +58,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.FloatingActionButtonElevation
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -117,12 +120,14 @@ fun CampingDetailRoute(
     authenticatedUser: AuthenticatedUser,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenSchedule: (String) -> Unit = {},
     onOpenChat: (String) -> Unit = {},
     onOpenPolls: (String) -> Unit = {},
     onOpenEditCamping: (String) -> Unit = {},
     onOpenRegistration: (String) -> Unit = {},
     onOpenRegistrationReview: () -> Unit = {},
     onOpenAttendees: (String) -> Unit = {},
+    onOpenFoodMenu: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(campingId) { viewModel.load(campingId, authenticatedUser) }
@@ -146,12 +151,14 @@ fun CampingDetailRoute(
             }
             context.startActivity(Intent.createChooser(shareIntent, camping.title))
         },
+        onOpenSchedule = onOpenSchedule,
         onOpenChat = onOpenChat,
         onOpenPolls = onOpenPolls,
         onOpenEditCamping = onOpenEditCamping,
         onOpenRegistration = onOpenRegistration,
         onOpenRegistrationReview = onOpenRegistrationReview,
         onOpenAttendees = onOpenAttendees,
+        onOpenFoodMenu = onOpenFoodMenu,
         modifier = modifier,
     )
 }
@@ -175,20 +182,21 @@ fun CampingDetailScreen(
     onOpenRegistrationReview: () -> Unit = {},
     onOpenAttendees: (String) -> Unit = {},
     onOpenVenueMap: (String) -> Unit = {},
+    onOpenFoodMenu: (String) -> Unit = {},
 ) {
     val camping = state.camping
-
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(),
         containerColor = MaterialTheme.czColors.background,
-        bottomBar = {
+        floatingActionButton = {
             if (camping != null && state.showRegisterCta) {
                 RegistrationBottomBar(
                     camping = camping,
                     onOpenRegistration = onOpenRegistration,
                 )
             }
-        },
+        }, floatingActionButtonPosition = FabPosition.Center
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -234,6 +242,7 @@ fun CampingDetailScreen(
                     onOpenRegistrationReview = onOpenRegistrationReview,
                     onOpenAttendees = onOpenAttendees,
                     onOpenVenueMap = onOpenVenueMap,
+                    onOpenFoodMenu = onOpenFoodMenu,
                 )
             }
         }
@@ -297,6 +306,7 @@ private fun CampingDetailContent(
     onOpenRegistrationReview: () -> Unit,
     onOpenAttendees: (String) -> Unit,
     onOpenVenueMap: (String) -> Unit,
+    onOpenFoodMenu: (String) -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(CampingDetailTab.Overview) }
     val disabledAlpha = if (camping.registrationStatus == CampingRegistrationStatus.Cancelled) 0.5f else 1f
@@ -382,6 +392,7 @@ private fun CampingDetailContent(
                 camping = camping,
                 onOpenChat = onOpenChat,
                 onOpenPolls = onOpenPolls,
+                onOpenFoodMenu = onOpenFoodMenu,
             )
         }
 
@@ -1075,6 +1086,7 @@ private fun ResourcesSection(
     camping: Camping,
     onOpenChat: (String) -> Unit,
     onOpenPolls: (String) -> Unit,
+    onOpenFoodMenu: (String) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
@@ -1150,7 +1162,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_food_menu_subtitle),
                         icon = Icons.Filled.Restaurant,
                         accent = MaterialTheme.czColors.success,
-                        onClick = {},
+                        onClick = { onOpenFoodMenu(camping.id) },
                     ),
                 )
                 if (camping.isPaid) {
@@ -1573,16 +1585,13 @@ private fun RegistrationBottomBar(
     camping: Camping,
     onOpenRegistration: (String) -> Unit,
 ) {
-    Surface(
-        color = MaterialTheme.czColors.background,
-        shadowElevation = 8.dp,
-    ) {
+    Column {
         CzButton(
             text = stringResource(R.string.camping_register_participants),
             onClick = { onOpenRegistration(camping.id) },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.lg)
+                .padding(horizontal = CzSpacing.lg)
                 .height(54.dp),
             variant = CzButtonVariant.Primary,
             leadingIcon = {

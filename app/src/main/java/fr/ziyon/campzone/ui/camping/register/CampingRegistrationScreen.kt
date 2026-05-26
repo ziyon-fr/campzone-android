@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -161,7 +162,7 @@ fun CampingRegistrationScreen(
             SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data) }
         },
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
                         text = stringResource(R.string.registration_title),

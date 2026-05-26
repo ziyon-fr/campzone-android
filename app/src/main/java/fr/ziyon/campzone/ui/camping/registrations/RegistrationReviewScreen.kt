@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -125,7 +126,7 @@ fun RegistrationReviewScreen(
             SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data) }
         },
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
                         text = stringResource(R.string.registration_review_title),
@@ -140,7 +141,7 @@ fun RegistrationReviewScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.czColors.background,
                 ),
                 windowInsets = WindowInsets(),

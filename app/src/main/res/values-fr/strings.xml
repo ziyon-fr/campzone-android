@@ -252,7 +252,28 @@
     <string name="church_picker_empty">Aucune église</string>
     <string name="church_picker_no_results">Aucun résultat pour %1$s</string>
     <string name="home_title">Basecamp</string>
-    <string name="home_feature_title">Featured Camping</string>
+    <string name="home_loading_overview">Chargement de l’aperçu...</string>
+    <string name="home_error_title">Impossible de charger l’aperçu</string>
+    <string name="home_error_message">Campzone n’a pas pu charger le dernier aperçu du camp. Veuillez réessayer.</string>
+    <string name="home_empty_dashboard_title">Aucune activité de camp pour le moment</string>
+    <string name="home_empty_dashboard_message">Les prochains camps, programmes et annonces apparaîtront ici.</string>
+    <string name="home_notifications_content_description">Notifications</string>
+    <string name="home_feature_title">Camp à la une</string>
+    <string name="home_programs_title">Programmes à venir</string>
+    <string name="home_programs_for_camping_title">À venir à %1$s</string>
+    <string name="home_program_fallback_title">Programme</string>
+    <string name="home_program_now">Maintenant</string>
+    <string name="home_programs_empty_title">Aucun programme prévu</string>
+    <string name="home_programs_empty_message">Les responsables n’ont pas encore publié le programme. Revenez bientôt.</string>
+    <string name="home_announcements_title">Annonces</string>
+    <string name="home_announcements_empty_title">Aucune annonce</string>
+    <string name="home_announcements_empty_message">Les informations importantes du camp apparaîtront ici.</string>
+    <string name="home_location_pending">Lieu à confirmer</string>
+    <string name="home_fully_booked">Complet</string>
+    <string name="home_almost_full">Presque complet · %1$d%%</string>
+    <string name="home_percent_filled">Rempli à %1$d%%</string>
+    <string name="home_registered_capacity">%1$d / %2$d inscrits</string>
+    <string name="home_registered_count">%1$d inscrits</string>
 
     <!-- Campings list &amp; detail (B1) -->
     <string name="camping_search_label">Rechercher</string>

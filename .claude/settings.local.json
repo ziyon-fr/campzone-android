@@ -31,7 +31,27 @@
       "Bash(./gradlew :app:compileDebugKotlin)",
       "Bash(./gradlew :app:testDebugUnitTest)",
       "Bash(./gradlew --stop)",
-      "Bash(./gradlew :app:compileDebugKotlin --rerun)"
+      "Bash(./gradlew :app:compileDebugKotlin --rerun)",
+      "Bash(./gradlew :app:compileDebugKotlin --console=plain)",
+      "Bash(grep -v \"^\\\\s*$\")",
+      "Bash(./gradlew :app:compileDebugKotlin --console=plain --info)",
+      "Bash(./gradlew :app:compileDebugKotlin --console=plain --stacktrace)",
+      "Bash(./gradlew :app:compileDebugKotlin --console=plain --debug)",
+      "Bash(./gradlew :app:kspDebugKotlin --stacktrace --console=plain)",
+      "Bash(./gradlew :app:kspDebugKotlin --debug --console=plain)",
+      "Bash(./gradlew :app:kspDebugKotlin --console=plain)",
+      "Bash(grep -v \"^$\")",
+      "Read(//Users/leon/.gradle/caches/modules-2/files-2.1/androidx.compose.material/material-icons-extended-android/1.7.8/**)",
+      "Bash(jar tf *)",
+      "Bash(./gradlew :app:clean --console=plain)",
+      "Bash(./gradlew :app:kspDebugKotlin --info --console=plain)",
+      "Bash(python3 -c ' *)",
+      "Bash(./gradlew :app:assembleDebug --console=plain)",
+      "Bash(./gradlew lintDebug)",
+      "Bash(./gradlew assembleDebug lintDebug)",
+      "Bash(./gradlew :app:compileDebugKotlin --rerun-tasks)",
+      "Bash(./gradlew :app:assembleDebug)",
+      "Bash(./gradlew :app:clean :app:compileDebugKotlin)"
     ]
   }
 }

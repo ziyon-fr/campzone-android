@@ -1,5 +1,6 @@
 package fr.ziyon.campzone.data.model
 
+import java.util.Calendar
 import java.util.Date
 
 /**
@@ -20,9 +21,23 @@ data class CampDay(
     val campingId: String,
     val date: Date,
     val title: String = "",
+    val programs: List<Program> = emptyList(),
     val createdAt: Date? = null,
     val updatedAt: Date? = null,
 )
+
+/** In-memory aggregate combining schedule config + days (each holding programs). */
+data class CampingSchedule(
+    val campingId: String,
+    val reminderTiming: ScheduleReminderTiming = ScheduleReminderTiming.None,
+    val days: List<CampDay> = emptyList(),
+) {
+    val sortedDays: List<CampDay>
+        get() = days.sortedWith(compareBy { it.date })
+
+    val allPrograms: List<Program>
+        get() = days.flatMap { it.programs }
+}
 
 data class Program(
     val id: String,
@@ -81,6 +96,41 @@ internal fun Map<String, Any?>.toProgramOrNull(documentId: String): Program? {
 }
 
 // endregion
+
+/**
+ * Builds a display-ready schedule by merging the camping's date range with the
+ * loaded days. Every date from [Camping.startDate] to [Camping.endDate] gets a
+ * row, blank-titled days get a positional "Day N" label for display only (never
+ * stored), and days outside the date range (with orphan programs) are appended.
+ */
+fun CampingSchedule.normalizedForCamping(camping: Camping): CampingSchedule {
+    val existingById = days.associateBy { it.id }
+    val calendarDays = camping.scheduleDates.map { date ->
+        val key = DateKeys.campDayId(campingId, date)
+        existingById[key] ?: CampDay(id = key, campingId = campingId, date = date)
+    }
+    var dayNumber = 0
+    val titled = calendarDays.map { day ->
+        dayNumber++
+        if (day.title.isBlank()) day.copy(title = "Day $dayNumber") else day
+    }
+    val rangeDayIds = titled.map { it.id }.toSet()
+    val orphanDays = existingById.values.filter { it.id !in rangeDayIds }
+    return copy(days = (titled + orphanDays).sortedBy { it.date })
+}
+
+internal val Camping.scheduleDates: List<Date>
+    get() {
+        val dates = mutableListOf<Date>()
+        val cal = Calendar.getInstance()
+        cal.time = DateKeys.startOfDay(startDate)
+        val endMidnight = DateKeys.startOfDay(endDate)
+        while (!cal.time.after(endMidnight)) {
+            dates.add(cal.time)
+            cal.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        return dates
+    }
 
 internal object SchedulePayload {
 
