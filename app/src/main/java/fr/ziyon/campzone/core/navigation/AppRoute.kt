@@ -188,6 +188,16 @@ sealed interface AppRoute {
             "${CampingSchedule(campingId).route}/${AppRoutePath.ProgramEditor}"
     }
 
+    data class CampingFoodMenu(val campingId: String) : AppRoute {
+        override val route =
+            "${CampingDetail(campingId).route}/${AppRoutePath.FoodMenu}"
+    }
+
+    data class CampingFoodMenuEditor(val campingId: String) : AppRoute {
+        override val route =
+            "${CampingFoodMenu(campingId).route}/${AppRoutePath.CampingEdit}"
+    }
+
     companion object {
         val topLevelTabs: List<Tab> = listOf(Home, Campings, Announcements, Profile)
 
@@ -235,6 +245,7 @@ internal object AppRoutePath {
     const val CampingEdit = "edit"
     const val Schedule = "schedule"
     const val ProgramEditor = "program-editor"
+    const val FoodMenu = "food-menu"
 }
 
 internal object AppRoutePattern {
@@ -259,6 +270,8 @@ internal object AppRoutePattern {
     const val CampingScheduleEditor = "$CampingSchedule/${AppRoutePath.CampingEdit}"
     const val CampingScheduleProgram = "$CampingSchedule/{${AppRouteArgs.ProgramId}}"
     const val CampingScheduleProgramEditor = "$CampingSchedule/${AppRoutePath.ProgramEditor}"
+    const val CampingFoodMenu = "$CampingDetail/${AppRoutePath.FoodMenu}"
+    const val CampingFoodMenuEditor = "$CampingFoodMenu/${AppRoutePath.CampingEdit}"
 }
 
 private fun String.asRouteSegment(): String =

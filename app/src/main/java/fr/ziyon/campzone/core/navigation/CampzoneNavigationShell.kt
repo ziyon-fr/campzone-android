@@ -58,6 +58,9 @@ import fr.ziyon.campzone.ui.schedule.ProgramEditorScreen
 import fr.ziyon.campzone.ui.schedule.ScheduleEditorScreen
 import fr.ziyon.campzone.ui.schedule.ScheduleRoute
 import fr.ziyon.campzone.ui.schedule.ScheduleViewModel
+import fr.ziyon.campzone.ui.schedule.food.FoodMenuEditorScreen
+import fr.ziyon.campzone.ui.schedule.food.FoodMenuRoute
+import fr.ziyon.campzone.ui.schedule.food.FoodMenuViewModel
 import androidx.compose.runtime.remember
 
 @Composable
@@ -195,6 +198,9 @@ fun CampzoneNavigationShell(
                     },
                     onOpenAttendees = { campingId ->
                         navController.navigate(AppRoute.CampingAttendees(campingId).route)
+                    },
+                    onOpenFoodMenu = { campingId ->
+                        navController.navigate(AppRoute.CampingFoodMenu(campingId).route)
                     },
                 )
             }
@@ -428,6 +434,39 @@ fun CampzoneNavigationShell(
                     campingId = campingId,
                     programId = programId,
                     onBack = { navController.popBackStack() },
+                )
+            }
+            // Food menu — register editor BEFORE the food menu list so it doesn't match as list
+            composable(
+                route = AppRoutePattern.CampingFoodMenuEditor,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val foodMenuEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(AppRoute.CampingFoodMenu(campingId).route)
+                }
+                val viewModel: FoodMenuViewModel = hiltViewModel(foodMenuEntry)
+                val editingEntryId by viewModel.editingEntryId.collectAsState()
+                FoodMenuEditorScreen(
+                    viewModel = viewModel,
+                    campingId = campingId,
+                    isEditing = editingEntryId != null,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingFoodMenu,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                FoodMenuRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenEditor = {
+                        navController.navigate(AppRoute.CampingFoodMenuEditor(campingId).route)
+                    },
                 )
             }
         }

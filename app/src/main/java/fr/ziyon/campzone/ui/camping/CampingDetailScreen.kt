@@ -127,6 +127,7 @@ fun CampingDetailRoute(
     onOpenRegistration: (String) -> Unit = {},
     onOpenRegistrationReview: () -> Unit = {},
     onOpenAttendees: (String) -> Unit = {},
+    onOpenFoodMenu: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(campingId) { viewModel.load(campingId, authenticatedUser) }
@@ -157,6 +158,7 @@ fun CampingDetailRoute(
         onOpenRegistration = onOpenRegistration,
         onOpenRegistrationReview = onOpenRegistrationReview,
         onOpenAttendees = onOpenAttendees,
+        onOpenFoodMenu = onOpenFoodMenu,
         modifier = modifier,
     )
 }
@@ -180,6 +182,7 @@ fun CampingDetailScreen(
     onOpenRegistrationReview: () -> Unit = {},
     onOpenAttendees: (String) -> Unit = {},
     onOpenVenueMap: (String) -> Unit = {},
+    onOpenFoodMenu: (String) -> Unit = {},
 ) {
     val camping = state.camping
     Scaffold(
@@ -239,6 +242,7 @@ fun CampingDetailScreen(
                     onOpenRegistrationReview = onOpenRegistrationReview,
                     onOpenAttendees = onOpenAttendees,
                     onOpenVenueMap = onOpenVenueMap,
+                    onOpenFoodMenu = onOpenFoodMenu,
                 )
             }
         }
@@ -302,6 +306,7 @@ private fun CampingDetailContent(
     onOpenRegistrationReview: () -> Unit,
     onOpenAttendees: (String) -> Unit,
     onOpenVenueMap: (String) -> Unit,
+    onOpenFoodMenu: (String) -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(CampingDetailTab.Overview) }
     val disabledAlpha = if (camping.registrationStatus == CampingRegistrationStatus.Cancelled) 0.5f else 1f
@@ -387,6 +392,7 @@ private fun CampingDetailContent(
                 camping = camping,
                 onOpenChat = onOpenChat,
                 onOpenPolls = onOpenPolls,
+                onOpenFoodMenu = onOpenFoodMenu,
             )
         }
 
@@ -1080,6 +1086,7 @@ private fun ResourcesSection(
     camping: Camping,
     onOpenChat: (String) -> Unit,
     onOpenPolls: (String) -> Unit,
+    onOpenFoodMenu: (String) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
@@ -1155,7 +1162,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_food_menu_subtitle),
                         icon = Icons.Filled.Restaurant,
                         accent = MaterialTheme.czColors.success,
-                        onClick = {},
+                        onClick = { onOpenFoodMenu(camping.id) },
                     ),
                 )
                 if (camping.isPaid) {
