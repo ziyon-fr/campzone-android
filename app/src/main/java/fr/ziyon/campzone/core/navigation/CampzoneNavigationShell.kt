@@ -63,6 +63,10 @@ import fr.ziyon.campzone.ui.camping.guidelines.CampingGuidelinesRoute
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuEditorScreen
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuRoute
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuViewModel
+import fr.ziyon.campzone.ui.songbook.SongDetailRoute
+import fr.ziyon.campzone.ui.songbook.SongEditorRoute
+import fr.ziyon.campzone.ui.songbook.SongbookRoute
+import fr.ziyon.campzone.ui.songbook.SongbookViewModel
 import androidx.compose.runtime.remember
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.PermissionUser
@@ -282,6 +286,9 @@ fun CampzoneNavigationShell(
                     },
                     onOpenFoodMenu = { campingId ->
                         navController.navigate(AppRoute.CampingFoodMenu(campingId).route)
+                    },
+                    onOpenSongbook = { campingId ->
+                        navController.navigate(AppRoute.CampingSongbook(campingId).route)
                     },
                 )
             }
@@ -560,6 +567,106 @@ fun CampzoneNavigationShell(
                     onBack = { navController.popBackStack() },
                     onOpenEditor = {
                         navController.navigate(AppRoute.CampingFoodMenuEditor(campingId).route)
+                    },
+                )
+            }
+            // Songbook — register editor before dynamic {songId}
+            composable(
+                route = AppRoutePattern.SongEditor,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val songbookEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingSongbook(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: SongbookViewModel = if (songbookEntry != null) {
+                    hiltViewModel(songbookEntry)
+                } else {
+                    hiltViewModel()
+                }
+                SongEditorRoute(
+                    campingId = campingId,
+                    songId = null,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.SongEdit,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.SongId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val songId = backStackEntry.stringArg(AppRouteArgs.SongId)
+                val songbookEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingSongbook(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: SongbookViewModel = if (songbookEntry != null) {
+                    hiltViewModel(songbookEntry)
+                } else {
+                    hiltViewModel()
+                }
+                SongEditorRoute(
+                    campingId = campingId,
+                    songId = songId,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.SongDetail,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.SongId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val songId = backStackEntry.stringArg(AppRouteArgs.SongId)
+                val songbookEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingSongbook(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: SongbookViewModel = if (songbookEntry != null) {
+                    hiltViewModel(songbookEntry)
+                } else {
+                    hiltViewModel()
+                }
+                SongDetailRoute(
+                    campingId = campingId,
+                    songId = songId,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenEditor = { id ->
+                        navController.navigate(AppRoute.SongEditor(campingId, id).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingSongbook,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                SongbookRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenSong = { songId ->
+                        navController.navigate(AppRoute.SongDetail(campingId, songId).route)
+                    },
+                    onOpenEditor = { songId ->
+                        navController.navigate(AppRoute.SongEditor(campingId, songId).route)
                     },
                 )
             }
