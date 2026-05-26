@@ -41,7 +41,9 @@ import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import androidx.hilt.navigation.compose.hiltViewModel
+import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.ui.camping.CampingDetailRoute
+import fr.ziyon.campzone.ui.camping.CampingDetailViewModel
 import fr.ziyon.campzone.ui.camping.CampingsRoute
 import fr.ziyon.campzone.ui.camping.admin.CampingEditorRoute
 import fr.ziyon.campzone.ui.camping.registrations.AttendeeProfileRoute
@@ -60,6 +62,10 @@ import fr.ziyon.campzone.ui.schedule.ScheduleEditorScreen
 import fr.ziyon.campzone.ui.schedule.ScheduleRoute
 import fr.ziyon.campzone.ui.schedule.ScheduleViewModel
 import fr.ziyon.campzone.ui.camping.guidelines.CampingGuidelinesRoute
+import fr.ziyon.campzone.ui.teams.TeamDetailRoute
+import fr.ziyon.campzone.ui.teams.TeamEditorRoute
+import fr.ziyon.campzone.ui.teams.TeamViewModel
+import fr.ziyon.campzone.ui.teams.TeamsRoute
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuEditorScreen
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuRoute
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuViewModel
@@ -290,6 +296,12 @@ fun CampzoneNavigationShell(
                     onOpenSongbook = { campingId ->
                         navController.navigate(AppRoute.CampingSongbook(campingId).route)
                     },
+                    onOpenTeams = { campingId ->
+                        navController.navigate(AppRoute.CampingTeams(campingId).route)
+                    },
+                    onOpenGames = { campingId ->
+                        navController.navigate(AppRoute.CampingTeams(campingId).route)
+                    },
                 )
             }
             composable(route = AppRoutePattern.RegistrationReview) {
@@ -386,13 +398,133 @@ fun CampzoneNavigationShell(
                     value = backStackEntry.stringArg(AppRouteArgs.CampingId),
                 )
             }
+            // Teams — register TeamEditor before TeamDetail so "team-editor" is not matched as {teamId}
+            composable(
+                route = AppRoutePattern.TeamEditor,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val teamsEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingTeams(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: TeamViewModel = if (teamsEntry != null) hiltViewModel(teamsEntry) else hiltViewModel()
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                TeamEditorRoute(
+                    campingId = campingId,
+                    teamId = null,
+                    camping = campingDetailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.TeamEdit,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.TeamId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val teamId = backStackEntry.stringArg(AppRouteArgs.TeamId)
+                val teamsEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingTeams(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: TeamViewModel = if (teamsEntry != null) hiltViewModel(teamsEntry) else hiltViewModel()
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                TeamEditorRoute(
+                    campingId = campingId,
+                    teamId = teamId,
+                    camping = campingDetailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable(
                 route = AppRoutePattern.TeamDetail,
                 arguments = teamRouteArguments(),
             ) { backStackEntry ->
-                DetailPlaceholderScreen(
-                    title = "Team",
-                    value = backStackEntry.stringArg(AppRouteArgs.TeamId),
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val teamId = backStackEntry.stringArg(AppRouteArgs.TeamId)
+                val teamsEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingTeams(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: TeamViewModel = if (teamsEntry != null) hiltViewModel(teamsEntry) else hiltViewModel()
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                TeamDetailRoute(
+                    teamId = teamId,
+                    campingId = campingId,
+                    camping = campingDetailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    approvedAttendees = campingDetailState.attendees
+                        .filter { it.registrationStatus == RegistrationApprovalStatus.Approved },
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenEditor = { id ->
+                        navController.navigate(AppRoute.TeamEditor(campingId, id).route)
+                    },
+                    onOpenTeamChat = { cId, tId ->
+                        navController.navigate(AppRoute.TeamChat(cId, tId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingTeams,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                val viewModel: TeamViewModel = hiltViewModel()
+                TeamsRoute(
+                    campingId = campingId,
+                    camping = campingDetailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenTeamDetail = { teamId ->
+                        navController.navigate(AppRoute.TeamDetail(campingId, teamId).route)
+                    },
+                    onOpenTeamEditor = { teamId ->
+                        navController.navigate(AppRoute.TeamEditor(campingId, teamId).route)
+                    },
+                    onOpenGames = {
+                        navController.navigate(AppRoute.CampingTeams(campingId).route)
+                    },
                 )
             }
             composable(

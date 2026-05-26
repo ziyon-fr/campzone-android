@@ -85,12 +85,32 @@ sealed interface AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Chat}"
     }
 
+    data class CampingTeams(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Teams}"
+    }
+
     data class TeamDetail(
         val campingId: String,
         val teamId: String,
     ) : AppRoute {
         override val route =
             "${CampingDetail(campingId).route}/${AppRoutePath.Teams}/${teamId.asRouteSegment()}"
+    }
+
+    data class TeamEditor(
+        val campingId: String,
+        val teamId: String? = null,
+    ) : AppRoute {
+        override val route = buildString {
+            append(CampingTeams(campingId).route)
+            append("/")
+            append(AppRoutePath.TeamEditor)
+            val resolved = teamId?.takeUnless { it.isBlank() }
+            if (resolved != null) {
+                append("/")
+                append(resolved.asRouteSegment())
+            }
+        }
     }
 
     data class TeamChat(
@@ -284,6 +304,7 @@ internal object AppRoutePath {
     const val FoodMenu = "food-menu"
     const val Songbook = "songbook"
     const val SongEditor = "song-editor"
+    const val TeamEditor = "team-editor"
     const val Guidelines = "guidelines"
     const val AnnouncementComposer = "compose"
 }
@@ -293,7 +314,10 @@ internal object AppRoutePattern {
     const val AnnouncementDetail =
         "${AppRoutePath.Announcements}/{${AppRouteArgs.AnnouncementId}}"
     const val CampingChat = "$CampingDetail/${AppRoutePath.Chat}"
-    const val TeamDetail = "$CampingDetail/${AppRoutePath.Teams}/{${AppRouteArgs.TeamId}}"
+    const val CampingTeams = "$CampingDetail/${AppRoutePath.Teams}"
+    const val TeamEditor = "$CampingTeams/${AppRoutePath.TeamEditor}"
+    const val TeamEdit = "$TeamEditor/{${AppRouteArgs.TeamId}}"
+    const val TeamDetail = "$CampingTeams/{${AppRouteArgs.TeamId}}"
     const val TeamChat = "$TeamDetail/${AppRoutePath.Chat}"
     const val PointHistory = "$CampingDetail/${AppRoutePath.PointHistory}"
     const val TeamPointHistory = "$PointHistory/{${AppRouteArgs.TeamId}}"

@@ -25,14 +25,14 @@
 - [x] Backend base URL wired as `BuildConfig.BACKEND_BASE_URL` in debug + release build types
 - [x] `android.disallowKotlinSourceSets=false` added to gradle.properties (KSP/AGP 9.x compatibility shim)
 
-### A2. Firebase & Firestore Init
+### A2. Firebase & Firestore Init ✅
 
 - [x] Initialize Firebase in `CampzoneApp` (Application class); Hilt `@HiltAndroidApp`
 - [x] Enable Firestore **disk persistence** (`setLocalCacheSettings(persistentLocalCache(...))`) for offline parity — songbook/schedule/camp program prioritized
 - [x] Configure Firebase Auth providers: **Google** (Credential Manager / Google Identity) + **Apple** (`OAuthProvider("apple.com")` web flow)
 - [x] Register SHA-1/SHA-256 signing certs for Google Sign-In in the Firebase console
 
-### A3. Design System (`core/designsystem/`)
+### A3. Design System (`core/designsystem/`) ✅
 
 - [x] `CzColors` object — all semantic light/dark token pairs from `06-design-tokens.md` (ember palette, pine greens, cream neutrals)
 - [x] `CzSpacing` object — xs=4·sm=8·md=12·base=16·lg=20·xl=24·xxl=32·xxxl=48 (all dp)
@@ -42,27 +42,27 @@
 - [x] Core reusable components (mirror iOS `Cz*` set): `CzButton`, `CzCard`, `CzTextField`, `CzBadge`, `CzEmptyState`, `CzErrorState`, `CzLoadingView`, `CzAvatar`, `CzSectionHeader`
 - [x] Touch targets ≥48dp, content descriptions on all interactive elements, font scale via `sp`
 
-### A4. Navigation Shell (`core/navigation/`)
+### A4. Navigation Shell (`core/navigation/`) ✅
 
 - [x] `AppRoute` sealed hierarchy (typed routes, no raw strings) — 4 tabs: Home, Campings, Announcements, Profile
 - [x] Single-Activity `MainActivity` with Compose `NavHost`
 - [x] Intent filter for `campzone://` deep-link scheme; park cold-start links until auth/nav is ready (see `05-deep-linking.md`)
 - [x] Bottom navigation with 4 tabs; push feature screens via typed routes
 
-### A5. Permission Evaluator (`core/permissions/`)
+### A5. Permission Evaluator (`core/permissions/`) ✅
 
 - [x] `AppPermission` sealed class / evaluator mirroring the `03-rbac-and-security.md` permission matrix exactly
 - [x] Church-scope rule: non-admin leadership gates apply only when `camping.organizerLevel.type == "church"` AND `value == user.church` (case-insensitive)
 - [x] Unit-test every permission against the matrix in `03` (all 9 roles × all permissions)
 
-### A6. Auth & Session (`ui/auth/`)
+### A6. Auth & Session (`ui/auth/`) ✅
 
 - [x] Sign-in screen: Google + Apple buttons ( follow iOS design)
 - [x] On first sign-in: create `users/{uid}` doc with `role: "guest"`, `createdAt: serverTimestamp()`, `onboardingCompleted: false` — **merge: true**; do not overwrite existing `email`/`displayName`/`photoURL`
 - [x] Session state: `StateFlow<AuthState>` (signed-out / onboarding-incomplete / signed-in)
 - [x] Sign-out clears local session; navigates to auth screen
 
-### A7. Onboarding (`ui/onboarding/`)
+### A7. Onboarding (`ui/onboarding/`) ✅
 
 - [x] Collect: age (derive `ageGroup`), church, preferred language, gender
 - [x] Write `users/{uid}` with `onboardingCompleted: true`, `languages: [preferredLanguage]` (single element) — **merge: true**
@@ -188,15 +188,16 @@
 
 ## Phase C — Engagement
 
-### C1. Teams (`ui/teams/`)
+### C1. Teams (`ui/teams/`) ✅
 
-- [ ] List + ranking: read `campings/{id}/teams`; compute `totalScore = points + Σmembers[].personalScore − Σpenalties[].points` on read (never stored)
-- [ ] Detail: members list, captain/vice-captain roles, scores, penalties
-- [ ] Admin: create/edit/delete teams; auto-balance members — gate `canManageTeams`
-- [ ] Every team write **rewrites full doc** + derives `memberUserIDs = members[].userID` (RBAC-critical for team chat)
-- [ ] `photoURL`/`photoPublicID` delete-when-empty; upload via Cloudinary
-- [ ] Captain/vice-captain: at most one each (client-enforced); per-member `role` field
-- [ ] After team mutation: `POST /notifications/dispatch/team`
+- [x] List + ranking: read `campings/{id}/teams`; compute `totalScore = points + Σmembers[].personalScore − Σpenalties[].points` on read (never stored)
+- [x] Detail: members list, captain/vice-captain roles, scores, penalties
+- [x] Admin: create/edit/delete teams — gate `canManageTeams`
+- [x] Every team write **rewrites full doc** + derives `memberUserIDs = members[].userID` (RBAC-critical for team chat)
+- [x] `photoURL`/`photoPublicID` delete-when-empty; upload via Cloudinary
+- [x] Captain/vice-captain: at most one each (client-enforced via `normalizeCaptaincy()`); per-member `role` field
+- [ ] After team mutation: `POST /notifications/dispatch/team` (deferred to notification phase)
+- [ ] Auto-balance members (deferred)
 
 ### C2. Games & Points (`ui/games/`)
 
@@ -407,7 +408,7 @@ B7 Announcements
 B8 Songbook
 B9 Guidelines
 
-C1 Teams
+C1 Teams ✅
 C2 Games + points
 C3 Winner reveal
 C4 Chat (camping + team)

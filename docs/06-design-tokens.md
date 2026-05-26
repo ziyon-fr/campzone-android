@@ -14,7 +14,6 @@ typeface on web/Android for parity.
 ---
 
 ## 1. Semantic colors (hex, light “any” / dark)
-
 | Token | Light | Dark | Use |
 |---|---|---|---|
 | `czBackground` | `#F8F4EE` | `#070E1A` | screen background |
