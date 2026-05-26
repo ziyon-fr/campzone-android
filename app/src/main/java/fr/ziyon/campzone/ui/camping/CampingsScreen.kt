@@ -354,8 +354,8 @@ private fun CampingCard(
             // Status accent bar: 2dp, filled with registration status color
             Box(
                 modifier = Modifier
-                    .width(2.dp)
-                    .heightIn(min = 120.dp)
+                    .width(1.dp)
+                    .heightIn(min = 160.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(statusColor)
             )

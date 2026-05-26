@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -354,7 +355,7 @@ fun CampingEditorScreen(
             }
         },
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
                         text = stringResource(if (isCreating) R.string.camping_editor_create_title else R.string.camping_editor_edit_title),
@@ -388,10 +389,10 @@ fun CampingEditorScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.czColors.background,
                 ),
-                windowInsets = WindowInsets(0.dp),
+                windowInsets = WindowInsets(),
             )
         },
     ) { innerPadding ->
@@ -938,6 +939,7 @@ private fun LevelChip(label: String, isSelected: Boolean, onTap: () -> Unit) {
             style = if (isSelected) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
             color = if (isSelected) colors.onPrimary else colors.textSecondary,
             modifier = Modifier.padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
+            maxLines = 1
         )
     }
 }

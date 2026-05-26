@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -91,7 +92,8 @@ fun HomeScreen(
     ScreenColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.czColors.background),
+            .background(MaterialTheme.czColors.background)
+
     ) {
         DashboardHeader(onOpenNotifications = {})
 
@@ -264,7 +266,11 @@ private fun FeaturedCampingCard(
     val heroGradient = if (isDarkMode) {
         listOf(MaterialTheme.czColors.night, MaterialTheme.czColors.twilight, Color(0xFF2D1005))
     } else {
-        listOf(MaterialTheme.czColors.amber, MaterialTheme.czColors.primary, MaterialTheme.czColors.secondary)
+        listOf(
+            MaterialTheme.czColors.amber,
+            MaterialTheme.czColors.primary,
+            MaterialTheme.czColors.secondary
+        )
     }
 
     Card(
@@ -302,7 +308,10 @@ private fun FeaturedCampingCard(
                         .background(
                             Brush.verticalGradient(
                                 colors = if (isDarkMode) {
-                                    listOf(Color.Transparent, MaterialTheme.czColors.surface.copy(alpha = 0.85f))
+                                    listOf(
+                                        Color.Transparent,
+                                        MaterialTheme.czColors.surface.copy(alpha = 0.85f)
+                                    )
                                 } else {
                                     listOf(
                                         CzColors.BackgroundDark.copy(alpha = 0.1f),
@@ -514,11 +523,16 @@ private fun HomeEmptyCard(
 fun HomeScreenPreview() {
     CampzoneTheme {
         HomeScreen(
-            state = HomeUiState(HomePhase
-                .Loaded(previewCamping(
-                    "summer-2026",
-                    "Summer Pathfinder Camp",
-                    2026, 6))),
+            state = HomeUiState(
+                HomePhase
+                    .Loaded(
+                        previewCamping(
+                            "summer-2026",
+                            "Summer Pathfinder Camp",
+                            2026, 6
+                        )
+                    )
+            ),
             onOpenCamping = {},
             onRetry = {},
         )
