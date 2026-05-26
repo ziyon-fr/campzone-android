@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Delete
@@ -327,6 +328,7 @@ fun MealMenuCard(
     canManage: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onSeeAll: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
@@ -472,6 +474,25 @@ fun MealMenuCard(
                             text = entry.notes,
                             style = CzTypeScale.caption,
                             color = colors.textSecondary,
+                        )
+                    }
+                }
+
+                if (onSeeAll != null) {
+                    TextButton(
+                        onClick = onSeeAll,
+                        modifier = Modifier.padding(top = 4.dp),
+                    ) {
+                        Text(
+                            text = "See all menus",
+                            style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
+                            color = colors.ember,
+                        )
+                        Icon(
+                            imageVector = Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = colors.ember,
+                            modifier = Modifier.size(16.dp),
                         )
                     }
                 }

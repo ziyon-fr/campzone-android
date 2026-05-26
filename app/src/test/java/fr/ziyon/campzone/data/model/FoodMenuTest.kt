@@ -46,13 +46,14 @@ class FoodMenuTest {
         )
         assertEquals("- Pasta\n- Salad\n\nNotes: Gluten free", rendered)
 
-        val parsed = FoodMenuProgramSync.parseDishes(rendered)
+        val parsed = FoodMenuProgramSync.parseDishes("Menu: Pasta, * Salad\n\nNotes: Gluten free")
         assertEquals(listOf("Pasta", "Salad"), parsed) // strips "- ", drops Notes line
+        assertEquals("Gluten free", FoodMenuProgramSync.parseNotes(rendered))
     }
 
     @Test
     fun newMenuProgramUsesDefaultMealWindowAndType() {
-        val date = dateOf(2026, 7, 15)
+        val date = dateOf(2026, 7, 15, hour = 0, minute = 0)
         val entry = FoodMenuEntry(
             id = DateKeys.foodMenuId(date, FoodMealKind.Breakfast),
             campingId = "camp-1",
@@ -69,6 +70,25 @@ class FoodMenuTest {
         val cal = GregorianCalendar(TimeZone.getDefault()).apply { time = program.startDate }
         assertEquals(8, cal.get(GregorianCalendar.HOUR_OF_DAY))
         assertEquals(0, cal.get(GregorianCalendar.MINUTE))
+        assertEquals(45 * 60_000L, program.endDate.time - program.startDate.time)
+    }
+
+    @Test
+    fun newMenuProgramHonorsExplicitEntryTime() {
+        val date = dateOf(2026, 7, 15, hour = 9, minute = 15)
+        val entry = FoodMenuEntry(
+            id = DateKeys.foodMenuId(date, FoodMealKind.Breakfast),
+            campingId = "camp-1",
+            date = date,
+            meal = FoodMealKind.Breakfast,
+            dishes = listOf("Eggs"),
+        )
+
+        val program = FoodMenuProgramSync.programFor(entry, existing = null)
+
+        val cal = GregorianCalendar(TimeZone.getDefault()).apply { time = program.startDate }
+        assertEquals(9, cal.get(GregorianCalendar.HOUR_OF_DAY))
+        assertEquals(15, cal.get(GregorianCalendar.MINUTE))
         assertEquals(45 * 60_000L, program.endDate.time - program.startDate.time)
     }
 
@@ -104,11 +124,35 @@ class FoodMenuTest {
         assertEquals(existing.id, program.id)
     }
 
+    @Test
+    fun mealProgramConvertsBackToMenuEntry() {
+        val start = dateOf(2026, 8, 3, hour = 12, minute = 45)
+        val program = Program(
+            id = "program-1",
+            campingId = "camp-1",
+            campDayId = DateKeys.campDayId("camp-1", start),
+            title = "Lunch",
+            type = ProgramType.Lunch,
+            startDate = start,
+            endDate = Date(start.time + 60 * 60_000L),
+            location = "Dining hall",
+            description = "- Chili\n- Rice\n\nNotes: Gluten-free",
+        )
+
+        val entry = FoodMenuProgramSync.menuEntryFor(program, existing = null)!!
+
+        assertEquals("2026-08-03-lunch", entry.id)
+        assertEquals(FoodMealKind.Lunch, entry.meal)
+        assertEquals(listOf("Chili", "Rice"), entry.dishes)
+        assertEquals("Gluten-free", entry.notes)
+        assertTrue(FoodMenuProgramSync.matches(program, entry))
+    }
+
     private companion object {
-        fun dateOf(year: Int, month: Int, day: Int): Date =
+        fun dateOf(year: Int, month: Int, day: Int, hour: Int = 9, minute: Int = 0): Date =
             GregorianCalendar(TimeZone.getDefault()).apply {
                 clear()
-                set(year, month - 1, day, 9, 0, 0)
+                set(year, month - 1, day, hour, minute, 0)
             }.time
     }
 }

@@ -1,6 +1,7 @@
 package fr.ziyon.campzone.ui.schedule.food
 
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -75,11 +76,12 @@ fun FoodMenuEditorScreen(
     val form by viewModel.editorForm.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
     val operationError by viewModel.operationError.collectAsState()
+    val dateRange by viewModel.campingDateRange.collectAsState()
 
     val colors = MaterialTheme.czColors
     val context = LocalContext.current
 
-    val datePickerDialog = remember(form.date) {
+    val datePickerDialog = remember(form.date, dateRange) {
         val cal = Calendar.getInstance().apply { time = form.date }
         DatePickerDialog(
             context,
@@ -89,8 +91,6 @@ fun FoodMenuEditorScreen(
                     set(Calendar.YEAR, year)
                     set(Calendar.MONTH, month)
                     set(Calendar.DAY_OF_MONTH, dayOfMonth)
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
                     set(Calendar.SECOND, 0)
                     set(Calendar.MILLISECOND, 0)
                 }.time
@@ -99,6 +99,31 @@ fun FoodMenuEditorScreen(
             cal.get(Calendar.YEAR),
             cal.get(Calendar.MONTH),
             cal.get(Calendar.DAY_OF_MONTH),
+        ).apply {
+            dateRange?.let { (start, end) ->
+                datePicker.minDate = start.time
+                datePicker.maxDate = end.time
+            }
+        }
+    }
+
+    val timePickerDialog = remember(form.date) {
+        val cal = Calendar.getInstance().apply { time = form.date }
+        TimePickerDialog(
+            context,
+            { _, hourOfDay, minute ->
+                val picked = Calendar.getInstance().apply {
+                    time = form.date
+                    set(Calendar.HOUR_OF_DAY, hourOfDay)
+                    set(Calendar.MINUTE, minute)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.time
+                viewModel.updateForm { it.copy(date = picked) }
+            },
+            cal.get(Calendar.HOUR_OF_DAY),
+            cal.get(Calendar.MINUTE),
+            true,
         )
     }
 
@@ -170,6 +195,27 @@ fun FoodMenuEditorScreen(
                     color = colors.divider,
                 )
 
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { timePickerDialog.show() }
+                        .padding(horizontal = CzSpacing.base, vertical = CzSpacing.md),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Time", style = CzTypeScale.body, color = colors.textPrimary)
+                    Text(
+                        text = form.date.formattedTime(),
+                        style = CzTypeScale.body,
+                        color = colors.ember,
+                    )
+                }
+
+                androidx.compose.material3.HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = CzSpacing.base),
+                    color = colors.divider,
+                )
+
                 // Meal picker — horizontal row of 4 chips
                 Column(
                     modifier = Modifier
@@ -190,7 +236,7 @@ fun FoodMenuEditorScreen(
                             MealChip(
                                 meal = meal,
                                 selected = form.meal == meal,
-                                onClick = { viewModel.updateForm { it.copy(meal = meal) } },
+                                onClick = { viewModel.selectMeal(meal) },
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -373,7 +419,9 @@ private fun FormSectionHeader(title: String, icon: ImageVector) {
 // ── Date formatter ────────────────────────────────────────────────────────────
 
 private val editorDateFormatter = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
+private val editorTimeFormatter = SimpleDateFormat("HH:mm", Locale.getDefault())
 private fun Date.formattedDate(): String = editorDateFormatter.format(this)
+private fun Date.formattedTime(): String = editorTimeFormatter.format(this)
 
 // ── Preview ───────────────────────────────────────────────────────────────────
 

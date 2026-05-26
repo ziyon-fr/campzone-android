@@ -12,7 +12,10 @@ import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.DateKeys
 import fr.ziyon.campzone.data.model.FoodMealKind
 import fr.ziyon.campzone.data.model.FoodMenuEntry
+import fr.ziyon.campzone.data.model.FoodMenuProgramSync
+import fr.ziyon.campzone.data.model.Program
 import fr.ziyon.campzone.data.schedule.FoodMenuService
+import java.util.Calendar
 import java.util.Date
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -75,6 +78,9 @@ class FoodMenuViewModel @Inject constructor(
     private val _editorForm = MutableStateFlow(FoodMenuEntryForm())
     val editorForm: StateFlow<FoodMenuEntryForm> = _editorForm.asStateFlow()
 
+    private val _campingDateRange = MutableStateFlow<Pair<Date, Date>?>(null)
+    val campingDateRange: StateFlow<Pair<Date, Date>?> = _campingDateRange.asStateFlow()
+
     private val _editingEntryId = MutableStateFlow<String?>(null)
     val editingEntryId: StateFlow<String?> = _editingEntryId.asStateFlow()
 
@@ -100,6 +106,9 @@ class FoodMenuViewModel @Inject constructor(
             runCatching {
                 val camping = runCatching { campingService.fetchCamping(campingId) }.getOrNull()
                 cachedCamping = camping
+                _campingDateRange.value = camping?.let {
+                    DateKeys.startOfDay(it.startDate) to it.endDate.endOfDay()
+                }
                 updateCanManage(lastUser, camping)
                 val entries = foodMenuService.loadMenu(campingId)
                 loadedCampingIds.add(campingId)
@@ -121,6 +130,7 @@ class FoodMenuViewModel @Inject constructor(
     fun prepareNew(campingId: String) {
         val camping = cachedCamping
         val date = DateKeys.startOfDay(camping?.startDate ?: Date())
+            .withDefaultMealTime(FoodMealKind.Breakfast)
         _editingEntryId.value = null
         _editorForm.value = FoodMenuEntryForm(
             date = date,
@@ -147,6 +157,15 @@ class FoodMenuViewModel @Inject constructor(
         _editorForm.value = update(_editorForm.value)
     }
 
+    fun selectMeal(meal: FoodMealKind) {
+        val form = _editorForm.value
+        val shouldMoveToDefaultTime = form.date.isMidnight() || form.date.isDefaultMealTime(form.meal)
+        _editorForm.value = form.copy(
+            meal = meal,
+            date = if (shouldMoveToDefaultTime) form.date.withDefaultMealTime(meal) else form.date,
+        )
+    }
+
     fun saveEntry(campingId: String, onSuccess: () -> Unit) {
         val form = _editorForm.value
         if (!form.isValid) {
@@ -167,7 +186,8 @@ class FoodMenuViewModel @Inject constructor(
             _isSaving.value = true
             _operationError.value = null
             runCatching {
-                val entries = foodMenuService.saveEntry(entry)
+                val entries = foodMenuService.saveEntry(entry, replacingEntryId = _editingEntryId.value)
+                _editingEntryId.value = entry.id
                 _operationMessage.value = "Menu saved."
                 publishEntries(entries)
                 onSuccess()
@@ -210,6 +230,11 @@ class FoodMenuViewModel @Inject constructor(
     fun clearOperationMessage() { _operationMessage.value = null }
     fun clearOperationError() { _operationError.value = null }
 
+    fun entryFor(program: Program): FoodMenuEntry? {
+        val entries = (_uiState.value as? FoodMenuUiState.Loaded)?.entries ?: return null
+        return entries.firstOrNull { FoodMenuProgramSync.matches(program, it) }
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private fun mealOrder(meal: FoodMealKind): Int = when (meal) {
@@ -234,4 +259,45 @@ class FoodMenuViewModel @Inject constructor(
         )
         _canManageFoodMenu.value = permissions.canManageFoodMenu(permUser, ctx)
     }
+
+    private fun Date.withDefaultMealTime(meal: FoodMealKind): Date {
+        val (hour, minute) = when (meal) {
+            FoodMealKind.Breakfast -> 8 to 0
+            FoodMealKind.Snack -> 10 to 30
+            FoodMealKind.Lunch -> 12 to 30
+            FoodMealKind.Dinner -> 18 to 30
+        }
+        return Calendar.getInstance().apply {
+            time = this@withDefaultMealTime
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.time
+    }
+
+    private fun Date.isDefaultMealTime(meal: FoodMealKind): Boolean {
+        val cal = Calendar.getInstance().apply { time = this@isDefaultMealTime }
+        val (hour, minute) = when (meal) {
+            FoodMealKind.Breakfast -> 8 to 0
+            FoodMealKind.Snack -> 10 to 30
+            FoodMealKind.Lunch -> 12 to 30
+            FoodMealKind.Dinner -> 18 to 30
+        }
+        return cal.get(Calendar.HOUR_OF_DAY) == hour && cal.get(Calendar.MINUTE) == minute
+    }
+
+    private fun Date.isMidnight(): Boolean {
+        val cal = Calendar.getInstance().apply { time = this@isMidnight }
+        return cal.get(Calendar.HOUR_OF_DAY) == 0 && cal.get(Calendar.MINUTE) == 0
+    }
+
+    private fun Date.endOfDay(): Date =
+        Calendar.getInstance().apply {
+            time = this@endOfDay
+            set(Calendar.HOUR_OF_DAY, 23)
+            set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59)
+            set(Calendar.MILLISECOND, 999)
+        }.time
 }

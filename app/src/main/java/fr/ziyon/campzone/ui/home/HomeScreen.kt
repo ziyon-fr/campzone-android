@@ -2,19 +2,20 @@ package fr.ziyon.campzone.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,10 +27,9 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Park
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.outlined.Park
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -46,14 +46,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
-import fr.ziyon.campzone.core.designsystem.CzButton
-import fr.ziyon.campzone.core.designsystem.CzButtonVariant
 import fr.ziyon.campzone.core.designsystem.CzColors
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzErrorState
@@ -61,15 +60,20 @@ import fr.ziyon.campzone.core.designsystem.CzLoadingView
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
-import fr.ziyon.campzone.core.navigation.ScreenColumn
 import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.model.Program
 import fr.ziyon.campzone.ui.camping.campingDateRange
 import fr.ziyon.campzone.ui.camping.label
 import fr.ziyon.campzone.ui.camping.previewCamping
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun HomeRoute(
     onOpenCamping: (String) -> Unit,
+    onOpenProgram: (campingId: String, programId: String) -> Unit = { _, _ -> },
+    onOpenNotifications: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -77,6 +81,8 @@ fun HomeRoute(
     HomeScreen(
         state = state,
         onOpenCamping = onOpenCamping,
+        onOpenProgram = onOpenProgram,
+        onOpenNotifications = onOpenNotifications,
         onRetry = viewModel::retry,
         modifier = modifier,
     )
@@ -86,84 +92,145 @@ fun HomeRoute(
 fun HomeScreen(
     state: HomeUiState,
     onOpenCamping: (String) -> Unit,
+    onOpenProgram: (campingId: String, programId: String) -> Unit,
+    onOpenNotifications: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    ScreenColumn(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.czColors.background)
-
+            .background(MaterialTheme.czColors.background),
     ) {
-        DashboardHeader(onOpenNotifications = {})
-
-        HomeSectionHeader(
-            icon = Icons.Filled.Park,
-            title = stringResource(R.string.home_feature_title),
-        )
-
         when (val phase = state.phase) {
             HomePhase.Loading -> CzLoadingView(
-                modifier = Modifier.fillMaxWidth(),
-                message = stringResource(R.string.camping_loading),
+                modifier = Modifier.align(Alignment.Center),
+                message = stringResource(R.string.home_loading_overview),
             )
 
             is HomePhase.Error -> CzErrorState(
-                title = stringResource(R.string.camping_error_title),
-                message = phase.message,
+                title = stringResource(R.string.home_error_title),
+                message = phase.message ?: stringResource(R.string.home_error_message),
                 onRetry = onRetry,
                 retryLabel = stringResource(R.string.common_retry),
+                modifier = Modifier.align(Alignment.Center),
             )
 
             is HomePhase.Loaded -> {
                 val featured = phase.featuredCamping
                 if (featured == null) {
                     CzEmptyState(
-                        title = stringResource(R.string.camping_empty_title),
-                        message = stringResource(R.string.camping_empty_message),
+                        title = stringResource(R.string.home_empty_dashboard_title),
+                        message = stringResource(R.string.home_empty_dashboard_message),
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Filled.Park,
+                                contentDescription = null,
+                                tint = MaterialTheme.czColors.ember,
+                                modifier = Modifier.size(CzSpacing.xl),
+                            )
+                        },
+                        modifier = Modifier.align(Alignment.Center),
                     )
                 } else {
-                    FeaturedCampingCard(
-                        camping = featured,
-                        onClick = { onOpenCamping(featured.id) },
+                    HomeDashboard(
+                        featuredCamping = featured,
+                        upcomingPrograms = phase.upcomingPrograms,
+                        onOpenCamping = onOpenCamping,
+                        onOpenProgram = onOpenProgram,
+                        onOpenNotifications = onOpenNotifications,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeDashboard(
+    featuredCamping: Camping,
+    upcomingPrograms: List<Program>,
+    onOpenCamping: (String) -> Unit,
+    onOpenProgram: (campingId: String, programId: String) -> Unit,
+    onOpenNotifications: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val programsTitle = if (featuredCamping.title.isBlank()) {
+        stringResource(R.string.home_programs_title)
+    } else {
+        stringResource(R.string.home_programs_for_camping_title, featuredCamping.title)
+    }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = CzSpacing.xl,
+            end = CzSpacing.xl,
+            top = CzSpacing.lg,
+            bottom = CzSpacing.xxxl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.xxl),
+    ) {
+        item(key = "header") {
+            DashboardHeader(onOpenNotifications = onOpenNotifications)
+        }
+
+        item(key = "featured") {
+            HomeSection(
+                icon = Icons.Filled.Park,
+                title = stringResource(R.string.home_feature_title),
+            ) {
+                FeaturedCampingCard(
+                    camping = featuredCamping,
+                    onClick = { onOpenCamping(featuredCamping.id) },
+                )
+            }
+        }
+
+        item(key = "programs") {
+            HomeSection(
+                icon = Icons.Filled.CalendarMonth,
+                title = programsTitle,
+            ) {
+                if (upcomingPrograms.isEmpty()) {
+                    HomeEmptyCard(
+                        icon = Icons.Filled.CalendarMonth,
+                        title = stringResource(R.string.home_programs_empty_title),
+                        message = stringResource(R.string.home_programs_empty_message),
+                    )
+                } else {
+                    HomeProgramList(
+                        programs = upcomingPrograms,
+                        onOpenProgram = { programId ->
+                            onOpenProgram(featuredCamping.id, programId)
+                        },
                     )
                 }
             }
         }
 
-        HomeSectionHeader(
-            icon = Icons.Filled.CalendarMonth,
-            title = "Upcoming Programs",
-            modifier = Modifier.padding(top = CzSpacing.lg),
-        )
-        HomeEmptyCard(
-            icon = Icons.Filled.CalendarMonth,
-            title = "No programs scheduled",
-            message = "Camp leaders haven't published the schedule yet - check back soon.",
-        )
-
-        HomeSectionHeader(
-            icon = Icons.Filled.Info,
-            title = "Announcements",
-            modifier = Modifier.padding(top = CzSpacing.md),
-        )
-        HomeEmptyCard(
-            icon = Icons.Filled.Info,
-            title = "No announcements",
-            message = "Important camp updates will appear here.",
-        )
+        item(key = "announcements") {
+            HomeSection(
+                icon = Icons.Filled.Info,
+                title = stringResource(R.string.home_announcements_title),
+            ) {
+                HomeEmptyCard(
+                    icon = Icons.Filled.Info,
+                    title = stringResource(R.string.home_announcements_empty_title),
+                    message = stringResource(R.string.home_announcements_empty_message),
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun DashboardHeader(
     onOpenNotifications: () -> Unit,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = CzSpacing.lg),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
         verticalAlignment = Alignment.Top,
     ) {
@@ -182,7 +249,7 @@ private fun DashboardHeader(
                     tint = MaterialTheme.czColors.leaf,
                 )
                 Text(
-                    text = stringResource(R.string.home_slogan).uppercase(),
+                    text = stringResource(R.string.home_slogan).uppercase(Locale.getDefault()),
                     color = MaterialTheme.czColors.textSecondary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
@@ -197,18 +264,22 @@ private fun DashboardHeader(
             )
         }
 
-        Button(
+        IconButton(
             onClick = onOpenNotifications,
-            shape = RoundedCornerShape(CzRadius.md),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.czColors.surface,
-                contentColor = MaterialTheme.czColors.ember,
-            ),
-            contentPadding = PaddingValues(12.dp),
+            modifier = Modifier
+                .size(CzSpacing.minTouchTarget)
+                .clip(RoundedCornerShape(CzRadius.md))
+                .background(MaterialTheme.czColors.surface)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.czColors.divider.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(CzRadius.md),
+                ),
         ) {
             Icon(
                 imageVector = Icons.Filled.Notifications,
-                contentDescription = "Notifications",
+                contentDescription = stringResource(R.string.home_notifications_content_description),
+                tint = MaterialTheme.czColors.ember,
             )
         }
     }
@@ -240,6 +311,135 @@ internal fun HomeSectionHeader(
 }
 
 @Composable
+private fun HomeSection(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        HomeSectionHeader(icon = icon, title = title)
+        content()
+    }
+}
+
+@Composable
+private fun HomeProgramList(
+    programs: List<Program>,
+    onOpenProgram: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CzRadius.lg))
+            .background(MaterialTheme.czColors.surface),
+    ) {
+        programs.forEachIndexed { index, program ->
+            HomeProgramRow(
+                program = program,
+                onClick = { onOpenProgram(program.id) },
+            )
+            if (index < programs.lastIndex) {
+                Box(
+                    modifier = Modifier
+                        .padding(start = 62.dp)
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(MaterialTheme.czColors.divider),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeProgramRow(
+    program: Program,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val now = Date()
+    val isDueTime = program.startDate <= now && program.endDate >= now
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+    ) {
+        Column(
+            modifier = Modifier.width(46.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = program.startDate.homeProgramTimeText(),
+                color = MaterialTheme.czColors.textPrimary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+            Text(
+                text = program.startDate.homeProgramDayText(),
+                color = MaterialTheme.czColors.textSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(36.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(
+                    if (isDueTime) {
+                        MaterialTheme.czColors.ember
+                    } else {
+                        MaterialTheme.czColors.divider
+                    },
+                ),
+        )
+
+        Text(
+            text = program.title.ifBlank { stringResource(R.string.home_program_fallback_title) },
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.czColors.textPrimary,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        if (isDueTime) {
+            Text(
+                text = stringResource(R.string.home_program_now),
+                color = MaterialTheme.czColors.ember,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(MaterialTheme.czColors.ember.copy(alpha = 0.12f))
+                    .padding(horizontal = CzSpacing.sm, vertical = 3.dp),
+                maxLines = 1,
+            )
+        }
+
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.czColors.textTertiary,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+@Composable
 private fun FeaturedCampingCard(
     camping: Camping,
     onClick: () -> Unit,
@@ -259,9 +459,14 @@ private fun FeaturedCampingCard(
     }
     val fillText = when {
         ratio == 0f -> camping.registrationStatus.label()
-        ratio >= 1f -> "Fully booked"
-        ratio >= 0.8f -> "Almost full · ${(ratio * 100).toInt()}%"
-        else -> "${(ratio * 100).toInt()}% filled"
+        ratio >= 1f -> stringResource(R.string.home_fully_booked)
+        ratio >= 0.8f -> stringResource(R.string.home_almost_full, (ratio * 100).toInt())
+        else -> stringResource(R.string.home_percent_filled, (ratio * 100).toInt())
+    }
+    val registrationSummary = if (capacity > 0) {
+        stringResource(R.string.home_registered_capacity, camping.participantCount, capacity)
+    } else {
+        stringResource(R.string.home_registered_count, camping.participantCount)
     }
     val heroGradient = if (isDarkMode) {
         listOf(MaterialTheme.czColors.night, MaterialTheme.czColors.twilight, Color(0xFF2D1005))
@@ -336,6 +541,7 @@ private fun FeaturedCampingCard(
                     )
 
                     Column(
+                        modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(3.dp),
                     ) {
                         Text(
@@ -343,6 +549,7 @@ private fun FeaturedCampingCard(
                             style = MaterialTheme.typography.titleMedium,
                             color = Color.White,
                             maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
                         )
 
                         Row(
@@ -356,10 +563,13 @@ private fun FeaturedCampingCard(
                                 modifier = Modifier.size(14.dp),
                             )
                             Text(
-                                text = camping.location.ifBlank { "Location pending" },
+                                text = camping.location.ifBlank {
+                                    stringResource(R.string.home_location_pending)
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.White.copy(alpha = 0.9f),
                                 maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
@@ -376,8 +586,10 @@ private fun FeaturedCampingCard(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
                 ) {
                     Row(
+                        modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
@@ -391,16 +603,17 @@ private fun FeaturedCampingCard(
                             text = campingDateRange(camping.startDate, camping.endDate),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.czColors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
-
-                    Spacer(modifier = Modifier.weight(1f))
 
                     Text(
                         text = fillText,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
                         color = progressColor,
+                        maxLines = 1,
                     )
                 }
 
@@ -419,16 +632,13 @@ private fun FeaturedCampingCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = if (capacity > 0) {
-                            "${camping.participantCount} / $capacity registered"
-                        } else {
-                            "${camping.participantCount} registered"
-                        },
+                        text = registrationSummary,
+                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.czColors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-
-                    Spacer(modifier = Modifier.weight(1f))
 
                     Icon(
                         imageVector = Icons.Filled.ChevronRight,
@@ -463,7 +673,7 @@ internal fun CampingLogoBadge(
         if (!logoUrl.isNullOrBlank()) {
             AsyncImage(
                 model = logoUrl,
-                contentDescription = title,
+                contentDescription = stringResource(R.string.camping_logo_content_description, title),
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop,
             )
@@ -501,6 +711,7 @@ private fun HomeEmptyCard(
             tint = MaterialTheme.czColors.textSecondary,
         )
         Column(
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             Text(
@@ -518,22 +729,48 @@ private fun HomeEmptyCard(
     }
 }
 
+private fun Date.homeProgramTimeText(): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(this)
+
+private fun Date.homeProgramDayText(): String =
+    SimpleDateFormat("EEE", Locale.getDefault()).format(this)
+
 @Composable
 @Preview(showBackground = true)
 fun HomeScreenPreview() {
     CampzoneTheme {
+        val camping = previewCamping(
+            "summer-2026",
+            "Summer Pathfinder Camp",
+            2026, 6
+        )
         HomeScreen(
             state = HomeUiState(
-                HomePhase
-                    .Loaded(
-                        previewCamping(
-                            "summer-2026",
-                            "Summer Pathfinder Camp",
-                            2026, 6
-                        )
-                    )
+                HomePhase.Loaded(
+                    featuredCamping = camping,
+                    upcomingPrograms = listOf(
+                        Program(
+                            id = "morning-devotion",
+                            campingId = camping.id,
+                            campDayId = "${camping.id}-day-preview",
+                            title = "Morning devotion",
+                            startDate = Date(System.currentTimeMillis() + 60 * 60 * 1000),
+                            endDate = Date(System.currentTimeMillis() + 2 * 60 * 60 * 1000),
+                        ),
+                        Program(
+                            id = "team-games",
+                            campingId = camping.id,
+                            campDayId = "${camping.id}-day-preview",
+                            title = "Team games",
+                            startDate = Date(System.currentTimeMillis() + 4 * 60 * 60 * 1000),
+                            endDate = Date(System.currentTimeMillis() + 5 * 60 * 60 * 1000),
+                        ),
+                    ),
+                )
             ),
             onOpenCamping = {},
+            onOpenProgram = { _, _ -> },
+            onOpenNotifications = {},
             onRetry = {},
         )
     }

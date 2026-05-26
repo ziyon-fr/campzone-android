@@ -78,6 +78,8 @@ push the branch, and merge it back to `main` only after explicit approval.
   tokens are mandatory, not optional.
 - **Verification honesty** - never claim a build/test/emulator green
   you did not actually produce.
+- **UI Design** - ALWAYS consult the IOS side at `/Users/leon/Desktop/Business Projects/Campzone`  for design reference.
+  before building a View
 
 ## Stack
 

@@ -149,24 +149,24 @@
 - [x] Reminder timing: write `schedule/config.reminderTiming` (`ScheduleReminderTiming` raw); call `POST /notifications/reminders`
 - [x] Gate: `canManageSchedule` for writes
 
-### B6. Food Menu + Menu↔Program Sync (`ui/schedule/food/`)
+### B6. Food Menu + Menu↔Program Sync (`ui/schedule/food/`) ✅
 
-- [ ] CRUD for `campings/{id}/foodMenu/{entryId}` — doc ID: `"<yyyy-MM-dd>-<meal>"` (gregorian, en_US_POSIX, local TZ)
-- [ ] Gate: `canManageFoodMenu` (== schedule manager)
-- [ ] **Menu↔Program two-way sync** (`02` §4.5): on every save, write **both** the food menu doc and the generated program (`"menu-<menuId>"`)
+- [x] CRUD for `campings/{id}/foodMenu/{entryId}` — doc ID: `"<yyyy-MM-dd>-<meal>"` (gregorian, en_US_POSIX, local TZ)
+- [x] Gate: `canManageFoodMenu` (== schedule manager)
+- [x] **Menu↔Program two-way sync** (`02` §4.5): on every save, write **both** the food menu doc and the generated program (`"menu-<menuId>"`)
   - Entry→Program: `title`/`type`/`description` always regenerated from menu; preserve existing `startDate`/`endDate`/`location` if program already exists
   - Default meal times: breakfast 08:00 (45m), snack 10:30 (30m), lunch 12:30 (60m), dinner 18:30 (60m); default location `"Dining hall"`
   - Description format: each dish on `"- <dish>"` line; notes on blank line then `"Notes: <notes>"`
 
-### B7. Announcements (`ui/announcements/`)
+### B7. Announcements (`ui/announcements/`) ✅
 
-- [ ] List screen: read `announcements` ordered `createdAt` desc, limit 100
-- [ ] Detail screen: render markdown `body`; show attachments (image/PDF)
-- [ ] Admin composer: create/edit — gate `canEditAnnouncements`; delete gate `admin` only
-- [ ] Image/PDF attachment upload: `POST /cloudinary/sign` → upload; write `storagePath` (Cloudinary public_id) + `downloadURL` (secure_url); empty string `""` when nil (not omitted)
-- [ ] `notificationTargetRoleRawValue`: write as `""` when none (not omitted)
-- [ ] After save: `POST /notifications/dispatch/announcement`
-- [ ] `authorPhotoURL` omit-when-nil
+- [x] List screen: read `announcements` ordered `createdAt` desc, limit 100
+- [x] Detail screen: render markdown `body`; show attachments (image/PDF)
+- [x] Admin composer: create/edit — gate `canEditAnnouncements`; delete gate `admin` only
+- [x] Image/PDF attachment upload: `POST /cloudinary/sign` → upload; write `storagePath` (Cloudinary public_id) + `downloadURL` (secure_url); empty string `""` when nil (not omitted)
+- [x] `notificationTargetRoleRawValue`: write as `""` when none (not omitted)
+- [x] After save: `POST /notifications/dispatch/announcement`
+- [x] `authorPhotoURL` omit-when-nil
 
 ### B8. Songbook (`ui/songbook/`)
 

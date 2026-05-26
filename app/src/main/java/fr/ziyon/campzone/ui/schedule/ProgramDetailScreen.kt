@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -29,10 +31,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,13 +46,19 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.CzTypeScale
 import fr.ziyon.campzone.core.designsystem.czColors
+import fr.ziyon.campzone.data.model.FoodMenuEntry
+import fr.ziyon.campzone.data.model.FoodMenuProgramSync
 import fr.ziyon.campzone.data.model.Program
+import fr.ziyon.campzone.ui.schedule.food.FoodMenuUiState
+import fr.ziyon.campzone.ui.schedule.food.FoodMenuViewModel
+import fr.ziyon.campzone.ui.schedule.food.MealMenuCard
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -60,14 +70,32 @@ fun ProgramDetailScreen(
     campingId: String,
     programId: String,
     onBack: () -> Unit,
+    onOpenFoodMenu: () -> Unit,
     modifier: Modifier = Modifier,
+    foodMenuViewModel: FoodMenuViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(campingId) { viewModel.loadIfNeeded(campingId) }
+    LaunchedEffect(campingId) {
+        viewModel.loadIfNeeded(campingId)
+        foodMenuViewModel.loadIfNeeded(campingId)
+    }
 
-    val program = viewModel.program(programId)
+    val uiState by viewModel.uiState.collectAsState()
+    val foodMenuState by foodMenuViewModel.uiState.collectAsState()
+    val program = (uiState as? ScheduleUiState.Loaded)
+        ?.schedule
+        ?.allPrograms
+        ?.firstOrNull { it.id == programId }
+        ?: viewModel.program(programId)
+    val foodMenuEntry = if (foodMenuState is FoodMenuUiState.Loaded && program != null) {
+        foodMenuViewModel.entryFor(program)
+    } else {
+        null
+    }
     ProgramDetailContent(
         program = program,
+        foodMenuEntry = foodMenuEntry,
         onBack = onBack,
+        onOpenFoodMenu = onOpenFoodMenu,
         modifier = modifier,
     )
 }
@@ -76,7 +104,9 @@ fun ProgramDetailScreen(
 @Composable
 private fun ProgramDetailContent(
     program: Program?,
+    foodMenuEntry: FoodMenuEntry?,
     onBack: () -> Unit,
+    onOpenFoodMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
@@ -134,6 +164,14 @@ private fun ProgramDetailContent(
                 item { DetailsSection(program = program) }
                 if (program.description.isNotBlank()) {
                     item { AboutSection(description = program.description) }
+                }
+                if (FoodMenuProgramSync.mealKind(program.type) != null) {
+                    item {
+                        FoodSection(
+                            entry = foodMenuEntry,
+                            onOpenFoodMenu = onOpenFoodMenu,
+                        )
+                    }
                 }
             }
         }
@@ -269,6 +307,54 @@ private fun AboutSection(description: String) {
     }
 }
 
+@Composable
+private fun FoodSection(
+    entry: FoodMenuEntry?,
+    onOpenFoodMenu: () -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        ProgramSectionHeader(title = "Today's menu", icon = Icons.Rounded.Restaurant)
+        if (entry != null) {
+            MealMenuCard(
+                entry = entry,
+                canManage = false,
+                onEdit = {},
+                onDelete = {},
+                onSeeAll = onOpenFoodMenu,
+            )
+        } else {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = colors.surface,
+                shape = RoundedCornerShape(CzRadius.xl),
+            ) {
+                Row(
+                    modifier = Modifier.padding(CzSpacing.base),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Info,
+                        contentDescription = null,
+                        tint = colors.textSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = "Menu not published yet.",
+                        style = CzTypeScale.caption,
+                        color = colors.textSecondary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = onOpenFoodMenu) {
+                        Text("See all", color = colors.ember)
+                    }
+                }
+            }
+        }
+    }
+}
+
 private val fullDateTimeFormatter = SimpleDateFormat("EEEE, MMMM d · HH:mm", Locale.getDefault())
 
 private fun fullDateTimeText(date: Date): String = fullDateTimeFormatter.format(date)
@@ -289,6 +375,11 @@ private fun durationText(start: Date, end: Date): String {
 @Composable
 private fun ProgramDetailNotFoundPreview() {
     CampzoneTheme {
-        ProgramDetailContent(program = null, onBack = {})
+        ProgramDetailContent(
+            program = null,
+            foodMenuEntry = null,
+            onBack = {},
+            onOpenFoodMenu = {},
+        )
     }
 }

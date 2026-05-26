@@ -69,6 +69,36 @@ internal object FoodMenuProgramSync {
         FoodMealKind.Snack -> ProgramType.Snack
     }
 
+    fun mealKind(programType: ProgramType): FoodMealKind? = when (programType) {
+        ProgramType.Breakfast -> FoodMealKind.Breakfast
+        ProgramType.Lunch -> FoodMealKind.Lunch
+        ProgramType.Dinner -> FoodMealKind.Dinner
+        ProgramType.Snack -> FoodMealKind.Snack
+        else -> null
+    }
+
+    fun menuEntryId(program: Program): String? {
+        val meal = mealKind(program.type) ?: return null
+        return DateKeys.foodMenuId(program.startDate, meal)
+    }
+
+    fun menuEntryFor(program: Program, existing: FoodMenuEntry?): FoodMenuEntry? {
+        val meal = mealKind(program.type) ?: return null
+        val dishes = parseDishes(program.description)
+        return FoodMenuEntry(
+            id = DateKeys.foodMenuId(program.startDate, meal),
+            campingId = program.campingId,
+            date = program.startDate,
+            meal = meal,
+            dishes = dishes.ifEmpty { existing?.dishes ?: listOf(mealTitle(meal)) },
+            notes = parseNotes(program.description),
+        )
+    }
+
+    fun matches(program: Program, entry: FoodMenuEntry): Boolean =
+        mealKind(program.type) == entry.meal &&
+            DateKeys.dayKey(program.startDate) == DateKeys.dayKey(entry.date)
+
     /** Builds the program description: each dish on `"- <dish>"`, then a blank line + `"Notes: <notes>"`. */
     fun renderDescription(dishes: List<String>, notes: String): String {
         val lines = dishes.map { "- ${it.trim()}" }.toMutableList()
@@ -86,9 +116,23 @@ internal object FoodMenuProgramSync {
             .split("\n", ",")
             .map { it.trim() }
             .filter { it.isNotEmpty() }
-            .filterNot { it.startsWith("Notes:", ignoreCase = true) }
-            .map { it.removePrefix("-").removePrefix("*").removePrefix("Menu:").trim() }
+            .filterNot { it.contains("Notes:", ignoreCase = true) }
+            .map { line ->
+                line
+                    .trimStart('-', '*', ' ')
+                    .replace(Regex("^Menu:\\s*", RegexOption.IGNORE_CASE), "")
+                    .trim()
+            }
             .filter { it.isNotEmpty() }
+
+    fun parseNotes(description: String): String {
+        val notesLine = description
+            .lineSequence()
+            .firstOrNull { it.contains("Notes:", ignoreCase = true) }
+            ?: return ""
+        val marker = notesLine.indexOf("Notes:", ignoreCase = true)
+        return notesLine.substring(marker + "Notes:".length).trim()
+    }
 
     /**
      * Produces the program to write for [entry]. When [existing] is non-null its
@@ -124,11 +168,25 @@ internal object FoodMenuProgramSync {
     private fun defaultWindow(date: Date, meal: FoodMealKind): Pair<Date, Date> {
         val default = mealDefault(meal)
         val calendar = GregorianCalendar(TimeZone.getDefault())
-        calendar.time = DateKeys.startOfDay(date)
-        calendar.set(GregorianCalendar.HOUR_OF_DAY, default.hour)
-        calendar.set(GregorianCalendar.MINUTE, default.minute)
+        calendar.time = date
+        val hasExplicitTime = calendar.get(GregorianCalendar.HOUR_OF_DAY) != 0 ||
+            calendar.get(GregorianCalendar.MINUTE) != 0
+        if (!hasExplicitTime) {
+            calendar.time = DateKeys.startOfDay(date)
+            calendar.set(GregorianCalendar.HOUR_OF_DAY, default.hour)
+            calendar.set(GregorianCalendar.MINUTE, default.minute)
+        }
+        calendar.set(GregorianCalendar.SECOND, 0)
+        calendar.set(GregorianCalendar.MILLISECOND, 0)
         val start = calendar.time
         calendar.add(GregorianCalendar.MINUTE, default.durationMinutes)
         return start to calendar.time
+    }
+
+    private fun mealTitle(meal: FoodMealKind): String = when (meal) {
+        FoodMealKind.Breakfast -> "Breakfast"
+        FoodMealKind.Lunch -> "Lunch"
+        FoodMealKind.Dinner -> "Dinner"
+        FoodMealKind.Snack -> "Snack"
     }
 }

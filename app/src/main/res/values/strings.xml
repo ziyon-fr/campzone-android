@@ -262,7 +262,28 @@
     <string name="church_picker_empty">No churches</string>
     <string name="church_picker_no_results">No results for %1$s</string>
     <string name="home_title">Basecamp</string>
+    <string name="home_loading_overview">Loading overview...</string>
+    <string name="home_error_title">Couldn’t load overview</string>
+    <string name="home_error_message">Campzone could not load the latest camp overview. Please try again.</string>
+    <string name="home_empty_dashboard_title">No camp activity yet</string>
+    <string name="home_empty_dashboard_message">Upcoming campings, schedules, and announcements will appear here.</string>
+    <string name="home_notifications_content_description">Notifications</string>
     <string name="home_feature_title">Featured Camping</string>
+    <string name="home_programs_title">Upcoming Programs</string>
+    <string name="home_programs_for_camping_title">Upcoming at %1$s</string>
+    <string name="home_program_fallback_title">Program</string>
+    <string name="home_program_now">Now</string>
+    <string name="home_programs_empty_title">No programs scheduled</string>
+    <string name="home_programs_empty_message">Camp leaders haven’t published the schedule yet - check back soon.</string>
+    <string name="home_announcements_title">Announcements</string>
+    <string name="home_announcements_empty_title">No announcements</string>
+    <string name="home_announcements_empty_message">Important camp updates will appear here.</string>
+    <string name="home_location_pending">Location pending</string>
+    <string name="home_fully_booked">Fully booked</string>
+    <string name="home_almost_full">Almost full · %1$d%%</string>
+    <string name="home_percent_filled">%1$d%% filled</string>
+    <string name="home_registered_capacity">%1$d / %2$d registered</string>
+    <string name="home_registered_count">%1$d registered</string>
 
     <!-- Campings list &amp; detail (B1) -->
     <string name="camping_search_label">Search</string>

@@ -12,10 +12,12 @@ import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampDay
 import fr.ziyon.campzone.data.model.CampingSchedule
 import fr.ziyon.campzone.data.model.DateKeys
+import fr.ziyon.campzone.data.model.FoodMenuProgramSync
 import fr.ziyon.campzone.data.model.Program
 import fr.ziyon.campzone.data.model.ProgramType
 import fr.ziyon.campzone.data.model.ScheduleReminderTiming
 import fr.ziyon.campzone.data.model.normalizedForCamping
+import fr.ziyon.campzone.data.schedule.FoodMenuService
 import fr.ziyon.campzone.data.schedule.ScheduleService
 import java.util.Calendar
 import java.util.Date
@@ -56,6 +58,7 @@ enum class ProgramValidationError(val message: String) {
 class ScheduleViewModel @Inject constructor(
     private val scheduleService: ScheduleService,
     private val campingService: CampingService,
+    private val foodMenuService: FoodMenuService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ScheduleUiState>(ScheduleUiState.Loading)
@@ -221,12 +224,14 @@ class ScheduleViewModel @Inject constructor(
         _validationErrors.value = errors
         if (errors.isNotEmpty()) return
 
+        val previousProgram = _editingProgramId.value?.let(::program)
         val program = buildProgram(campingId)
         viewModelScope.launch {
             _isSaving.value = true
             _operationError.value = null
             runCatching {
                 val schedule = scheduleService.saveProgram(program)
+                syncMenuAfterSaving(program, previousProgram)
                 schedules[campingId] = schedule
                 _selectedDayId.value = program.campDayId
                 _editingProgramId.value = program.id
@@ -241,9 +246,11 @@ class ScheduleViewModel @Inject constructor(
     }
 
     fun deleteProgram(programId: String, campingId: String) {
+        val removedProgram = program(programId)
         viewModelScope.launch {
             runCatching {
                 val schedule = scheduleService.deleteProgram(programId, campingId)
+                syncMenuAfterDeleting(removedProgram)
                 schedules[campingId] = schedule
                 _operationMessage.value = "Program deleted."
                 publishSchedule(campingId)
@@ -289,6 +296,44 @@ class ScheduleViewModel @Inject constructor(
             _selectedDayId.value = current.firstOrNull()?.id
         }
         _reminderTiming.value = schedule.reminderTiming
+    }
+
+    private suspend fun syncMenuAfterSaving(program: Program, previousProgram: Program?) {
+        runCatching {
+            val previousEntryId = previousProgram?.let(FoodMenuProgramSync::menuEntryId)
+            val entryId = FoodMenuProgramSync.menuEntryId(program)
+            val existingEntry = entryId
+                ?.let { foodMenuService.loadMenu(program.campingId).firstOrNull { entry -> entry.id == it } }
+            val entry = FoodMenuProgramSync.menuEntryFor(program, existingEntry)
+
+            if (previousProgram != null && previousEntryId != null && previousEntryId != entry?.id) {
+                foodMenuService.deleteEntry(
+                    entryId = previousEntryId,
+                    campingId = previousProgram.campingId,
+                    syncProgram = false,
+                )
+            }
+
+            if (entry != null) {
+                foodMenuService.saveEntry(entry, syncProgram = false)
+            }
+        }.onFailure {
+            _operationError.value = "Program saved, but the food menu could not be synced."
+        }
+    }
+
+    private suspend fun syncMenuAfterDeleting(program: Program?) {
+        if (program == null) return
+        runCatching {
+            val entryId = FoodMenuProgramSync.menuEntryId(program) ?: return
+            foodMenuService.deleteEntry(
+                entryId = entryId,
+                campingId = program.campingId,
+                syncProgram = false,
+            )
+        }.onFailure {
+            _operationError.value = "Program deleted, but the food menu could not be synced."
+        }
     }
 
     private fun validateForm(campingId: String): List<ProgramValidationError> {
