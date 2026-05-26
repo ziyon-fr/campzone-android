@@ -448,8 +448,8 @@ private fun AnnouncementDetailContent(
 @Composable
 internal fun MarkdownBody(text: String, textColor: Int, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val markwon = remember { Markwon.create(context) }
-    val spanned = remember(text) { markwon.toMarkdown(text) }
+    val markwon: Markwon = remember { Markwon.create(context) }
+    val spanned: android.text.Spanned = remember(text) { markwon.toMarkdown(text) }
 
     AndroidView(
         factory = { ctx ->
@@ -663,11 +663,15 @@ private fun openPdf(context: android.content.Context, url: String) {
     try {
         context.startActivity(pdfIntent)
         return
-    } catch (_: ActivityNotFoundException) { /* no PDF app */ }
+    } catch (e: ActivityNotFoundException) {
+        android.util.Log.d("AnnouncementDetail", "No PDF viewer app installed: ${e.message}")
+    }
     // Fallback: open URL in browser
     try {
         context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-    } catch (_: Exception) { /* ignore */ }
+    } catch (e: Exception) {
+        android.util.Log.d("AnnouncementDetail", "Could not open PDF URL: ${e.message}")
+    }
 }
 
 // ── Preview ───────────────────────────────────────────────────────────────────

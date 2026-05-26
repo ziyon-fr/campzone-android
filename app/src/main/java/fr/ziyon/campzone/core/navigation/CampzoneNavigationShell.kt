@@ -365,15 +365,7 @@ fun CampzoneNavigationShell(
                     onBack = { navController.popBackStack() },
                 )
             }
-            composable(
-                route = AppRoutePattern.AnnouncementDetail,
-                arguments = listOf(navArgument(AppRouteArgs.AnnouncementId) { type = NavType.StringType }),
-            ) { backStackEntry ->
-                DetailPlaceholderScreen(
-                    title = "Announcement",
-                    value = backStackEntry.stringArg(AppRouteArgs.AnnouncementId),
-                )
-            }
+            // AnnouncementDetail is registered earlier in the Announcements section above.
             composable(
                 route = AppRoutePattern.CampingChat,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
