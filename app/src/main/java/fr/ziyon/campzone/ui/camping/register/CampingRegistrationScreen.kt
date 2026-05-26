@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -178,6 +179,7 @@ fun CampingRegistrationScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.czColors.background,
                 ),
+                windowInsets = WindowInsets(0.dp),
             )
         },
         bottomBar = {
@@ -247,7 +249,7 @@ private fun RegistrationContent(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = CzSpacing.lg,
-            top = CzSpacing.lg,
+            top = CzSpacing.sm,
             end = CzSpacing.lg,
             bottom = 112.dp,
         ),
