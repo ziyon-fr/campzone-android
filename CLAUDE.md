@@ -47,6 +47,12 @@ Android plumbing require it. When `docs/` and Android code disagree,
 check the iOS implementation and align Android with iOS; if the docs
 need updating, note that the iOS source remains authoritative.
 
+## Task branch and merge rule
+
+Every new task listed in `TODO.md` must be done on a new Git branch named
+after that task. When the task is finished, commit the completed work,
+push the branch, and merge it back to `main` only after explicit approval.
+
 ## Non-negotiables
 
 - **Replicate the Firestore schema exactly** - field names, enum raw

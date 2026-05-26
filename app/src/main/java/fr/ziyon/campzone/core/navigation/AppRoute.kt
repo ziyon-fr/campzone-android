@@ -148,11 +148,29 @@ sealed interface AppRoute {
             "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.RegistrationPayment}"
     }
 
+    data object RegistrationReview : AppRoute {
+        override val route = AppRoutePath.RegistrationReview
+    }
+
+    data class CampingAttendees(val campingId: String) : AppRoute {
+        override val route =
+            "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.Attendees}"
+    }
+
+    data class AttendeeProfile(
+        val campingId: String,
+        val attendeeId: String,
+    ) : AppRoute {
+        override val route =
+            "${CampingAttendees(campingId).route}/${attendeeId.asRouteSegment()}"
+    }
+
     companion object {
         val topLevelTabs: List<Tab> = listOf(Home, Campings, Announcements, Profile)
 
         fun topLevelForRoute(route: String?): Tab = when {
             route == null -> Home
+            route.startsWith(AppRoutePath.RegistrationReview) -> Campings
             route.startsWith(AppRoutePath.Campings) -> Campings
             route.startsWith(AppRoutePath.Announcements) -> Announcements
             route.startsWith(AppRoutePath.Profile) -> Profile
@@ -166,6 +184,7 @@ internal object AppRouteArgs {
     const val AnnouncementId = "announcementId"
     const val TeamId = "teamId"
     const val PollId = "pollId"
+    const val AttendeeId = "attendeeId"
 }
 
 internal object AppRoutePath {
@@ -186,6 +205,8 @@ internal object AppRoutePath {
     const val Polls = "polls"
     const val Registration = "register"
     const val RegistrationPayment = "registration-payment"
+    const val RegistrationReview = "registration-review"
+    const val Attendees = "attendees"
     const val CampingCreate = "create"
     const val CampingEdit = "edit"
 }
@@ -203,6 +224,9 @@ internal object AppRoutePattern {
     const val PollDetail = "$CampingPolls/{${AppRouteArgs.PollId}}"
     const val CampingRegistration = "$CampingDetail/${AppRoutePath.Registration}"
     const val CampingRegistrationPayment = "$CampingDetail/${AppRoutePath.RegistrationPayment}"
+    const val RegistrationReview = AppRoutePath.RegistrationReview
+    const val CampingAttendees = "$CampingDetail/${AppRoutePath.Attendees}"
+    const val AttendeeProfile = "$CampingAttendees/{${AppRouteArgs.AttendeeId}}"
     const val CampingCreate = "${AppRoutePath.Campings}/${AppRoutePath.CampingCreate}"
     const val CampingEdit = "$CampingDetail/${AppRoutePath.CampingEdit}"
 }

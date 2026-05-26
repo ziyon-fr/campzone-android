@@ -21,6 +21,11 @@ class AppRouteTest {
     fun mapsNestedRoutesToTheirOwningTabs() {
         assertEquals(AppRoute.Home, AppRoute.topLevelForRoute(AppRoute.Home.route))
         assertEquals(AppRoute.Campings, AppRoute.topLevelForRoute(AppRoutePattern.CampingDetail))
+        assertEquals(AppRoute.Campings, AppRoute.topLevelForRoute(AppRoute.RegistrationReview.route))
+        assertEquals(
+            AppRoute.Campings,
+            AppRoute.topLevelForRoute(AppRoute.CampingAttendees("camp 1").route),
+        )
         assertEquals(
             AppRoute.Announcements,
             AppRoute.topLevelForRoute(AppRoutePattern.AnnouncementDetail),
@@ -38,6 +43,11 @@ class AppRouteTest {
         assertEquals(
             "campings/camp%201/points/team%201",
             AppRoute.PointHistory("camp 1", "team 1").route,
+        )
+        assertEquals("campings/camp%201/attendees", AppRoute.CampingAttendees("camp 1").route)
+        assertEquals(
+            "campings/camp%201/attendees/attendee%201",
+            AppRoute.AttendeeProfile("camp 1", "attendee 1").route,
         )
     }
 }

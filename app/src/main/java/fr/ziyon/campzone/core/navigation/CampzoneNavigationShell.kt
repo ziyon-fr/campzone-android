@@ -40,6 +40,9 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.ui.camping.CampingDetailRoute
 import fr.ziyon.campzone.ui.camping.CampingsRoute
 import fr.ziyon.campzone.ui.camping.admin.CampingEditorRoute
+import fr.ziyon.campzone.ui.camping.registrations.AttendeeProfileRoute
+import fr.ziyon.campzone.ui.camping.registrations.CampingAttendeesRoute
+import fr.ziyon.campzone.ui.camping.registrations.RegistrationReviewRoute
 import fr.ziyon.campzone.ui.camping.register.CampingRegistrationRoute
 import fr.ziyon.campzone.ui.family.FamilyParticipantsScreen
 import fr.ziyon.campzone.ui.home.HomeRoute
@@ -101,6 +104,9 @@ fun CampzoneNavigationShell(
                     },
                     onCreateCamping = {
                         navController.navigate(AppRoute.CampingCreate.route)
+                    },
+                    onReviewRegistrations = {
+                        navController.navigate(AppRoute.RegistrationReview.route)
                     },
                 )
             }
@@ -172,6 +178,18 @@ fun CampzoneNavigationShell(
                     onOpenRegistration = { campingId ->
                         navController.navigate(AppRoute.CampingRegistration(campingId).route)
                     },
+                    onOpenAttendees = { campingId ->
+                        navController.navigate(AppRoute.CampingAttendees(campingId).route)
+                    },
+                )
+            }
+            composable(route = AppRoutePattern.RegistrationReview) {
+                RegistrationReviewRoute(
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenCamping = { campingId ->
+                        navController.navigate(AppRoute.CampingDetail(campingId).route)
+                    },
                 )
             }
             composable(
@@ -203,6 +221,33 @@ fun CampzoneNavigationShell(
                             inclusive = false,
                         )
                     },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingAttendees,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                CampingAttendeesRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenProfile = { campingId, attendeeId ->
+                        navController.navigate(AppRoute.AttendeeProfile(campingId, attendeeId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.AttendeeProfile,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.AttendeeId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                AttendeeProfileRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    attendeeId = backStackEntry.stringArg(AppRouteArgs.AttendeeId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(route = AppRoutePattern.CampingCreate) {
