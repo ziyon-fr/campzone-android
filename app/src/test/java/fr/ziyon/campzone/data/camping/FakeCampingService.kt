@@ -27,6 +27,8 @@ class FakeCampingService(
     val saved = mutableListOf<Camping>()
     val deleted = mutableListOf<String>()
     val submitted = mutableListOf<RegistrationSubmission>()
+    val reviewed = mutableListOf<Pair<String, RegistrationApprovalStatus>>()
+    val deletedAttendees = mutableListOf<String>()
 
     override fun observeCampings(): Flow<List<Camping>> =
         if (shouldFail) {
@@ -120,6 +122,50 @@ class FakeCampingService(
                     photoUrl = if (isSelf) user.photoUrl ?: participant.photoUrl else participant.photoUrl,
                 )
             }
+        return fetchCamping(campingId)
+    }
+
+    override suspend fun updateRegistrationStatus(
+        attendeeId: String,
+        status: RegistrationApprovalStatus,
+        campingId: String,
+    ): Camping {
+        if (shouldFail) error("Registration update failed")
+        reviewed += attendeeId to status
+        val list = attendeeStore.getOrPut(campingId) { mutableListOf() }
+        attendeeStore[campingId] = list
+            .map { attendee ->
+                if (attendee.id == attendeeId) attendee.copy(registrationStatus = status) else attendee
+            }
+            .toMutableList()
+        return fetchCamping(campingId)
+    }
+
+    override suspend fun deleteAttendee(
+        attendeeId: String,
+        campingId: String,
+    ): Camping {
+        if (shouldFail) error("Attendee delete failed")
+        deletedAttendees += attendeeId
+        val list = attendeeStore.getOrPut(campingId) { mutableListOf() }
+        val removed = list.removeAll { it.id == attendeeId }
+        if (removed) {
+            val camping = fetchCamping(campingId)
+            val approvedCount = list.count {
+                it.registrationStatus == RegistrationApprovalStatus.Approved
+            }
+            val capacity = camping.participantCapacity
+            if (capacity != null && approvedCount < capacity) {
+                val waitlistedIndex = list.indexOfFirst {
+                    it.registrationStatus == RegistrationApprovalStatus.Waitlisted
+                }
+                if (waitlistedIndex >= 0) {
+                    list[waitlistedIndex] = list[waitlistedIndex].copy(
+                        registrationStatus = RegistrationApprovalStatus.Pending,
+                    )
+                }
+            }
+        }
         return fetchCamping(campingId)
     }
 

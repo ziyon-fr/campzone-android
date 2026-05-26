@@ -2,6 +2,7 @@ package fr.ziyon.campzone.data.camping
 
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.auth.FirebaseAuth
 import dagger.Binds
@@ -26,7 +27,6 @@ import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import com.google.firebase.firestore.FieldValue
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -67,6 +67,23 @@ interface CampingService {
         submissions: List<RegistrationSubmission>,
         campingId: String,
         user: fr.ziyon.campzone.data.auth.AuthenticatedUser,
+    ): Camping
+
+    /** Registration review path — writes only `{ registrationStatus, updatedAt }`. */
+    suspend fun updateRegistrationStatus(
+        attendeeId: String,
+        status: RegistrationApprovalStatus,
+        campingId: String,
+    ): Camping
+
+    /**
+     * Hard deletes a registration and cascades to per-camping records keyed by
+     * the attendee id: check-in record, transportation bookings, and team
+     * membership.
+     */
+    suspend fun deleteAttendee(
+        attendeeId: String,
+        campingId: String,
     ): Camping
 }
 
@@ -276,6 +293,113 @@ class FirebaseCampingService @Inject constructor(
         return fetchCamping(campingId)
     }
 
+    override suspend fun updateRegistrationStatus(
+        attendeeId: String,
+        status: RegistrationApprovalStatus,
+        campingId: String,
+    ): Camping {
+        campings().document(campingId)
+            .collection(Registrations)
+            .document(attendeeId)
+            .set(
+                CampingAttendeePayload.statusUpdatePayload(
+                    status = status,
+                    serverTimestamp = FieldValue.serverTimestamp(),
+                ),
+                SetOptions.merge(),
+            )
+            .await()
+        return fetchCamping(campingId)
+    }
+
+    override suspend fun deleteAttendee(
+        attendeeId: String,
+        campingId: String,
+    ): Camping {
+        val campingDocument = campings().document(campingId)
+        val registrations = campingDocument.collection(Registrations)
+
+        registrations.document(attendeeId).delete().await()
+
+        runCatching {
+            campingDocument.collection(CheckIns)
+                .document(attendeeId)
+                .delete()
+                .await()
+        }
+
+        runCatching {
+            campingDocument.collection(TransportationBookings)
+                .whereEqualTo("participantID", attendeeId)
+                .get()
+                .await()
+                .documents
+                .forEach { it.reference.delete().await() }
+        }
+
+        runCatching {
+            campingDocument.collection(Teams)
+                .get()
+                .await()
+                .documents
+                .forEach { teamDocument ->
+                    @Suppress("UNCHECKED_CAST")
+                    val members = teamDocument.data?.get("members") as? List<Map<String, Any?>>
+                        ?: return@forEach
+                    val remaining = members.filter { member ->
+                        member["id"] != attendeeId && member["userID"] != attendeeId
+                    }
+                    if (remaining.size != members.size) {
+                        teamDocument.reference.update(
+                            mapOf(
+                                "members" to remaining,
+                                "memberUserIDs" to remaining.mapNotNull { member ->
+                                    (member["userID"] ?: member["id"]) as? String
+                                },
+                                "updatedAt" to FieldValue.serverTimestamp(),
+                            ),
+                        ).await()
+                    }
+                }
+        }
+
+        promoteWaitlistedAttendeeIfSpotOpened(campingDocument)
+        return fetchCamping(campingId)
+    }
+
+    private suspend fun promoteWaitlistedAttendeeIfSpotOpened(
+        campingDocument: com.google.firebase.firestore.DocumentReference,
+    ) {
+        val capacity = campingDocument.get().await().getLong("participantCapacity")?.toInt()
+            ?: return
+        val registrations = campingDocument.collection(Registrations)
+        val approvedCount = registrations
+            .whereEqualTo("registrationStatus", RegistrationApprovalStatus.Approved.wireValue)
+            .get()
+            .await()
+            .size()
+        if (approvedCount >= capacity) return
+
+        val nextWaitlisted = registrations
+            .whereEqualTo("registrationStatus", RegistrationApprovalStatus.Waitlisted.wireValue)
+            .limit(1)
+            .get()
+            .await()
+            .documents
+            .firstOrNull()
+            ?: return
+
+        nextWaitlisted.reference
+            .set(
+                CampingAttendeePayload.statusUpdatePayload(
+                    status = RegistrationApprovalStatus.Pending,
+                    serverTimestamp = FieldValue.serverTimestamp(),
+                ),
+                SetOptions.merge(),
+            )
+            .await()
+    }
+
     private fun attendee(
         submission: RegistrationSubmission,
         user: fr.ziyon.campzone.data.auth.AuthenticatedUser,
@@ -334,7 +458,9 @@ class FirebaseCampingService @Inject constructor(
     private companion object {
         const val Campings = "campings"
         const val Registrations = "registrations"
+        const val CheckIns = "checkIns"
         const val TransportationBookings = "transportationBookings"
+        const val Teams = "teams"
         const val AdultFallbackAge = 18
 
         fun makeTicketToken(): String = "${UUID.randomUUID()}-${UUID.randomUUID()}"

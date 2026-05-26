@@ -130,12 +130,12 @@
 - [x] Waitlist: show when `participantCapacity` reached and status would be `waitlisted`
 - [x] Paid camp: initiate Stripe payment flow (see Phase D)
 
-### B4. Registration Review (Admin/Leadership) (`ui/campings/registrations/`)
+### B4. Registration Review (Admin/Leadership) (`ui/campings/registrations/`) ✅
 
-- [ ] Gate: `canApproveRegistrations`; list all `registrations` subcollection
-- [ ] Approve/Reject: write only `{ registrationStatus, updatedAt }` (RBAC enforced)
-- [ ] Delete attendee: hard-delete registration doc → cascade: delete `checkIns/{attendeeId}`, `transportationBookings` where `participantID==attendeeId`, remove from team `members[]`
-- [ ] Attendee list visible only to registered+approved participants or leadership
+- [x] Gate: `canApproveRegistrations`; list all `registrations` subcollection
+- [x] Approve/Reject: write only `{ registrationStatus, updatedAt }` (RBAC enforced)
+- [x] Delete attendee: hard-delete registration doc → cascade: delete `checkIns/{attendeeId}`, `transportationBookings` where `participantID==attendeeId`, remove from team `members[]`
+- [x] Attendee list visible only to registered+approved participants or leadership
 
 ### B5. Schedule (`ui/schedule/`)
 

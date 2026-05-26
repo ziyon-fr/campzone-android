@@ -62,7 +62,7 @@ fun NavHostController.navigateToDeepLink(deepLink: CampzoneDeepLink) {
 
         is CampzoneDeepLink.RegistrationReview -> {
             selectTabForDeepLink(AppRoute.Campings)
-            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.RegistrationReview)
         }
     }
 }

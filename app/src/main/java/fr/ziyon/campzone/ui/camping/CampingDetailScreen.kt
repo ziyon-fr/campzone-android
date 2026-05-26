@@ -121,6 +121,7 @@ fun CampingDetailRoute(
     onOpenPolls: (String) -> Unit = {},
     onOpenEditCamping: (String) -> Unit = {},
     onOpenRegistration: (String) -> Unit = {},
+    onOpenAttendees: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(campingId) { viewModel.load(campingId, authenticatedUser) }
@@ -148,6 +149,7 @@ fun CampingDetailRoute(
         onOpenPolls = onOpenPolls,
         onOpenEditCamping = onOpenEditCamping,
         onOpenRegistration = onOpenRegistration,
+        onOpenAttendees = onOpenAttendees,
         modifier = modifier,
     )
 }
