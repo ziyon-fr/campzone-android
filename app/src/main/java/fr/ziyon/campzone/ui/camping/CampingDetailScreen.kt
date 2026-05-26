@@ -130,6 +130,8 @@ fun CampingDetailRoute(
     onOpenAttendees: (String) -> Unit = {},
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
+    onOpenTeams: (String) -> Unit = {},
+    onOpenGames: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(campingId) { viewModel.load(campingId, authenticatedUser) }
@@ -163,6 +165,8 @@ fun CampingDetailRoute(
         onOpenAttendees = onOpenAttendees,
         onOpenFoodMenu = onOpenFoodMenu,
         onOpenSongbook = onOpenSongbook,
+        onOpenTeams = onOpenTeams,
+        onOpenGames = onOpenGames,
         modifier = modifier,
     )
 }

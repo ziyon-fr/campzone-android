@@ -51,7 +51,13 @@
       "Bash(./gradlew assembleDebug lintDebug)",
       "Bash(./gradlew :app:compileDebugKotlin --rerun-tasks)",
       "Bash(./gradlew :app:assembleDebug)",
-      "Bash(./gradlew :app:clean :app:compileDebugKotlin)"
+      "Bash(./gradlew :app:clean :app:compileDebugKotlin)",
+      "Bash(./gradlew testDebugUnitTest)",
+      "Bash(git stash *)",
+      "Bash(./gradlew lint *)",
+      "Bash(./gradlew :app:compileDebugKotlin --no-daemon)",
+      "Bash(find /Users/leon/.gradle -name \"material-icons-*.jar\" 2>/dev/null | head -5)",
+      "Bash(./gradlew :app:assembleDebug --no-daemon)"
     ]
   }
 }
