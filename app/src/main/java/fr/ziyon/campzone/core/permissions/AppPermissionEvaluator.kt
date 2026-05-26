@@ -129,6 +129,9 @@ class AppPermissionEvaluator {
         camping: CampingPermissionContext?,
     ): Boolean = canManageSchedule(user, camping)
 
+    fun canManageSongs(user: PermissionUser?): Boolean =
+        can(user, AppPermission.ManageSongbook)
+
     fun canManageTeams(
         user: PermissionUser?,
         camping: CampingPermissionContext?,

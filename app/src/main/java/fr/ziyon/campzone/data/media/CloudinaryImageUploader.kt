@@ -16,11 +16,25 @@ import org.json.JSONObject
 data class CloudinaryUploadResult(
     val secureUrl: String,
     val publicId: String,
+    val duration: Double? = null,
+    val bytes: Long? = null,
 )
 
 /** Abstraction over backend-signed image uploads, so callers can be faked in tests. */
 interface ImageUploader {
     suspend fun uploadImage(
+        assetIdPrefix: String,
+        folder: String,
+        tags: List<String>,
+        bytes: ByteArray,
+        mimeType: String,
+        fileExtension: String,
+    ): CloudinaryUploadResult
+}
+
+/** Cloudinary audio uploads use the `video` resource type. */
+interface AudioUploader {
+    suspend fun uploadAudio(
         assetIdPrefix: String,
         folder: String,
         tags: List<String>,
@@ -38,7 +52,7 @@ interface ImageUploader {
 @Singleton
 class CloudinaryImageUploader @Inject constructor(
     private val auth: FirebaseAuth,
-) : ImageUploader {
+) : ImageUploader, AudioUploader {
     override suspend fun uploadImage(
         assetIdPrefix: String,
         folder: String,
@@ -60,6 +74,39 @@ class CloudinaryImageUploader @Inject constructor(
                 assetId = assetId,
                 folder = folder,
                 tags = tags,
+                resourceType = "image",
+            )
+            uploadToCloudinary(
+                signature = signature,
+                bytes = bytes,
+                mimeType = mimeType,
+                fileName = "$assetId.$fileExtension",
+            )
+        }
+    }
+
+    override suspend fun uploadAudio(
+        assetIdPrefix: String,
+        folder: String,
+        tags: List<String>,
+        bytes: ByteArray,
+        mimeType: String,
+        fileExtension: String,
+    ): CloudinaryUploadResult {
+        val token = auth.currentUser
+            ?.getIdToken(false)
+            ?.await()
+            ?.token
+            ?: error("There is no signed-in user.")
+
+        return withContext(Dispatchers.IO) {
+            val assetId = "$assetIdPrefix-${UUID.randomUUID()}"
+            val signature = requestSignature(
+                token = token,
+                assetId = assetId,
+                folder = folder,
+                tags = tags,
+                resourceType = "video",
             )
             uploadToCloudinary(
                 signature = signature,
@@ -75,6 +122,7 @@ class CloudinaryImageUploader @Inject constructor(
         assetId: String,
         folder: String,
         tags: List<String>,
+        resourceType: String,
     ): CloudinarySignature {
         val params = JSONObject()
             .put("public_id", assetId)
@@ -83,7 +131,7 @@ class CloudinaryImageUploader @Inject constructor(
             .put("overwrite", true)
         val body = JSONObject()
             .put("paramsToSign", params)
-            .put("resourceType", "image")
+            .put("resourceType", resourceType)
 
         val response = postJson(
             url = "${BuildConfig.BACKEND_BASE_URL}/cloudinary/sign",
@@ -136,6 +184,8 @@ class CloudinaryImageUploader @Inject constructor(
         return CloudinaryUploadResult(
             secureUrl = json.getString("secure_url"),
             publicId = json.getString("public_id"),
+            duration = json.optDoubleOrNull("duration"),
+            bytes = json.optLongOrNull("bytes"),
         )
     }
 
@@ -194,6 +244,12 @@ class CloudinaryImageUploader @Inject constructor(
 
     private fun JSONObject.toStringMap(): Map<String, String> =
         keys().asSequence().associateWith { key -> get(key).toString() }
+
+    private fun JSONObject.optDoubleOrNull(name: String): Double? =
+        if (has(name) && !isNull(name)) optDouble(name) else null
+
+    private fun JSONObject.optLongOrNull(name: String): Long? =
+        if (has(name) && !isNull(name)) optLong(name) else null
 
     private data class CloudinarySignature(
         val uploadUrl: String,

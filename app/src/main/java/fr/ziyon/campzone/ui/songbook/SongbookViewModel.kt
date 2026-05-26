@@ -1,0 +1,676 @@
+package fr.ziyon.campzone.ui.songbook
+
+import android.media.MediaPlayer
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
+import fr.ziyon.campzone.core.permissions.PermissionUser
+import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.data.camping.CampingService
+import fr.ziyon.campzone.data.model.Chord
+import fr.ziyon.campzone.data.model.ChordLine
+import fr.ziyon.campzone.data.model.ChordSheet
+import fr.ziyon.campzone.data.model.Song
+import fr.ziyon.campzone.data.model.SongAudio
+import fr.ziyon.campzone.data.model.SongAudioKind
+import fr.ziyon.campzone.data.model.SongLyricsPart
+import fr.ziyon.campzone.data.model.SongLyricsPartKind
+import fr.ziyon.campzone.data.songbook.PendingSongAudio
+import fr.ziyon.campzone.data.songbook.SongDraft
+import fr.ziyon.campzone.data.songbook.SongbookService
+import java.util.UUID
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+sealed interface SongbookUiState {
+    data object Loading : SongbookUiState
+    data class Loaded(val songs: List<Song>, val campingTitle: String) : SongbookUiState
+    data class Empty(val campingTitle: String) : SongbookUiState
+    data class Error(val message: String) : SongbookUiState
+}
+
+data class SongEditorForm(
+    val title: String = "",
+    val artist: String = "",
+    val composer: String = "",
+    val lyrics: String = "",
+    val chordSheetText: String = "",
+    val existingAudioFiles: List<SongAudio> = emptyList(),
+    val pendingAudioFiles: List<PendingSongAudio> = emptyList(),
+    val youtubeLink: String = "",
+    val pdfLink: String = "",
+    val isPinnedTheme: Boolean = false,
+) {
+    val validationErrors: List<String>
+        get() = buildList {
+            if (title.isBlank()) add("Song title is required.")
+            val hasLyrics = lyrics.isNotBlank()
+            val hasChordLyrics = ChordProParser.parse(chordSheetText).lines.any {
+                it.text.isNotBlank() || it.chords.isNotEmpty()
+            }
+            if (!hasLyrics && !hasChordLyrics) add("Lyrics are required.")
+        }
+
+    val isValid: Boolean get() = validationErrors.isEmpty()
+}
+
+enum class SongMoveDirection { Up, Down }
+
+@HiltViewModel
+class SongbookViewModel @Inject constructor(
+    private val songbookService: SongbookService,
+    private val campingService: CampingService,
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<SongbookUiState>(SongbookUiState.Loading)
+    val uiState: StateFlow<SongbookUiState> = _uiState.asStateFlow()
+
+    private val _form = MutableStateFlow(SongEditorForm())
+    val form: StateFlow<SongEditorForm> = _form.asStateFlow()
+
+    private val _canManageSongbook = MutableStateFlow(false)
+    val canManageSongbook: StateFlow<Boolean> = _canManageSongbook.asStateFlow()
+
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+
+    private val _operationError = MutableStateFlow<String?>(null)
+    val operationError: StateFlow<String?> = _operationError.asStateFlow()
+
+    private val _operationMessage = MutableStateFlow<String?>(null)
+    val operationMessage: StateFlow<String?> = _operationMessage.asStateFlow()
+
+    private val _searchText = MutableStateFlow("")
+    val searchText: StateFlow<String> = _searchText.asStateFlow()
+
+    private val _showsFavoritesOnly = MutableStateFlow(false)
+    val showsFavoritesOnly: StateFlow<Boolean> = _showsFavoritesOnly.asStateFlow()
+
+    private val _playingSongId = MutableStateFlow<String?>(null)
+    val playingSongId: StateFlow<String?> = _playingSongId.asStateFlow()
+
+    private val _editingSongId = MutableStateFlow<String?>(null)
+    val editingSongId: StateFlow<String?> = _editingSongId.asStateFlow()
+
+    private val permissions = AppPermissionEvaluator()
+    private var loadedCampingIds = mutableSetOf<String>()
+    private var songsByCampingId = mutableMapOf<String, List<Song>>()
+    private var campingTitleById = mutableMapOf<String, String>()
+    private var mediaPlayer: MediaPlayer? = null
+
+    fun loadIfNeeded(campingId: String, user: AuthenticatedUser? = null) {
+        updateCanManage(user)
+        if (loadedCampingIds.contains(campingId) && _uiState.value !is SongbookUiState.Loading) {
+            publish(campingId)
+            return
+        }
+        load(campingId, user)
+    }
+
+    fun load(campingId: String, user: AuthenticatedUser? = null) {
+        updateCanManage(user)
+        viewModelScope.launch {
+            _uiState.value = SongbookUiState.Loading
+            _operationError.value = null
+            runCatching {
+                campingTitleById[campingId] = runCatching {
+                    campingService.fetchCamping(campingId).title
+                }.getOrDefault("Camping")
+                songsByCampingId[campingId] = songbookService.loadSongs(campingId)
+                loadedCampingIds.add(campingId)
+                publish(campingId)
+            }.onFailure { e ->
+                _uiState.value = SongbookUiState.Error(e.message ?: "Songbook operation failed. Please try again.")
+            }
+        }
+    }
+
+    fun songs(campingId: String): List<Song> = songsByCampingId[campingId].orEmpty()
+
+    fun visibleSongs(campingId: String, userId: String?): List<Song> {
+        val query = _searchText.value.trim()
+        return songs(campingId)
+            .filter { song ->
+                query.isEmpty() ||
+                    song.title.contains(query, ignoreCase = true) ||
+                    song.artist.contains(query, ignoreCase = true) ||
+                    song.composer.contains(query, ignoreCase = true) ||
+                    song.lyrics.contains(query, ignoreCase = true) ||
+                    song.chords.contains(query, ignoreCase = true) ||
+                    song.chordSheet.lines.flatMap { it.chords }.any {
+                        it.chord.contains(query, ignoreCase = true)
+                    }
+            }
+            .filter { song -> !_showsFavoritesOnly.value || userId?.let(song::isFavoritedBy) == true }
+    }
+
+    fun songById(songId: String, campingId: String): Song? =
+        songs(campingId).firstOrNull { it.id == songId }
+
+    fun pinnedSong(campingId: String): Song? =
+        songs(campingId).firstOrNull { it.isPinnedTheme }
+
+    fun updateSearch(text: String) {
+        _searchText.value = text
+    }
+
+    fun toggleFavoritesOnly() {
+        _showsFavoritesOnly.value = !_showsFavoritesOnly.value
+    }
+
+    fun prepareNewSong(campingId: String) {
+        _editingSongId.value = null
+        _form.value = SongEditorForm()
+        _operationError.value = null
+        _operationMessage.value = null
+    }
+
+    fun prepareEditingSong(song: Song) {
+        _editingSongId.value = song.id
+        _form.value = SongEditorForm(
+            title = song.title,
+            artist = song.artist,
+            composer = song.composer,
+            lyrics = plainLyrics(song),
+            chordSheetText = ChordProParser.toText(song.chordSheet).ifBlank { song.chords },
+            existingAudioFiles = song.audioFiles,
+            pendingAudioFiles = emptyList(),
+            youtubeLink = song.youtubeLink,
+            pdfLink = song.pdfLink,
+            isPinnedTheme = song.isPinnedTheme,
+        )
+        _operationError.value = null
+        _operationMessage.value = null
+    }
+
+    fun updateForm(update: (SongEditorForm) -> SongEditorForm) {
+        _form.value = update(_form.value)
+    }
+
+    fun addPendingAudio(fileName: String, contentType: String, bytes: ByteArray): Boolean {
+        if (!isSupportedAudio(fileName, contentType)) {
+            _operationError.value = "Choose a supported audio file: MP3, M4A, AAC, or WAV."
+            return false
+        }
+
+        val pending = PendingSongAudio(
+            fileName = fileName,
+            contentType = contentType,
+            bytes = bytes,
+            kind = audioKind(fileName, contentType),
+        )
+        _form.value = _form.value.copy(pendingAudioFiles = _form.value.pendingAudioFiles + pending)
+        _operationError.value = null
+        return true
+    }
+
+    fun removeAudio(id: String) {
+        _form.value = _form.value.copy(
+            existingAudioFiles = _form.value.existingAudioFiles.filterNot { it.id == id },
+            pendingAudioFiles = _form.value.pendingAudioFiles.filterNot { it.id == id },
+        )
+    }
+
+    fun saveSong(campingId: String, onSuccess: () -> Unit = {}) {
+        if (!canManageOrWarn()) return
+
+        val form = _form.value
+        if (!form.isValid) {
+            _operationError.value = form.validationErrors.firstOrNull()
+            return
+        }
+
+        viewModelScope.launch {
+            _isSaving.value = true
+            _operationError.value = null
+            runCatching {
+                val existingSong = _editingSongId.value?.let { songById(it, campingId) }
+                val songId = existingSong?.id ?: UUID.randomUUID().toString()
+                val chordSheet = ChordProParser.parse(
+                    text = form.chordSheetText,
+                    existingId = existingSong?.chordSheet?.id ?: songId,
+                )
+                val lyrics = resolvedLyrics(form, chordSheet)
+                val draft = SongDraft(
+                    id = songId,
+                    campingId = campingId,
+                    title = form.title.trim(),
+                    artist = form.artist.trim(),
+                    composer = form.composer.trim(),
+                    lyrics = lyrics,
+                    chords = form.chordSheetText.trim(),
+                    existingAudio = form.existingAudioFiles.firstOrNull(),
+                    existingAudioFiles = form.existingAudioFiles,
+                    pendingAudioFiles = form.pendingAudioFiles,
+                    lyricsParts = lyricsPartsFor(lyrics),
+                    chordSheet = chordSheet,
+                    youtubeLink = form.youtubeLink.trim(),
+                    pdfLink = form.pdfLink.trim(),
+                    orderIndex = existingSong?.orderIndex ?: songs(campingId).size,
+                    isPinnedTheme = form.isPinnedTheme,
+                    favoriteUserIds = existingSong?.favoriteUserIds.orEmpty(),
+                )
+                val saved = songbookService.saveSong(draft)
+                upsert(saved, campingId)
+                _editingSongId.value = saved.id
+                _form.value = formFrom(saved)
+                _operationMessage.value = "Song saved."
+                loadedCampingIds.add(campingId)
+                publish(campingId)
+                onSuccess()
+            }.onFailure { e ->
+                _operationError.value = e.message ?: "Songbook operation failed. Please try again."
+            }
+            _isSaving.value = false
+        }
+    }
+
+    fun deleteSong(songId: String, campingId: String, onDeleted: () -> Unit = {}) {
+        if (!canManageOrWarn()) return
+
+        viewModelScope.launch {
+            _operationError.value = null
+            runCatching {
+                songbookService.deleteSong(songId, campingId)
+                songsByCampingId[campingId] = songs(campingId)
+                    .filterNot { it.id == songId }
+                    .mapIndexed { index, song -> song.copy(orderIndex = index) }
+                if (_playingSongId.value == songId) stopAudio()
+                _operationMessage.value = "Song deleted."
+                publish(campingId)
+                onDeleted()
+            }.onFailure { e ->
+                _operationError.value = e.message ?: "Songbook operation failed. Please try again."
+            }
+        }
+    }
+
+    fun moveSong(songId: String, direction: SongMoveDirection, campingId: String) {
+        if (!canManageOrWarn()) return
+
+        val current = songs(campingId).toMutableList()
+        val index = current.indexOfFirst { it.id == songId }
+        if (index < 0) return
+        val destination = if (direction == SongMoveDirection.Up) index - 1 else index + 1
+        if (destination !in current.indices) return
+        current.swap(index, destination)
+        val ordered = current.mapIndexed { orderIndex, song -> song.copy(orderIndex = orderIndex) }
+
+        viewModelScope.launch {
+            _operationError.value = null
+            runCatching {
+                songsByCampingId[campingId] = songbookService.reorderSongs(campingId, ordered.map { it.id })
+                _operationMessage.value = "Song order updated."
+                publish(campingId)
+            }.onFailure { e ->
+                _operationError.value = e.message ?: "Songbook operation failed. Please try again."
+            }
+        }
+    }
+
+    fun setPinnedTheme(songId: String, campingId: String) {
+        if (!canManageOrWarn()) return
+
+        viewModelScope.launch {
+            _operationError.value = null
+            runCatching {
+                songsByCampingId[campingId] = songbookService.setPinnedTheme(songId, campingId)
+                _operationMessage.value = "Theme song pinned."
+                publish(campingId)
+            }.onFailure { e ->
+                _operationError.value = e.message ?: "Songbook operation failed. Please try again."
+            }
+        }
+    }
+
+    fun toggleFavorite(songId: String, campingId: String, userId: String?) {
+        if (userId == null) {
+            _operationError.value = "Sign in to favorite songs."
+            return
+        }
+        val song = songById(songId, campingId) ?: return
+        viewModelScope.launch {
+            _operationError.value = null
+            runCatching {
+                val updated = songbookService.setFavorite(
+                    songId = songId,
+                    campingId = campingId,
+                    userId = userId,
+                    isFavorite = !song.isFavoritedBy(userId),
+                )
+                upsert(updated, campingId)
+                publish(campingId)
+            }.onFailure { e ->
+                _operationError.value = e.message ?: "Songbook operation failed. Please try again."
+            }
+        }
+    }
+
+    fun toggleAudio(song: Song) {
+        if (_playingSongId.value == song.id) {
+            stopAudio()
+            return
+        }
+
+        val url = song.audio?.downloadUrl?.takeUnless { it.isBlank() }
+        if (url == null) {
+            _operationError.value = "This song does not have playable audio yet."
+            return
+        }
+
+        runCatching {
+            stopAudio()
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(url)
+                setOnPreparedListener {
+                    it.start()
+                    _playingSongId.value = song.id
+                }
+                setOnCompletionListener { stopAudio() }
+                setOnErrorListener { _, _, _ ->
+                    stopAudio()
+                    _operationError.value = "This song could not be played."
+                    true
+                }
+                prepareAsync()
+            }
+        }.onFailure {
+            _operationError.value = "This song could not be played."
+            stopAudio()
+        }
+    }
+
+    fun stopAudio() {
+        mediaPlayer?.release()
+        mediaPlayer = null
+        _playingSongId.value = null
+    }
+
+    fun clearOperationMessage() { _operationMessage.value = null }
+    fun clearOperationError() { _operationError.value = null }
+
+    override fun onCleared() {
+        stopAudio()
+        super.onCleared()
+    }
+
+    private fun publish(campingId: String) {
+        val songs = songs(campingId)
+        val title = campingTitleById[campingId] ?: "Camping"
+        _uiState.value = if (songs.isEmpty()) SongbookUiState.Empty(title)
+        else SongbookUiState.Loaded(songs, title)
+    }
+
+    private fun updateCanManage(user: AuthenticatedUser?) {
+        val permissionUser = user?.let {
+            PermissionUser(role = it.role, userId = it.uid, church = it.church)
+        }
+        _canManageSongbook.value = permissions.canManageSongs(permissionUser)
+    }
+
+    private fun canManageOrWarn(): Boolean {
+        if (_canManageSongbook.value) return true
+        _operationError.value = "Only admins can manage the songbook."
+        return false
+    }
+
+    private fun upsert(song: Song, campingId: String) {
+        val current = songs(campingId).toMutableList()
+        if (song.isPinnedTheme) {
+            current.replaceAll { it.copy(isPinnedTheme = it.id == song.id) }
+        }
+        current.removeAll { it.id == song.id }
+        current += song
+        songsByCampingId[campingId] = current.sortedWith(songComparator)
+    }
+
+    private fun formFrom(song: Song): SongEditorForm = SongEditorForm(
+        title = song.title,
+        artist = song.artist,
+        composer = song.composer,
+        lyrics = plainLyrics(song),
+        chordSheetText = ChordProParser.toText(song.chordSheet).ifBlank { song.chords },
+        existingAudioFiles = song.audioFiles,
+        youtubeLink = song.youtubeLink,
+        pdfLink = song.pdfLink,
+        isPinnedTheme = song.isPinnedTheme,
+    )
+
+    private fun resolvedLyrics(form: SongEditorForm, chordSheet: ChordSheet): String {
+        val plain = form.lyrics.trim()
+        if (plain.isNotEmpty()) return plain
+        return chordSheet.lines
+            .filterNot { it.isSectionHeader }
+            .map { it.text.trimEnd() }
+            .filter { it.isNotBlank() }
+            .joinToString("\n")
+    }
+
+    private fun lyricsPartsFor(lyrics: String): List<SongLyricsPart> =
+        lyrics.trim().takeUnless { it.isBlank() }?.let {
+            listOf(SongLyricsPart(id = "verse-1", kind = SongLyricsPartKind.Verse, number = 1, text = it))
+        }.orEmpty()
+
+    private fun plainLyrics(song: Song): String =
+        if (song.lyricsParts.isNotEmpty()) song.lyricsParts.joinToString("\n\n") { it.text }
+        else song.lyrics
+
+    private fun audioKind(fileName: String, contentType: String): SongAudioKind {
+        val name = fileName.lowercase()
+        val type = contentType.lowercase()
+        return when {
+            name.endsWith(".mp3") || type in setOf("audio/mpeg", "audio/mp3") -> SongAudioKind.Mp3
+            name.endsWith(".m4a") || type in setOf("audio/mp4", "audio/x-m4a") -> SongAudioKind.M4a
+            name.endsWith(".wav") || type in setOf("audio/wav", "audio/x-wav") -> SongAudioKind.Wav
+            name.endsWith(".aac") || type in setOf("audio/aac", "audio/x-aac") -> SongAudioKind.Aac
+            else -> SongAudioKind.Other
+        }
+    }
+
+    private fun isSupportedAudio(fileName: String, contentType: String): Boolean {
+        val name = fileName.lowercase()
+        val type = contentType.lowercase()
+        return listOf(".mp3", ".m4a", ".aac", ".wav").any(name::endsWith) ||
+            type in setOf(
+                "audio/mpeg",
+                "audio/mp3",
+                "audio/mp4",
+                "audio/x-m4a",
+                "audio/aac",
+                "audio/x-aac",
+                "audio/wav",
+                "audio/x-wav",
+            )
+    }
+}
+
+internal object ChordProParser {
+    private val bracketRegex = Regex("""\[(.+?)]""")
+    private val sectionWords = setOf(
+        "intro", "verse", "pre-chorus", "prechorus", "chorus", "bridge",
+        "instrumental", "outro", "tag", "ending",
+    )
+    private val chordRegex = Regex("""^[A-G](#|b|♯|♭)?([a-zA-Z0-9()+°Δø#♯b♭]*)?(/[A-G](#|b|♯|♭)?)?$""")
+
+    fun parse(text: String, existingId: String = UUID.randomUUID().toString()): ChordSheet {
+        val lines = text.lines().flatMap(::parseLine)
+        return ChordSheet(
+            id = existingId,
+            originalKey = detectOriginalKey(lines),
+            lines = lines,
+        )
+    }
+
+    fun toText(sheet: ChordSheet): String {
+        if (sheet.lines.isEmpty()) return ""
+        return buildString {
+            sheet.lines.forEach { line ->
+                if (line.isSectionHeader) {
+                    appendLine(line.text)
+                } else {
+                    if (line.chords.isNotEmpty()) {
+                        appendLine(chordLineFor(line))
+                    }
+                    appendLine(line.text)
+                }
+            }
+        }.trimEnd()
+    }
+
+    fun renderedChordLine(line: ChordLine): String = chordLineFor(line)
+
+    private fun parseLine(raw: String): List<ChordLine> {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return listOf(ChordLine(id = UUID.randomUUID().toString()))
+
+        val onlyBracket = bracketRegex.matchEntire(trimmed)
+        if (onlyBracket != null) {
+            val value = onlyBracket.groupValues[1].trim()
+            if (isSectionHeader(value)) {
+                return listOf(
+                    ChordLine(
+                        id = UUID.randomUUID().toString(),
+                        text = "[$value]",
+                        isSectionHeader = true,
+                    ),
+                )
+            }
+        }
+
+        val inline = parseInlineChordPro(raw)
+        if (inline != null) return inline
+
+        if (looksLikeChordLine(trimmed)) {
+            val chords = raw.split(Regex("""\s+"""))
+                .filter { it.isNotBlank() && isChord(it.trim()) }
+                .mapIndexed { index, chord ->
+                    Chord(
+                        id = UUID.randomUUID().toString(),
+                        chord = chord.trim(),
+                        position = index * 4,
+                    )
+                }
+            return listOf(
+                ChordLine(
+                    id = UUID.randomUUID().toString(),
+                    text = "",
+                    chords = chords,
+                ),
+            )
+        }
+
+        return listOf(ChordLine(id = UUID.randomUUID().toString(), text = raw))
+    }
+
+    private fun parseInlineChordPro(raw: String): List<ChordLine>? {
+        val matches = bracketRegex.findAll(raw).toList()
+        if (matches.none()) return null
+
+        val output = StringBuilder()
+        val chords = mutableListOf<Chord>()
+        var cursor = 0
+
+        matches.forEach { match ->
+            output.append(raw.substring(cursor, match.range.first))
+            val token = match.groupValues[1].trim()
+            if (isChord(token)) {
+                chords += Chord(
+                    id = UUID.randomUUID().toString(),
+                    chord = token,
+                    position = output.length,
+                )
+            } else if (output.toString().isBlank() && isSectionHeader(token)) {
+                output.append("[$token]")
+            } else {
+                output.append(match.value)
+            }
+            cursor = match.range.last + 1
+        }
+        output.append(raw.substring(cursor))
+
+        val rendered = output.toString()
+        if (chords.isEmpty() && !isSectionHeader(rendered.removeSurrounding("[", "]"))) {
+            return null
+        }
+
+        if (chords.isEmpty() && isSectionHeader(rendered.removeSurrounding("[", "]"))) {
+            return listOf(
+                ChordLine(
+                    id = UUID.randomUUID().toString(),
+                    text = rendered,
+                    isSectionHeader = true,
+                ),
+            )
+        }
+
+        return listOf(
+            ChordLine(
+                id = UUID.randomUUID().toString(),
+                text = rendered,
+                chords = chords,
+            ),
+        )
+    }
+
+    private fun chordLineFor(line: ChordLine): String {
+        val sorted = line.chords.sortedWith(compareBy<Chord> { it.position }.thenBy { it.chord })
+        val output = StringBuilder()
+        var cursor = 0
+        sorted.forEach { chord ->
+            val target = chord.position.coerceAtLeast(cursor)
+            if (target > cursor) {
+                output.append(" ".repeat(target - cursor))
+            } else if (output.isNotEmpty()) {
+                output.append(' ')
+            }
+            output.append(chord.chord)
+            cursor = output.length
+        }
+        return output.toString()
+    }
+
+    private fun looksLikeChordLine(text: String): Boolean {
+        val tokens = text.split(Regex("""\s+""")).filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return false
+        return tokens.count { isChord(it) }.toDouble() / tokens.size >= 0.65
+    }
+
+    private fun isSectionHeader(text: String): Boolean {
+        val normalized = text.trim()
+            .lowercase()
+            .replace(Regex("""\s+\d+$"""), "")
+        return normalized in sectionWords
+    }
+
+    private fun isChord(text: String): Boolean = chordRegex.matches(text.trim())
+
+    private fun detectOriginalKey(lines: List<ChordLine>): String =
+        lines.asSequence()
+            .flatMap { it.chords.asSequence() }
+            .map { it.chord.trim() }
+            .firstOrNull { it.startsWith("G") || it.startsWith("D") || it.startsWith("A") || it.startsWith("F") ||
+                it.startsWith("Bb") || it.startsWith("B♭") || it.startsWith("Am") || it.startsWith("Em") }
+            ?.let { chord ->
+                when {
+                    chord.startsWith("Bb") || chord.startsWith("B♭") -> "Bb"
+                    chord.startsWith("Am") -> "Am"
+                    chord.startsWith("Em") -> "Em"
+                    else -> chord.take(1)
+                }
+            }
+            ?: "C"
+}
+
+private val songComparator = compareByDescending<Song> { it.isPinnedTheme }
+    .thenBy { it.orderIndex }
+    .thenBy { it.title.lowercase() }
+
+private fun <T> MutableList<T>.swap(first: Int, second: Int) {
+    val tmp = this[first]
+    this[first] = this[second]
+    this[second] = tmp
+}

@@ -199,6 +199,35 @@ sealed interface AppRoute {
             "${CampingFoodMenu(campingId).route}/${AppRoutePath.CampingEdit}"
     }
 
+    data class CampingSongbook(val campingId: String) : AppRoute {
+        override val route =
+            "${CampingDetail(campingId).route}/${AppRoutePath.Songbook}"
+    }
+
+    data class SongDetail(
+        val campingId: String,
+        val songId: String,
+    ) : AppRoute {
+        override val route =
+            "${CampingSongbook(campingId).route}/${songId.asRouteSegment()}"
+    }
+
+    data class SongEditor(
+        val campingId: String,
+        val songId: String? = null,
+    ) : AppRoute {
+        override val route = buildString {
+            append(CampingSongbook(campingId).route)
+            append("/")
+            append(AppRoutePath.SongEditor)
+            val resolvedSongId = songId?.takeUnless { it.isBlank() }
+            if (resolvedSongId != null) {
+                append("/")
+                append(resolvedSongId.asRouteSegment())
+            }
+        }
+    }
+
     data class CampingGuidelines(val campingId: String) : AppRoute {
         override val route =
             "${CampingDetail(campingId).route}/${AppRoutePath.Guidelines}"
@@ -225,6 +254,7 @@ internal object AppRouteArgs {
     const val PollId = "pollId"
     const val AttendeeId = "attendeeId"
     const val ProgramId = "programId"
+    const val SongId = "songId"
 }
 
 internal object AppRoutePath {
@@ -252,6 +282,8 @@ internal object AppRoutePath {
     const val Schedule = "schedule"
     const val ProgramEditor = "program-editor"
     const val FoodMenu = "food-menu"
+    const val Songbook = "songbook"
+    const val SongEditor = "song-editor"
     const val Guidelines = "guidelines"
     const val AnnouncementComposer = "compose"
 }
@@ -280,6 +312,10 @@ internal object AppRoutePattern {
     const val CampingScheduleProgramEditor = "$CampingSchedule/${AppRoutePath.ProgramEditor}"
     const val CampingFoodMenu = "$CampingDetail/${AppRoutePath.FoodMenu}"
     const val CampingFoodMenuEditor = "$CampingFoodMenu/${AppRoutePath.CampingEdit}"
+    const val CampingSongbook = "$CampingDetail/${AppRoutePath.Songbook}"
+    const val SongEditor = "$CampingSongbook/${AppRoutePath.SongEditor}"
+    const val SongEdit = "$SongEditor/{${AppRouteArgs.SongId}}"
+    const val SongDetail = "$CampingSongbook/{${AppRouteArgs.SongId}}"
     const val CampingGuidelines = "$CampingDetail/${AppRoutePath.Guidelines}"
     const val AnnouncementComposer = "${AppRoutePath.Announcements}/${AppRoutePath.AnnouncementComposer}"
 }

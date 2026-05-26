@@ -168,16 +168,16 @@
 - [x] After save: `POST /notifications/dispatch/announcement`
 - [x] `authorPhotoURL` omit-when-nil
 
-### B8. Songbook (`ui/songbook/`)
+### B8. Songbook (`ui/songbook/`) ✅
 
-- [ ] List screen: read `campings/{id}/songs`, ordered by `orderIndex`; highlight `isPinnedTheme`
-- [ ] Detail screen: lyrics + chords render (ChordPro-ish); audio player; YouTube link; PDF link
-- [ ] Favorites: `arrayUnion`/`arrayRemove` on `favoriteUserIDs`
-- [ ] Admin writes only: `canManageSongs` (admin role only per `03`); create/edit/delete songs
-- [ ] Reorder: update `orderIndex` on drag
-- [ ] Pin theme: set `isPinnedTheme: true` on selected song, batch-clear others
-- [ ] Audio upload: `POST /cloudinary/sign` with `resourceType: "video"` → upload → write `audio` + `audioFiles[]`; `audio` delete-when-empty
-- [ ] Chord sheet: respect lossy `originalKey` decode (only specific keys map back; others → C major)
+- [x] List screen: read `campings/{id}/songs`, ordered by `orderIndex`; highlight `isPinnedTheme`
+- [x] Detail screen: lyrics + chords render (ChordPro-ish); audio player; YouTube link; PDF link
+- [x] Favorites: `arrayUnion`/`arrayRemove` on `favoriteUserIDs`
+- [x] Admin writes only: `canManageSongs` (admin role only per `03`); create/edit/delete songs
+- [x] Reorder: update `orderIndex` on drag
+- [x] Pin theme: set `isPinnedTheme: true` on selected song, batch-clear others
+- [x] Audio upload: `POST /cloudinary/sign` with `resourceType: "video"` → upload → write `audio` + `audioFiles[]`; `audio` delete-when-empty
+- [x] Chord sheet: respect lossy `originalKey` decode (only specific keys map back; others → C major)
 
 ### B9. Camp Guidelines (`ui/campings/guidelines/`) ✅
 

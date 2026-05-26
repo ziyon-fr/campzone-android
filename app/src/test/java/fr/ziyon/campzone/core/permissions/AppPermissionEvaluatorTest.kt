@@ -142,6 +142,13 @@ class AppPermissionEvaluatorTest {
     }
 
     @Test
+    fun songbookWritesAreAdminOnly() {
+        assertTrue(evaluator.canManageSongs(PermissionUser(role = UserRole.Admin)))
+        assertFalse(evaluator.canManageSongs(PermissionUser(role = UserRole.Pastor)))
+        assertFalse(evaluator.canManageSongs(PermissionUser(role = UserRole.User, userId = "creator-user")))
+    }
+
+    @Test
     fun scopedOperationalHelpersRequireOwnChurchCamping() {
         val leader = PermissionUser(
             role = UserRole.Leader,

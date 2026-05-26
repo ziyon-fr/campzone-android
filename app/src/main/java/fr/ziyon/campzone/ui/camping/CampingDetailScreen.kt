@@ -129,6 +129,7 @@ fun CampingDetailRoute(
     onOpenRegistrationReview: () -> Unit = {},
     onOpenAttendees: (String) -> Unit = {},
     onOpenFoodMenu: (String) -> Unit = {},
+    onOpenSongbook: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(campingId) { viewModel.load(campingId, authenticatedUser) }
@@ -161,6 +162,7 @@ fun CampingDetailRoute(
         onOpenRegistrationReview = onOpenRegistrationReview,
         onOpenAttendees = onOpenAttendees,
         onOpenFoodMenu = onOpenFoodMenu,
+        onOpenSongbook = onOpenSongbook,
         modifier = modifier,
     )
 }
@@ -185,6 +187,7 @@ fun CampingDetailScreen(
     onOpenAttendees: (String) -> Unit = {},
     onOpenVenueMap: (String) -> Unit = {},
     onOpenFoodMenu: (String) -> Unit = {},
+    onOpenSongbook: (String) -> Unit = {},
 ) {
     val camping = state.camping
     Scaffold(
@@ -245,6 +248,7 @@ fun CampingDetailScreen(
                     onOpenAttendees = onOpenAttendees,
                     onOpenVenueMap = onOpenVenueMap,
                     onOpenFoodMenu = onOpenFoodMenu,
+                    onOpenSongbook = onOpenSongbook,
                 )
             }
         }
@@ -309,6 +313,7 @@ private fun CampingDetailContent(
     onOpenAttendees: (String) -> Unit,
     onOpenVenueMap: (String) -> Unit,
     onOpenFoodMenu: (String) -> Unit = {},
+    onOpenSongbook: (String) -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(CampingDetailTab.Overview) }
     val disabledAlpha = if (camping.registrationStatus == CampingRegistrationStatus.Cancelled) 0.5f else 1f
@@ -395,6 +400,7 @@ private fun CampingDetailContent(
                 onOpenChat = onOpenChat,
                 onOpenPolls = onOpenPolls,
                 onOpenFoodMenu = onOpenFoodMenu,
+                onOpenSongbook = onOpenSongbook,
             )
         }
 
@@ -1089,6 +1095,7 @@ private fun ResourcesSection(
     onOpenChat: (String) -> Unit,
     onOpenPolls: (String) -> Unit,
     onOpenFoodMenu: (String) -> Unit = {},
+    onOpenSongbook: (String) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
@@ -1107,7 +1114,7 @@ private fun ResourcesSection(
                     subtitle = stringResource(R.string.camping_songbook_subtitle),
                     icon = Icons.Filled.MusicNote,
                     accent = MaterialTheme.czColors.ember,
-                    onClick = {},
+                    onClick = { onOpenSongbook(camping.id) },
                 ),
             )
             if (state.isApprovedParticipant || state.canManageAnyCamping || state.canEditCamping) {
