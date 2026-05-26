@@ -138,6 +138,16 @@ sealed interface AppRoute {
         override val route = "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.CampingEdit}"
     }
 
+    data class CampingRegistration(val campingId: String) : AppRoute {
+        override val route =
+            "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.Registration}"
+    }
+
+    data class CampingRegistrationPayment(val campingId: String) : AppRoute {
+        override val route =
+            "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.RegistrationPayment}"
+    }
+
     companion object {
         val topLevelTabs: List<Tab> = listOf(Home, Campings, Announcements, Profile)
 
@@ -174,6 +184,8 @@ internal object AppRoutePath {
     const val Teams = "teams"
     const val PointHistory = "points"
     const val Polls = "polls"
+    const val Registration = "register"
+    const val RegistrationPayment = "registration-payment"
     const val CampingCreate = "create"
     const val CampingEdit = "edit"
 }
@@ -189,6 +201,8 @@ internal object AppRoutePattern {
     const val TeamPointHistory = "$PointHistory/{${AppRouteArgs.TeamId}}"
     const val CampingPolls = "$CampingDetail/${AppRoutePath.Polls}"
     const val PollDetail = "$CampingPolls/{${AppRouteArgs.PollId}}"
+    const val CampingRegistration = "$CampingDetail/${AppRoutePath.Registration}"
+    const val CampingRegistrationPayment = "$CampingDetail/${AppRoutePath.RegistrationPayment}"
     const val CampingCreate = "${AppRoutePath.Campings}/${AppRoutePath.CampingCreate}"
     const val CampingEdit = "$CampingDetail/${AppRoutePath.CampingEdit}"
 }

@@ -19,6 +19,8 @@ data class TransportationBooking(
     val ticketToken: String,
     val validFrom: Date,
     val validUntil: Date,
+    val transportationOptionId: String? = null,
+    val transportationOptionName: String? = null,
     val paymentStatus: TransportationPaymentStatus = TransportationPaymentStatus.Unpaid,
     val boardingStatus: TransportationBoardingStatus = TransportationBoardingStatus.NotBoarded,
     val guardianId: String? = null,
@@ -57,6 +59,8 @@ internal fun Map<String, Any?>.toTransportationBookingOrNull(documentId: String)
         ticketToken = ticketToken,
         validFrom = dateValue("validFrom") ?: Date(),
         validUntil = dateValue("validUntil") ?: Date(),
+        transportationOptionId = stringValue("transportationOptionID"),
+        transportationOptionName = stringValue("transportationOptionName"),
         paymentStatus = TransportationPaymentStatus.fromWire(paymentStatus),
         boardingStatus = TransportationBoardingStatus.fromWire(boardingStatus),
         guardianId = stringValue("guardianID"),
@@ -94,6 +98,10 @@ internal object TransportationBookingPayload {
             "updatedAt" to serverTimestamp,
         )
         booking.guardianId?.trim()?.takeUnless { it.isBlank() }?.let { payload["guardianID"] = it }
+        booking.transportationOptionId?.trim()?.takeUnless { it.isBlank() }
+            ?.let { payload["transportationOptionID"] = it }
+        booking.transportationOptionName?.trim()?.takeUnless { it.isBlank() }
+            ?.let { payload["transportationOptionName"] = it }
         return payload
     }
 

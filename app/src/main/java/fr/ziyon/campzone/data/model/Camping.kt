@@ -41,6 +41,9 @@ data class Camping(
             priceItems.any { it.amountCents > 0 } ||
             agePrices.any { it.amountCents > 0 }
 
+    val usesTransportationOptions: Boolean
+        get() = transportationOptions.isNotEmpty()
+
     val acceptsRegistrations: Boolean
         get() = registrationStatus == CampingRegistrationStatus.Open
 
@@ -64,6 +67,18 @@ data class Camping(
         agePrices
             .filter { age >= it.minAge && (it.maxAge == null || age <= it.maxAge) }
             .minByOrNull { it.minAge }
+
+    fun resolvedRegistrationFeeCents(age: Int?): Int =
+        (age?.let { agePriceFor(it)?.amountCents } ?: registrationFeeCents ?: 0).coerceAtLeast(0)
+
+    fun requiresRegistrationPayment(participant: RegistrationParticipant): Boolean =
+        resolvedRegistrationFeeCents(participant.age) > 0
+
+    fun requiresRegistrationPayment(participants: List<RegistrationParticipant>): Boolean =
+        participants.any(::requiresRegistrationPayment)
+
+    fun transportationOption(id: String?): CampingTransportationOption? =
+        id?.let { optionId -> transportationOptions.firstOrNull { it.id == optionId } }
 }
 
 data class OrganizerLevel(
@@ -109,7 +124,13 @@ data class CampingTransportationOption(
     val capacity: Int? = null,
     val feeCents: Int? = null,
     val currency: String = "EUR",
-)
+) {
+    val resolvedName: String
+        get() = name.trim().takeUnless { it.isBlank() } ?: mode.displayName
+
+    val issuesTicket: Boolean
+        get() = requiresTicket || mode.defaultRequiresTicket
+}
 
 // region decode
 
