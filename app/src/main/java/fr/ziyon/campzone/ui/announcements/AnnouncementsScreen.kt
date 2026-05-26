@@ -17,19 +17,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.Campaign
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SearchBar
-import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -37,14 +41,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -124,56 +129,25 @@ fun AnnouncementsScreen(
     onRetry: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
-    var searchActive by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = colors.background,
         contentWindowInsets = WindowInsets(),
         topBar = {
-            Column {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Text(
-                            text = "Announcements",
-                            style = CzTypeScale.headline,
-                            color = colors.textPrimary,
-                        )
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = colors.background,
-                        scrolledContainerColor = colors.background,
-                    ),
-                    windowInsets = WindowInsets(),
-                )
-                SearchBar(
-                    inputField = {
-                        SearchBarDefaults.InputField(
-                            query = searchQuery,
-                            onQueryChange = onSearchChange,
-                            onSearch = { searchActive = false },
-                            expanded = searchActive,
-                            onExpandedChange = { searchActive = it },
-                            placeholder = {
-                                Text(
-                                    "Search announcements",
-                                    style = CzTypeScale.body,
-                                    color = colors.textSecondary,
-                                )
-                            },
-                        )
-                    },
-                    expanded = searchActive,
-                    onExpandedChange = { searchActive = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = CzSpacing.base, vertical = CzSpacing.xs),
-                    colors = SearchBarDefaults.colors(
-                        containerColor = colors.surface,
-                        dividerColor = colors.divider,
-                    ),
-                    content = {},
-                )
-            }
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = "Announcements",
+                        style = CzTypeScale.headline,
+                        color = colors.textPrimary,
+                    )
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = colors.background,
+                    scrolledContainerColor = colors.background,
+                ),
+                windowInsets = WindowInsets(),
+            )
         },
     ) { innerPadding ->
         PullToRefreshBox(
@@ -187,15 +161,26 @@ fun AnnouncementsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = CzSpacing.lg),
-                verticalArrangement = Arrangement.spacedBy(CzSpacing.xl),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
             ) {
-                item { Spacer(Modifier.height(CzSpacing.md)) }
+                item { Spacer(Modifier.height(CzSpacing.sm)) }
+
+                // ── Inline search field (scrolls with list, no overlay) ────────
+                item {
+                    AnnouncementSearchField(
+                        query = searchQuery,
+                        onQueryChange = onSearchChange,
+                    )
+                }
 
                 if (canCompose) {
                     item {
+                        Spacer(Modifier.height(CzSpacing.xs))
                         ComposeActionCard(onClick = onOpenComposer)
                     }
                 }
+
+                item { Spacer(Modifier.height(CzSpacing.xs)) }
 
                 when (uiState) {
                     is AnnouncementsUiState.Loading -> item {
@@ -294,6 +279,71 @@ fun AnnouncementsScreen(
                 }
 
                 item { Spacer(Modifier.height(CzSpacing.xxl)) }
+            }
+        }
+    }
+}
+
+// ── Inline search field ───────────────────────────────────────────────────────
+
+@Composable
+private fun AnnouncementSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    val focusManager = LocalFocusManager.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.surface)
+            .padding(horizontal = CzSpacing.md, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        Icon(
+            Icons.Rounded.Search,
+            contentDescription = null,
+            tint = colors.textSecondary,
+            modifier = Modifier.size(18.dp),
+        )
+
+        BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+            textStyle = CzTypeScale.body.copy(color = colors.textPrimary),
+            cursorBrush = SolidColor(colors.ember),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+            decorationBox = { innerTextField ->
+                Box {
+                    if (query.isEmpty()) {
+                        Text(
+                            text = "Search announcements",
+                            style = CzTypeScale.body,
+                            color = colors.textSecondary,
+                        )
+                    }
+                    innerTextField()
+                }
+            },
+        )
+
+        if (query.isNotEmpty()) {
+            IconButton(
+                onClick = { onQueryChange("") },
+                modifier = Modifier.size(20.dp),
+            ) {
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = "Clear search",
+                    tint = colors.textSecondary,
+                    modifier = Modifier.size(16.dp),
+                )
             }
         }
     }
