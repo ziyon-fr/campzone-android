@@ -74,7 +74,6 @@ import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.ChordLine
 import fr.ziyon.campzone.data.model.Song
-import fr.ziyon.campzone.data.model.SongLyricsPart
 
 private enum class SongDisplayMode(val title: String) {
     Lyrics("Lyrics"),
@@ -460,30 +459,6 @@ private fun RenderedChordLine(line: ChordLine, textSize: Float) {
         }
     }
 }
-
-private fun SongLyricsPart.displayTitle(): String =
-    if (kind == fr.ziyon.campzone.data.model.SongLyricsPartKind.Custom && title.isNotBlank()) {
-        title
-    } else {
-        val base = when (kind) {
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.Intro -> "Intro"
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.Verse -> "Verse"
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.PreChorus -> "Pre-chorus"
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.Chorus -> "Chorus"
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.Bridge -> "Bridge"
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.Instrumental -> "Instrumental"
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.Outro -> "Outro"
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.Custom -> "Custom"
-        }
-        when (kind) {
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.Intro,
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.Bridge,
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.Instrumental,
-            fr.ziyon.campzone.data.model.SongLyricsPartKind.Outro,
-            -> if (number > 1) "$base $number" else base
-            else -> "$base $number"
-        }
-    }
 
 private fun Song.subtitleText(): String = when {
     isPinnedTheme -> "Theme song"

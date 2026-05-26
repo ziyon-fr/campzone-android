@@ -7,6 +7,9 @@ import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
+import fr.ziyon.campzone.data.model.Song
+import fr.ziyon.campzone.data.model.SongLyricsPart
+import fr.ziyon.campzone.data.model.SongLyricsPartKind
 import fr.ziyon.campzone.data.songbook.FakeSongbookService
 import fr.ziyon.campzone.testing.MainDispatcherRule
 import java.util.Date
@@ -80,6 +83,79 @@ class SongbookViewModelTest {
     }
 
     @Test
+    fun editingSongPreservesStructuredLyricsParts() = runTest {
+        val structuredSong = Song(
+            id = "structured",
+            title = "Structured Song",
+            lyrics = "[Verse 1]\nWalk in faith\n\n[Chorus 1]\nSing with joy",
+            lyricsParts = listOf(
+                SongLyricsPart(
+                    id = "verse",
+                    kind = SongLyricsPartKind.Verse,
+                    number = 1,
+                    text = "Walk in faith",
+                ),
+                SongLyricsPart(
+                    id = "chorus",
+                    kind = SongLyricsPartKind.Chorus,
+                    number = 1,
+                    text = "Sing with joy",
+                ),
+            ),
+            orderIndex = 3,
+        )
+        val viewModel = viewModel(FakeSongbookService.previewSongs(campingId) + structuredSong)
+        viewModel.load(campingId, admin)
+        advanceUntilIdle()
+
+        viewModel.prepareEditingSong(structuredSong)
+
+        assertEquals(
+            listOf("Verse 1", "Chorus 1"),
+            viewModel.form.value.lyricsParts.map { it.displayTitle() },
+        )
+        assertEquals(
+            "[Verse 1]\nWalk in faith\n\n[Chorus 1]\nSing with joy",
+            viewModel.form.value.lyrics,
+        )
+    }
+
+    @Test
+    fun lyricsPartEditorAddsUpdatesMovesAndSavesParts() = runTest {
+        val viewModel = viewModel()
+        viewModel.load(campingId, admin)
+        advanceUntilIdle()
+        viewModel.prepareNewSong(campingId)
+        viewModel.updateForm { it.copy(title = "Structured Praise") }
+
+        viewModel.updateLyricsPartKind(SongLyricsPartKind.Chorus)
+        viewModel.updateLyricsPartText("Sing with joy")
+        viewModel.saveLyricsPart()
+        val chorusId = viewModel.form.value.lyricsParts.single().id
+
+        viewModel.updateLyricsPartKind(SongLyricsPartKind.Verse)
+        viewModel.updateLyricsPartText("Walk in faith")
+        viewModel.saveLyricsPart()
+        val verseId = viewModel.form.value.lyricsParts.last().id
+        viewModel.moveLyricsPart(verseId, SongMoveDirection.Up)
+
+        viewModel.startLyricsPartEditor(chorusId)
+        viewModel.updateLyricsPartText("Sing with courage")
+        viewModel.saveLyricsPart()
+
+        viewModel.saveSong(campingId)
+        advanceUntilIdle()
+
+        val saved = viewModel.songs(campingId).first { it.title == "Structured Praise" }
+        assertEquals(
+            listOf(SongLyricsPartKind.Verse, SongLyricsPartKind.Chorus),
+            saved.lyricsParts.map { it.kind },
+        )
+        assertEquals(listOf("Walk in faith", "Sing with courage"), saved.lyricsParts.map { it.text })
+        assertEquals("[Verse 1]\nWalk in faith\n\n[Chorus 1]\nSing with courage", saved.lyrics)
+    }
+
+    @Test
     fun nonAdminsCannotSaveSongs() = runTest {
         val viewModel = viewModel()
         viewModel.load(campingId, regularUser)
@@ -144,10 +220,12 @@ class SongbookViewModelTest {
         )
     }
 
-    private fun viewModel(): SongbookViewModel =
+    private fun viewModel(
+        songs: List<Song> = FakeSongbookService.previewSongs(campingId),
+    ): SongbookViewModel =
         SongbookViewModel(
             songbookService = FakeSongbookService(
-                mapOf(campingId to FakeSongbookService.previewSongs(campingId)),
+                mapOf(campingId to songs),
             ),
             campingService = FakeCampingService(listOf(camping())),
         )

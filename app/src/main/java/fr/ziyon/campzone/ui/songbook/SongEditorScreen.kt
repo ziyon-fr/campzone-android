@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -21,7 +22,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Mic
@@ -30,6 +35,8 @@ import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,6 +53,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +77,8 @@ import fr.ziyon.campzone.core.designsystem.CzTypeScale
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.Song
+import fr.ziyon.campzone.data.model.SongLyricsPart
+import fr.ziyon.campzone.data.model.SongLyricsPartKind
 
 @Composable
 fun SongEditorRoute(
@@ -105,6 +117,15 @@ fun SongEditorRoute(
         onUpdateForm = viewModel::updateForm,
         onAddAudio = viewModel::addPendingAudio,
         onRemoveAudio = viewModel::removeAudio,
+        onStartLyricsPartEditor = viewModel::startLyricsPartEditor,
+        onLyricsPartKindChange = viewModel::updateLyricsPartKind,
+        onLyricsPartNumberChange = viewModel::updateLyricsPartNumber,
+        onLyricsPartTitleChange = viewModel::updateLyricsPartTitle,
+        onLyricsPartTextChange = viewModel::updateLyricsPartText,
+        onSaveLyricsPart = viewModel::saveLyricsPart,
+        onCancelLyricsPartEditing = viewModel::cancelLyricsPartEditing,
+        onRemoveLyricsPart = viewModel::removeLyricsPart,
+        onMoveLyricsPart = viewModel::moveLyricsPart,
         onSave = { viewModel.saveSong(campingId, onSuccess = onSaved) },
     )
 }
@@ -122,6 +143,15 @@ fun SongEditorScreen(
     onUpdateForm: ((SongEditorForm) -> SongEditorForm) -> Unit,
     onAddAudio: (String, String, ByteArray) -> Boolean,
     onRemoveAudio: (String) -> Unit,
+    onStartLyricsPartEditor: (String?) -> Unit,
+    onLyricsPartKindChange: (SongLyricsPartKind) -> Unit,
+    onLyricsPartNumberChange: (Int) -> Unit,
+    onLyricsPartTitleChange: (String) -> Unit,
+    onLyricsPartTextChange: (String) -> Unit,
+    onSaveLyricsPart: () -> Unit,
+    onCancelLyricsPartEditing: () -> Unit,
+    onRemoveLyricsPart: (String) -> Unit,
+    onMoveLyricsPart: (String, SongMoveDirection) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -266,17 +296,38 @@ fun SongEditorScreen(
                     }
                 }
 
-                EditorSectionHeader("Lyrics", Icons.Rounded.TextFields)
-                EditorCard {
-                    TextField(
-                        value = form.lyrics,
-                        onValueChange = { value -> onUpdateForm { it.copy(lyrics = value) } },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 5,
-                        placeholder = { Text("Write lyrics here...", color = colors.textSecondary) },
-                        textStyle = CzTypeScale.body.copy(color = colors.textPrimary),
-                        colors = transparentTextFieldColors(),
-                    )
+                EditorSectionHeader(
+                    if (form.isEditingLyricsPart) "Edit Lyrics" else "Add Lyrics",
+                    Icons.Rounded.TextFields,
+                )
+                LyricsPartEditorCard(
+                    form = form,
+                    onKindChange = onLyricsPartKindChange,
+                    onNumberChange = onLyricsPartNumberChange,
+                    onTitleChange = onLyricsPartTitleChange,
+                    onTextChange = onLyricsPartTextChange,
+                    onSave = onSaveLyricsPart,
+                    onCancel = onCancelLyricsPartEditing,
+                )
+
+                if (form.lyricsParts.isNotEmpty()) {
+                    EditorSectionHeader("Lyrics Structure", Icons.Rounded.TextFields)
+                    EditorCard {
+                        form.lyricsParts.forEachIndexed { index, part ->
+                            LyricsPreviewRow(
+                                part = part,
+                                index = index,
+                                isEditing = form.editingLyricsPartId == part.id,
+                                canMoveUp = index > 0,
+                                canMoveDown = index < form.lyricsParts.lastIndex,
+                                onEdit = { onStartLyricsPartEditor(part.id) },
+                                onDelete = { onRemoveLyricsPart(part.id) },
+                                onMoveUp = { onMoveLyricsPart(part.id, SongMoveDirection.Up) },
+                                onMoveDown = { onMoveLyricsPart(part.id, SongMoveDirection.Down) },
+                            )
+                            if (index != form.lyricsParts.lastIndex) DividerInset()
+                        }
+                    }
                 }
 
                 EditorSectionHeader("Chord Sheet", Icons.Rounded.MusicNote)
@@ -396,6 +447,205 @@ private fun AudioRow(title: String, subtitle: String, onDelete: () -> Unit) {
         IconButton(onClick = onDelete) {
             Icon(Icons.Rounded.Delete, contentDescription = "Remove audio", tint = colors.error)
         }
+    }
+}
+
+@Composable
+private fun LyricsPartEditorCard(
+    form: SongEditorForm,
+    onKindChange: (SongLyricsPartKind) -> Unit,
+    onNumberChange: (Int) -> Unit,
+    onTitleChange: (String) -> Unit,
+    onTextChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    EditorCard {
+        LyricsPartKindPicker(
+            selectedKind = form.selectedLyricsPartKind,
+            onKindChange = onKindChange,
+        )
+        DividerInset()
+        PartNumberStepper(
+            value = form.selectedLyricsPartNumber,
+            onValueChange = onNumberChange,
+        )
+        if (form.selectedLyricsPartKind == SongLyricsPartKind.Custom) {
+            DividerInset()
+            SongTextField(
+                value = form.selectedLyricsPartTitle,
+                onValueChange = onTitleChange,
+                placeholder = "Custom title",
+                capitalization = KeyboardCapitalization.Words,
+            )
+        }
+        DividerInset()
+        TextField(
+            value = form.lyricsPartText,
+            onValueChange = onTextChange,
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 5,
+            placeholder = { Text("Write this lyrics part here...", color = colors.textSecondary) },
+            textStyle = CzTypeScale.body.copy(color = colors.textPrimary),
+            colors = transparentTextFieldColors(),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = CzSpacing.base, vertical = CzSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (form.isEditingLyricsPart) {
+                TextButton(onClick = onCancel) {
+                    Text("Cancel", color = colors.textSecondary, style = CzTypeScale.caption)
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            TextButton(
+                onClick = onSave,
+                enabled = form.lyricsPartText.trim().isNotEmpty(),
+            ) {
+                Icon(
+                    if (form.isEditingLyricsPart) Icons.Rounded.Edit else Icons.Rounded.Add,
+                    contentDescription = null,
+                    tint = if (form.lyricsPartText.trim().isNotEmpty()) colors.ember else colors.textSecondary,
+                )
+                Text(
+                    if (form.isEditingLyricsPart) "Update Lyrics" else "Add Lyrics",
+                    color = if (form.lyricsPartText.trim().isNotEmpty()) colors.ember else colors.textSecondary,
+                    style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LyricsPartKindPicker(
+    selectedKind: SongLyricsPartKind,
+    onKindChange: (SongLyricsPartKind) -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    var expanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(CzSpacing.base),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Type", style = CzTypeScale.caption, color = colors.textSecondary)
+            Text(
+                selectedKind.displayName,
+                style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.textPrimary,
+            )
+        }
+        Box {
+            TextButton(onClick = { expanded = true }) {
+                Text("Change", color = colors.ember)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                SongLyricsPartKind.entries.forEach { kind ->
+                    DropdownMenuItem(
+                        text = { Text(kind.displayName) },
+                        onClick = {
+                            expanded = false
+                            onKindChange(kind)
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PartNumberStepper(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(CzSpacing.base),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Part", style = CzTypeScale.caption, color = colors.textSecondary)
+            Text(
+                value.toString(),
+                style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.textPrimary,
+            )
+        }
+        TextButton(onClick = { onValueChange(value - 1) }, enabled = value > 1) {
+            Text("-", color = if (value > 1) colors.ember else colors.textSecondary)
+        }
+        TextButton(onClick = { onValueChange(value + 1) }, enabled = value < 24) {
+            Text("+", color = if (value < 24) colors.ember else colors.textSecondary)
+        }
+    }
+}
+
+@Composable
+private fun LyricsPreviewRow(
+    part: SongLyricsPart,
+    index: Int,
+    isEditing: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(CzSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+        ) {
+            Text(
+                part.displayTitle(),
+                style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
+                color = if (part.kind == SongLyricsPartKind.Chorus) colors.ember else colors.textPrimary,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text("#${index + 1}", style = CzTypeScale.caption, color = colors.textSecondary)
+            IconButton(onClick = onMoveUp, enabled = canMoveUp) {
+                Icon(Icons.Rounded.ArrowUpward, contentDescription = "Move lyrics up", tint = if (canMoveUp) colors.textSecondary else colors.divider)
+            }
+            IconButton(onClick = onMoveDown, enabled = canMoveDown) {
+                Icon(Icons.Rounded.ArrowDownward, contentDescription = "Move lyrics down", tint = if (canMoveDown) colors.textSecondary else colors.divider)
+            }
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Rounded.Edit, contentDescription = "Edit lyrics", tint = colors.ember)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Rounded.Delete, contentDescription = "Delete lyrics", tint = colors.error)
+            }
+        }
+        Text(
+            part.text,
+            style = CzTypeScale.caption,
+            color = colors.textSecondary,
+            maxLines = if (isEditing) 10 else 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
