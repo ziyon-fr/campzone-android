@@ -66,14 +66,14 @@ class CampingGuidelinesViewModel @Inject constructor(
     fun saveGuidelines(campingId: String, body: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
-            runCatching { campingService.updateGuidelines(campingId, body) }
-                .onSuccess { updated ->
-                    _uiState.update { it.copy(isSaving = false, camping = updated) }
-                    onSuccess()
-                }
-                .onFailure { error ->
-                    _uiState.update { it.copy(isSaving = false, errorMessage = error.message) }
-                }
+            try {
+                val updated = campingService.updateGuidelines(campingId, body)
+                _uiState.update { it.copy(isSaving = false, camping = updated) }
+                onSuccess()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                _uiState.update { it.copy(isSaving = false, errorMessage = e.message) }
+            }
         }
     }
 
