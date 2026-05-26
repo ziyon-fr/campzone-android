@@ -108,6 +108,41 @@ enum class TransportationMode(val wireValue: String) {
     OnFoot("onFoot"),
     Other("other");
 
+    val displayName: String
+        get() = when (this) {
+            Bus -> "Bus"
+            Coach -> "Coach"
+            Minibus -> "Minibus"
+            Shuttle -> "Shuttle"
+            Train -> "Train"
+            Carpool -> "Car-pool"
+            OwnCar -> "Own car"
+            Plane -> "Flight"
+            Boat -> "Boat / ferry"
+            Bike -> "Bicycle"
+            OnFoot -> "On foot"
+            Other -> "Other"
+        }
+
+    val defaultRequiresTicket: Boolean
+        get() = when (this) {
+            OwnCar,
+            Carpool,
+            Bike,
+            OnFoot,
+            Other,
+            -> false
+
+            Bus,
+            Coach,
+            Minibus,
+            Shuttle,
+            Train,
+            Plane,
+            Boat,
+            -> true
+        }
+
     companion object {
         fun fromWire(value: String?): TransportationMode =
             entries.firstOrNull { it.wireValue == value } ?: Other

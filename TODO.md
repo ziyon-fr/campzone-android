@@ -119,16 +119,16 @@
 - [x] Do NOT write `guidelines` or `winnerRevealPolicy` in the normal edit path
 - [x] iOS parity: location search picker (Geocoder + nearby + recents), registration status all 3 states with color dots, timing amber dividers, transport 2-line cap, `CampingsScreen` admin card + StatusBadge + capsule capacity bar
 
-### B3. Registration Flow (`ui/campings/register/`)
+### B3. Registration Flow (`ui/campings/register/`) ✅
 
-- [ ] Self-registration: doc `registrations/{uid}` with `userID==uid`, `uid==uid`
-- [ ] Child registration: doc `registrations/{child.id}` with `guardianID`, `participantKind: "child"`
-- [ ] Transportation choice: `transportationChoice` (`own_car` / `provided_bus`); if `provided_bus` → create `transportationBookings/{participant.id}-bus`
-- [ ] Set `registrationStatus: "pending"` on create; **never** write `paymentStatus` (backend settles)
-- [ ] Required fields per `02` §3.6; `gender` omit-when-nil
-- [ ] Dispatch `POST /notifications/dispatch/registration` after submit
-- [ ] Waitlist: show when `participantCapacity` reached and status would be `waitlisted`
-- [ ] Paid camp: initiate Stripe payment flow (see Phase D)
+- [x] Self-registration: doc `registrations/{uid}` with `userID==uid`, `uid==uid`
+- [x] Child registration: doc `registrations/{child.id}` with `guardianID`, `participantKind: "child"`
+- [x] Transportation choice: `transportationChoice` (`own_car` / `provided_bus`); if `provided_bus` → create `transportationBookings/{participant.id}-bus`
+- [x] Set `registrationStatus: "pending"` on create; **never** write `paymentStatus` (backend settles)
+- [x] Required fields per `02` §3.6; `gender` omit-when-nil
+- [x] Dispatch `POST /notifications/dispatch/registration` after submit
+- [x] Waitlist: show when `participantCapacity` reached and status would be `waitlisted`
+- [x] Paid camp: initiate Stripe payment flow (see Phase D)
 
 ### B4. Registration Review (Admin/Leadership) (`ui/campings/registrations/`)
 

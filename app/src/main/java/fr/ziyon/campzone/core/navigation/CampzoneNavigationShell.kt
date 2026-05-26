@@ -40,8 +40,10 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.ui.camping.CampingDetailRoute
 import fr.ziyon.campzone.ui.camping.CampingsRoute
 import fr.ziyon.campzone.ui.camping.admin.CampingEditorRoute
+import fr.ziyon.campzone.ui.camping.register.CampingRegistrationRoute
 import fr.ziyon.campzone.ui.family.FamilyParticipantsScreen
 import fr.ziyon.campzone.ui.home.HomeRoute
+import fr.ziyon.campzone.ui.payments.CampingRegistrationPaymentRoute
 import fr.ziyon.campzone.ui.profile.ProfileScreen
 import fr.ziyon.campzone.ui.profile.ProfileSettingsScreen
 import fr.ziyon.campzone.ui.profile.UserDataExportScreen
@@ -166,6 +168,40 @@ fun CampzoneNavigationShell(
                     },
                     onOpenEditCamping = { campingId ->
                         navController.navigate(AppRoute.CampingEdit(campingId).route)
+                    },
+                    onOpenRegistration = { campingId ->
+                        navController.navigate(AppRoute.CampingRegistration(campingId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingRegistration,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                CampingRegistrationRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onAddParticipant = { navController.navigate(AppRoute.FamilyParticipants.route) },
+                    onOpenPayment = { campingId ->
+                        navController.navigate(AppRoute.CampingRegistrationPayment(campingId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingRegistrationPayment,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                CampingRegistrationPaymentRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onDone = {
+                        navController.popBackStack(
+                            AppRoute.CampingDetail(campingId).route,
+                            inclusive = false,
+                        )
                     },
                 )
             }
