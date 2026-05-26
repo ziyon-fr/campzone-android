@@ -121,6 +121,7 @@ fun CampingDetailRoute(
     onOpenPolls: (String) -> Unit = {},
     onOpenEditCamping: (String) -> Unit = {},
     onOpenRegistration: (String) -> Unit = {},
+    onOpenRegistrationReview: () -> Unit = {},
     onOpenAttendees: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
 ) {
@@ -149,6 +150,7 @@ fun CampingDetailRoute(
         onOpenPolls = onOpenPolls,
         onOpenEditCamping = onOpenEditCamping,
         onOpenRegistration = onOpenRegistration,
+        onOpenRegistrationReview = onOpenRegistrationReview,
         onOpenAttendees = onOpenAttendees,
         modifier = modifier,
     )
@@ -170,6 +172,7 @@ fun CampingDetailScreen(
     onOpenChat: (String) -> Unit = {},
     onOpenPolls: (String) -> Unit = {},
     onOpenRegistration: (String) -> Unit = {},
+    onOpenRegistrationReview: () -> Unit = {},
     onOpenAttendees: (String) -> Unit = {},
     onOpenVenueMap: (String) -> Unit = {},
 ) {
@@ -228,6 +231,7 @@ fun CampingDetailScreen(
                     onOpenGames = onOpenGames,
                     onOpenChat = onOpenChat,
                     onOpenPolls = onOpenPolls,
+                    onOpenRegistrationReview = onOpenRegistrationReview,
                     onOpenAttendees = onOpenAttendees,
                     onOpenVenueMap = onOpenVenueMap,
                 )
@@ -290,6 +294,7 @@ private fun CampingDetailContent(
     onOpenGames: (String) -> Unit,
     onOpenChat: (String) -> Unit,
     onOpenPolls: (String) -> Unit,
+    onOpenRegistrationReview: () -> Unit,
     onOpenAttendees: (String) -> Unit,
     onOpenVenueMap: (String) -> Unit,
 ) {
@@ -338,6 +343,7 @@ private fun CampingDetailContent(
                     RegistrationCard(
                         state = state,
                         camping = camping,
+                        onOpenRegistrationReview = onOpenRegistrationReview,
                     )
                 }
                 item(key = "attendees") {
@@ -660,6 +666,7 @@ private fun DetailInfoRow(
 private fun RegistrationCard(
     state: CampingDetailUiState,
     camping: Camping,
+    onOpenRegistrationReview: () -> Unit,
 ) {
     val cream = Color(0xFFFFF4E0)
 
@@ -689,15 +696,26 @@ private fun RegistrationCard(
                         style = MaterialTheme.typography.labelMedium,
                     )
                     if (state.canApproveRegistrations && state.pendingAttendeeCount > 0) {
-                        Text(
-                            text = stringResource(
-                                R.string.camping_pending_registration_count,
-                                state.pendingAttendeeCount,
-                            ),
-                            color = MaterialTheme.czColors.warning,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        TextButton(
+                            onClick = onOpenRegistrationReview,
+                            contentPadding = PaddingValues(0.dp),
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    R.string.camping_pending_registration_count,
+                                    state.pendingAttendeeCount,
+                                ),
+                                color = MaterialTheme.czColors.warning,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.czColors.warning,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
                     }
                 }
                 Icon(

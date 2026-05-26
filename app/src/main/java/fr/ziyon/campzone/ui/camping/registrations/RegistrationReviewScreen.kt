@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -142,6 +143,7 @@ fun RegistrationReviewScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.czColors.background,
                 ),
+                windowInsets = WindowInsets(),
             )
         },
     ) { innerPadding ->
@@ -200,7 +202,12 @@ private fun ReviewContent(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(CzSpacing.lg),
+        contentPadding = PaddingValues(
+            start = CzSpacing.lg,
+            top = CzSpacing.sm,
+            end = CzSpacing.lg,
+            bottom = CzSpacing.lg,
+        ),
         verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
     ) {
         campings.forEach { camping ->

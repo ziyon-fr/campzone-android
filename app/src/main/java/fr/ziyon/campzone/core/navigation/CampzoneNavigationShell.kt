@@ -178,6 +178,9 @@ fun CampzoneNavigationShell(
                     onOpenRegistration = { campingId ->
                         navController.navigate(AppRoute.CampingRegistration(campingId).route)
                     },
+                    onOpenRegistrationReview = {
+                        navController.navigate(AppRoute.RegistrationReview.route)
+                    },
                     onOpenAttendees = { campingId ->
                         navController.navigate(AppRoute.CampingAttendees(campingId).route)
                     },
