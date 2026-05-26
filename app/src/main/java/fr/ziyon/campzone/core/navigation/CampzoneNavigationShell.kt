@@ -59,6 +59,7 @@ import fr.ziyon.campzone.ui.schedule.ProgramEditorScreen
 import fr.ziyon.campzone.ui.schedule.ScheduleEditorScreen
 import fr.ziyon.campzone.ui.schedule.ScheduleRoute
 import fr.ziyon.campzone.ui.schedule.ScheduleViewModel
+import fr.ziyon.campzone.ui.camping.guidelines.CampingGuidelinesRoute
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuEditorScreen
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuRoute
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuViewModel
@@ -255,6 +256,9 @@ fun CampzoneNavigationShell(
                     campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
+                    onOpenGuidelines = { campingId ->
+                        navController.navigate(AppRoute.CampingGuidelines(campingId).route)
+                    },
                     onOpenSchedule = { campingId ->
                         navController.navigate(AppRoute.CampingSchedule(campingId).route)
                     },
@@ -512,6 +516,18 @@ fun CampzoneNavigationShell(
                     onOpenFoodMenu = {
                         navController.navigate(AppRoute.CampingFoodMenu(campingId).route)
                     },
+                )
+            }
+            // Guidelines
+            composable(
+                route = AppRoutePattern.CampingGuidelines,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                CampingGuidelinesRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
                 )
             }
             // Food menu — register editor BEFORE the food menu list so it doesn't match as list

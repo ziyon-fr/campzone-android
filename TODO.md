@@ -179,10 +179,10 @@
 - [ ] Audio upload: `POST /cloudinary/sign` with `resourceType: "video"` → upload → write `audio` + `audioFiles[]`; `audio` delete-when-empty
 - [ ] Chord sheet: respect lossy `originalKey` decode (only specific keys map back; others → C major)
 
-### B9. Camp Guidelines (`ui/campings/guidelines/`)
+### B9. Camp Guidelines (`ui/campings/guidelines/`) ✅
 
-- [ ] Display: render markdown from `campings/{id}/guidelines`
-- [ ] Edit: write only via guidelines update path (`updateData(["guidelines": ...])`); gate `canManageGuidelines`
+- [x] Display: render markdown from `campings/{id}/guidelines`
+- [x] Edit: write only via guidelines update path (`updateData(["guidelines": ...])`); gate `canManageGuidelines`
 
 ---
 
