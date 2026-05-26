@@ -143,7 +143,7 @@ fun RegistrationReviewScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.czColors.background,
                 ),
-                windowInsets = WindowInsets(0.dp),
+                windowInsets = WindowInsets(),
             )
         },
     ) { innerPadding ->
