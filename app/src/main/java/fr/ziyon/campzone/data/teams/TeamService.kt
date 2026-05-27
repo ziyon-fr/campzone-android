@@ -51,6 +51,7 @@ interface TeamService {
     suspend fun updateMemberRole(memberId: String, role: TeamMemberRole, teamId: String, campingId: String): List<Team>
     suspend fun updateTeamScore(request: TeamScoreRequest): Team
     suspend fun applyPenalty(penalty: TeamPenalty, teamId: String, campingId: String): Team
+    suspend fun updateMemberScore(memberId: String, delta: Int, teamId: String, campingId: String): Team
 }
 
 @Singleton
@@ -187,6 +188,20 @@ class FirestoreTeamService @Inject constructor(
         val team = loadSingleTeam(teamId, campingId)
         val updated = team.copy(penalties = team.penalties + penalty)
         saveMutable(updated)
+        return loadSingleTeam(teamId, campingId)
+    }
+
+    override suspend fun updateMemberScore(
+        memberId: String,
+        delta: Int,
+        teamId: String,
+        campingId: String,
+    ): Team {
+        val team = loadSingleTeam(teamId, campingId)
+        val updatedMembers = team.members.map { m ->
+            if (m.id == memberId) m.copy(personalScore = m.personalScore + delta) else m
+        }
+        saveMutable(team.copy(members = updatedMembers))
         return loadSingleTeam(teamId, campingId)
     }
 
@@ -328,6 +343,16 @@ class FakeTeamService(
         val idx = teams.indexOfFirst { it.id == teamId && it.campingId == campingId }
         check(idx >= 0) { "Team not found." }
         teams[idx] = teams[idx].copy(penalties = teams[idx].penalties + penalty, updatedAt = Date())
+        return teams[idx]
+    }
+
+    override suspend fun updateMemberScore(memberId: String, delta: Int, teamId: String, campingId: String): Team {
+        val idx = teams.indexOfFirst { it.id == teamId && it.campingId == campingId }
+        check(idx >= 0) { "Team not found." }
+        val updatedMembers = teams[idx].members.map { m ->
+            if (m.id == memberId) m.copy(personalScore = m.personalScore + delta) else m
+        }
+        teams[idx] = teams[idx].copy(members = updatedMembers, updatedAt = Date())
         return teams[idx]
     }
 

@@ -62,6 +62,11 @@ import fr.ziyon.campzone.ui.schedule.ScheduleEditorScreen
 import fr.ziyon.campzone.ui.schedule.ScheduleRoute
 import fr.ziyon.campzone.ui.schedule.ScheduleViewModel
 import fr.ziyon.campzone.ui.camping.guidelines.CampingGuidelinesRoute
+import fr.ziyon.campzone.ui.games.GameDetailRoute
+import fr.ziyon.campzone.ui.games.GameEditorRoute
+import fr.ziyon.campzone.ui.games.GameViewModel
+import fr.ziyon.campzone.ui.games.GamesRoute
+import fr.ziyon.campzone.ui.games.PointHistoryRoute
 import fr.ziyon.campzone.ui.teams.TeamDetailRoute
 import fr.ziyon.campzone.ui.teams.TeamEditorRoute
 import fr.ziyon.campzone.ui.teams.TeamViewModel
@@ -300,7 +305,7 @@ fun CampzoneNavigationShell(
                         navController.navigate(AppRoute.CampingTeams(campingId).route)
                     },
                     onOpenGames = { campingId ->
-                        navController.navigate(AppRoute.CampingTeams(campingId).route)
+                        navController.navigate(AppRoute.CampingGames(campingId).route)
                     },
                 )
             }
@@ -523,7 +528,128 @@ fun CampzoneNavigationShell(
                         navController.navigate(AppRoute.TeamEditor(campingId, teamId).route)
                     },
                     onOpenGames = {
-                        navController.navigate(AppRoute.CampingTeams(campingId).route)
+                        navController.navigate(AppRoute.CampingGames(campingId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingGames,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                val viewModel: GameViewModel = hiltViewModel()
+                GamesRoute(
+                    campingId = campingId,
+                    camping = campingDetailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenGameDetail = { gameId ->
+                        navController.navigate(AppRoute.GameDetail(campingId, gameId).route)
+                    },
+                    onOpenGameEditor = { gameId ->
+                        navController.navigate(AppRoute.GameEditor(campingId, gameId).route)
+                    },
+                    onOpenPointHistory = {
+                        navController.navigate(AppRoute.PointHistory(campingId).route)
+                    },
+                )
+            }
+            // Games — register static editor route before dynamic {gameId}
+            composable(
+                route = AppRoutePattern.GameEditor,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val gamesEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingGames(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: GameViewModel =
+                    if (gamesEntry != null) hiltViewModel(gamesEntry) else hiltViewModel()
+                GameEditorRoute(
+                    campingId = campingId,
+                    gameId = null,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.GameEdit,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.GameId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val gameId = backStackEntry.stringArg(AppRouteArgs.GameId)
+                val gamesEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingGames(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: GameViewModel =
+                    if (gamesEntry != null) hiltViewModel(gamesEntry) else hiltViewModel()
+                GameEditorRoute(
+                    campingId = campingId,
+                    gameId = gameId,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.GameDetail,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.GameId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val gameId = backStackEntry.stringArg(AppRouteArgs.GameId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                val gamesEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingGames(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: GameViewModel =
+                    if (gamesEntry != null) hiltViewModel(gamesEntry) else hiltViewModel()
+                val teamViewModel: TeamViewModel = hiltViewModel()
+                LaunchedEffect(campingId) { teamViewModel.loadIfNeeded(campingId) }
+                val teams = teamViewModel.teams(campingId)
+                GameDetailRoute(
+                    gameId = gameId,
+                    campingId = campingId,
+                    camping = campingDetailState.camping,
+                    teams = teams,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenEditor = { id ->
+                        navController.navigate(AppRoute.GameEditor(campingId, id).route)
+                    },
+                    onOpenPointHistory = {
+                        navController.navigate(AppRoute.PointHistory(campingId).route)
                     },
                 )
             }
@@ -540,18 +666,59 @@ fun CampzoneNavigationShell(
                 route = AppRoutePattern.PointHistory,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
             ) { backStackEntry ->
-                DetailPlaceholderScreen(
-                    title = "Point history",
-                    value = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                val gamesEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingGames(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: GameViewModel =
+                    if (gamesEntry != null) hiltViewModel(gamesEntry) else hiltViewModel()
+                PointHistoryRoute(
+                    campingId = campingId,
+                    teamId = null,
+                    camping = campingDetailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(
                 route = AppRoutePattern.TeamPointHistory,
                 arguments = teamRouteArguments(),
             ) { backStackEntry ->
-                DetailPlaceholderScreen(
-                    title = "Point history",
-                    value = backStackEntry.stringArg(AppRouteArgs.TeamId),
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val teamId = backStackEntry.stringArg(AppRouteArgs.TeamId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                val gamesEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingGames(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: GameViewModel =
+                    if (gamesEntry != null) hiltViewModel(gamesEntry) else hiltViewModel()
+                PointHistoryRoute(
+                    campingId = campingId,
+                    teamId = teamId,
+                    camping = campingDetailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(

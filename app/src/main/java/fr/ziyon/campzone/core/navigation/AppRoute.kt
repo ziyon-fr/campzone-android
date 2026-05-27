@@ -253,6 +253,30 @@ sealed interface AppRoute {
             "${CampingDetail(campingId).route}/${AppRoutePath.Guidelines}"
     }
 
+    data class CampingGames(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Games}"
+    }
+
+    data class GameDetail(val campingId: String, val gameId: String) : AppRoute {
+        override val route = "${CampingGames(campingId).route}/${gameId.asRouteSegment()}"
+    }
+
+    data class GameEditor(
+        val campingId: String,
+        val gameId: String? = null,
+    ) : AppRoute {
+        override val route = buildString {
+            append(CampingGames(campingId).route)
+            append("/")
+            append(AppRoutePath.GameEditor)
+            val resolved = gameId?.takeUnless { it.isBlank() }
+            if (resolved != null) {
+                append("/")
+                append(resolved.asRouteSegment())
+            }
+        }
+    }
+
     companion object {
         val topLevelTabs: List<Tab> = listOf(Home, Campings, Announcements, Profile)
 
@@ -275,6 +299,7 @@ internal object AppRouteArgs {
     const val AttendeeId = "attendeeId"
     const val ProgramId = "programId"
     const val SongId = "songId"
+    const val GameId = "gameId"
 }
 
 internal object AppRoutePath {
@@ -307,6 +332,8 @@ internal object AppRoutePath {
     const val TeamEditor = "team-editor"
     const val Guidelines = "guidelines"
     const val AnnouncementComposer = "compose"
+    const val Games = "games"
+    const val GameEditor = "game-editor"
 }
 
 internal object AppRoutePattern {
@@ -342,6 +369,10 @@ internal object AppRoutePattern {
     const val SongDetail = "$CampingSongbook/{${AppRouteArgs.SongId}}"
     const val CampingGuidelines = "$CampingDetail/${AppRoutePath.Guidelines}"
     const val AnnouncementComposer = "${AppRoutePath.Announcements}/${AppRoutePath.AnnouncementComposer}"
+    const val CampingGames = "$CampingDetail/${AppRoutePath.Games}"
+    const val GameEditor = "$CampingGames/${AppRoutePath.GameEditor}"
+    const val GameEdit = "$GameEditor/{${AppRouteArgs.GameId}}"
+    const val GameDetail = "$CampingGames/{${AppRouteArgs.GameId}}"
 }
 
 private fun String.asRouteSegment(): String =

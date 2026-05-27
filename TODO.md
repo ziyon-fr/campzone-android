@@ -199,15 +199,15 @@
 - [ ] After team mutation: `POST /notifications/dispatch/team` (deferred to notification phase)
 - [ ] Auto-balance members (deferred)
 
-### C2. Games & Points (`ui/games/`)
+### C2. Games & Points (`ui/games/`) ✅
 
-- [ ] CRUD for `campings/{id}/games/{gameId}` — gate `canManageGames`
-- [ ] Game `updatedAt` is client `Date()` (not serverTimestamp)
-- [ ] Award points: write `activities/{activityId}` first, then mutate team doc
+- [x] CRUD for `campings/{id}/games/{gameId}` — gate `canManageGames`
+- [x] Game `updatedAt` is client `Date()` (not serverTimestamp)
+- [x] Award points: write `activities/{activityId}` first, then mutate team doc
   - Activity is immutable (`update: false`); `createdBy == auth.uid`; `campingID == path` (RBAC checked)
   - Negative team award → append positive-magnitude `penalties[]` entry (never decrement `points`)
   - User award → add delta to `members[i].personalScore`; rewrite full team doc + `memberUserIDs`
-- [ ] `activities` list: gate `canManageGames` or `canRevealWinners` or (approved participant + `visibility=="immediate"`)
+- [x] `activities` list: gate `canManageGames` or `canRevealWinners` or (approved participant + `visibility=="immediate"`)
 
 ### C3. Winner Reveal (`ui/games/reveal/`)
 
