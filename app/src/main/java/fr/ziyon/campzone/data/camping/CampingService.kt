@@ -29,12 +29,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import fr.ziyon.campzone.data.model.WinnerRevealPolicy
 
 /**
  * Read/write access to `campings/{id}` and its `registrations` subcollection
  * (`02-firestore-schema.md` §3). Mirrors the iOS `CampingServicing` contract.
  * All (de)serialization goes through the hand-mapped [Camping] / [CampingAttendee]
- * helpers — no POJO auto-mapping.
+ * helpers - no POJO auto-mapping.
  */
 interface CampingService {
     /** Live `campings` collection ordered by `startDate` (camping docs only, no attendees). */
@@ -59,8 +60,11 @@ interface CampingService {
     /** Hard delete (RBAC: creator or privileged manager). */
     suspend fun deleteCamping(id: String)
 
-    /** Guidelines update path — writes only `{ guidelines, updatedAt }`. */
+    /** Guidelines update path - writes only `{ guidelines, updatedAt }`. */
     suspend fun updateGuidelines(campingId: String, body: String): Camping
+
+    /** Winner-reveal path - writes only `{ winnerRevealPolicy, updatedAt }`. Gated by `canRevealWinners`. */
+    suspend fun updateWinnerReveal(campingId: String, policy: WinnerRevealPolicy): Camping
 
     /** B3 registration flow: writes registrations and ticketed transportation bookings in one batch. */
     suspend fun submitRegistrations(
@@ -69,7 +73,7 @@ interface CampingService {
         user: fr.ziyon.campzone.data.auth.AuthenticatedUser,
     ): Camping
 
-    /** Registration review path — writes only `{ registrationStatus, updatedAt }`. */
+    /** Registration review path - writes only `{ registrationStatus, updatedAt }`. */
     suspend fun updateRegistrationStatus(
         attendeeId: String,
         status: RegistrationApprovalStatus,
@@ -198,6 +202,13 @@ class FirebaseCampingService @Inject constructor(
                 CampingPayload.guidelinesPayload(body, FieldValue.serverTimestamp()),
                 SetOptions.merge(),
             )
+            .await()
+        return fetchCamping(campingId)
+    }
+
+    override suspend fun updateWinnerReveal(campingId: String, policy: WinnerRevealPolicy): Camping {
+        campings().document(campingId)
+            .update(CampingPayload.winnerRevealPolicyPayload(policy, FieldValue.serverTimestamp()))
             .await()
         return fetchCamping(campingId)
     }
@@ -472,4 +483,29 @@ class FirebaseCampingService @Inject constructor(
 abstract class CampingBindings {
     @Binds
     abstract fun bindCampingService(service: FirebaseCampingService): CampingService
+}
+
+/** Minimal in-memory [CampingService] for Compose previews and fakes in the main source set. */
+class PreviewCampingService(private val camping: Camping? = null) : CampingService {
+    override fun observeCampings() = kotlinx.coroutines.flow.flowOf(listOfNotNull(camping))
+    override suspend fun fetchCamping(id: String) = camping ?: error("No camping")
+    override suspend fun loadAttendees(campingId: String) = emptyList<fr.ziyon.campzone.data.model.CampingAttendee>()
+    override suspend fun saveCamping(c: Camping) = c
+    override suspend fun cancelCamping(id: String) = camping ?: error("No camping")
+    override suspend fun deleteCamping(id: String) = Unit
+    override suspend fun updateGuidelines(campingId: String, body: String) =
+        camping?.copy(guidelines = body) ?: error("No camping")
+    override suspend fun updateWinnerReveal(campingId: String, policy: WinnerRevealPolicy) =
+        camping?.copy(winnerRevealPolicy = policy) ?: error("No camping")
+    override suspend fun submitRegistrations(
+        submissions: List<fr.ziyon.campzone.data.model.RegistrationSubmission>,
+        campingId: String,
+        user: fr.ziyon.campzone.data.auth.AuthenticatedUser,
+    ) = camping ?: error("No camping")
+    override suspend fun updateRegistrationStatus(
+        attendeeId: String,
+        status: fr.ziyon.campzone.data.model.RegistrationApprovalStatus,
+        campingId: String,
+    ) = camping ?: error("No camping")
+    override suspend fun deleteAttendee(attendeeId: String, campingId: String) = camping ?: error("No camping")
 }

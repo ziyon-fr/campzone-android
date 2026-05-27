@@ -493,7 +493,7 @@ private fun FullScreenImageViewer(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit,
             )
-            // Close button — top-right
+            // Close button - top-right
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier

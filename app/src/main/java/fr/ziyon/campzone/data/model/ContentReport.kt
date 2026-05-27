@@ -22,7 +22,7 @@ data class ContentReport(
     val reviewedAt: Date? = null,
 )
 
-/** Brittle decode — throws [IllegalArgumentException] on any missing required field or unknown enum. */
+/** Brittle decode - throws [IllegalArgumentException] on any missing required field or unknown enum. */
 internal fun Map<String, Any?>.toContentReport(documentId: String): ContentReport {
     val target = ContentReportTarget.fromWire(stringValue("target"))
         ?: throw IllegalArgumentException("contentReport $documentId: missing/unknown target")

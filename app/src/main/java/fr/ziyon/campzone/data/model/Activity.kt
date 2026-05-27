@@ -3,7 +3,7 @@ package fr.ziyon.campzone.data.model
 import java.util.Date
 
 /**
- * `campings/{id}/activities/{activityId}` (`02-firestore-schema.md` §5.5) — an
+ * `campings/{id}/activities/{activityId}` (`02-firestore-schema.md` §5.5) - an
  * immutable audit record. Written full-set (`merge:false`); `update` is
  * forbidden by RBAC. Create requires `campingID == path` and
  * `createdBy == auth.uid`. `points` is signed (negative = penalty/correction).

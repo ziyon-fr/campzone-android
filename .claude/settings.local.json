@@ -57,7 +57,8 @@
       "Bash(./gradlew lint *)",
       "Bash(./gradlew :app:compileDebugKotlin --no-daemon)",
       "Bash(find /Users/leon/.gradle -name \"material-icons-*.jar\" 2>/dev/null | head -5)",
-      "Bash(./gradlew :app:assembleDebug --no-daemon)"
+      "Bash(./gradlew :app:assembleDebug --no-daemon)",
+      "Bash(JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ./gradlew :app:compileDebugKotlin)"
     ]
   }
 }

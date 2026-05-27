@@ -21,7 +21,7 @@ class UserSubEntitiesTest {
         )
         assertEquals("first_camp", payload["id"])
         assertEquals(TS, payload["earnedAt"])
-        // explicit null (key present, value null) — not omitted, not deleted
+        // explicit null (key present, value null) - not omitted, not deleted
         assertTrue(payload.containsKey("campingID"))
         assertNull(payload["campingID"])
         assertTrue(payload.containsKey("note"))

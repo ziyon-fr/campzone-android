@@ -286,7 +286,7 @@ fun AnnouncementComposerScreen(
                     modifier = Modifier.padding(horizontal = CzSpacing.base),
                 )
 
-                // Body — Write or Preview
+                // Body - Write or Preview
                 if (bodyPreviewMode) {
                     Box(
                         modifier = Modifier

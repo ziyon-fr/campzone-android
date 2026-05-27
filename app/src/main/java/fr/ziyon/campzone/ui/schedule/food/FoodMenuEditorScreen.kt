@@ -216,7 +216,7 @@ fun FoodMenuEditorScreen(
                     color = colors.divider,
                 )
 
-                // Meal picker — horizontal row of 4 chips
+                // Meal picker - horizontal row of 4 chips
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()

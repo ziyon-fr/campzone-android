@@ -5,7 +5,7 @@ import java.util.Date
 /**
  * `campings/{id}/songs/{songId}` (`02-firestore-schema.md` §7.7). `audio` is
  * delete-when-empty; `audioFiles` falls back to `[audio]` on read. `chordSheet`
- * is always written (parsed/empty). The stored `originalKey` is **lossy** — only
+ * is always written (parsed/empty). The stored `originalKey` is **lossy** - only
  * a known set decodes back, everything else collapses to C major.
  */
 data class Song(

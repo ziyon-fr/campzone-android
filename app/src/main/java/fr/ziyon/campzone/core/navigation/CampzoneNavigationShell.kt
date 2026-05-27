@@ -50,6 +50,8 @@ import fr.ziyon.campzone.ui.camping.registrations.AttendeeProfileRoute
 import fr.ziyon.campzone.ui.camping.registrations.CampingAttendeesRoute
 import fr.ziyon.campzone.ui.camping.registrations.RegistrationReviewRoute
 import fr.ziyon.campzone.ui.camping.register.CampingRegistrationRoute
+import fr.ziyon.campzone.ui.chat.CampingChatRoute
+import fr.ziyon.campzone.ui.chat.TeamChatRoute
 import fr.ziyon.campzone.ui.family.FamilyParticipantsScreen
 import fr.ziyon.campzone.ui.home.HomeRoute
 import fr.ziyon.campzone.ui.payments.CampingRegistrationPaymentRoute
@@ -67,6 +69,7 @@ import fr.ziyon.campzone.ui.games.GameEditorRoute
 import fr.ziyon.campzone.ui.games.GameViewModel
 import fr.ziyon.campzone.ui.games.GamesRoute
 import fr.ziyon.campzone.ui.games.PointHistoryRoute
+import fr.ziyon.campzone.ui.games.WinnerRevealRoute
 import fr.ziyon.campzone.ui.teams.TeamDetailRoute
 import fr.ziyon.campzone.ui.teams.TeamEditorRoute
 import fr.ziyon.campzone.ui.teams.TeamViewModel
@@ -398,12 +401,27 @@ fun CampzoneNavigationShell(
                 route = AppRoutePattern.CampingChat,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
             ) { backStackEntry ->
-                DetailPlaceholderScreen(
-                    title = "Camping chat",
-                    value = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                LaunchedEffect(campingId, authenticatedUser.uid) {
+                    campingDetailVm.load(campingId, authenticatedUser)
+                }
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                CampingChatRoute(
+                    campingId = campingId,
+                    camping = campingDetailState.camping,
+                    attendees = campingDetailState.attendees,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
                 )
             }
-            // Teams — register TeamEditor before TeamDetail so "team-editor" is not matched as {teamId}
+            // Teams - register TeamEditor before TeamDetail so "team-editor" is not matched as {teamId}
             composable(
                 route = AppRoutePattern.TeamEditor,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
@@ -561,9 +579,12 @@ fun CampzoneNavigationShell(
                     onOpenPointHistory = {
                         navController.navigate(AppRoute.PointHistory(campingId).route)
                     },
+                    onOpenRevealSettings = {
+                        navController.navigate(AppRoute.WinnerReveal(campingId).route)
+                    },
                 )
             }
-            // Games — register static editor route before dynamic {gameId}
+            // Games - register static editor route before dynamic {gameId}
             composable(
                 route = AppRoutePattern.GameEditor,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
@@ -608,6 +629,35 @@ fun CampzoneNavigationShell(
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() },
                     onSaved = { navController.popBackStack() },
+                )
+            }
+            // WinnerReveal - static sub-route, must be before dynamic {gameId}
+            composable(
+                route = AppRoutePattern.WinnerReveal,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                val gamesEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingGames(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: GameViewModel =
+                    if (gamesEntry != null) hiltViewModel(gamesEntry) else hiltViewModel()
+                WinnerRevealRoute(
+                    campingId = campingId,
+                    camping = campingDetailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(
@@ -657,9 +707,41 @@ fun CampzoneNavigationShell(
                 route = AppRoutePattern.TeamChat,
                 arguments = teamRouteArguments(),
             ) { backStackEntry ->
-                DetailPlaceholderScreen(
-                    title = "Team chat",
-                    value = backStackEntry.stringArg(AppRouteArgs.TeamId),
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val teamId = backStackEntry.stringArg(AppRouteArgs.TeamId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                LaunchedEffect(campingId, authenticatedUser.uid) {
+                    campingDetailVm.load(campingId, authenticatedUser)
+                }
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+
+                val teamsEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingTeams(campingId).route)
+                    }.getOrNull()
+                }
+                val teamViewModel: TeamViewModel =
+                    if (teamsEntry != null) hiltViewModel(teamsEntry) else hiltViewModel()
+                LaunchedEffect(campingId) {
+                    teamViewModel.loadIfNeeded(campingId)
+                }
+                val teamsState by teamViewModel.uiState.collectAsState()
+                val team = remember(teamsState, teamId, campingId) {
+                    teamViewModel.team(teamId, campingId)
+                }
+                TeamChatRoute(
+                    campingId = campingId,
+                    teamId = teamId,
+                    camping = campingDetailState.camping,
+                    team = team,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(
@@ -836,7 +918,7 @@ fun CampzoneNavigationShell(
                     onBack = { navController.popBackStack() },
                 )
             }
-            // Food menu — register editor BEFORE the food menu list so it doesn't match as list
+            // Food menu - register editor BEFORE the food menu list so it doesn't match as list
             composable(
                 route = AppRoutePattern.CampingFoodMenuEditor,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
@@ -869,7 +951,7 @@ fun CampzoneNavigationShell(
                     },
                 )
             }
-            // Songbook — register editor before dynamic {songId}
+            // Songbook - register editor before dynamic {songId}
             composable(
                 route = AppRoutePattern.SongEditor,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),

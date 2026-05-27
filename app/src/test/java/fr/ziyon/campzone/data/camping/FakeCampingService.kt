@@ -2,6 +2,7 @@ package fr.ziyon.campzone.data.camping
 
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
+import fr.ziyon.campzone.data.model.WinnerRevealPolicy
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.RegistrationSubmission
@@ -64,6 +65,12 @@ class FakeCampingService(
 
     override suspend fun updateGuidelines(campingId: String, body: String): Camping {
         val updated = fetchCamping(campingId).copy(guidelines = body)
+        campings.value = campings.value.map { if (it.id == campingId) updated else it }
+        return updated
+    }
+
+    override suspend fun updateWinnerReveal(campingId: String, policy: WinnerRevealPolicy): Camping {
+        val updated = fetchCamping(campingId).copy(winnerRevealPolicy = policy)
         campings.value = campings.value.map { if (it.id == campingId) updated else it }
         return updated
     }

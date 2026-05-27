@@ -24,7 +24,7 @@ class CampingAttendeePayloadTest {
         assertEquals("own_car", payload["transportationChoice"])
         assertEquals("pending", payload["registrationStatus"])
         assertEquals(TS, payload["createdAt"])
-        // backend settles payment — never written by the client on create
+        // backend settles payment - never written by the client on create
         assertFalse(payload.containsKey("paymentStatus"))
         // omit-when-nil optionals absent
         assertFalse(payload.containsKey("gender"))

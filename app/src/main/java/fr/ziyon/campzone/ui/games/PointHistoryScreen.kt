@@ -48,6 +48,7 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.games.FakeGameService
 import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.camping.PreviewCampingService
 import fr.ziyon.campzone.data.teams.FakeTeamService
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
@@ -268,7 +269,7 @@ private fun PointHistoryScreenPreview() {
                 role = UserRole.Admin, church = "Central SDA", age = 30,
                 preferredLanguage = "en", gender = null, onboardingCompleted = true,
             ),
-            viewModel = GameViewModel(FakeGameService(), FakeTeamService()),
+            viewModel = GameViewModel(FakeGameService(), FakeTeamService(), PreviewCampingService()),
             onBack = {},
         )
     }

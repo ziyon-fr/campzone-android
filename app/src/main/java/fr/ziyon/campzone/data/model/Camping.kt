@@ -5,7 +5,7 @@ import java.util.Date
 /**
  * `campings/{campingId}` (`02-firestore-schema.md` §3). Doc ID is the
  * client-supplied [id]. The camping doc is written via a hand-built payload
- * ([CampingPayload]) — never an auto-encoder — and never carries `attendees`
+ * ([CampingPayload]) - never an auto-encoder - and never carries `attendees`
  * (those live in the `registrations` subcollection). `guidelines` and
  * `winnerRevealPolicy` are written only by their dedicated paths.
  */

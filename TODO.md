@@ -1,4 +1,4 @@
-# Campzone Android — Build TODO
+# Campzone Android - Build TODO
 
 > Derived from `docs/` (read 01–09). Build phases mirror `08-feature-parity.md`.
 > Cross-cutting rules (full CRUD, RBAC gates, data contract) apply to every task.
@@ -6,11 +6,11 @@
 
 ---
 
-## Phase A — Foundation
+## Phase A - Foundation
 
 ### A1. Project & Gradle Setup ✅
 
-- [x] Finalize application ID — `fr.ziyon.campzone` (already set, matches Firebase Android app)
+- [x] Finalize application ID - `fr.ziyon.campzone` (already set, matches Firebase Android app)
 - [x] Add Gradle version catalog (`gradle/libs.versions.toml`) entries:
   - Firebase BoM 33.7.0 + `firebase-auth-ktx`, `firebase-firestore-ktx`, `firebase-messaging-ktx`, `firebase-analytics-ktx`
   - Navigation-Compose 2.8.5
@@ -28,15 +28,15 @@
 ### A2. Firebase & Firestore Init ✅
 
 - [x] Initialize Firebase in `CampzoneApp` (Application class); Hilt `@HiltAndroidApp`
-- [x] Enable Firestore **disk persistence** (`setLocalCacheSettings(persistentLocalCache(...))`) for offline parity — songbook/schedule/camp program prioritized
+- [x] Enable Firestore **disk persistence** (`setLocalCacheSettings(persistentLocalCache(...))`) for offline parity - songbook/schedule/camp program prioritized
 - [x] Configure Firebase Auth providers: **Google** (Credential Manager / Google Identity) + **Apple** (`OAuthProvider("apple.com")` web flow)
 - [x] Register SHA-1/SHA-256 signing certs for Google Sign-In in the Firebase console
 
 ### A3. Design System (`core/designsystem/`) ✅
 
-- [x] `CzColors` object — all semantic light/dark token pairs from `06-design-tokens.md` (ember palette, pine greens, cream neutrals)
-- [x] `CzSpacing` object — xs=4·sm=8·md=12·base=16·lg=20·xl=24·xxl=32·xxxl=48 (all dp)
-- [x] `CzRadius` object — xs=4·sm=8·md=12·lg=16·xl=20·xxl=24·full=999 (all dp)
+- [x] `CzColors` object - all semantic light/dark token pairs from `06-design-tokens.md` (ember palette, pine greens, cream neutrals)
+- [x] `CzSpacing` object - xs=4·sm=8·md=12·base=16·lg=20·xl=24·xxl=32·xxxl=48 (all dp)
+- [x] `CzRadius` object - xs=4·sm=8·md=12·lg=16·xl=20·xxl=24·full=999 (all dp)
 - [x] Rounded `Typography` (Nunito or Varela Round) matching 10 iOS type scales in `sp`
 - [x] `CampzoneTheme` composable wiring Material3 `ColorScheme`, typography, shapes; swap light/dark via `isSystemInDarkTheme()`
 - [x] Core reusable components (mirror iOS `Cz*` set): `CzButton`, `CzCard`, `CzTextField`, `CzBadge`, `CzEmptyState`, `CzErrorState`, `CzLoadingView`, `CzAvatar`, `CzSectionHeader`
@@ -44,7 +44,7 @@
 
 ### A4. Navigation Shell (`core/navigation/`) ✅
 
-- [x] `AppRoute` sealed hierarchy (typed routes, no raw strings) — 4 tabs: Home, Campings, Announcements, Profile
+- [x] `AppRoute` sealed hierarchy (typed routes, no raw strings) - 4 tabs: Home, Campings, Announcements, Profile
 - [x] Single-Activity `MainActivity` with Compose `NavHost`
 - [x] Intent filter for `campzone://` deep-link scheme; park cold-start links until auth/nav is ready (see `05-deep-linking.md`)
 - [x] Bottom navigation with 4 tabs; push feature screens via typed routes
@@ -58,14 +58,14 @@
 ### A6. Auth & Session (`ui/auth/`) ✅
 
 - [x] Sign-in screen: Google + Apple buttons ( follow iOS design)
-- [x] On first sign-in: create `users/{uid}` doc with `role: "guest"`, `createdAt: serverTimestamp()`, `onboardingCompleted: false` — **merge: true**; do not overwrite existing `email`/`displayName`/`photoURL`
+- [x] On first sign-in: create `users/{uid}` doc with `role: "guest"`, `createdAt: serverTimestamp()`, `onboardingCompleted: false` - **merge: true**; do not overwrite existing `email`/`displayName`/`photoURL`
 - [x] Session state: `StateFlow<AuthState>` (signed-out / onboarding-incomplete / signed-in)
 - [x] Sign-out clears local session; navigates to auth screen
 
 ### A7. Onboarding (`ui/onboarding/`) ✅
 
 - [x] Collect: age (derive `ageGroup`), church, preferred language, gender
-- [x] Write `users/{uid}` with `onboardingCompleted: true`, `languages: [preferredLanguage]` (single element) — **merge: true**
+- [x] Write `users/{uid}` with `onboardingCompleted: true`, `languages: [preferredLanguage]` (single element) - **merge: true**
 - [x] Apply `07` pre-write checklist: `age`/`ageGroup`/`gender` are **delete-when-nil** if blank; no extra keys
 - [x] Gate: show onboarding when `onboardingCompleted == false`; request FCM permission **after** onboarding completes (not at launch)
 
@@ -79,7 +79,7 @@
 
 ### A9. Family Participants / Children (`ui/family/`) ✅
 
-- [x] CRUD for `users/{uid}/children/{childId}` — role `adult`/`admin` gate
+- [x] CRUD for `users/{uid}/children/{childId}` - role `adult`/`admin` gate
 - [x] Doc ID: client UUID (stable, mirrored in `id` field)
 - [x] Required fields: `id`, `guardianID`, `displayName`, `age`, `gender`, `church`, `preferredLanguage`, `emergencyContactName`, `emergencyContactPhone`
 - [x] `ageGroup` derived from `age`; `guardianConsentAt` delete-when-nil
@@ -88,14 +88,14 @@
 
 ### A10. Data Models (`data/model/`) ✅
 
-- [x] Kotlin `data class`es for every entity in `02-firestore-schema.md` — exact wire field names, enum raw strings, nullability
+- [x] Kotlin `data class`es for every entity in `02-firestore-schema.md` - exact wire field names, enum raw strings, nullability
 - [x] Enum classes with explicit raw string values (copy **exactly** from `02` §8; case-sensitive)
 - [x] **No POJO auto-mapping** (`toObject<T>()` forbidden); all (de)serialization via `Map<String, Any?>` in the service layer
 - [x] Unit-test: serialize → deserialize round-trip against Firestore fixtures for every model
 
 ---
 
-## Phase B — Core Content
+## Phase B - Core Content
 
 ### B1. Campings List & Detail (`ui/campings/`) ✅
 
@@ -108,7 +108,7 @@
 ### B2. Admin: Create / Edit / Cancel Camping (`ui/campings/admin/`) ✅
 
 - [x] Gate: `canCreateCamping` / `canEditCamping` / `canCancelCamping` from permission evaluator
-- [x] Write camping via hand-built `Map<String, Any?>` (never auto-encode) — exact fields from `02` §3
+- [x] Write camping via hand-built `Map<String, Any?>` (never auto-encode) - exact fields from `02` §3
 - [x] Required: `title`, `description`, `startDate`, `endDate`, `organizerLevel ({type,value})`, `location`, `registrationStatus`
 - [x] Optional delete-when-nil: `locationLatitude`, `locationLongitude`, `participantCapacity`, `logoURL`, `logoPublicID`, `registrationFeeCents`, `feeCurrency`
 - [x] Always write (may be empty `[]`): `priceItems`, `agePrices`, `transportationOptions`
@@ -143,7 +143,7 @@
 - [x] Display: grouped by day (`CampDay`); program cards with type icon, time, location
 - [x] Admin editor: create/edit/delete programs and days
   - Program save: upsert `schedule/config`, **delete** old day doc if day changed, upsert day, upsert program; prune empty untitled days
-  - **Always recompute `campDayID`** from `startDate` — never trust inbound value
+  - **Always recompute `campDayID`** from `startDate` - never trust inbound value
   - Day doc ID: `"<campingID>-day-<yyyy-MM-dd>"` (gregorian, en_US_POSIX, local TZ)
   - `venuePointID` delete-when-empty
 - [x] Reminder timing: write `schedule/config.reminderTiming` (`ScheduleReminderTiming` raw); call `POST /notifications/reminders`
@@ -151,7 +151,7 @@
 
 ### B6. Food Menu + Menu↔Program Sync (`ui/schedule/food/`) ✅
 
-- [x] CRUD for `campings/{id}/foodMenu/{entryId}` — doc ID: `"<yyyy-MM-dd>-<meal>"` (gregorian, en_US_POSIX, local TZ)
+- [x] CRUD for `campings/{id}/foodMenu/{entryId}` - doc ID: `"<yyyy-MM-dd>-<meal>"` (gregorian, en_US_POSIX, local TZ)
 - [x] Gate: `canManageFoodMenu` (== schedule manager)
 - [x] **Menu↔Program two-way sync** (`02` §4.5): on every save, write **both** the food menu doc and the generated program (`"menu-<menuId>"`)
   - Entry→Program: `title`/`type`/`description` always regenerated from menu; preserve existing `startDate`/`endDate`/`location` if program already exists
@@ -162,7 +162,7 @@
 
 - [x] List screen: read `announcements` ordered `createdAt` desc, limit 100
 - [x] Detail screen: render markdown `body`; show attachments (image/PDF)
-- [x] Admin composer: create/edit — gate `canEditAnnouncements`; delete gate `admin` only
+- [x] Admin composer: create/edit - gate `canEditAnnouncements`; delete gate `admin` only
 - [x] Image/PDF attachment upload: `POST /cloudinary/sign` → upload; write `storagePath` (Cloudinary public_id) + `downloadURL` (secure_url); empty string `""` when nil (not omitted)
 - [x] `notificationTargetRoleRawValue`: write as `""` when none (not omitted)
 - [x] After save: `POST /notifications/dispatch/announcement`
@@ -186,13 +186,13 @@
 
 ---
 
-## Phase C — Engagement
+## Phase C - Engagement
 
 ### C1. Teams (`ui/teams/`) ✅
 
 - [x] List + ranking: read `campings/{id}/teams`; compute `totalScore = points + Σmembers[].personalScore − Σpenalties[].points` on read (never stored)
 - [x] Detail: members list, captain/vice-captain roles, scores, penalties
-- [x] Admin: create/edit/delete teams — gate `canManageTeams`
+- [x] Admin: create/edit/delete teams - gate `canManageTeams`
 - [x] Every team write **rewrites full doc** + derives `memberUserIDs = members[].userID` (RBAC-critical for team chat)
 - [x] `photoURL`/`photoPublicID` delete-when-empty; upload via Cloudinary
 - [x] Captain/vice-captain: at most one each (client-enforced via `normalizeCaptaincy()`); per-member `role` field
@@ -201,7 +201,7 @@
 
 ### C2. Games & Points (`ui/games/`) ✅
 
-- [x] CRUD for `campings/{id}/games/{gameId}` — gate `canManageGames`
+- [x] CRUD for `campings/{id}/games/{gameId}` - gate `canManageGames`
 - [x] Game `updatedAt` is client `Date()` (not serverTimestamp)
 - [x] Award points: write `activities/{activityId}` first, then mutate team doc
   - Activity is immutable (`update: false`); `createdBy == auth.uid`; `campingID == path` (RBAC checked)
@@ -209,28 +209,28 @@
   - User award → add delta to `members[i].personalScore`; rewrite full team doc + `memberUserIDs`
 - [x] `activities` list: gate `canManageGames` or `canRevealWinners` or (approved participant + `visibility=="immediate"`)
 
-### C3. Winner Reveal (`ui/games/reveal/`)
+### C3. Winner Reveal (`ui/games/reveal/`) ✅
 
-- [ ] Gate: `canRevealWinners`
-- [ ] Write only `winnerRevealPolicy` via dedicated update path — forbidden in normal camp edit
-- [ ] `winnerRevealPolicy.isRevealed` required if map is present
+- [x] Gate: `canRevealWinners`
+- [x] Write only `winnerRevealPolicy` via dedicated update path - forbidden in normal camp edit
+- [x] `winnerRevealPolicy.isRevealed` required if map is present
 
 ### C4. Chat (`ui/chat/`)
 
-- [ ] Camping-wide chat: `campings/{id}/chat` — read gate: approved participant or moderator
-- [ ] Team chat: `campings/{id}/teams/{teamId}/chat` — read gate: team member or `canModerateTeamChat`
+- [ ] Camping-wide chat: `campings/{id}/chat` - read gate: approved participant or moderator
+- [ ] Team chat: `campings/{id}/teams/{teamId}/chat` - read gate: team member or `canModerateTeamChat`
 - [ ] Send: full `set` (no merge); `senderID == auth.uid`; `campingID == path`; text cap 500 chars (server cap 2000)
 - [ ] `teamID` written only in team chat
 - [ ] Soft delete: write `{ isDeleted: true, deletedByID, deletedAt: serverTimestamp() }`; display `"Message removed"`; keep doc
 - [ ] Pin: `updateData({ pinned: true })`; gate moderator
 - [ ] Report: create `contentReports` doc (see C8)
-- [ ] Block user: write `users/{uid}/blockedUsers/{blockedUid}` (`blockedAt` Timestamp only — no Date fallback on read)
+- [ ] Block user: write `users/{uid}/blockedUsers/{blockedUid}` (`blockedAt` Timestamp only - no Date fallback on read)
 - [ ] After send: `POST /notifications/dispatch/chat`
 
 ### C5. Polls (`ui/polls/`)
 
 - [ ] List/create: gate `canManagePolls`; participants see list when approved
-- [ ] Vote: transactional — decrement old option `voteCount`, increment new, write `votes/{auth.uid}`, update poll `options`
+- [ ] Vote: transactional - decrement old option `voteCount`, increment new, write `votes/{auth.uid}`, update poll `options`
 - [ ] `poll.createdAt` / `closesAt` are **client `Date()`** (not serverTimestamp); `closesAt` written as explicit Firestore `null` when none
 - [ ] `votes/{voterId}` doc ID == voter uid (one per voter; re-vote overwrites)
 - [ ] After create/close/reopen: `POST /notifications/dispatch/poll`
@@ -247,7 +247,7 @@
 
 - [ ] Read-only display of `users/{uid}/badges/{achievementId}`
 - [ ] Filter by `AchievementCatalog` in-code (50 badges; unknown ids filtered out)
-- [ ] Catalog rarity/awardKind embedded in app — not in Firestore
+- [ ] Catalog rarity/awardKind embedded in app - not in Firestore
 - [ ] `campingID` and `note` are explicit Firestore `null` when absent (not omitted)
 - [ ] Manual award: gate `canAwardAchievements`; write to `users/{targetUid}/badges/{achievementId}` (RBAC asserts `request.auth.uid != uid`)
 
@@ -260,16 +260,16 @@
 
 ### C9. Content Moderation (`ui/admin/moderation/`)
 
-- [ ] Report: create `contentReports/{uuid}` (full set, no merge); all required fields must be present — **brittle reader** (admin list aborts on missing field or unknown enum)
+- [ ] Report: create `contentReports/{uuid}` (full set, no merge); all required fields must be present - **brittle reader** (admin list aborts on missing field or unknown enum)
 - [ ] `target` enum: `announcement`/`camping`/`chatMessage` (**camelCase**)
 - [ ] Admin queue: read + update status (`dismissed`/`resolved`); gate `canModerateContent`
 
 ### C10. Notifications (`core/notifications/`)
 
 - [ ] `FirebaseMessagingService`: get FCM token; on token refresh, write to **both**:
-  1. Firestore `users/{uid}/notificationTokens/{sha256hex}` — doc ID = lowercase hex SHA-256 of the raw token; `platform: "android"`
+  1. Firestore `users/{uid}/notificationTokens/{sha256hex}` - doc ID = lowercase hex SHA-256 of the raw token; `platform: "android"`
   2. `POST /notifications/devices` with `appID: "campzone"`, `platform: "android"` + user role + locale
-- [ ] Notification settings screen: read/write `users/{uid}/notificationSettings/default` **and** call `POST /notifications/settings` (both required — API call drives FCM topic subscription)
+- [ ] Notification settings screen: read/write `users/{uid}/notificationSettings/default` **and** call `POST /notifications/settings` (both required - API call drives FCM topic subscription)
 - [ ] `subscribedRoleRawValues` (not `subscribedRoles`) stored in Firestore; trimmed, deduped, sorted
 - [ ] In-app notification feed: read `ziyon_notifications` filtered by `appID == "campzone"` + visible topics; sorted `sentAt` desc; `sentAt` is ISO-8601 string (also accepts Timestamp/Date)
 - [ ] Deep link handler in `MainActivity`: parse FCM data payload → `campzone://` route per `05-deep-linking.md`; park until auth/nav ready
@@ -281,7 +281,7 @@
 
 ---
 
-## Phase D — Operations & Growth
+## Phase D - Operations & Growth
 
 ### D1. Transportation Tickets (`ui/transportation/`)
 
@@ -302,7 +302,7 @@
 
 ### D3. Lodging (`ui/lodging/`)
 
-- [ ] CRUD for `campings/{id}/lodging/{unitId}` — gate `canManageTeams`
+- [ ] CRUD for `campings/{id}/lodging/{unitId}` - gate `canManageTeams`
 - [ ] Read: signed-in users
 - [ ] Occupancy denormalized into `occupantIDs[]` on the unit doc (no separate assignment collection)
 - [ ] Gender policy filter: `any`/`male`/`female`/`family`
@@ -409,8 +409,8 @@ B8 Songbook
 B9 Guidelines
 
 C1 Teams ✅
-C2 Games + points
-C3 Winner reveal
+C2 Games + points ✅
+C3 Winner reveal ✅
 C4 Chat (camping + team)
 C5 Polls
 C6 QR check-in

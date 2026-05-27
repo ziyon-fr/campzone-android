@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.games.GameService
 import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Camping
@@ -16,6 +17,7 @@ import fr.ziyon.campzone.data.model.PointRuleTarget
 import fr.ziyon.campzone.data.model.PointRuleVisibility
 import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.TeamPenalty
+import fr.ziyon.campzone.data.model.WinnerRevealPolicy
 import fr.ziyon.campzone.data.teams.TeamScoreRequest
 import fr.ziyon.campzone.data.teams.TeamService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +60,7 @@ data class ActivityRequest(
 class GameViewModel @Inject constructor(
     private val gameService: GameService,
     private val teamService: TeamService,
+    private val campingService: CampingService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<GamesUiState>(GamesUiState.Loading)
@@ -74,6 +77,8 @@ class GameViewModel @Inject constructor(
     var isSaving by mutableStateOf(false)
     var isAwarding by mutableStateOf(false)
     var isResetting by mutableStateOf(false)
+    var isUpdatingReveal by mutableStateOf(false)
+        private set
     var operationMessage by mutableStateOf<String?>(null)
     var operationError by mutableStateOf<String?>(null)
 
@@ -350,6 +355,61 @@ class GameViewModel @Inject constructor(
             isResetting = false
         }.getOrDefault(false)
     }
+
+    // region Winner reveal
+
+    /**
+     * Writes `winnerRevealPolicy` via the dedicated update path (forbidden in normal camp edit).
+     * Returns the saved policy on success, null on failure.
+     */
+    suspend fun updateRevealPolicy(campingId: String, policy: WinnerRevealPolicy): WinnerRevealPolicy? {
+        isUpdatingReveal = true
+        operationError = null
+        return runCatching {
+            val camping = campingService.updateWinnerReveal(campingId, policy)
+            operationMessage = "Reveal settings updated."
+            camping.winnerRevealPolicy
+        }.getOrElse { e ->
+            operationError = e.message ?: "Failed to update reveal settings."
+            null
+        }.also { isUpdatingReveal = false }
+    }
+
+    /** Flip `isRevealed = true` and stamp the actor's uid/name/timestamp. */
+    suspend fun reveal(
+        campingId: String,
+        currentPolicy: WinnerRevealPolicy?,
+        actor: AuthenticatedUser,
+    ): WinnerRevealPolicy? {
+        val policy = (currentPolicy ?: WinnerRevealPolicy(isRevealed = false)).copy(
+            isRevealed = true,
+            revealedBy = actor.uid,
+            revealedByName = actor.displayName,
+            revealedAt = Date(),
+        )
+        return updateRevealPolicy(campingId, policy)
+    }
+
+    /**
+     * Undo a reveal - clears isRevealed, sets hideDate=now so scores
+     * immediately re-hide, and clears any auto-revealDate that has already fired.
+     */
+    suspend fun unreveal(campingId: String, currentPolicy: WinnerRevealPolicy?): WinnerRevealPolicy? {
+        val now = Date()
+        val base = currentPolicy ?: WinnerRevealPolicy(isRevealed = false)
+        val clearedRevealDate = if (base.revealDate != null && now >= base.revealDate) null else base.revealDate
+        val policy = base.copy(
+            isRevealed = false,
+            revealedBy = null,
+            revealedByName = null,
+            revealedAt = null,
+            revealDate = clearedRevealDate,
+            hideDate = now,
+        )
+        return updateRevealPolicy(campingId, policy)
+    }
+
+    // endregion
 
     private fun validate(): List<GameValidationError> = buildList {
         if (form.name.isBlank()) add(GameValidationError.NameRequired)

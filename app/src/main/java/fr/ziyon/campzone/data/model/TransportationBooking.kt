@@ -76,7 +76,7 @@ internal fun Map<String, Any?>.toTransportationBookingOrNull(documentId: String)
 
 internal object TransportationBookingPayload {
 
-    /** Create — RBAC requires the `unpaid` / `not_boarded` literals. */
+    /** Create - RBAC requires the `unpaid` / `not_boarded` literals. */
     fun createPayload(
         booking: TransportationBooking,
         serverTimestamp: Any,

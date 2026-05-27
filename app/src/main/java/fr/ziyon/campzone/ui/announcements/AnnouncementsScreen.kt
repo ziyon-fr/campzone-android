@@ -484,7 +484,7 @@ private fun AnnouncementTimelineRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
     ) {
-        // Amber circle icon — brighter when unread
+        // Amber circle icon - brighter when unread
         Box(
             modifier = Modifier
                 .size(36.dp)

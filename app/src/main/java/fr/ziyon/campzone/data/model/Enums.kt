@@ -2,7 +2,7 @@ package fr.ziyon.campzone.data.model
 
 /**
  * Firestore enum raw values from `02-firestore-schema.md` §8. Raw strings are
- * **case-sensitive** and copied verbatim — a single drift (e.g. `providedBus`
+ * **case-sensitive** and copied verbatim - a single drift (e.g. `providedBus`
  * vs `provided_bus`) silently corrupts cross-platform data or trips a Security
  * Rule. Reused from elsewhere: [fr.ziyon.campzone.core.permissions.UserRole],
  * [fr.ziyon.campzone.data.auth.UserGender],
@@ -93,7 +93,7 @@ enum class TransportationBoardingStatus(val wireValue: String) {
     }
 }
 
-/** `transportationOptions[].mode` — **camelCase** raws. */
+/** `transportationOptions[].mode` - **camelCase** raws. */
 enum class TransportationMode(val wireValue: String) {
     Bus("bus"),
     Coach("coach"),
@@ -149,7 +149,7 @@ enum class TransportationMode(val wireValue: String) {
     }
 }
 
-/** `priceItems[].paymentOptions[]` — **camelCase** raws. */
+/** `priceItems[].paymentOptions[]` - **camelCase** raws. */
 enum class CampingPaymentOption(val wireValue: String) {
     CardOneTime("cardOneTime"),
     CardInstallments("cardInstallments"),
@@ -256,14 +256,14 @@ enum class AnnouncementAttachmentKind(val wireValue: String) {
     }
 }
 
-/** contentReport `target` — **camelCase** `chatMessage` (unlike notification `chat_message`). */
+/** contentReport `target` - **camelCase** `chatMessage` (unlike notification `chat_message`). */
 enum class ContentReportTarget(val wireValue: String) {
     Announcement("announcement"),
     Camping("camping"),
     ChatMessage("chatMessage");
 
     companion object {
-        /** Null on unknown — `contentReports` is a brittle read (drop whole list). */
+        /** Null on unknown - `contentReports` is a brittle read (drop whole list). */
         fun fromWire(value: String?): ContentReportTarget? =
             entries.firstOrNull { it.wireValue == value }
     }

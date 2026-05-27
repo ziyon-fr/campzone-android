@@ -3,7 +3,7 @@ package fr.ziyon.campzone.data.model
 import java.util.Date
 
 /**
- * `campings/{id}/venueMap/config` (`02-firestore-schema.md` §7.4) — single doc,
+ * `campings/{id}/venueMap/config` (`02-firestore-schema.md` §7.4) - single doc,
  * ID literal `config`. `imageURL`/`imagePublicID` are delete-when-empty. A pin
  * may carry an image position (0…1), a real coordinate, both, or neither.
  */

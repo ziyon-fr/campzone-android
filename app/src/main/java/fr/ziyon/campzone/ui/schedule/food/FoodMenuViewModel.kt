@@ -50,7 +50,7 @@ data class FoodMenuEntryForm(
         get() = if (!isValid) "Add at least one dish." else null
 }
 
-/** Grouped by calendar day — mirrors iOS `FoodMenuDaySection`. */
+/** Grouped by calendar day - mirrors iOS `FoodMenuDaySection`. */
 data class FoodMenuDaySection(
     val id: String,
     val date: Date,

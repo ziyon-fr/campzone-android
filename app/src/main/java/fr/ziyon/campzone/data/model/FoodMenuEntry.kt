@@ -7,7 +7,7 @@ import java.util.TimeZone
 /**
  * `campings/{id}/foodMenu/{entryId}` (`02-firestore-schema.md` §4.4). Doc ID is
  * deterministic: `"<yyyy-MM-dd>-<meal>"` (see [DateKeys.foodMenuId]). Not
- * Codable on iOS — hand-mapped here too.
+ * Codable on iOS - hand-mapped here too.
  */
 data class FoodMenuEntry(
     val id: String,
@@ -44,7 +44,7 @@ internal object FoodMenuPayload {
 
 /**
  * Application-level Menu ↔ Program sync (`02-firestore-schema.md` §4.5). There
- * is no Firestore trigger — clients write **both** the menu doc and the
+ * is no Firestore trigger - clients write **both** the menu doc and the
  * generated program whenever either side changes. `title`/`type`/`description`
  * are menu-owned (always regenerated); `startDate`/`endDate`/`location`/
  * `campDayID`/`id` are preserved when a leader-edited program already exists.

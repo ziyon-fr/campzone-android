@@ -22,7 +22,7 @@ class AuthProviders @Inject constructor(
     suspend fun googleSignInCredential(activity: Activity): AuthCredential {
         val webClientId = appContext.getString(R.string.firebase_google_web_client_id)
         check(webClientId.isNotBlank()) {
-            "firebase_google_web_client_id is empty — paste the Web client ID from Firebase console"
+            "firebase_google_web_client_id is empty - paste the Web client ID from Firebase console"
         }
         val googleIdOption = GetGoogleIdOption.Builder()
             .setServerClientId(webClientId)

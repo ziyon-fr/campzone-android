@@ -29,7 +29,7 @@ data class PollOption(
     val voteCount: Int = 0,
 )
 
-/** `.../votes/{voterId}` — doc ID == voter uid (one per voter; re-vote overwrites). */
+/** `.../votes/{voterId}` - doc ID == voter uid (one per voter; re-vote overwrites). */
 data class PollVote(
     val voterId: String,
     val selectedOptionIds: List<String> = emptyList(),
