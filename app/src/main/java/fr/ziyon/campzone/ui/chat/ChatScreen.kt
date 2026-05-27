@@ -106,12 +106,19 @@ fun CampingChatRoute(
     modifier: Modifier = Modifier,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
+    if (camping == null) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CzLoadingView(message = stringResource(R.string.chat_loading))
+        }
+        return
+    }
+
     val scope = ChatScope.Camping(campingId)
     val permissionUser = remember(authenticatedUser) {
         PermissionUser(authenticatedUser.role, authenticatedUser.uid, authenticatedUser.church)
     }
     val evaluator = remember { AppPermissionEvaluator() }
-    val permissionContext = camping?.permissionContext()
+    val permissionContext = camping.permissionContext()
     val canModerate = evaluator.canModerateCampingChat(permissionUser, permissionContext)
     val isApprovedParticipant = attendees.any {
         it.registrationStatus == RegistrationApprovalStatus.Approved &&
@@ -119,7 +126,7 @@ fun CampingChatRoute(
                 it.guardianId == authenticatedUser.uid ||
                 it.id == authenticatedUser.uid)
     }
-    val canAccess = camping != null && (isApprovedParticipant || canModerate)
+    val canAccess = isApprovedParticipant || canModerate
 
     ChatRouteContent(
         scope = scope,
@@ -146,35 +153,34 @@ fun TeamChatRoute(
     modifier: Modifier = Modifier,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
+    if (camping == null || team == null) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CzLoadingView(message = stringResource(R.string.chat_loading))
+        }
+        return
+    }
+
     val scope = ChatScope.Team(campingId, teamId)
     val permissionUser = remember(authenticatedUser) {
         PermissionUser(authenticatedUser.role, authenticatedUser.uid, authenticatedUser.church)
     }
     val evaluator = remember { AppPermissionEvaluator() }
-    val permissionContext = camping?.permissionContext()
+    val permissionContext = camping.permissionContext()
     val canModerate = evaluator.canModerateTeamChat(permissionUser, permissionContext)
-    val isTeamMember = team?.members?.any { it.userId == authenticatedUser.uid } == true
-    val canAccess = camping != null && team != null && (isTeamMember || canModerate)
+    val isTeamMember = team.members.any { it.userId == authenticatedUser.uid }
+    val canAccess = isTeamMember || canModerate
 
     ChatRouteContent(
         scope = scope,
-        title = team?.name?.takeUnless { it.isBlank() } ?: stringResource(R.string.chat_team_title),
-        restrictedMessage = if (team != null) {
-            stringResource(R.string.chat_team_restricted_message, team.name)
-        } else {
-            stringResource(R.string.chat_team_not_found_message)
-        },
+        title = team.name.takeUnless { it.isBlank() } ?: stringResource(R.string.chat_team_title),
+        restrictedMessage = stringResource(R.string.chat_team_restricted_message, team.name),
         canAccess = canAccess,
         canModerate = canModerate,
         authenticatedUser = authenticatedUser,
         onBack = onBack,
         modifier = modifier,
         viewModel = viewModel,
-        header = {
-            if (team != null) {
-                TeamChatHeader(team)
-            }
-        },
+        header = { TeamChatHeader(team) },
     )
 }
 
@@ -301,7 +307,7 @@ private fun ChatScreen(
                     IconButton(onClick = { blockedSheetVisible = true }) {
                         Icon(Icons.Rounded.Block, stringResource(R.string.chat_blocked_users))
                     }
-                },
+                }, windowInsets = WindowInsets()
             )
         },
         bottomBar = {
@@ -315,6 +321,7 @@ private fun ChatScreen(
                 )
             }
         },
+
     ) { innerPadding ->
         Column(
             modifier = Modifier

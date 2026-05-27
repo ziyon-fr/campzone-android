@@ -258,9 +258,7 @@ private fun GamesContent(
         if (camping != null) {
             val policy = camping.winnerRevealPolicy
             val endDate = camping.endDate ?: java.util.Date()
-            val effectiveHideDate = policy?.hideDate ?: java.util.Date(endDate.time - 24 * 60 * 60 * 1000L)
-            val scoresHidden = policy != null && !(policy.isRevealed || (policy.revealDate?.let { it <= java.util.Date() } ?: false)) &&
-                (policy.hideDate?.let { it <= java.util.Date() } ?: (java.util.Date() >= effectiveHideDate))
+            val scoresHidden = (policy ?: WinnerRevealPolicy()).areScoresHidden(endDate)
             if (scoresHidden || canRevealWinners) {
                 item(key = "reveal_banner") {
                     RevealBanner(

@@ -61,40 +61,37 @@ class CommunicationTest {
 
     @Test
     fun announcementEmptyStringEncodings() {
-        val payload = AnnouncementPayload.announcementPayload(
-            Announcement(id = "a1", title = "Welcome", body = "**Hi**", notificationTargetRole = null),
-            TS, includeCreatedAt = true,
+        val payload = AnnouncementPayload.draftPayload(
+            announcementDraft(title = "Welcome", body = "**Hi**", role = null),
+            TS, includeCreatedAt = true, attachments = emptyList(),
         )
         // written as "" (not omitted) when no target role
         assertEquals("", payload["notificationTargetRoleRawValue"])
         assertFalse(payload.containsKey("authorPhotoURL")) // omit-when-nil
         assertEquals(TS, payload["createdAt"])
 
-        val targeted = AnnouncementPayload.announcementPayload(
-            Announcement(id = "a1", title = "T", notificationTargetRole = UserRole.Leader),
-            TS, includeCreatedAt = false,
+        val targeted = AnnouncementPayload.draftPayload(
+            announcementDraft(title = "T", role = UserRole.Leader.rawValue),
+            TS, includeCreatedAt = false, attachments = emptyList(),
         )
         assertEquals("leader", targeted["notificationTargetRoleRawValue"])
     }
 
     @Test
     fun announcementAttachmentWritesEmptyStringsNotOmitted() {
-        val payload = AnnouncementPayload.announcementPayload(
-            Announcement(
-                id = "a1",
-                title = "T",
-                attachments = listOf(
-                    AnnouncementAttachment(
-                        id = "att1",
-                        kind = AnnouncementAttachmentKind.Pdf,
-                        fileName = "rules.pdf",
-                        contentType = "application/pdf",
-                        storagePath = "",
-                        downloadUrl = "",
-                    ),
+        val payload = AnnouncementPayload.draftPayload(
+            announcementDraft(title = "T", role = null),
+            TS, includeCreatedAt = false,
+            attachments = listOf(
+                AnnouncementAttachment(
+                    id = "att1",
+                    kind = AnnouncementAttachmentKind.Pdf,
+                    fileName = "rules.pdf",
+                    contentType = "application/pdf",
+                    storagePath = "",
+                    downloadUrl = "",
                 ),
             ),
-            TS, includeCreatedAt = false,
         )
         @Suppress("UNCHECKED_CAST")
         val attachment = (payload["attachments"] as List<Map<String, Any?>>).first()
@@ -102,6 +99,26 @@ class CommunicationTest {
         assertEquals("", attachment["storagePath"])
         assertEquals("", attachment["downloadURL"])
     }
+
+    private fun announcementDraft(
+        title: String,
+        body: String = "",
+        role: String? = null,
+        authorPhotoUrl: String? = null,
+    ) = AnnouncementDraft(
+        id = "a1",
+        title = title,
+        body = body,
+        audienceScopeRawValue = AnnouncementAudienceScope.App.rawValue,
+        campingId = null,
+        campingTitle = null,
+        notificationTargetRoleRawValue = role,
+        authorId = "",
+        authorName = "",
+        authorPhotoUrl = authorPhotoUrl,
+        existingAttachments = emptyList(),
+        pendingAttachments = emptyList(),
+    )
 
     @Test
     fun announcementReadsLegacyDescriptionBody() {

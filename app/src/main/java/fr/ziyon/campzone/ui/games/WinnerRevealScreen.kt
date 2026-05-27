@@ -130,19 +130,17 @@ private fun WinnerRevealScreen(
         policy?.hideDate ?: Date(endDate.time - 24 * 60 * 60 * 1000L)
     }
 
-    var customizeHide by remember { mutableStateOf(policy?.hideDate != null) }
-    var hideDate by remember { mutableStateOf(if (policy?.hideDate != null) policy.hideDate!! else effectiveHideDate) }
-    var customizeReveal by remember { mutableStateOf(policy?.revealDate != null) }
-    var revealDate by remember { mutableStateOf(policy?.revealDate ?: endDate) }
+    var customizeHide by remember(policy) { mutableStateOf(policy?.hideDate != null) }
+    var hideDate by remember(policy, effectiveHideDate) { mutableStateOf(policy?.hideDate ?: effectiveHideDate) }
+    var customizeReveal by remember(policy) { mutableStateOf(policy?.revealDate != null) }
+    var revealDate by remember(policy, endDate) { mutableStateOf(policy?.revealDate ?: endDate) }
 
     var showRevealConfirm by remember { mutableStateOf(false) }
     var showUnrevealConfirm by remember { mutableStateOf(false) }
 
-    val isRevealed = policy?.let {
-        it.isRevealed || (it.revealDate?.let { rd -> rd <= Date() } ?: false)
-    } ?: false
-    val scoresHidden = policy != null && !isRevealed &&
-        (policy.hideDate?.let { it <= Date() } ?: (Date() >= effectiveHideDate))
+    val effectivePolicy = policy ?: WinnerRevealPolicy()
+    val isRevealed = effectivePolicy.hasRevealFired()
+    val scoresHidden = effectivePolicy.areScoresHidden(endDate)
 
     val fmt = remember { SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault()) }
 

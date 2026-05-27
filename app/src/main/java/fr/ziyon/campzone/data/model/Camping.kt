@@ -87,13 +87,29 @@ data class OrganizerLevel(
 )
 
 data class WinnerRevealPolicy(
-    val isRevealed: Boolean,
+    val isRevealed: Boolean = false,
     val hideDate: Date? = null,
     val revealDate: Date? = null,
     val revealedBy: String? = null,
     val revealedByName: String? = null,
     val revealedAt: Date? = null,
-)
+) {
+    /** Effective hide moment, falling back to `campingEnd - 24h` when not set. */
+    fun effectiveHideDate(campingEnd: Date): Date =
+        hideDate ?: Date(campingEnd.time - 24L * 60 * 60 * 1000)
+
+    /** True once the final reveal has fired, manually or via a scheduled date. */
+    fun hasRevealFired(now: Date = Date()): Boolean =
+        isRevealed || (revealDate?.let { now >= it } ?: false)
+
+    /**
+     * True when scores should be hidden from non-managing participants. Mirrors
+     * iOS `WinnerRevealPolicy.areScoresHidden`: the default policy still hides
+     * scores in the 24h before the camp ends even when none was saved.
+     */
+    fun areScoresHidden(campingEnd: Date, now: Date = Date()): Boolean =
+        if (hasRevealFired(now)) false else now >= effectiveHideDate(campingEnd)
+}
 
 data class CampingPriceItem(
     val id: String,
