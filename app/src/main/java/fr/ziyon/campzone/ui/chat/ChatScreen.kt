@@ -34,6 +34,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -223,6 +225,8 @@ private fun ChatConversation(
     val isUploading by viewModel.isUploadingAttachment.collectAsState()
     val editingId by viewModel.editingMessageId.collectAsState()
     val operationMessage by viewModel.operationMessage.collectAsState()
+    val operationError by viewModel.operationError.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var blockedSheetVisible by remember { mutableStateOf(false) }
     var reportingMessage by remember { mutableStateOf<ChatMessage?>(null) }
@@ -233,6 +237,7 @@ private fun ChatConversation(
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(title, maxLines = 1) },
@@ -303,8 +308,17 @@ private fun ChatConversation(
         }
     }
 
-    operationMessage?.let { message ->
-        LaunchedEffect(message) { viewModel.clearOperationMessage() }
+    LaunchedEffect(operationMessage) {
+        operationMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearOperationMessage()
+        }
+    }
+    LaunchedEffect(operationError) {
+        operationError?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearOperationError()
+        }
     }
 
     reportingMessage?.let { message ->
