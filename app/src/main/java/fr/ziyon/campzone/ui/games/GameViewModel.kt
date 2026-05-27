@@ -1,0 +1,381 @@
+package fr.ziyon.campzone.ui.games
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.data.games.GameService
+import fr.ziyon.campzone.data.model.Activity
+import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.model.Game
+import fr.ziyon.campzone.data.model.PointRule
+import fr.ziyon.campzone.data.model.PointRuleTarget
+import fr.ziyon.campzone.data.model.PointRuleVisibility
+import fr.ziyon.campzone.data.model.Team
+import fr.ziyon.campzone.data.model.TeamPenalty
+import fr.ziyon.campzone.data.teams.TeamScoreRequest
+import fr.ziyon.campzone.data.teams.TeamService
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import java.util.Date
+import java.util.UUID
+import javax.inject.Inject
+
+sealed interface GamesUiState {
+    data object Loading : GamesUiState
+    data class Loaded(val games: List<Game>, val activities: List<Activity>) : GamesUiState
+    data object Empty : GamesUiState
+    data class Error(val message: String) : GamesUiState
+}
+
+data class GameForm(
+    val name: String = "",
+    val rules: String = "",
+    val pointRules: List<PointRule> = emptyList(),
+)
+
+enum class GameValidationError { NameRequired, PointRulesEmpty }
+
+data class ActivityRequest(
+    val gameId: String,
+    val pointRuleId: String?,
+    val name: String,
+    val points: Int,
+    val reason: String,
+    val targetTeamId: String?,
+    val targetTeamName: String?,
+    val targetUserId: String?,
+    val targetUserName: String?,
+    val visibility: PointRuleVisibility,
+)
+
+@HiltViewModel
+class GameViewModel @Inject constructor(
+    private val gameService: GameService,
+    private val teamService: TeamService,
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<GamesUiState>(GamesUiState.Loading)
+    val uiState: StateFlow<GamesUiState> = _uiState.asStateFlow()
+
+    private val gamesByCampingId = mutableMapOf<String, List<Game>>()
+    private val activitiesByCampingId = mutableMapOf<String, List<Activity>>()
+    private val loadedIds = mutableSetOf<String>()
+
+    var form by mutableStateOf(GameForm())
+    var editingGameId by mutableStateOf<String?>(null)
+    var validationErrors by mutableStateOf<List<GameValidationError>>(emptyList())
+
+    var isSaving by mutableStateOf(false)
+    var isAwarding by mutableStateOf(false)
+    var isResetting by mutableStateOf(false)
+    var operationMessage by mutableStateOf<String?>(null)
+    var operationError by mutableStateOf<String?>(null)
+
+    fun loadIfNeeded(campingId: String) {
+        if (loadedIds.contains(campingId)) {
+            publishState(campingId)
+            return
+        }
+        load(campingId)
+    }
+
+    fun load(campingId: String) {
+        viewModelScope.launch {
+            _uiState.value = GamesUiState.Loading
+            operationError = null
+            runCatching {
+                val games = gameService.loadGames(campingId)
+                val activities = gameService.loadActivities(campingId)
+                gamesByCampingId[campingId] = games
+                activitiesByCampingId[campingId] = activities
+                loadedIds.add(campingId)
+                publishState(campingId)
+            }.onFailure { e ->
+                _uiState.value = GamesUiState.Error(e.message ?: "Failed to load games.")
+            }
+        }
+    }
+
+    fun gamesFor(campingId: String): List<Game> =
+        gamesByCampingId[campingId]?.sortedByDescending { it.createdAt } ?: emptyList()
+
+    fun game(id: String, campingId: String): Game? =
+        gamesFor(campingId).firstOrNull { it.id == id }
+
+    fun activitiesFor(campingId: String): List<Activity> =
+        activitiesByCampingId[campingId]?.sortedByDescending { it.createdAt } ?: emptyList()
+
+    fun visibleActivities(camping: Camping, canSeeHidden: Boolean): List<Activity> {
+        val policy = camping.winnerRevealPolicy
+        val scoresHidden = policy != null && !policy.isRevealed &&
+            policy.hideDate?.let { it <= Date() } ?: false
+        val revealFired = policy?.let {
+            it.isRevealed || (it.revealDate?.let { rd -> rd <= Date() } ?: false)
+        } ?: false
+
+        return activitiesFor(camping.id).filter { activity ->
+            if (canSeeHidden) return@filter true
+            if (scoresHidden) return@filter false
+            if (activity.visibility == PointRuleVisibility.AfterReveal) return@filter revealFired
+            true
+        }
+    }
+
+    fun prepareNewGame() {
+        editingGameId = UUID.randomUUID().toString()
+        form = GameForm()
+        validationErrors = emptyList()
+        operationError = null
+        operationMessage = null
+    }
+
+    fun prepareEditingGame(game: Game) {
+        editingGameId = game.id
+        form = GameForm(name = game.name, rules = game.rules, pointRules = game.pointRules)
+        validationErrors = emptyList()
+        operationError = null
+        operationMessage = null
+    }
+
+    fun updateForm(update: (GameForm) -> GameForm) { form = update(form) }
+
+    suspend fun saveGame(campingId: String, createdBy: String): Game? {
+        validationErrors = validate()
+        if (validationErrors.isNotEmpty()) return null
+        isSaving = true
+        operationError = null
+        return runCatching {
+            val existing = editingGameId?.let { game(it, campingId) }
+            val draft = Game(
+                id = editingGameId ?: UUID.randomUUID().toString(),
+                campingId = campingId,
+                name = form.name.trim(),
+                rules = form.rules.trim(),
+                pointRules = form.pointRules,
+                createdBy = existing?.createdBy ?: createdBy,
+                createdAt = existing?.createdAt,
+                updatedAt = Date(),
+            )
+            val saved = gameService.saveGame(draft)
+            upsertGame(saved)
+            publishState(campingId)
+            operationMessage = "Game saved."
+            saved
+        }.onFailure { e ->
+            operationError = e.message ?: "Failed to save game."
+        }.also {
+            isSaving = false
+        }.getOrNull()
+    }
+
+    suspend fun deleteGame(game: Game): Boolean {
+        operationError = null
+        return runCatching {
+            gameService.deleteGame(game.id, game.campingId)
+            gamesByCampingId[game.campingId] =
+                (gamesByCampingId[game.campingId] ?: emptyList()).filter { it.id != game.id }
+            publishState(game.campingId)
+            operationMessage = "Game removed."
+            true
+        }.onFailure { e ->
+            operationError = e.message ?: "Failed to delete game."
+        }.getOrDefault(false)
+    }
+
+    suspend fun awardPoints(
+        request: ActivityRequest,
+        camping: Camping,
+        teams: List<Team>,
+        actor: AuthenticatedUser,
+    ): Activity? {
+        if (request.points == 0) {
+            operationError = "Enter a non-zero point delta."
+            return null
+        }
+        val previousScore: Int
+        val targetTeam: Team?
+        val targetMemberId: String?
+
+        if (request.targetTeamId != null) {
+            val team = teams.firstOrNull { it.id == request.targetTeamId }
+                ?: run { operationError = "Team not found."; return null }
+            previousScore = team.totalScore
+            targetTeam = team
+            targetMemberId = null
+        } else if (request.targetUserId != null) {
+            val pair = teams.flatMap { t -> t.members.map { t to it } }
+                .firstOrNull { (_, m) -> m.userId == request.targetUserId }
+                ?: run { operationError = "Participant not found."; return null }
+            previousScore = pair.second.personalScore
+            targetTeam = pair.first
+            targetMemberId = pair.second.id
+        } else {
+            operationError = "Select a target team or participant."
+            return null
+        }
+
+        isAwarding = true
+        operationError = null
+        return runCatching {
+            val activity = Activity(
+                id = UUID.randomUUID().toString(),
+                campingId = camping.id,
+                gameId = request.gameId,
+                name = request.name,
+                points = request.points,
+                previousScore = previousScore,
+                newScore = previousScore + request.points,
+                createdBy = actor.uid,
+                createdByName = actor.displayName ?: actor.email,
+                createdAt = Date(),
+                reason = request.reason,
+                pointRuleId = request.pointRuleId,
+                targetTeamId = request.targetTeamId,
+                targetTeamName = request.targetTeamName,
+                targetUserId = request.targetUserId,
+                targetUserName = request.targetUserName,
+                visibility = request.visibility,
+            )
+            val recorded = gameService.recordActivity(activity)
+
+            if (targetMemberId == null) {
+                val scoredReason =
+                    request.reason.takeUnless { it.isBlank() } ?: request.name
+                if (request.points < 0) {
+                    teamService.applyPenalty(
+                        TeamPenalty(
+                            id = UUID.randomUUID().toString(),
+                            reason = scoredReason,
+                            points = -request.points,
+                            createdAt = Date(),
+                        ),
+                        teamId = targetTeam!!.id,
+                        campingId = camping.id,
+                    )
+                } else {
+                    teamService.updateTeamScore(
+                        TeamScoreRequest(
+                            teamId = targetTeam!!.id,
+                            campingId = camping.id,
+                            points = request.points,
+                            reason = scoredReason,
+                        ),
+                    )
+                }
+            } else {
+                teamService.updateMemberScore(
+                    memberId = targetMemberId,
+                    delta = request.points,
+                    teamId = targetTeam!!.id,
+                    campingId = camping.id,
+                )
+            }
+
+            insertActivity(recorded)
+            publishState(camping.id)
+            operationMessage = if (request.points >= 0) "Points awarded." else "Points deducted."
+            recorded
+        }.onFailure { e ->
+            operationError = e.message ?: "Award failed."
+        }.also {
+            isAwarding = false
+        }.getOrNull()
+    }
+
+    suspend fun resetGameData(game: Game, teams: List<Team>): Boolean {
+        isResetting = true
+        operationError = null
+        return runCatching {
+            val gameActivities = gameService.loadActivitiesForGame(game.id, game.campingId)
+            if (gameActivities.isNotEmpty()) {
+                val teamDeltas = mutableMapOf<String, Int>()
+                val memberDeltas = mutableMapOf<Pair<String, String>, Int>()
+
+                for (activity in gameActivities) {
+                    val reversal = -activity.points
+                    if (activity.targetTeamId != null) {
+                        teamDeltas[activity.targetTeamId] =
+                            (teamDeltas[activity.targetTeamId] ?: 0) + reversal
+                    } else if (activity.targetUserId != null) {
+                        val pair = teams.flatMap { t -> t.members.map { t to it } }
+                            .firstOrNull { (_, m) -> m.userId == activity.targetUserId }
+                        if (pair != null) {
+                            val key = pair.second.id to pair.first.id
+                            memberDeltas[key] = (memberDeltas[key] ?: 0) + reversal
+                        }
+                    }
+                }
+
+                for ((teamId, delta) in teamDeltas) {
+                    if (delta != 0) {
+                        teamService.updateTeamScore(
+                            TeamScoreRequest(
+                                teamId = teamId,
+                                campingId = game.campingId,
+                                points = delta,
+                                reason = "Game reset",
+                            ),
+                        )
+                    }
+                }
+                for ((key, delta) in memberDeltas) {
+                    val (memberId, teamId) = key
+                    if (delta != 0) {
+                        teamService.updateMemberScore(
+                            memberId = memberId,
+                            delta = delta,
+                            teamId = teamId,
+                            campingId = game.campingId,
+                        )
+                    }
+                }
+
+                gameService.deleteActivities(gameActivities.map { it.id }, game.campingId)
+                activitiesByCampingId[game.campingId] =
+                    (activitiesByCampingId[game.campingId] ?: emptyList())
+                        .filter { it.gameId != game.id }
+                publishState(game.campingId)
+            }
+            operationMessage = "Game reset."
+            true
+        }.onFailure { e ->
+            operationError = e.message ?: "Reset failed."
+        }.also {
+            isResetting = false
+        }.getOrDefault(false)
+    }
+
+    private fun validate(): List<GameValidationError> = buildList {
+        if (form.name.isBlank()) add(GameValidationError.NameRequired)
+        if (form.pointRules.isEmpty()) add(GameValidationError.PointRulesEmpty)
+    }
+
+    private fun upsertGame(game: Game) {
+        val list = (gamesByCampingId[game.campingId] ?: emptyList()).toMutableList()
+        val idx = list.indexOfFirst { it.id == game.id }
+        if (idx >= 0) list[idx] = game else list.add(game)
+        gamesByCampingId[game.campingId] = list
+    }
+
+    private fun insertActivity(activity: Activity) {
+        val list = (activitiesByCampingId[activity.campingId] ?: emptyList()).toMutableList()
+        list.add(0, activity)
+        activitiesByCampingId[activity.campingId] = list
+    }
+
+    private fun publishState(campingId: String) {
+        val games = gamesFor(campingId)
+        val activities = activitiesFor(campingId)
+        _uiState.value = if (games.isEmpty() && activities.isEmpty()) {
+            GamesUiState.Empty
+        } else {
+            GamesUiState.Loaded(games, activities)
+        }
+    }
+}
