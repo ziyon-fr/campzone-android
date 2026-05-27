@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -139,7 +141,7 @@ private fun GameEditorScreen(
     Scaffold(
         containerColor = colors.background,
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
                         if (isEditing) stringResource(R.string.games_edit_title) else stringResource(R.string.games_new_title),
@@ -162,6 +164,7 @@ private fun GameEditorScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background),
+                windowInsets = WindowInsets()
             )
         },
     ) { innerPadding ->

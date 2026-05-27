@@ -3,6 +3,7 @@ package fr.ziyon.campzone.ui.games
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -143,7 +145,7 @@ private fun PointHistoryScreen(
     Scaffold(
         containerColor = colors.background,
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
                         stringResource(R.string.games_history_title),
@@ -157,6 +159,7 @@ private fun PointHistoryScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background),
+                windowInsets = WindowInsets()
             )
         },
     ) { innerPadding ->
