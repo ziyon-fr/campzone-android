@@ -24,7 +24,7 @@ data class MediaItem(
     val uploadedAt: Date? = null,
 )
 
-/** `campings/{id}/albumSettings/default` — single doc. */
+/** `campings/{id}/albumSettings/default` - single doc. */
 data class AlbumSettings(
     val allowedUploadRoles: List<UserRole> = DEFAULT_ROLES,
 ) {

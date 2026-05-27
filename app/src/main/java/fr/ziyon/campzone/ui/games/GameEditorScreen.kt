@@ -64,6 +64,7 @@ import fr.ziyon.campzone.data.games.previewGame
 import fr.ziyon.campzone.data.model.PointRule
 import fr.ziyon.campzone.data.model.PointRuleTarget
 import fr.ziyon.campzone.data.model.PointRuleVisibility
+import fr.ziyon.campzone.data.camping.PreviewCampingService
 import fr.ziyon.campzone.data.teams.FakeTeamService
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -384,7 +385,7 @@ fun PointRuleEditorSheet(
 @Composable
 private fun GameEditorScreenPreview() {
     CampzoneTheme {
-        val vm = GameViewModel(FakeGameService(games = listOf(previewGame())), FakeTeamService())
+        val vm = GameViewModel(FakeGameService(games = listOf(previewGame())), FakeTeamService(), PreviewCampingService())
         GameEditorRoute(
             campingId = "preview-camp",
             gameId = null,

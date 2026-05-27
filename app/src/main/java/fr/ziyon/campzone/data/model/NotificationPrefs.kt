@@ -34,7 +34,7 @@ internal fun Map<String, Any?>.toNotificationTokenOrNull(): NotificationToken? {
 }
 
 /**
- * `users/{uid}/notificationSettings/default` (`02-firestore-schema.md` §2.3) —
+ * `users/{uid}/notificationSettings/default` (`02-firestore-schema.md` §2.3) -
  * single doc. The stored field is **`subscribedRoleRawValues`** (Swift's
  * `subscribedRoles` is computed). No client `createdAt`.
  */

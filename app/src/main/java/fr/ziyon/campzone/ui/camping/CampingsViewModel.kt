@@ -23,7 +23,7 @@ data class CampingMonthSection(
     val campings: List<Camping>,
 )
 
-/** Sealed list phase — Loading / Loaded / Empty / Error (`08` architecture rule). */
+/** Sealed list phase - Loading / Loaded / Empty / Error (`08` architecture rule). */
 sealed interface CampingsPhase {
     data object Loading : CampingsPhase
     data class Loaded(val sections: List<CampingMonthSection>) : CampingsPhase

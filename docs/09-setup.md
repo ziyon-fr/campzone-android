@@ -1,4 +1,4 @@
-# Android Setup & Environment (Compose — Platform-Specific)
+# Android Setup & Environment (Compose - Platform-Specific)
 
 > Local dev, Firebase/Cloudinary/Stripe wiring, and the build/verify
 > workflow for the **Android** client. Data contract is in `02`–`08`;
@@ -14,7 +14,7 @@
   `google-services.json`.
 - Notification backend is already deployed at
   `https://notification-backend-chi.vercel.app` (no local backend for
-  app dev). Cloudinary/Stripe are server-side only — the app calls the
+  app dev). Cloudinary/Stripe are server-side only - the app calls the
   backend; you do **not** need their secrets.
 
 ## 2. Project state & first steps
@@ -23,7 +23,7 @@ The scaffold is a bare Compose app (`com.example.campzone`, single
 `MainActivity`, Material3, no Firebase yet). To start:
 
 1. **Finalize the application id / package** (e.g.
-   `org.<org>.campzone`) — it must equal the Firebase Android app’s
+   `org.<org>.campzone`) - it must equal the Firebase Android app’s
    package name. Do this **before** registering the Firebase app and
    before any release; renaming later invalidates `google-services.json`
    and signing config.
@@ -36,7 +36,7 @@ The scaffold is a bare Compose app (`com.example.campzone`, single
    ad-hoc strings.
 3. Drop `google-services.json` (the shared Firebase project’s Android
    app) into `app/`. **Do not commit** it if it carries project-private
-   config — gitignore and document where to obtain it.
+   config - gitignore and document where to obtain it.
 4. Apply `CampzoneTheme` (tokens from `06`) at the `setContent` root;
    enable Firestore disk persistence in the `Application`.
 5. Implement Auth (Google via Credential Manager + Apple via Firebase
@@ -47,7 +47,7 @@ The scaffold is a bare Compose app (`com.example.campzone`, single
 
 Nothing Stripe/Cloudinary/cron lives in the app. The only “config” is
 `google-services.json` (Firebase) and the notification API base URL
-(default `https://notification-backend-chi.vercel.app`) — put the base
+(default `https://notification-backend-chi.vercel.app`) - put the base
 URL in a build config field / resource, overridable per build type
 (debug vs release) if needed. FCM web push is N/A; Android uses native
 FCM (no VAPID key).
@@ -59,7 +59,7 @@ FCM (no VAPID key).
    SHA-1/SHA-256 signing certs for Google sign-in; configure the Apple
    OAuth web redirect.
 3. Firestore Security Rules + composite indexes are **owner-managed
-   from the iOS repo** (`firestore-rbac.rules`) — do **not** keep a
+   from the iOS repo** (`firestore-rbac.rules`) - do **not** keep a
    separate rules file here. If you add a `where + orderBy` query,
    request the index (`04` §7).
 4. Enable Firestore persistent disk cache in the client.
@@ -83,7 +83,7 @@ Definition of done per change:
 - Models match `02-firestore-schema.md` exactly (fixture round-trip
   test: serialize→deserialize).
 - Every write path checked against the `07` pre-write checklist.
-- Gated actions match `03` (and the iOS Security Rule — rule changes
+- Gated actions match `03` (and the iOS Security Rule - rule changes
   are owner actions, coordinate per `04` §7).
 - Full CRUD for anything that can Create (`08` cross-cutting).
 - Firestore emulator green for rule-sensitive paths. Never claim an
@@ -94,5 +94,5 @@ Definition of done per change:
 `00` and `02`–`08` are **byte-identical** to the web repo’s `docs/`. If
 the data contract changes it must change on iOS first (schema +
 Security Rule, owner-deployed), then be reflected in `02/03/04` and
-copied to the web repo. Never let the platforms drift — a schema
+copied to the web repo. Never let the platforms drift - a schema
 mismatch silently corrupts shared Firestore data.

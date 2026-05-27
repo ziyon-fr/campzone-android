@@ -187,7 +187,7 @@ private fun TransportationOptionEditorContent(
             CzTextField(
                 value = capacityText,
                 onValueChange = { capacityText = it },
-                label = "—",
+                label = "-",
                 modifier = Modifier.width(80.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )

@@ -9,7 +9,7 @@ import java.util.TimeZone
 /**
  * Deterministic document-ID date keys (`07-data-contract-rules.md` §4). The
  * date component is formatted with the **gregorian** calendar, **en_US_POSIX**
- * locale, and the **local** time zone — replicated exactly from iOS so the same
+ * locale, and the **local** time zone - replicated exactly from iOS so the same
  * day resolves to the same doc ID on every platform.
  */
 internal object DateKeys {
@@ -23,7 +23,7 @@ internal object DateKeys {
     /** `yyyy-MM-dd` of [date] at the local calendar day. */
     fun dayKey(date: Date): String = dayFormatter().format(date)
 
-    /** Local midnight (`startOfDay`) of [date] — stored in `CampDay.date`. */
+    /** Local midnight (`startOfDay`) of [date] - stored in `CampDay.date`. */
     fun startOfDay(date: Date): Date {
         val calendar = GregorianCalendar(TimeZone.getDefault())
         calendar.time = date

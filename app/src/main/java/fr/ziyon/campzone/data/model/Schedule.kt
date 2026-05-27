@@ -7,7 +7,7 @@ import java.util.Date
  * Schedule models (`02-firestore-schema.md` §4). `campings/{id}/schedule/config`
  * is a single doc (ID literal `config`); days are nested under it and programs
  * under days. The program `campDayID` is **always recomputed** from `startDate`
- * on write — never trust an inbound value.
+ * on write - never trust an inbound value.
  */
 data class ScheduleConfig(
     val campingId: String,
@@ -134,7 +134,7 @@ internal val Camping.scheduleDates: List<Date>
 
 internal object SchedulePayload {
 
-    /** `schedule/config` upsert — `reminderTiming` is NOT written here. */
+    /** `schedule/config` upsert - `reminderTiming` is NOT written here. */
     fun configPayload(
         campingId: String,
         serverTimestamp: Any,
@@ -190,7 +190,7 @@ internal object SchedulePayload {
             "updatedAt" to serverTimestamp,
         )
 
-    /** Program upsert — `campDayID` is recomputed from `startDate`. */
+    /** Program upsert - `campDayID` is recomputed from `startDate`. */
     fun programPayload(
         program: Program,
         serverTimestamp: Any,

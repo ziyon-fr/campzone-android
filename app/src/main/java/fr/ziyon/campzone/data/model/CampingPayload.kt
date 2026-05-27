@@ -4,7 +4,7 @@ package fr.ziyon.campzone.data.model
  * Hand-built Firestore payloads for `campings/{id}` (`02-firestore-schema.md`
  * §3, §6 data-contract rules). `serverTimestamp`/`deleteField` are opaque tokens
  * so the shape is unit-testable without Firebase. The main [campingPayload]
- * never writes `guidelines` or `winnerRevealPolicy` — those have dedicated
+ * never writes `guidelines` or `winnerRevealPolicy` - those have dedicated
  * paths ([guidelinesPayload], [winnerRevealPolicyPayload]).
  */
 internal object CampingPayload {
@@ -106,14 +106,14 @@ internal object CampingPayload {
             "updatedAt" to serverTimestamp,
         )
 
-    /** Cancel path — writes only `{ registrationStatus: "cancelled", updatedAt }`. */
+    /** Cancel path - writes only `{ registrationStatus: "cancelled", updatedAt }`. */
     fun cancelPayload(serverTimestamp: Any): Map<String, Any?> =
         linkedMapOf(
             "registrationStatus" to CampingRegistrationStatus.Cancelled.wireValue,
             "updatedAt" to serverTimestamp,
         )
 
-    /** Winner-reveal path — gated by `canRevealWinners`; forbidden in normal edit. */
+    /** Winner-reveal path - gated by `canRevealWinners`; forbidden in normal edit. */
     fun winnerRevealPolicyPayload(
         policy: WinnerRevealPolicy,
         serverTimestamp: Any,

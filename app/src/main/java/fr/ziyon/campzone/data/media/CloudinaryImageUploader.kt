@@ -18,6 +18,8 @@ data class CloudinaryUploadResult(
     val publicId: String,
     val duration: Double? = null,
     val bytes: Long? = null,
+    val width: Int? = null,
+    val height: Int? = null,
 )
 
 /** Abstraction over backend-signed image uploads, so callers can be faked in tests. */
@@ -186,6 +188,8 @@ class CloudinaryImageUploader @Inject constructor(
             publicId = json.getString("public_id"),
             duration = json.optDoubleOrNull("duration"),
             bytes = json.optLongOrNull("bytes"),
+            width = json.optIntOrNull("width"),
+            height = json.optIntOrNull("height"),
         )
     }
 
@@ -250,6 +254,9 @@ class CloudinaryImageUploader @Inject constructor(
 
     private fun JSONObject.optLongOrNull(name: String): Long? =
         if (has(name) && !isNull(name)) optLong(name) else null
+
+    private fun JSONObject.optIntOrNull(name: String): Int? =
+        if (has(name) && !isNull(name)) optInt(name) else null
 
     private data class CloudinarySignature(
         val uploadUrl: String,

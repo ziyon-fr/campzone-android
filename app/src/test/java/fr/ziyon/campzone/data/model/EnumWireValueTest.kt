@@ -6,7 +6,7 @@ import org.junit.Test
 
 /**
  * Locks every Firestore enum raw string against `02-firestore-schema.md` §8.
- * Raw values are case-sensitive — a drift here is exactly the kind of bug that
+ * Raw values are case-sensitive - a drift here is exactly the kind of bug that
  * silently corrupts cross-platform data, so these are asserted verbatim.
  */
 class EnumWireValueTest {

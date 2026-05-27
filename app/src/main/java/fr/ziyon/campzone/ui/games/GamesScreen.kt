@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -19,13 +20,19 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -58,8 +65,13 @@ import fr.ziyon.campzone.data.games.previewGame
 import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.Game
+import fr.ziyon.campzone.data.model.WinnerRevealPolicy
+import fr.ziyon.campzone.data.camping.PreviewCampingService
 import fr.ziyon.campzone.data.teams.FakeTeamService
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
+import fr.ziyon.campzone.core.designsystem.CzColorPalette
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import fr.ziyon.campzone.core.designsystem.CzErrorState
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
 import fr.ziyon.campzone.core.designsystem.CzSectionHeader
@@ -74,6 +86,7 @@ fun GamesRoute(
     onOpenGameDetail: (String) -> Unit,
     onOpenGameEditor: (String?) -> Unit,
     onOpenPointHistory: () -> Unit,
+    onOpenRevealSettings: () -> Unit,
 ) {
     val evaluator = remember { AppPermissionEvaluator() }
     val permissionUser = PermissionUser(
@@ -93,37 +106,46 @@ fun GamesRoute(
         evaluator.canRevealWinners(permissionUser, campingCtx) ||
             evaluator.canManageGames(permissionUser, campingCtx)
         )
+    val canRevealWinners = campingCtx != null && evaluator.canRevealWinners(permissionUser, campingCtx)
 
     LaunchedEffect(campingId) { viewModel.loadIfNeeded(campingId) }
 
     val uiState by viewModel.uiState.collectAsState()
     GamesScreen(
+        campingId = campingId,
         uiState = uiState,
         camping = camping,
         canManage = canManage,
         canSeeHidden = canSeeHidden,
+        canRevealWinners = canRevealWinners,
         viewModel = viewModel,
+        authenticatedUser = authenticatedUser,
         onBack = onBack,
         onRetry = { viewModel.load(campingId) },
         onOpenGameDetail = onOpenGameDetail,
         onOpenGameEditor = onOpenGameEditor,
         onOpenPointHistory = onOpenPointHistory,
+        onOpenRevealSettings = onOpenRevealSettings,
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GamesScreen(
+    campingId: String,
     uiState: GamesUiState,
     camping: Camping?,
     canManage: Boolean,
     canSeeHidden: Boolean,
+    canRevealWinners: Boolean,
     viewModel: GameViewModel,
+    authenticatedUser: AuthenticatedUser,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onOpenGameDetail: (String) -> Unit,
     onOpenGameEditor: (String?) -> Unit,
     onOpenPointHistory: () -> Unit,
+    onOpenRevealSettings: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
     Scaffold(
@@ -190,13 +212,19 @@ private fun GamesScreen(
                     viewModel.visibleActivities(it, canSeeHidden)
                 } ?: emptyList()
                 GamesContent(
+                    campingId = campingId,
                     games = uiState.games,
                     activities = visibleActivities,
+                    camping = camping,
                     canManage = canManage,
+                    canRevealWinners = canRevealWinners,
+                    viewModel = viewModel,
+                    authenticatedUser = authenticatedUser,
                     innerPadding = innerPadding,
                     onOpenGameDetail = onOpenGameDetail,
                     onOpenGameEditor = onOpenGameEditor,
                     onOpenPointHistory = onOpenPointHistory,
+                    onOpenRevealSettings = onOpenRevealSettings,
                 )
             }
         }
@@ -205,20 +233,49 @@ private fun GamesScreen(
 
 @Composable
 private fun GamesContent(
+    campingId: String,
     games: List<Game>,
     activities: List<Activity>,
+    camping: Camping?,
     canManage: Boolean,
+    canRevealWinners: Boolean,
+    viewModel: GameViewModel,
+    authenticatedUser: AuthenticatedUser,
     innerPadding: PaddingValues,
     onOpenGameDetail: (String) -> Unit,
     onOpenGameEditor: (String?) -> Unit,
     onOpenPointHistory: () -> Unit,
+    onOpenRevealSettings: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(innerPadding),
         contentPadding = PaddingValues(horizontal = CzSpacing.lg, vertical = CzSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
     ) {
+        // Reveal banner (mirrors iOS revealBanner)
+        if (camping != null) {
+            val policy = camping.winnerRevealPolicy
+            val endDate = camping.endDate ?: java.util.Date()
+            val scoresHidden = (policy ?: WinnerRevealPolicy()).areScoresHidden(endDate)
+            if (scoresHidden || canRevealWinners) {
+                item(key = "reveal_banner") {
+                    RevealBanner(
+                        campingId = campingId,
+                        scoresHidden = scoresHidden,
+                        canRevealWinners = canRevealWinners,
+                        policy = policy,
+                        viewModel = viewModel,
+                        authenticatedUser = authenticatedUser,
+                        scope = scope,
+                        colors = colors,
+                        onOpenRevealSettings = onOpenRevealSettings,
+                    )
+                }
+            }
+        }
+
         item { CzSectionHeader(title = stringResource(R.string.games_section_games)) }
 
         if (games.isEmpty()) {
@@ -311,6 +368,83 @@ private fun GameRow(game: Game, onClick: () -> Unit) {
     }
 }
 
+@Composable
+private fun RevealBanner(
+    campingId: String,
+    scoresHidden: Boolean,
+    canRevealWinners: Boolean,
+    policy: WinnerRevealPolicy?,
+    viewModel: GameViewModel,
+    authenticatedUser: AuthenticatedUser,
+    scope: CoroutineScope,
+    colors: CzColorPalette,
+    onOpenRevealSettings: () -> Unit,
+) {
+    val bannerColor = if (scoresHidden) colors.warning.copy(alpha = 0.12f) else colors.success.copy(alpha = 0.10f)
+    Surface(
+        color = bannerColor,
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(CzSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                Icon(
+                    if (scoresHidden) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                    contentDescription = null,
+                    tint = if (scoresHidden) colors.warning else colors.success,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    if (scoresHidden) stringResource(R.string.reveal_banner_hidden)
+                    else stringResource(R.string.reveal_banner_visible),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.textPrimary,
+                )
+            }
+            if (canRevealWinners) {
+                Spacer(Modifier.height(CzSpacing.xs))
+                Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                    if (scoresHidden) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    viewModel.reveal(campingId, policy, authenticatedUser)
+                                }
+                            },
+                            enabled = !viewModel.isUpdatingReveal,
+                            colors = ButtonDefaults.buttonColors(containerColor = colors.ember),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                horizontal = CzSpacing.md, vertical = CzSpacing.xs,
+                            ),
+                        ) {
+                            Icon(Icons.Outlined.EmojiEvents, null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(CzSpacing.xs))
+                            Text(stringResource(R.string.reveal_now), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = onOpenRevealSettings,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.ember),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = CzSpacing.md, vertical = CzSpacing.xs,
+                        ),
+                    ) {
+                        Icon(Icons.Outlined.Settings, null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(CzSpacing.xs))
+                        Text(stringResource(R.string.reveal_settings), style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun GamesScreenPreview() {
@@ -323,8 +457,9 @@ private fun GamesScreenPreview() {
                 role = UserRole.Admin, church = "Central SDA", age = 30,
                 preferredLanguage = "en", gender = null, onboardingCompleted = true,
             ),
-            viewModel = GameViewModel(FakeGameService(games = listOf(previewGame())), FakeTeamService()),
+            viewModel = GameViewModel(FakeGameService(games = listOf(previewGame())), FakeTeamService(), PreviewCampingService()),
             onBack = {}, onOpenGameDetail = {}, onOpenGameEditor = {}, onOpenPointHistory = {},
+            onOpenRevealSettings = {},
         )
     }
 }

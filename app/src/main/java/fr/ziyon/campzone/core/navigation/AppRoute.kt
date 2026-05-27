@@ -277,6 +277,10 @@ sealed interface AppRoute {
         }
     }
 
+    data class WinnerReveal(val campingId: String) : AppRoute {
+        override val route = "${CampingGames(campingId).route}/${AppRoutePath.WinnerReveal}"
+    }
+
     companion object {
         val topLevelTabs: List<Tab> = listOf(Home, Campings, Announcements, Profile)
 
@@ -334,6 +338,7 @@ internal object AppRoutePath {
     const val AnnouncementComposer = "compose"
     const val Games = "games"
     const val GameEditor = "game-editor"
+    const val WinnerReveal = "winner-reveal"
 }
 
 internal object AppRoutePattern {
@@ -372,6 +377,7 @@ internal object AppRoutePattern {
     const val CampingGames = "$CampingDetail/${AppRoutePath.Games}"
     const val GameEditor = "$CampingGames/${AppRoutePath.GameEditor}"
     const val GameEdit = "$GameEditor/{${AppRouteArgs.GameId}}"
+    const val WinnerReveal = "$CampingGames/${AppRoutePath.WinnerReveal}"
     const val GameDetail = "$CampingGames/{${AppRouteArgs.GameId}}"
 }
 

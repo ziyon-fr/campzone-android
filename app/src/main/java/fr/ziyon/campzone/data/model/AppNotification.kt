@@ -7,7 +7,7 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * `ziyon_notifications/{id}` (`02-firestore-schema.md` §6.5) — the in-app feed.
+ * `ziyon_notifications/{id}` (`02-firestore-schema.md` §6.5) - the in-app feed.
  * **Backend-written, client read-only** (no payload). `appID` must be
  * `"campzone"` or the doc is ignored. `sentAt`/`createdAt` are ISO-8601 strings
  * (also accepts Timestamp/Date). Tolerant decoder.

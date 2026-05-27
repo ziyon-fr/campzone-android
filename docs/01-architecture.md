@@ -1,7 +1,7 @@
-# Android Architecture — Jetpack Compose (Platform-Specific)
+# Android Architecture - Jetpack Compose (Platform-Specific)
 
 > How the **Android** client implements the shared Campzone
-> architecture. The data contract is fixed elsewhere — see `02`–`08`.
+> architecture. The data contract is fixed elsewhere - see `02`–`08`.
 > This doc covers the app’s structure, MVVM layering in
 > Compose/Kotlin, Firebase wiring, and conventions. Mirror the iOS
 > feature-folder layout and the layered contract.
@@ -10,7 +10,7 @@ Stack (from `build.gradle.kts` / `libs.versions.toml`): **Kotlin
 2.2.10**, **Jetpack Compose** (BOM 2026.02.01) + **Material 3**,
 `compileSdk 36`, `minSdk 24`, `targetSdk 36`, AGP 9.2.1, single-Activity.
 Package currently `com.example.campzone` (finalize the real application
-id before any release — keep consistent with the Firebase Android app’s
+id before any release - keep consistent with the Firebase Android app’s
 package name).
 
 Dependencies to add (not yet in the scaffold): Firebase BoM
@@ -23,13 +23,13 @@ kotlinx-coroutines, and the Stripe Android SDK (PaymentSheet). See
 
 ---
 
-## 1. Layering (MVVM — matches the iOS contract)
+## 1. Layering (MVVM - matches the iOS contract)
 
 iOS **View → Observer → Service → Model** maps to Android
 **Composable → ViewModel → Repository/Service → Model**:
 
 - **Model** (`data/model/`): Kotlin `data class`es that encode the
-  **exact Firestore wire shape** of `02-firestore-schema.md` — enum
+  **exact Firestore wire shape** of `02-firestore-schema.md` - enum
   classes with explicit wire strings, nullability, and the
   delete/null/omit distinctions. **Do not rely on Firestore POJO
   auto-mapping** (`toObject<T>()` / `@DocumentId`): it cannot express
@@ -46,7 +46,7 @@ iOS **View → Observer → Service → Model** maps to Android
   (`02` §4.5).
 - **ViewModel** (`ui/<feature>/`): `androidx.lifecycle.ViewModel`
   exposing a single **`StateFlow<UiState>`** where `UiState` is a
-  sealed interface (`Loading`/`Loaded(data)`/`Empty`/`Error(msg)`) —
+  sealed interface (`Loading`/`Loaded(data)`/`Empty`/`Error(msg)`) -
   not scattered booleans. Owns coroutine scope, realtime listener
   registrations and their removal, error→message mapping. Inject
   services via constructor (Hilt).
@@ -93,7 +93,7 @@ mirroring iOS `Features/<Domain>/{Model,View,Observer,Service,Components}`.
   offline parity (songbook/schedule/camp program prioritized).
 - **Realtime**: services expose listeners returning a
   `ListenerRegistration`; the ViewModel registers in an init/`onStart`
-  and **removes** it in `onCleared()` — single owned registration, no
+  and **removes** it in `onCleared()` - single owned registration, no
   stacking on recomposition/config-change (mirror the iOS listener
   discipline).
 - **FCM**: `FirebaseMessagingService` for token + push; on token

@@ -30,7 +30,7 @@ import org.json.JSONObject
 
 
  //* Read/write access to `campings/{id}/schedule/**` (`02-firestore-schema.md` §4).
- //* All writes are hand-built `Map<String, Any?>` — no POJO auto-mapping.
+ //* All writes are hand-built `Map<String, Any?>` - no POJO auto-mapping.
 
 
 interface ScheduleService {
@@ -227,7 +227,7 @@ class FirestoreScheduleService @Inject constructor(
         firestore.collection(CAMPINGS).document(campingId)
             .collection(SCHEDULE).document(CONFIG)
 
-    /** Best-effort — does not throw on failure. */
+    /** Best-effort - does not throw on failure. */
     private suspend fun dispatchScheduleReminders(
         campingId: String,
         timing: ScheduleReminderTiming,
