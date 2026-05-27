@@ -161,7 +161,85 @@ class CommunicationTest {
         assertEquals(listOf("o1", "o2"), decoded.selectedOptionIds)
     }
 
+    @Test
+    fun chatMentionsAndImageAttachmentRoundTrip() {
+        val message = ChatMessage(
+            id = "m1",
+            campingId = "camp-1",
+            senderId = "u1",
+            senderName = "Maria",
+            text = "Hi @Lea and @everyone",
+            mentions = listOf(
+                ChatMention("u-lea", "Lea", offset = 3, length = 4),
+                ChatMention(ChatMention.EVERYONE_TOKEN, "Everyone", offset = 12, length = 9),
+            ),
+            attachment = ChatAttachment(
+                kind = ChatAttachmentKind.Image,
+                url = "https://img/secure.jpg",
+                publicId = "campzone/chat/camp-1/m1",
+                width = 600,
+                height = 800,
+            ),
+        )
+        val payload = ChatMessagePayload.sendPayload(message, TS, isTeamChat = false)
+        // flat mentionedUserIDs written alongside the full mentions list (RBAC needs both)
+        assertEquals(listOf("u-lea", ChatMention.EVERYONE_TOKEN), payload["mentionedUserIDs"])
+        assertEquals("image", payload["attachmentKind"])
+        assertEquals("https://img/secure.jpg", payload["attachmentURL"])
+        assertEquals(600, payload["attachmentWidth"])
+        assertFalse(payload.containsKey("attachmentDuration")) // omit-when-nil
+
+        val decoded = payload.toChatMessageOrNull("m1")!!
+        assertEquals(2, decoded.mentions.size)
+        assertEquals("Lea", decoded.mentions[0].displayName)
+        assertEquals(4, decoded.mentions[0].length)
+        assertTrue(decoded.mentions[1].isEveryone)
+        assertEquals(ChatAttachmentKind.Image, decoded.attachment?.kind)
+        assertEquals(800, decoded.attachment?.height)
+        assertTrue(decoded.notifies("u-lea"))
+    }
+
+    @Test
+    fun chatVoiceNoteKeepsEmptyTextAndDuration() {
+        val message = ChatMessage(
+            id = "v1", campingId = "camp-1", senderId = "u1", senderName = "David",
+            text = "",
+            attachment = ChatAttachment(
+                kind = ChatAttachmentKind.Audio,
+                url = "https://aud/voice.m4a",
+                publicId = "pid",
+                durationSeconds = 14.0,
+            ),
+        )
+        val payload = ChatMessagePayload.sendPayload(message, TS, isTeamChat = false)
+        assertEquals("", payload["text"])
+        assertEquals("audio", payload["attachmentKind"])
+
+        // a blank-text voice note must NOT be dropped on decode
+        val decoded = payload.toChatMessageOrNull("v1")!!
+        assertEquals("", decoded.text)
+        assertFalse(decoded.hasText)
+        assertTrue(decoded.hasAttachment)
+        assertEquals(ChatAttachmentKind.Audio, decoded.attachment?.kind)
+        assertEquals(14.0, decoded.attachment?.durationSeconds ?: 0.0, 0.0001)
+    }
+
+    @Test
+    fun chatEditPayloadDeletesMentionsWhenEmpty() {
+        val withMentions = ChatMessagePayload.editPayload(
+            "Updated @Lea", listOf(ChatMention("u-lea", "Lea", 8, 4)), TS, deleteValue = DELETE,
+        )
+        assertEquals("Updated @Lea", withMentions["text"])
+        assertEquals(TS, withMentions["editedAt"])
+        assertEquals(listOf("u-lea"), withMentions["mentionedUserIDs"])
+
+        val cleared = ChatMessagePayload.editPayload("Updated", emptyList(), TS, deleteValue = DELETE)
+        assertEquals(DELETE, cleared["mentions"])
+        assertEquals(DELETE, cleared["mentionedUserIDs"])
+    }
+
     private companion object {
         const val TS = "serverTimestamp"
+        const val DELETE = "deleteField"
     }
 }

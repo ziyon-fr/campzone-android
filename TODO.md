@@ -215,17 +215,18 @@
 - [x] Write only `winnerRevealPolicy` via dedicated update path - forbidden in normal camp edit
 - [x] `winnerRevealPolicy.isRevealed` required if map is present
 
-### C4. Chat (`ui/chat/`)
+### C4. Chat (`ui/chat/`) ✅
 
-- [ ] Camping-wide chat: `campings/{id}/chat` - read gate: approved participant or moderator
-- [ ] Team chat: `campings/{id}/teams/{teamId}/chat` - read gate: team member or `canModerateTeamChat`
-- [ ] Send: full `set` (no merge); `senderID == auth.uid`; `campingID == path`; text cap 500 chars (server cap 2000)
-- [ ] `teamID` written only in team chat
-- [ ] Soft delete: write `{ isDeleted: true, deletedByID, deletedAt: serverTimestamp() }`; display `"Message removed"`; keep doc
-- [ ] Pin: `updateData({ pinned: true })`; gate moderator
-- [ ] Report: create `contentReports` doc (see C8)
-- [ ] Block user: write `users/{uid}/blockedUsers/{blockedUid}` (`blockedAt` Timestamp only - no Date fallback on read)
-- [ ] After send: `POST /notifications/dispatch/chat`
+- [x] Camping-wide chat: `campings/{id}/chat` - read gate: approved participant or moderator
+- [x] Team chat: `campings/{id}/teams/{teamId}/chat` - read gate: team member or `canModerateTeamChat`
+- [x] Send: full `set` (no merge); `senderID == auth.uid`; `campingID == path`; text cap 500 chars (server cap 2000)
+- [x] `teamID` written only in team chat
+- [x] Soft delete: write `{ isDeleted: true, deletedByID, deletedAt: serverTimestamp() }`; display `"Message removed"`; keep doc
+- [x] Pin: `updateData({ pinned: true })`; gate moderator
+- [x] Report: create `contentReports` doc (see C8)
+- [x] Block user: write `users/{uid}/blockedUsers/{blockedUid}` (`blockedAt` Timestamp only - no Date fallback on read)
+- [x] After send: `POST /notifications/dispatch/chat` — either/or with the mention dispatch
+- [x] iOS parity extras: @mentions (picker, highlight, `@everyone`; `mentions`+`mentionedUserIDs` wire), image attachments (Cloudinary + fullscreen), voice notes (MediaRecorder → Cloudinary `video` → player), inline edit (`editedAt`, 15-min window). Schema extended beyond `02` §6.1 to match iOS (iOS authoritative)
 
 ### C5. Polls (`ui/polls/`)
 

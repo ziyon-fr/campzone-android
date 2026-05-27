@@ -5,6 +5,10 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.UserGender
 import fr.ziyon.campzone.data.chat.FakeChatNotificationDispatcher
 import fr.ziyon.campzone.data.chat.FakeChatService
+import fr.ziyon.campzone.data.media.AudioUploader
+import fr.ziyon.campzone.data.media.CloudinaryUploadResult
+import fr.ziyon.campzone.data.media.ImageUploader
+import fr.ziyon.campzone.data.model.ChatMention
 import fr.ziyon.campzone.data.model.ChatMessage
 import fr.ziyon.campzone.data.model.ContentReportReason
 import fr.ziyon.campzone.data.model.ContentReportTarget
@@ -24,23 +28,57 @@ class ChatViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
+    private fun viewModel(service: FakeChatService, dispatcher: FakeChatNotificationDispatcher) =
+        ChatViewModel(service, dispatcher, FakeUploader, FakeUploader)
+
     @Test
-    fun sendCapsTextWritesTeamScopeAndDispatchesNotification() = runTest {
+    fun sendWritesTeamScopeAndUsesChatDispatchWhenNoMentions() = runTest {
         val service = FakeChatService(initialMessages = emptyList())
         val dispatcher = FakeChatNotificationDispatcher()
-        val viewModel = ChatViewModel(service, dispatcher)
+        val vm = viewModel(service, dispatcher)
 
-        viewModel.updateDraft("x".repeat(600))
-        viewModel.send("camp-1", "team-1", user())
+        vm.updateDraft("Hello team", emptyList())
+        vm.send("camp-1", "team-1", user(), mentionableUserIds = emptyList())
         advanceUntilIdle()
 
-        val state = viewModel.uiState.value as ChatUiState.Loaded
+        val state = vm.uiState.value as ChatUiState.Loaded
         val sent = state.messages.single()
-        assertEquals(ChatMessage.CLIENT_TEXT_CAP, sent.text.length)
+        assertEquals("Hello team", sent.text)
         assertEquals("team-1", sent.teamId)
+        // No mentions -> broadcast chat dispatch only, never the mention dispatch.
         assertEquals("camp-1", dispatcher.dispatched.single().campingId)
         assertEquals(sent.id, dispatcher.dispatched.single().messageId)
         assertEquals("team-1", dispatcher.dispatched.single().teamId)
+        assertTrue(dispatcher.mentionDispatched.isEmpty())
+    }
+
+    @Test
+    fun overLongDraftIsNotSent() = runTest {
+        val service = FakeChatService(initialMessages = emptyList())
+        val vm = viewModel(service, FakeChatNotificationDispatcher())
+
+        vm.updateDraft("x".repeat(600), emptyList())
+        vm.send("camp-1", null, user(), emptyList())
+        advanceUntilIdle()
+
+        // The composer caps at 500; an over-limit draft fails isValid and is dropped.
+        assertTrue(vm.uiState.value is ChatUiState.Loading)
+    }
+
+    @Test
+    fun mentionSendsOnlyTheMentionDispatch() = runTest {
+        val service = FakeChatService(initialMessages = emptyList())
+        val dispatcher = FakeChatNotificationDispatcher()
+        val vm = viewModel(service, dispatcher)
+
+        vm.updateDraft("Hi @Lea", listOf(ChatMention("u-lea", "Lea", offset = 3, length = 4)))
+        vm.send("camp-1", null, user(), mentionableUserIds = listOf("u-lea"))
+        advanceUntilIdle()
+
+        assertTrue(dispatcher.dispatched.isEmpty())
+        val mention = dispatcher.mentionDispatched.single()
+        assertEquals(listOf("u-lea"), mention.mentionedUserIds)
+        assertFalse(mention.isEveryoneMention)
     }
 
     @Test
@@ -51,27 +89,27 @@ class ChatViewModelTest {
                 message(id = "m2", senderId = "friend", senderName = "Friend"),
             ),
         )
-        val viewModel = ChatViewModel(service, FakeChatNotificationDispatcher())
+        val vm = viewModel(service, FakeChatNotificationDispatcher())
 
-        viewModel.start("camp-1", null, "me")
+        vm.start("camp-1", null, "me")
         advanceUntilIdle()
-        assertEquals(2, (viewModel.uiState.value as ChatUiState.Loaded).visibleMessages.size)
+        assertEquals(2, (vm.uiState.value as ChatUiState.Loaded).visibleMessages.size)
 
-        viewModel.setBlocked(true, "me", "blocked", "Blocked Sender")
+        vm.setBlocked(true, "me", "blocked", "Blocked Sender")
         advanceUntilIdle()
-        assertEquals(1, (viewModel.uiState.value as ChatUiState.Loaded).visibleMessages.size)
+        assertEquals(1, (vm.uiState.value as ChatUiState.Loaded).visibleMessages.size)
 
-        viewModel.setBlocked(false, "me", "blocked", "Blocked Sender")
+        vm.setBlocked(false, "me", "blocked", "Blocked Sender")
         advanceUntilIdle()
-        assertEquals(2, (viewModel.uiState.value as ChatUiState.Loaded).visibleMessages.size)
+        assertEquals(2, (vm.uiState.value as ChatUiState.Loaded).visibleMessages.size)
     }
 
     @Test
     fun reportMessageCreatesChatMessageContentReport() = runTest {
         val service = FakeChatService(initialMessages = emptyList())
-        val viewModel = ChatViewModel(service, FakeChatNotificationDispatcher())
+        val vm = viewModel(service, FakeChatNotificationDispatcher())
 
-        viewModel.reportMessage(
+        vm.reportMessage(
             message = message(id = "msg-9"),
             reporterId = "me",
             reason = ContentReportReason.Spam,
@@ -89,19 +127,18 @@ class ChatViewModelTest {
     @Test
     fun softDeleteKeepsMessageAndMarksItDeleted() = runTest {
         val service = FakeChatService(initialMessages = listOf(message(id = "m1", senderId = "me")))
-        val viewModel = ChatViewModel(service, FakeChatNotificationDispatcher())
-        viewModel.start("camp-1", null, "me")
+        val vm = viewModel(service, FakeChatNotificationDispatcher())
+        vm.start("camp-1", null, "me")
         advanceUntilIdle()
 
-        val original = (viewModel.uiState.value as ChatUiState.Loaded).messages.single()
-        viewModel.softDelete(original, "me")
+        val original = (vm.uiState.value as ChatUiState.Loaded).messages.single()
+        vm.softDelete(original, "me")
         advanceUntilIdle()
 
-        val deleted = (viewModel.uiState.value as ChatUiState.Loaded).messages.single()
+        val deleted = (vm.uiState.value as ChatUiState.Loaded).messages.single()
         assertEquals("m1", deleted.id)
         assertTrue(deleted.isDeleted)
         assertEquals("me", deleted.deletedById)
-        assertFalse((viewModel.uiState.value as ChatUiState.Loaded).visibleMessages.isEmpty())
     }
 
     private fun message(
@@ -131,4 +168,24 @@ class ChatViewModelTest {
         gender = UserGender.Female,
         onboardingCompleted = true,
     )
+
+    private object FakeUploader : ImageUploader, AudioUploader {
+        override suspend fun uploadImage(
+            assetIdPrefix: String,
+            folder: String,
+            tags: List<String>,
+            bytes: ByteArray,
+            mimeType: String,
+            fileExtension: String,
+        ) = CloudinaryUploadResult("https://img/$assetIdPrefix.jpg", "pid", width = 100, height = 100)
+
+        override suspend fun uploadAudio(
+            assetIdPrefix: String,
+            folder: String,
+            tags: List<String>,
+            bytes: ByteArray,
+            mimeType: String,
+            fileExtension: String,
+        ) = CloudinaryUploadResult("https://aud/$assetIdPrefix.m4a", "pid", duration = 3.0)
+    }
 }

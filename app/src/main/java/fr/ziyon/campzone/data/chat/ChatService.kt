@@ -11,6 +11,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import fr.ziyon.campzone.data.model.BlockedUser
 import fr.ziyon.campzone.data.model.BlockedUserPayload
+import fr.ziyon.campzone.data.model.ChatMention
 import fr.ziyon.campzone.data.model.ChatMessage
 import fr.ziyon.campzone.data.model.ChatMessagePayload
 import fr.ziyon.campzone.data.model.ContentReport
@@ -30,6 +31,13 @@ interface ChatService {
     fun observeMessages(campingId: String, teamId: String? = null): Flow<List<ChatMessage>>
     suspend fun loadMessages(campingId: String, teamId: String? = null): List<ChatMessage>
     suspend fun sendMessage(message: ChatMessage, teamId: String? = null): ChatMessage
+    suspend fun editMessage(
+        messageId: String,
+        campingId: String,
+        teamId: String?,
+        newText: String,
+        mentions: List<ChatMention>,
+    )
     suspend fun setPinned(messageId: String, campingId: String, teamId: String?, pinned: Boolean)
     suspend fun softDelete(messageId: String, campingId: String, teamId: String?, deletedById: String)
     suspend fun submitContentReport(report: ContentReport): ContentReport
@@ -86,11 +94,13 @@ class FirestoreChatService @Inject constructor(
         val currentUserId = auth.currentUser?.uid
         require(currentUserId == message.senderId) { "You can only send chat messages as yourself." }
         require(message.campingId.isNotBlank()) { "Camping is required." }
-        val text = message.text.trim().take(ChatMessage.CLIENT_TEXT_CAP)
-        require(text.isNotBlank()) { "Message text is required." }
+        require(message.text.isNotBlank() || message.attachment != null) {
+            "A message needs text or an attachment."
+        }
 
+        // Persist the text unmodified so stored @mention offsets stay aligned;
+        // the composer already caps draft input at CLIENT_TEXT_CAP.
         val scopedMessage = message.copy(
-            text = text,
             teamId = teamId?.trim()?.takeUnless { it.isBlank() },
             pinned = false,
             isDeleted = false,
@@ -107,6 +117,27 @@ class FirestoreChatService @Inject constructor(
             .await()
 
         return scopedMessage.copy(createdAt = scopedMessage.createdAt ?: Date())
+    }
+
+    override suspend fun editMessage(
+        messageId: String,
+        campingId: String,
+        teamId: String?,
+        newText: String,
+        mentions: List<ChatMention>,
+    ) {
+        require(auth.currentUser != null) { "You must be signed in to edit a message." }
+        chatCollection(campingId, teamId)
+            .document(messageId)
+            .update(
+                ChatMessagePayload.editPayload(
+                    newText = newText,
+                    mentions = mentions,
+                    serverTimestamp = FieldValue.serverTimestamp(),
+                    deleteValue = FieldValue.delete(),
+                ),
+            )
+            .await()
     }
 
     override suspend fun setPinned(
@@ -245,7 +276,6 @@ class FakeChatService(
     override suspend fun sendMessage(message: ChatMessage, teamId: String?): ChatMessage {
         failIfNeeded()
         val scoped = message.copy(
-            text = message.text.trim().take(ChatMessage.CLIENT_TEXT_CAP),
             teamId = teamId?.takeUnless { it.isBlank() },
             createdAt = message.createdAt ?: Date(),
             pinned = false,
@@ -254,6 +284,19 @@ class FakeChatService(
         val key = scopeKey(scoped.campingId, scoped.teamId)
         messagesByScope.getOrPut(key) { mutableListOf() }.add(scoped)
         return scoped
+    }
+
+    override suspend fun editMessage(
+        messageId: String,
+        campingId: String,
+        teamId: String?,
+        newText: String,
+        mentions: List<ChatMention>,
+    ) {
+        failIfNeeded()
+        mutateMessage(messageId, campingId, teamId) {
+            it.copy(text = newText, mentions = mentions, editedAt = Date())
+        }
     }
 
     override suspend fun setPinned(
