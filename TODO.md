@@ -228,13 +228,14 @@
 - [x] After send: `POST /notifications/dispatch/chat` — either/or with the mention dispatch
 - [x] iOS parity extras: @mentions (picker, highlight, `@everyone`; `mentions`+`mentionedUserIDs` wire), image attachments (Cloudinary + fullscreen), voice notes (MediaRecorder → Cloudinary `video` → player), inline edit (`editedAt`, 15-min window). Schema extended beyond `02` §6.1 to match iOS (iOS authoritative)
 
-### C5. Polls (`ui/polls/`)
+### C5. Polls (`ui/polls/`) ✅
 
-- [ ] List/create: gate `canManagePolls`; participants see list when approved
-- [ ] Vote: transactional - decrement old option `voteCount`, increment new, write `votes/{auth.uid}`, update poll `options`
-- [ ] `poll.createdAt` / `closesAt` are **client `Date()`** (not serverTimestamp); `closesAt` written as explicit Firestore `null` when none
-- [ ] `votes/{voterId}` doc ID == voter uid (one per voter; re-vote overwrites)
-- [ ] After create/close/reopen: `POST /notifications/dispatch/poll`
+- [x] List/create: gate `canManagePolls`; participants see list when approved
+- [x] Vote: transactional - decrement old option `voteCount`, increment new, write `votes/{auth.uid}`, update poll `options`
+- [x] `poll.createdAt` / `closesAt` are **client `Date()`** (not serverTimestamp); `closesAt` written as explicit Firestore `null` when none
+- [x] `votes/{voterId}` doc ID == voter uid (one per voter; re-vote overwrites)
+- [x] After create/close/reopen: `POST /notifications/dispatch/poll`
+- [x] iOS parity: list (Live/Closed sections, PollCard), detail (vote rows, results bars, change-vote, admin close/reopen/delete), editor (2–8 unique options, settings, auto-close date/time). Single `PollViewModel` shared across list/detail/editor via the polls back-stack entry
 
 ### C6. QR Check-In (`ui/checkin/`)
 
