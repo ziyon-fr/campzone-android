@@ -13,7 +13,7 @@ notification backend.
 > silently corrupts shared data or trips a Security Rule.
 
 | # | Doc | Scope |
-|---|---|---|
+| --- | --- | --- |
 | 00 | [`00-project-overview.md`](./00-project-overview.md) | Product, principles, stack - **shared** |
 | 01 | [`01-architecture.md`](./01-architecture.md) | Compose/MVVM architecture - Android-specific |
 | 02 | [`02-firestore-schema.md`](./02-firestore-schema.md) | **Exact Firestore wire schema - shared, the crown jewel** |

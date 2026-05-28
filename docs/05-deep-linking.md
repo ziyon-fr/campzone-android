@@ -13,7 +13,7 @@
 
 ## 1. `CampzoneDeepLink` cases
 
-```
+```js
 announcement(id)
 campingChat(campingID)
 teamChat(campingID, teamID)
@@ -72,7 +72,7 @@ team updates, point history, and registration review links are deep-link
 destinations only and have **no** canonical share URL.
 
 | Link | Inbound parse | Canonical share URL |
-|---|---|---|
+| --- | --- | --- |
 | camping | route/host `camping`/`campings`, id = first path component or `?id`/`?c`/`?campingID` | `https://campzone-web.vercel.app/campings/<id>` |
 | announcement | route/host `announcement`/`announcements`, id = first path component or `?id`/`?announcementID` | `https://campzone-web.vercel.app/announcements/<id>` |
 | camping chat | route/host `chat`/`camping-chat`, camping id = first path component or `?id`/`?c`/`?campingID` | none |
@@ -95,7 +95,7 @@ Map every destination to a real route so shared links and the web app
 work in a browser. Recommended structure:
 
 | Destination | Web route |
-|---|---|
+| --- | --- |
 | `camping(id)` | `/campings/[id]` |
 | `announcement(id)` | `/announcements/[id]` |
 | `campingChat(campingID)` | `/campings/[id]/chat` |

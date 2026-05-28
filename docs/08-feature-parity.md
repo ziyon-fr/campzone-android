@@ -15,7 +15,7 @@ endpoints in `04-backend-api.md`; gates in `03-rbac-and-security.md`.
 ## Phase A - Foundation (build first)
 
 | Capability | Data / API | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Firebase init (Auth, Firestore w/ offline persistence) | - | Apple + Google providers, same project. Enable Firestore local persistence/cache (web: `persistentLocalCache`; Android: default + `setPersistenceEnabled`) |
 | Auth + session | `users/{uid}` | first sign-in creates the doc (role `guest`); see §2 schema. iOS requests notif permission **after** onboarding, not at launch |
 | Onboarding | `users/{uid}` | collect age, church, preferred language, gender; derive `ageGroup`; set `onboardingCompleted` |
@@ -27,7 +27,7 @@ endpoints in `04-backend-api.md`; gates in `03-rbac-and-security.md`.
 ## Phase B - Core content
 
 | Capability | Data / API |
-|---|---|
+| --- | --- |
 | Campings list (grouped by year/month) + detail | `campings/{id}` (+ `registrations` for counts) |
 | Camp filters (church/age group/language), search | `campings` |
 | Admin create/edit/cancel camping + logo + fees/age-prices/price-items/transportation options | `campings/{id}` (+ Cloudinary sign for logo) |
@@ -42,7 +42,7 @@ endpoints in `04-backend-api.md`; gates in `03-rbac-and-security.md`.
 ## Phase C - Engagement
 
 | Capability | Data / API |
-|---|---|
+| --- | --- |
 | Teams (list/ranking/detail), members, captain/vice, scores, penalties, auto-balance | `campings/{id}/teams` (rewrite full doc + `memberUserIDs`) |
 | Games + point rules + award points + immutable activity audit | `games`, `activities` |
 | Winner reveal policy + ceremony | camping `winnerRevealPolicy` (reveal gate) |
@@ -58,7 +58,7 @@ endpoints in `04-backend-api.md`; gates in `03-rbac-and-security.md`.
 ## Phase D - Operations & growth (F-series)
 
 | Capability | Data / API |
-|---|---|
+| --- | --- |
 | Transportation tickets + admin scanner/boarding | `transportationBookings`; QR in `05`; manager gate |
 | Stripe payments (registration/bus/price-item) + auto-approve | `/payments/intent`+`/payments/confirm`; `02` §7.8 |
 | Lodging / tent assignment + “My Lodging” | `campings/{id}/lodging/{unitId}` |

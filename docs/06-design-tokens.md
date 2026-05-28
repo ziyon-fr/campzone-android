@@ -14,8 +14,9 @@ typeface on web/Android for parity.
 ---
 
 ## 1. Semantic colors (hex, light “any” / dark)
+
 | Token | Light | Dark | Use |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `czBackground` | `#F8F4EE` | `#070E1A` | screen background |
 | `czSurface` | `rgba(0,0,0,0.039)` | `rgba(255,255,255,0.078)` | cards/elevated surfaces (overlay tint) |
 | `czPrimary` | `#FF6B35` | `#FF7A47` | primary brand / CTAs (ember) |
@@ -43,7 +44,7 @@ as a flat color, so they read correctly in both schemes.
 ## 2. Typography (SF Pro **Rounded**)
 
 | Token | iOS size/weight | Web/Android target |
-|---|---|---|
+| --- | --- | --- |
 | `czLargeTitle` | 34, bold | display, 34/700 |
 | `czTitle` | 28, bold | h1, 28/700 |
 | `czTitle2` | 22, semibold | h2, 22/600 |

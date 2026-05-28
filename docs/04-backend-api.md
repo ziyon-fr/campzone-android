@@ -39,7 +39,7 @@
 ## 2. Endpoint index (`vercel.json` routes)
 
 | Method | Path (and `/api`-prefixed alias) | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | GET | `/`, `/api` | API root / endpoint list |
 | GET | `/api/health` | health (firebase/firestore/fcm) |
 | POST | `/notifications/devices` | register/refresh FCM token + topic subscriptions |
@@ -85,6 +85,7 @@ The notification system writes to **two** places. Web/Android must do
 ### 3.2 `POST /notifications/devices`
 
 Body:
+
 ```jsonc
 { "appID": "campzone", "token": "<FCM token>",
   "platform": "web" | "android" | "ios",
@@ -93,6 +94,7 @@ Body:
   "localeIdentifier": "en_US",          // optional
   "appVersion": "1.0.0" }               // optional
 ```
+
 The backend upserts the token (doc id = `base64url(token).slice(0,120)`),
 computes the user’s topic set from saved settings (or default
 `announcements` + `role_<role>`), and subscribes the token via FCM.
@@ -178,18 +180,22 @@ not Firebase Storage. The client never holds the API secret.
 ### 4.1 `POST /cloudinary/sign`
 
 Body:
+
 ```jsonc
 { "paramsToSign": { "public_id": "...", "folder": "...",
                      "tags": "a,b", "overwrite": true, ... },
   "resourceType": "image" | "video" | "raw" }   // optional, default image
 ```
+
 Returns:
+
 ```jsonc
 { "signature": "<sha1>", "apiKey": "<key>", "timestamp": "1737045600",
   "resourceType": "image", "cloudName": "<cloud>",
   "uploadURL": "https://api.cloudinary.com/v1_1/<cloud>/<resource>/upload",
   "signedParams": { ...normalized echoed params... } }
 ```
+
 Then the client POSTs `multipart/form-data` directly to `uploadURL` with
 the file + every signed param + `api_key` + `signature` + `timestamp`.
 Persist the returned `secure_url` and `public_id` into the relevant
@@ -219,12 +225,14 @@ Element; Android uses the Stripe Android SDK PaymentSheet. The
 ### 5.1 `POST /payments/intent`
 
 Body:
+
 ```jsonc
 { "amount": <int cents>, "currency": "eur",   // lowercased server-side
   "kind": "registration" | "transportation" | "priceItem",
   "campingID": "<id>", "referenceID": "<id>",
   "stripeVersion": "2024-06-20" }              // optional
 ```
+
 - `amount` must be a positive integer (**cents**), max 5,000,00.
 - `referenceID` = the registration attendee id (`registration`), the
   booking id (`transportation`), or the price-item id (`priceItem`).
@@ -245,6 +253,7 @@ Body:
 Body `{ "paymentIntentId": "...", "kind"?, "campingID"?,
 "referenceID"? }` (the backend prefers the values from the verified
 intent metadata).
+
 - Re-fetches the PaymentIntent from Stripe (**never trusts the
   client**), checks `status == "succeeded"` and `metadata.uid ==
   caller`.
@@ -273,7 +282,7 @@ the backend settles them.
 badges (clients only read `users/{uid}/badges/{id}`):
 
 | Badge id | Unlocked when |
-|---|---|
+| --- | --- |
 | `first-adventure` | ≥1 approved registration |
 | `trail-veteran` | ≥3 approved registrations |
 | `camp-check-in` | any check-in record |

@@ -29,7 +29,7 @@ Legacy values `senior` / `youth` are read as `user` (never written).
   `leader`, `photographer`, `admin`.
 - Leadership (non-admin) permissions are **church-scoped**: they apply
   only to campings whose `organizerLevel` is
-  `{ type: "church", value: <the user’s `church`> }` (case-insensitive
+  `{ type: "church", value: <the user’s`church`> }` (case-insensitive
   compare). Admin is global/unrestricted.
 
 ### Church-scope rule (critical)
@@ -56,7 +56,7 @@ creator even when the raw role permission is absent; see helper notes
 below the table.
 
 | AppPermission | guest | user | adult | youth_director | pastor | game_master | leader | photographer | admin |
-|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| --- |:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
 | View published campings | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Register for campings |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Approve registrations |  |  |  | C |  |  | C |  | ✓ |
