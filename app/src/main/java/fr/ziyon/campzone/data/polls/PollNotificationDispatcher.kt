@@ -73,11 +73,15 @@ class BackendPollNotificationDispatcher @Inject constructor(
                 setRequestProperty("Authorization", "Bearer $token")
                 setRequestProperty("Content-Type", "application/json")
             }
-            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-            val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
-            val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (connection.responseCode !in 200..299) {
-                throw IllegalStateException(response.ifBlank { "Poll notification dispatch failed." })
+            try {
+                connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
+                val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (connection.responseCode !in 200..299) {
+                    throw IllegalStateException(response.ifBlank { "Poll notification dispatch failed." })
+                }
+            } finally {
+                connection.disconnect()
             }
         }
     }
