@@ -870,6 +870,7 @@ private fun TeamsScreenPreview() {
                 listOf(
                     Team("lions", "preview-camping", "Lions", "Courage!", "flame.fill", "#D9432F", points = 180, members = listOf(TeamMember("u1", "u1", "Admin", "SDA", role = fr.ziyon.campzone.data.model.TeamMemberRole.Captain, personalScore = 40))),
                     Team("eagles", "preview-camping", "Eagles", "Higher!", "paperplane.fill", "#2364AA", points = 150, members = listOf(TeamMember("u2", "u2", "Marc", "SDA", personalScore = 20))),
+                    Team("Tiger", "preview-camping", "Tigers", "Pride!", "paperplane.fill", "#2364AA", points = 150, members = listOf(TeamMember("u2", "u2", "Marc", "SDA", personalScore = 20))),
                 )
             ),
             isSaving = false,
