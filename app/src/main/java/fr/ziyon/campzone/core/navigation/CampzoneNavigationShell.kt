@@ -66,6 +66,10 @@ import fr.ziyon.campzone.ui.schedule.ScheduleViewModel
 import fr.ziyon.campzone.ui.camping.guidelines.CampingGuidelinesRoute
 import fr.ziyon.campzone.ui.games.GameDetailRoute
 import fr.ziyon.campzone.ui.games.GameEditorRoute
+import fr.ziyon.campzone.ui.polls.CampingPollsRoute
+import fr.ziyon.campzone.ui.polls.PollDetailRoute
+import fr.ziyon.campzone.ui.polls.PollEditorRoute
+import fr.ziyon.campzone.ui.polls.PollViewModel
 import fr.ziyon.campzone.ui.games.GameViewModel
 import fr.ziyon.campzone.ui.games.GamesRoute
 import fr.ziyon.campzone.ui.games.PointHistoryRoute
@@ -807,9 +811,79 @@ fun CampzoneNavigationShell(
                 route = AppRoutePattern.CampingPolls,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
             ) { backStackEntry ->
-                DetailPlaceholderScreen(
-                    title = "Polls",
-                    value = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                LaunchedEffect(campingId, authenticatedUser.uid) {
+                    campingDetailVm.load(campingId, authenticatedUser)
+                }
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                val viewModel: PollViewModel = hiltViewModel()
+                CampingPollsRoute(
+                    campingId = campingId,
+                    camping = campingDetailState.camping,
+                    attendees = campingDetailState.attendees,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenPollDetail = { pollId ->
+                        navController.navigate(AppRoute.PollDetail(campingId, pollId).route)
+                    },
+                    onOpenPollEditor = {
+                        navController.navigate(AppRoute.PollEditor(campingId).route)
+                    },
+                )
+            }
+            // Polls - register static editor route before dynamic {pollId}
+            composable(
+                route = AppRoutePattern.PollEditor,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val pollsEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingPolls(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: PollViewModel =
+                    if (pollsEntry != null) hiltViewModel(pollsEntry) else hiltViewModel()
+                PollEditorRoute(
+                    pollId = null,
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.PollEdit,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.PollId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val pollId = backStackEntry.stringArg(AppRouteArgs.PollId)
+                val pollsEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingPolls(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: PollViewModel =
+                    if (pollsEntry != null) hiltViewModel(pollsEntry) else hiltViewModel()
+                PollEditorRoute(
+                    pollId = pollId,
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
                 )
             }
             composable(
@@ -819,9 +893,33 @@ fun CampzoneNavigationShell(
                     navArgument(AppRouteArgs.PollId) { type = NavType.StringType },
                 ),
             ) { backStackEntry ->
-                DetailPlaceholderScreen(
-                    title = "Poll",
-                    value = backStackEntry.stringArg(AppRouteArgs.PollId),
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val pollId = backStackEntry.stringArg(AppRouteArgs.PollId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                val pollsEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingPolls(campingId).route)
+                    }.getOrNull()
+                }
+                val viewModel: PollViewModel =
+                    if (pollsEntry != null) hiltViewModel(pollsEntry) else hiltViewModel()
+                PollDetailRoute(
+                    pollId = pollId,
+                    campingId = campingId,
+                    camping = campingDetailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenEditor = { id ->
+                        navController.navigate(AppRoute.PollEditor(campingId, id).route)
+                    },
                 )
             }
             composable(
