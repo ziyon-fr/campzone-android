@@ -16,8 +16,12 @@ import fr.ziyon.campzone.data.model.PointRule
 import fr.ziyon.campzone.data.model.PointRuleTarget
 import fr.ziyon.campzone.data.model.PointRuleVisibility
 import fr.ziyon.campzone.data.model.Team
+import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.model.TeamPenalty
 import fr.ziyon.campzone.data.model.WinnerRevealPolicy
+import fr.ziyon.campzone.data.teams.TeamNotificationDispatcher
+import fr.ziyon.campzone.data.teams.TeamNotificationEvent
+import fr.ziyon.campzone.data.teams.TeamNotificationRequest
 import fr.ziyon.campzone.data.teams.TeamScoreRequest
 import fr.ziyon.campzone.data.teams.TeamService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,6 +65,7 @@ class GameViewModel @Inject constructor(
     private val gameService: GameService,
     private val teamService: TeamService,
     private val campingService: CampingService,
+    private val teamNotificationDispatcher: TeamNotificationDispatcher,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<GamesUiState>(GamesUiState.Loading)
@@ -249,11 +254,13 @@ class GameViewModel @Inject constructor(
             )
             val recorded = gameService.recordActivity(activity)
 
+            var updatedTeam: Team? = null
+            var scoredMember: TeamMember? = null
             if (targetMemberId == null) {
                 val scoredReason =
                     request.reason.takeUnless { it.isBlank() } ?: request.name
                 if (request.points < 0) {
-                    teamService.applyPenalty(
+                    updatedTeam = teamService.applyPenalty(
                         TeamPenalty(
                             id = UUID.randomUUID().toString(),
                             reason = scoredReason,
@@ -264,7 +271,7 @@ class GameViewModel @Inject constructor(
                         campingId = camping.id,
                     )
                 } else {
-                    teamService.updateTeamScore(
+                    updatedTeam = teamService.updateTeamScore(
                         TeamScoreRequest(
                             teamId = targetTeam!!.id,
                             campingId = camping.id,
@@ -274,14 +281,18 @@ class GameViewModel @Inject constructor(
                     )
                 }
             } else {
-                teamService.updateMemberScore(
+                updatedTeam = teamService.updateMemberScore(
                     memberId = targetMemberId,
                     delta = request.points,
                     teamId = targetTeam!!.id,
                     campingId = camping.id,
                 )
+                scoredMember = updatedTeam.members.firstOrNull { it.id == targetMemberId }
             }
 
+            updatedTeam?.let { team ->
+                dispatchGameTeamUpdate(team, recorded, scoredMember)
+            }
             insertActivity(recorded)
             publishState(camping.id)
             operationMessage = if (request.points >= 0) "Points awarded." else "Points deducted."
@@ -438,4 +449,43 @@ class GameViewModel @Inject constructor(
             GamesUiState.Loaded(games, activities)
         }
     }
+
+    private suspend fun dispatchGameTeamUpdate(
+        team: Team,
+        activity: Activity,
+        member: TeamMember?,
+    ) {
+        val reason = activity.reason.trim().takeUnless { it.isBlank() }
+        val event: TeamNotificationEvent
+        val body: String
+        if (member != null) {
+            event = TeamNotificationEvent.MemberScoreChanged
+            body = "${member.displayName} score changed by ${activity.points.signedForNotification()} in ${activity.name}."
+        } else if (activity.points < 0) {
+            event = TeamNotificationEvent.PenaltyApplied
+            body = "${team.name} received a ${-activity.points}-point penalty in ${activity.name}."
+        } else {
+            event = TeamNotificationEvent.ScoreChanged
+            body = "${team.name} score changed by ${activity.points.signedForNotification()} in ${activity.name}."
+        }
+
+        runCatching {
+            teamNotificationDispatcher.dispatchTeamUpdate(
+                TeamNotificationRequest(
+                    campingId = team.campingId,
+                    teamId = team.id,
+                    teamName = team.name,
+                    event = event,
+                    body = body,
+                    memberId = member?.userId,
+                    memberName = member?.displayName,
+                    pointsDelta = activity.points,
+                    reason = reason,
+                ),
+            )
+        }
+    }
 }
+
+private fun Int.signedForNotification(): String =
+    if (this > 0) "+$this" else "$this"

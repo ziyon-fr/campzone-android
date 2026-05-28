@@ -4,11 +4,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import fr.ziyon.campzone.data.model.Team
+import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.model.TeamMemberRole
 import fr.ziyon.campzone.data.model.TeamPenalty
+import fr.ziyon.campzone.data.model.toTeamMember
+import fr.ziyon.campzone.data.teams.TeamBalanceResult
+import fr.ziyon.campzone.data.teams.TeamBalancer
 import fr.ziyon.campzone.data.media.ImageUploader
 import fr.ziyon.campzone.data.teams.TeamDraft
+import fr.ziyon.campzone.data.teams.TeamNotificationDispatcher
+import fr.ziyon.campzone.data.teams.TeamNotificationEvent
+import fr.ziyon.campzone.data.teams.TeamNotificationRequest
 import fr.ziyon.campzone.data.teams.TeamScoreRequest
 import fr.ziyon.campzone.data.teams.TeamService
 import java.util.Date
@@ -51,6 +58,7 @@ data class TeamForm(
 class TeamViewModel @Inject constructor(
     private val teamService: TeamService,
     private val imageUploader: ImageUploader,
+    private val teamNotificationDispatcher: TeamNotificationDispatcher,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<TeamsUiState>(TeamsUiState.Loading)
@@ -70,6 +78,9 @@ class TeamViewModel @Inject constructor(
 
     private val _operationMessage = MutableStateFlow<String?>(null)
     val operationMessage: StateFlow<String?> = _operationMessage.asStateFlow()
+
+    private val _autoBalancePreview = MutableStateFlow<TeamBalanceResult?>(null)
+    val autoBalancePreview: StateFlow<TeamBalanceResult?> = _autoBalancePreview.asStateFlow()
 
     private val _editingTeamId = MutableStateFlow<String?>(null)
     val editingTeamId: StateFlow<String?> = _editingTeamId.asStateFlow()
@@ -169,6 +180,7 @@ class TeamViewModel @Inject constructor(
 
     fun clearOperationError() { _operationError.value = null }
     fun clearOperationMessage() { _operationMessage.value = null }
+    fun clearAutoBalancePreview() { _autoBalancePreview.value = null }
 
     // ── Save ──────────────────────────────────────────────────────────────────
 
@@ -179,6 +191,7 @@ class TeamViewModel @Inject constructor(
             _isSaving.value = true
             _operationError.value = null
             try {
+                val isNewTeam = _editingTeamId.value == null || team(f.id, campingId) == null
                 val draft = TeamDraft(
                     id = f.id,
                     campingId = campingId,
@@ -193,6 +206,15 @@ class TeamViewModel @Inject constructor(
                 updateLocal(campingId, saved)
                 publishState(campingId)
                 _operationMessage.value = "Team saved."
+                dispatchTeamUpdate(
+                    TeamNotificationRequest(
+                        campingId = campingId,
+                        teamId = saved.id,
+                        teamName = saved.name,
+                        event = if (isNewTeam) TeamNotificationEvent.Created else TeamNotificationEvent.Updated,
+                        body = if (isNewTeam) "${saved.name} was created." else "${saved.name} details were updated.",
+                    ),
+                )
                 _form.value = TeamForm()
                 _editingTeamId.value = null
                 onSuccess()
@@ -239,6 +261,19 @@ class TeamViewModel @Inject constructor(
                 _allTeams.value = _allTeams.value + (campingId to updated)
                 publishState(campingId)
                 _operationMessage.value = "${member.displayName} added to team."
+                updated.firstOrNull { it.id == toTeamId }?.let { team ->
+                    dispatchTeamUpdate(
+                        TeamNotificationRequest(
+                            campingId = campingId,
+                            teamId = team.id,
+                            teamName = team.name,
+                            event = TeamNotificationEvent.MemberAssigned,
+                            body = "${member.displayName} joined ${team.name}.",
+                            memberId = member.userId,
+                            memberName = member.displayName,
+                        ),
+                    )
+                }
             } catch (e: Exception) {
                 _operationError.value = e.message ?: "Could not assign member."
             } finally {
@@ -252,9 +287,26 @@ class TeamViewModel @Inject constructor(
             _isSaving.value = true
             _operationError.value = null
             try {
+                val teamBefore = team(fromTeamId, campingId)
+                val removedMember = teamBefore?.members?.firstOrNull { it.id == memberId }
                 val updated = teamService.removeMember(memberId, fromTeamId, campingId)
                 _allTeams.value = _allTeams.value + (campingId to updated)
                 publishState(campingId)
+                if (removedMember != null) {
+                    val originalTeam = requireNotNull(teamBefore)
+                    val updatedTeam = updated.firstOrNull { it.id == fromTeamId } ?: originalTeam
+                    dispatchTeamUpdate(
+                        TeamNotificationRequest(
+                            campingId = campingId,
+                            teamId = updatedTeam.id,
+                            teamName = updatedTeam.name,
+                            event = TeamNotificationEvent.MemberRemoved,
+                            body = "${removedMember.displayName} was removed from ${updatedTeam.name}.",
+                            memberId = removedMember.userId,
+                            memberName = removedMember.displayName,
+                        ),
+                    )
+                }
             } catch (e: Exception) {
                 _operationError.value = e.message ?: "Could not remove member."
             } finally {
@@ -271,6 +323,21 @@ class TeamViewModel @Inject constructor(
                 val updated = teamService.updateMemberRole(memberId, role, teamId, campingId)
                 _allTeams.value = _allTeams.value + (campingId to updated)
                 publishState(campingId)
+                val team = updated.firstOrNull { it.id == teamId }
+                val member = team?.members?.firstOrNull { it.id == memberId }
+                if (team != null && member != null) {
+                    dispatchTeamUpdate(
+                        TeamNotificationRequest(
+                            campingId = campingId,
+                            teamId = team.id,
+                            teamName = team.name,
+                            event = TeamNotificationEvent.MemberRoleUpdated,
+                            body = "${member.displayName} is now ${member.role.displayNameForNotification()}.",
+                            memberId = member.userId,
+                            memberName = member.displayName,
+                        ),
+                    )
+                }
             } catch (e: Exception) {
                 _operationError.value = e.message ?: "Could not update role."
             } finally {
@@ -292,6 +359,16 @@ class TeamViewModel @Inject constructor(
                 updateLocal(campingId, saved)
                 publishState(campingId)
                 _operationMessage.value = "Score updated."
+                dispatchTeamUpdate(
+                    TeamNotificationRequest(
+                        campingId = campingId,
+                        teamId = saved.id,
+                        teamName = saved.name,
+                        event = TeamNotificationEvent.ScoreChanged,
+                        body = "${saved.name} score changed by ${points.signedForNotification()}.",
+                        pointsDelta = points,
+                    ),
+                )
             } catch (e: Exception) {
                 _operationError.value = e.message ?: "Could not update score."
             } finally {
@@ -316,8 +393,99 @@ class TeamViewModel @Inject constructor(
                 updateLocal(campingId, saved)
                 publishState(campingId)
                 _operationMessage.value = "Penalty applied."
+                dispatchTeamUpdate(
+                    TeamNotificationRequest(
+                        campingId = campingId,
+                        teamId = saved.id,
+                        teamName = saved.name,
+                        event = TeamNotificationEvent.PenaltyApplied,
+                        body = "${saved.name} received a $points-point penalty.",
+                        pointsDelta = -points,
+                        reason = reason.trim(),
+                    ),
+                )
             } catch (e: Exception) {
                 _operationError.value = e.message ?: "Could not apply penalty."
+            } finally {
+                _isSaving.value = false
+            }
+        }
+    }
+
+    fun updateMemberScore(memberId: String, teamId: String, campingId: String, delta: Int) {
+        if (delta == 0) return
+        viewModelScope.launch {
+            _isSaving.value = true
+            _operationError.value = null
+            try {
+                val saved = teamService.updateMemberScore(memberId, delta, teamId, campingId)
+                updateLocal(campingId, saved)
+                publishState(campingId)
+                _operationMessage.value = "Personal score updated."
+                saved.members.firstOrNull { it.id == memberId }?.let { member ->
+                    dispatchTeamUpdate(
+                        TeamNotificationRequest(
+                            campingId = campingId,
+                            teamId = saved.id,
+                            teamName = saved.name,
+                            event = TeamNotificationEvent.MemberScoreChanged,
+                            body = "${member.displayName} score changed by ${delta.signedForNotification()}.",
+                            memberId = member.userId,
+                            memberName = member.displayName,
+                            pointsDelta = delta,
+                        ),
+                    )
+                }
+            } catch (e: Exception) {
+                _operationError.value = e.message ?: "Could not update personal score."
+            } finally {
+                _isSaving.value = false
+            }
+        }
+    }
+
+    fun previewAutoBalance(attendees: List<CampingAttendee>, teamIds: List<String>) {
+        val result = TeamBalancer().balance(attendees, teamIds)
+        _autoBalancePreview.value = result
+    }
+
+    fun applyAutoBalance(
+        campingId: String,
+        onSuccess: () -> Unit = {},
+    ) {
+        val preview = _autoBalancePreview.value ?: return
+        if (preview.assignmentsByTeamId.isEmpty()) return
+        viewModelScope.launch {
+            _isSaving.value = true
+            _operationError.value = null
+            try {
+                var latestTeams = teams(campingId)
+                preview.assignmentsByTeamId.forEach { (teamId, attendees) ->
+                    attendees.forEach { attendee ->
+                        val member = attendee.toTeamMember()
+                        latestTeams = teamService.assignMember(member, teamId, campingId)
+                        latestTeams.firstOrNull { it.id == teamId }?.let { team ->
+                            dispatchTeamUpdate(
+                                TeamNotificationRequest(
+                                    campingId = campingId,
+                                    teamId = team.id,
+                                    teamName = team.name,
+                                    event = TeamNotificationEvent.MemberAssigned,
+                                    body = "${member.displayName} joined ${team.name}.",
+                                    memberId = member.userId,
+                                    memberName = member.displayName,
+                                ),
+                            )
+                        }
+                    }
+                }
+                _allTeams.value = _allTeams.value + (campingId to latestTeams)
+                publishState(campingId)
+                _autoBalancePreview.value = null
+                _operationMessage.value = "Teams auto-balanced."
+                onSuccess()
+            } catch (e: Exception) {
+                _operationError.value = e.message ?: "Could not auto-balance teams."
             } finally {
                 _isSaving.value = false
             }
@@ -369,4 +537,17 @@ class TeamViewModel @Inject constructor(
         val sorted = current.sortedWith(compareByDescending<Team> { it.totalScore }.thenBy { it.name.lowercase() })
         _allTeams.value = _allTeams.value + (campingId to sorted)
     }
+
+    private suspend fun dispatchTeamUpdate(request: TeamNotificationRequest) {
+        runCatching { teamNotificationDispatcher.dispatchTeamUpdate(request) }
+    }
+}
+
+private fun Int.signedForNotification(): String =
+    if (this > 0) "+$this" else "$this"
+
+private fun TeamMemberRole.displayNameForNotification(): String = when (this) {
+    TeamMemberRole.Captain -> "Captain"
+    TeamMemberRole.ViceCaptain -> "Vice Captain"
+    TeamMemberRole.Member -> "Member"
 }

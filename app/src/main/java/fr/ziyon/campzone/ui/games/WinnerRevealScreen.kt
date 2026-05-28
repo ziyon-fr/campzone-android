@@ -425,7 +425,12 @@ private fun WinnerRevealScreenPreview() {
                 role = UserRole.Admin, church = "Central SDA", age = 30,
                 preferredLanguage = "en", gender = null, onboardingCompleted = true,
             ),
-            viewModel = GameViewModel(FakeGameService(), FakeTeamService(), PreviewCampingService()),
+            viewModel = GameViewModel(
+                FakeGameService(),
+                FakeTeamService(),
+                PreviewCampingService(),
+                fr.ziyon.campzone.data.teams.FakeTeamNotificationDispatcher(),
+            ),
             onBack = {},
         )
     }

@@ -34,12 +34,10 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KingBed
 import androidx.compose.material.icons.filled.Lock
@@ -47,16 +45,14 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Poll
 import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButtonElevation
@@ -112,6 +108,12 @@ import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
+import fr.ziyon.campzone.data.model.Team
+import fr.ziyon.campzone.data.model.WinnerRevealPolicy
+import fr.ziyon.campzone.ui.teams.TeamBadgeView
+import fr.ziyon.campzone.ui.teams.TeamViewModel
+import fr.ziyon.campzone.ui.teams.TeamsUiState
+import fr.ziyon.campzone.ui.teams.toComposeColor
 import java.util.Date
 
 @Composable
@@ -132,14 +134,34 @@ fun CampingDetailRoute(
     onOpenSongbook: (String) -> Unit = {},
     onOpenTeams: (String) -> Unit = {},
     onOpenGames: (String) -> Unit = {},
+    onOpenTeamDetail: (String, String) -> Unit = { _, _ -> },
+    onOpenTeamEditor: (String, String?) -> Unit = { _, _ -> },
+    onOpenRegistrationPayment: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
+    teamViewModel: TeamViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(campingId) { viewModel.load(campingId, authenticatedUser) }
+    LaunchedEffect(campingId) { teamViewModel.loadIfNeeded(campingId) }
     val state by viewModel.uiState.collectAsState()
+    val teamsState by teamViewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val teams = when (val teamState = teamsState) {
+        is TeamsUiState.Loaded -> teamState.teams
+        else -> emptyList()
+    }
+    val myTeam = teams.firstOrNull { team ->
+        team.members.any { it.userId == authenticatedUser.uid }
+    }
+    val teamScoresHidden = state.camping?.let { camping ->
+        !state.canRevealWinners &&
+            !state.canManageGames &&
+            (camping.winnerRevealPolicy ?: WinnerRevealPolicy()).areScoresHidden(camping.endDate)
+    } ?: false
 
     CampingDetailScreen(
         state = state,
+        myTeam = myTeam,
+        teamScoresHidden = teamScoresHidden,
         onBack = onBack,
         onAttendeeSearchChange = viewModel::updateAttendeeSearch,
         onRetry = { viewModel.load(campingId, authenticatedUser) },
@@ -167,6 +189,9 @@ fun CampingDetailRoute(
         onOpenSongbook = onOpenSongbook,
         onOpenTeams = onOpenTeams,
         onOpenGames = onOpenGames,
+        onOpenTeamDetail = onOpenTeamDetail,
+        onOpenTeamEditor = onOpenTeamEditor,
+        onOpenRegistrationPayment = onOpenRegistrationPayment,
         modifier = modifier,
     )
 }
@@ -192,6 +217,11 @@ fun CampingDetailScreen(
     onOpenVenueMap: (String) -> Unit = {},
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
+    myTeam: Team? = null,
+    teamScoresHidden: Boolean = false,
+    onOpenTeamDetail: (String, String) -> Unit = { _, _ -> },
+    onOpenTeamEditor: (String, String?) -> Unit = { _, _ -> },
+    onOpenRegistrationPayment: (String) -> Unit = {},
 ) {
     val camping = state.camping
     Scaffold(
@@ -241,11 +271,15 @@ fun CampingDetailScreen(
                 else -> CampingDetailContent(
                     state = state,
                     camping = camping,
+                    myTeam = myTeam,
+                    teamScoresHidden = teamScoresHidden,
                     onAttendeeSearchChange = onAttendeeSearchChange,
                     onOpenGuidelines = onOpenGuidelines,
                     onOpenSchedule = onOpenSchedule,
                     onOpenTeams = onOpenTeams,
                     onOpenGames = onOpenGames,
+                    onOpenTeamDetail = onOpenTeamDetail,
+                    onOpenTeamEditor = onOpenTeamEditor,
                     onOpenChat = onOpenChat,
                     onOpenPolls = onOpenPolls,
                     onOpenRegistrationReview = onOpenRegistrationReview,
@@ -253,6 +287,7 @@ fun CampingDetailScreen(
                     onOpenVenueMap = onOpenVenueMap,
                     onOpenFoodMenu = onOpenFoodMenu,
                     onOpenSongbook = onOpenSongbook,
+                    onOpenRegistrationPayment = onOpenRegistrationPayment,
                 )
             }
         }
@@ -311,6 +346,10 @@ private fun CampingDetailContent(
     onOpenSchedule: (String) -> Unit,
     onOpenTeams: (String) -> Unit,
     onOpenGames: (String) -> Unit,
+    myTeam: Team?,
+    teamScoresHidden: Boolean,
+    onOpenTeamDetail: (String, String) -> Unit,
+    onOpenTeamEditor: (String, String?) -> Unit,
     onOpenChat: (String) -> Unit,
     onOpenPolls: (String) -> Unit,
     onOpenRegistrationReview: () -> Unit,
@@ -318,6 +357,7 @@ private fun CampingDetailContent(
     onOpenVenueMap: (String) -> Unit,
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
+    onOpenRegistrationPayment: (String) -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(CampingDetailTab.Overview) }
     val disabledAlpha = if (camping.registrationStatus == CampingRegistrationStatus.Cancelled) 0.5f else 1f
@@ -390,8 +430,12 @@ private fun CampingDetailContent(
                     TeamsSection(
                         state = state,
                         camping = camping,
+                        myTeam = myTeam,
+                        teamScoresHidden = teamScoresHidden,
                         onOpenTeams = onOpenTeams,
                         onOpenGames = onOpenGames,
+                        onOpenTeamDetail = onOpenTeamDetail,
+                        onOpenTeamEditor = onOpenTeamEditor,
                     )
                 }
             }
@@ -405,21 +449,19 @@ private fun CampingDetailContent(
                 onOpenPolls = onOpenPolls,
                 onOpenFoodMenu = onOpenFoodMenu,
                 onOpenSongbook = onOpenSongbook,
+                onOpenRegistrationPayment = onOpenRegistrationPayment,
             )
         }
 
-        if (state.showManagementSection) {
-            item(key = "management") {
-                ManagementSection(state)
-            }
-        }
+        // Deferred Phase C/D operations are intentionally hidden until their
+        // Android destinations exist, matching the current C1 scope.
     }
 }
 
 @Composable
 private fun HeaderSection(
     camping: Camping,
-    onOpenVenueMap: (String) -> Unit,
+    @Suppress("UNUSED_PARAMETER") onOpenVenueMap: (String) -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -461,9 +503,7 @@ private fun HeaderSection(
                     style = MaterialTheme.typography.labelMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .clickable { onOpenVenueMap(camping.id) },
+                    modifier = Modifier.weight(1f, fill = false),
                 )
             }
         }
@@ -1053,14 +1093,25 @@ private fun ScheduleSection(
 private fun TeamsSection(
     state: CampingDetailUiState,
     camping: Camping,
+    myTeam: Team?,
+    teamScoresHidden: Boolean,
     onOpenTeams: (String) -> Unit,
     onOpenGames: (String) -> Unit,
+    onOpenTeamDetail: (String, String) -> Unit,
+    onOpenTeamEditor: (String, String?) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
         DetailSectionHeader(
             title = stringResource(R.string.camping_teams),
             icon = Icons.Filled.Groups,
         )
+        if (myTeam != null) {
+            MyTeamShortcut(
+                team = myTeam,
+                scoresHidden = teamScoresHidden,
+                onClick = { onOpenTeamDetail(camping.id, myTeam.id) },
+            )
+        }
         DetailResourceButton(
             title = stringResource(R.string.camping_teams_ranking),
             subtitle = stringResource(R.string.camping_teams_ranking_subtitle),
@@ -1078,17 +1129,75 @@ private fun TeamsSection(
                 title = stringResource(R.string.camping_create_team),
                 subtitle = stringResource(R.string.camping_create_team_subtitle),
                 icon = Icons.Filled.PersonAdd,
-                onClick = { onOpenTeams(camping.id) },
+                onClick = { onOpenTeamEditor(camping.id, null) },
             )
         }
-        if (state.canAwardAchievements) {
-            DetailResourceButton(
-                title = stringResource(R.string.camping_award_badges),
-                subtitle = stringResource(R.string.camping_award_badges_subtitle),
-                icon = Icons.Filled.WorkspacePremium,
-                onClick = { onOpenGames(camping.id) },
+    }
+}
+
+@Composable
+private fun MyTeamShortcut(
+    team: Team,
+    scoresHidden: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.czColors
+    val teamColor = team.colorHex.toComposeColor() ?: colors.ember
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CzRadius.lg))
+            .background(colors.surface)
+            .border(1.dp, teamColor.copy(alpha = 0.35f), RoundedCornerShape(CzRadius.lg))
+            .clickable(onClick = onClick)
+            .padding(CzSpacing.lg),
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TeamBadgeView(team = team, size = 40)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.teams_my_team),
+                color = colors.textSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = team.name,
+                color = colors.textPrimary,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
+        if (scoresHidden) {
+            Icon(
+                imageVector = Icons.Filled.VisibilityOff,
+                contentDescription = stringResource(R.string.teams_scores_hidden),
+                tint = colors.textSecondary,
+                modifier = Modifier.size(20.dp),
+            )
+        } else {
+            Text(
+                text = "${team.totalScore} pts",
+                color = teamColor,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+        }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = colors.textSecondary,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -1100,16 +1209,13 @@ private fun ResourcesSection(
     onOpenPolls: (String) -> Unit,
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
+    onOpenRegistrationPayment: (String) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
             title = stringResource(R.string.camping_resources),
             icon = Icons.Filled.WorkspacePremium,
         )
-
-        if (state.isApprovedParticipant) {
-            PrimaryPassResource()
-        }
 
         val campLifeResources = buildList {
             add(
@@ -1121,26 +1227,6 @@ private fun ResourcesSection(
                     onClick = { onOpenSongbook(camping.id) },
                 ),
             )
-            if (state.isApprovedParticipant || state.canManageAnyCamping || state.canEditCamping) {
-                add(
-                    DetailResource(
-                        title = stringResource(R.string.camping_emergency_safety),
-                        subtitle = stringResource(R.string.camping_emergency_safety_subtitle),
-                        icon = Icons.Filled.HealthAndSafety,
-                        accent = MaterialTheme.czColors.error,
-                        onClick = {},
-                    ),
-                )
-                add(
-                    DetailResource(
-                        title = stringResource(R.string.camping_support_sponsors),
-                        subtitle = stringResource(R.string.camping_support_sponsors_subtitle),
-                        icon = Icons.Filled.Star,
-                        accent = MaterialTheme.czColors.ember,
-                        onClick = {},
-                    ),
-                )
-            }
             if (state.isApprovedParticipant) {
                 add(
                     DetailResource(
@@ -1162,15 +1248,6 @@ private fun ResourcesSection(
                 )
                 add(
                     DetailResource(
-                        title = stringResource(R.string.camping_album),
-                        subtitle = stringResource(R.string.camping_album_subtitle),
-                        icon = Icons.Filled.PhotoLibrary,
-                        accent = Color(0xFF2563EB),
-                        onClick = {},
-                    ),
-                )
-                add(
-                    DetailResource(
                         title = stringResource(R.string.camping_food_menu),
                         subtitle = stringResource(R.string.camping_food_menu_subtitle),
                         icon = Icons.Filled.Restaurant,
@@ -1178,17 +1255,17 @@ private fun ResourcesSection(
                         onClick = { onOpenFoodMenu(camping.id) },
                     ),
                 )
-                if (camping.isPaid) {
-                    add(
-                        DetailResource(
-                            title = stringResource(R.string.camping_fees_payments),
-                            subtitle = stringResource(R.string.camping_fees_payments_subtitle),
-                            icon = Icons.Filled.CreditCard,
-                            accent = MaterialTheme.czColors.twilight,
-                            onClick = {},
-                        ),
-                    )
-                }
+            }
+            if (state.hasPendingRegistrationPayment) {
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.camping_fees_payments),
+                        subtitle = stringResource(R.string.camping_fees_payments_subtitle),
+                        icon = Icons.Filled.CreditCard,
+                        accent = MaterialTheme.czColors.twilight,
+                        onClick = { onOpenRegistrationPayment(camping.id) },
+                    ),
+                )
             }
         }
 
@@ -1198,36 +1275,9 @@ private fun ResourcesSection(
             resources = campLifeResources,
         )
 
-        val operationsResources = buildList {
-            if (state.canManageCheckIns) {
-                add(
-                    DetailResource(
-                        title = stringResource(R.string.camping_check_in_scanner),
-                        subtitle = stringResource(R.string.camping_check_in_scanner_subtitle),
-                        icon = Icons.Filled.QrCodeScanner,
-                        accent = MaterialTheme.czColors.success,
-                        onClick = {},
-                    ),
-                )
-            }
-            if (state.canManageTransportation) {
-                add(
-                    DetailResource(
-                        title = stringResource(R.string.camping_transportation),
-                        subtitle = stringResource(R.string.camping_transportation_subtitle),
-                        icon = Icons.Filled.DirectionsBus,
-                        accent = Color(0xFF0891B2),
-                        onClick = {},
-                    ),
-                )
-            }
-        }
-
-        ResourceGroup(
-            title = stringResource(R.string.camping_operations),
-            icon = Icons.Filled.Security,
-            resources = operationsResources,
-        )
+        // QR passes, scanners, transportation dashboard, album, support, and
+        // operations hubs are Phase C/D surfaces on Android; C1 hides those
+        // rows instead of presenting inert affordances.
     }
 }
 

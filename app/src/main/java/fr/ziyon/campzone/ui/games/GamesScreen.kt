@@ -457,7 +457,12 @@ private fun GamesScreenPreview() {
                 role = UserRole.Admin, church = "Central SDA", age = 30,
                 preferredLanguage = "en", gender = null, onboardingCompleted = true,
             ),
-            viewModel = GameViewModel(FakeGameService(games = listOf(previewGame())), FakeTeamService(), PreviewCampingService()),
+            viewModel = GameViewModel(
+                FakeGameService(games = listOf(previewGame())),
+                FakeTeamService(),
+                PreviewCampingService(),
+                fr.ziyon.campzone.data.teams.FakeTeamNotificationDispatcher(),
+            ),
             onBack = {}, onOpenGameDetail = {}, onOpenGameEditor = {}, onOpenPointHistory = {},
             onOpenRevealSettings = {},
         )

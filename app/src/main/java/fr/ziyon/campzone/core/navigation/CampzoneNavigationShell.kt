@@ -314,6 +314,15 @@ fun CampzoneNavigationShell(
                     onOpenGames = { campingId ->
                         navController.navigate(AppRoute.CampingGames(campingId).route)
                     },
+                    onOpenTeamDetail = { campingId, teamId ->
+                        navController.navigate(AppRoute.TeamDetail(campingId, teamId).route)
+                    },
+                    onOpenTeamEditor = { campingId, teamId ->
+                        navController.navigate(AppRoute.TeamEditor(campingId, teamId).route)
+                    },
+                    onOpenRegistrationPayment = { campingId ->
+                        navController.navigate(AppRoute.CampingRegistrationPayment(campingId).route)
+                    },
                 )
             }
             composable(route = AppRoutePattern.RegistrationReview) {
@@ -521,6 +530,9 @@ fun CampzoneNavigationShell(
                     onOpenTeamChat = { cId, tId ->
                         navController.navigate(AppRoute.TeamChat(cId, tId).route)
                     },
+                    onOpenPointHistory = { cId, tId ->
+                        navController.navigate(AppRoute.PointHistory(cId, tId).route)
+                    },
                 )
             }
             composable(
@@ -541,6 +553,8 @@ fun CampzoneNavigationShell(
                     campingId = campingId,
                     camping = campingDetailState.camping,
                     authenticatedUser = authenticatedUser,
+                    approvedAttendees = campingDetailState.attendees
+                        .filter { it.registrationStatus == RegistrationApprovalStatus.Approved },
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() },
                     onOpenTeamDetail = { teamId ->

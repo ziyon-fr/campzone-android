@@ -84,6 +84,7 @@ import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.model.TeamMemberRole
 import fr.ziyon.campzone.data.model.TeamPenalty
+import fr.ziyon.campzone.data.model.toTeamMember
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
@@ -97,6 +98,7 @@ fun TeamDetailRoute(
     onBack: () -> Unit,
     onOpenEditor: (String) -> Unit,
     onOpenTeamChat: (String, String) -> Unit,
+    onOpenPointHistory: (String, String) -> Unit,
     viewModel: TeamViewModel = hiltViewModel(),
 ) {
     val evaluator = remember { AppPermissionEvaluator() }
@@ -114,6 +116,7 @@ fun TeamDetailRoute(
     }
 
     val canManageTeams = campingCtx != null && evaluator.canManageTeams(permissionUser, campingCtx)
+    val canModerateTeamChat = campingCtx != null && evaluator.canModerateTeamChat(permissionUser, campingCtx)
 
     val uiState by viewModel.uiState.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
@@ -134,16 +137,19 @@ fun TeamDetailRoute(
         canManageTeams = canManageTeams,
         authenticatedUserId = authenticatedUser.uid,
         approvedAttendees = approvedAttendees,
+        canModerateTeamChat = canModerateTeamChat,
         isSaving = isSaving,
         operationError = operationError,
         operationMessage = operationMessage,
         onBack = onBack,
         onOpenEditor = { onOpenEditor(teamId) },
         onOpenTeamChat = { onOpenTeamChat(campingId, teamId) },
+        onOpenPointHistory = { onOpenPointHistory(campingId, teamId) },
         onDeleteTeam = { viewModel.deleteTeam(teamId, campingId, onBack) },
         onAssignMember = { member -> viewModel.assignMember(member, teamId, campingId) },
         onRemoveMember = { memberId -> viewModel.removeMember(memberId, teamId, campingId) },
         onUpdateMemberRole = { memberId, role -> viewModel.updateMemberRole(memberId, role, teamId, campingId) },
+        onUpdateMemberScore = { memberId, delta -> viewModel.updateMemberScore(memberId, teamId, campingId, delta) },
         onUpdateScore = { delta -> viewModel.updateTeamScore(teamId, campingId, delta) },
         onApplyPenalty = { pts, reason -> viewModel.applyPenalty(teamId, campingId, pts, reason) },
         onClearError = viewModel::clearOperationError,
@@ -160,6 +166,7 @@ private fun TeamDetailScreen(
     team: Team?,
     campingId: String,
     canManageTeams: Boolean,
+    canModerateTeamChat: Boolean,
     authenticatedUserId: String,
     approvedAttendees: List<CampingAttendee>,
     isSaving: Boolean,
@@ -169,10 +176,12 @@ private fun TeamDetailScreen(
     onBack: () -> Unit,
     onOpenEditor: () -> Unit,
     onOpenTeamChat: () -> Unit,
+    onOpenPointHistory: () -> Unit,
     onDeleteTeam: () -> Unit,
     onAssignMember: (TeamMember) -> Unit,
     onRemoveMember: (String) -> Unit,
     onUpdateMemberRole: (String, TeamMemberRole) -> Unit,
+    onUpdateMemberScore: (String, Int) -> Unit,
     onUpdateScore: (Int) -> Unit,
     onApplyPenalty: (Int, String) -> Unit,
     onClearError: () -> Unit,
@@ -181,6 +190,7 @@ private fun TeamDetailScreen(
 ) {
     val colors = MaterialTheme.czColors
     var showDeleteAlert by remember { mutableStateOf(false) }
+    var scoreMember by remember { mutableStateOf<TeamMember?>(null) }
 
     if (showDeleteAlert) {
         AlertDialog(
@@ -194,6 +204,17 @@ private fun TeamDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteAlert = false }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
+
+    scoreMember?.let { member ->
+        MemberScoreDialog(
+            member = member,
+            onDismiss = { scoreMember = null },
+            onConfirm = { delta ->
+                scoreMember = null
+                onUpdateMemberScore(member.id, delta)
             },
         )
     }
@@ -254,10 +275,15 @@ private fun TeamDetailScreen(
             // Score breakdown
             TeamDetailSectionLabel(stringResource(R.string.teams_score_breakdown), Icons.Outlined.BarChart)
             ScoreBreakdownRow(team = team)
+            TextButton(onClick = onOpenPointHistory, modifier = Modifier.align(Alignment.End)) {
+                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null)
+                Spacer(Modifier.width(CzSpacing.xs))
+                Text(stringResource(R.string.teams_point_history))
+            }
 
             // Team chat link (visible to members or managers)
             val isTeamMember = team.members.any { it.userId == authenticatedUserId }
-            if (isTeamMember || canManageTeams) {
+            if (isTeamMember || canModerateTeamChat) {
                 TeamChatLink(team = team, teamColor = teamColor, onClick = onOpenTeamChat)
             }
 
@@ -268,6 +294,7 @@ private fun TeamDetailScreen(
                 canManage = canManageTeams,
                 onRemoveMember = onRemoveMember,
                 onUpdateRole = onUpdateMemberRole,
+                onAdjustScore = { scoreMember = it },
             )
 
             // Penalties
@@ -284,20 +311,7 @@ private fun TeamDetailScreen(
                     allTeams = allTeams,
                     currentTeamId = team.id,
                     onAssign = { attendee, role ->
-                        val member = TeamMember(
-                            id = attendee.id,
-                            userId = attendee.userId,
-                            displayName = attendee.displayName,
-                            church = attendee.church,
-                            role = role,
-                            personalScore = 0,
-                            ageGroup = attendee.ageGroup,
-                            gender = attendee.gender,
-                            preferredLanguage = attendee.preferredLanguage,
-                            languages = attendee.languages,
-                            photoUrl = attendee.photoUrl,
-                        )
-                        onAssignMember(member)
+                        onAssignMember(attendee.toTeamMember(role))
                     },
                 )
                 ScoreControlCard(onUpdateScore = onUpdateScore)
@@ -397,6 +411,7 @@ private fun MembersSection(
     canManage: Boolean,
     onRemoveMember: (String) -> Unit,
     onUpdateRole: (String, TeamMemberRole) -> Unit,
+    onAdjustScore: (TeamMember) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
@@ -416,7 +431,13 @@ private fun MembersSection(
         modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(CzRadius.lg)).background(colors.surface),
     ) {
         team.members.forEachIndexed { idx, member ->
-            MemberRow(member = member, canManage = canManage, onRemove = { onRemoveMember(member.id) }, onUpdateRole = { onUpdateRole(member.id, it) })
+            MemberRow(
+                member = member,
+                canManage = canManage,
+                onRemove = { onRemoveMember(member.id) },
+                onUpdateRole = { onUpdateRole(member.id, it) },
+                onAdjustScore = { onAdjustScore(member) },
+            )
             if (idx < team.members.lastIndex) {
                 Box(Modifier.padding(start = CzSpacing.md + 40.dp + CzSpacing.md).height(0.5.dp).fillMaxWidth().background(colors.divider))
             }
@@ -430,6 +451,7 @@ private fun MemberRow(
     canManage: Boolean,
     onRemove: () -> Unit,
     onUpdateRole: (TeamMemberRole) -> Unit,
+    onAdjustScore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
@@ -466,6 +488,10 @@ private fun MemberRow(
                         )
                     }
                     DropdownMenuItem(
+                        text = { Text(stringResource(R.string.teams_adjust_member_score)) },
+                        onClick = { roleMenuExpanded = false; onAdjustScore() },
+                    )
+                    DropdownMenuItem(
                         text = { Text(stringResource(R.string.teams_remove_member), color = colors.error) },
                         onClick = { roleMenuExpanded = false; onRemove() },
                     )
@@ -473,6 +499,43 @@ private fun MemberRow(
             }
         }
     }
+}
+
+@Composable
+private fun MemberScoreDialog(
+    member: TeamMember,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit,
+) {
+    var deltaText by rememberSaveable(member.id) { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.teams_adjust_member_score_title, member.displayName)) },
+        text = {
+            OutlinedTextField(
+                value = deltaText,
+                onValueChange = { deltaText = it },
+                label = { Text(stringResource(R.string.teams_score_hint)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val delta = deltaText.trim().toIntOrNull() ?: return@TextButton
+                    onConfirm(delta)
+                },
+            ) {
+                Text(stringResource(R.string.teams_update_score_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_cancel))
+            }
+        },
+    )
 }
 
 @Composable
@@ -533,6 +596,41 @@ private fun AssignMemberCard(
     var selectedRole by rememberSaveable { mutableStateOf(TeamMemberRole.Member) }
     var attendeeMenuExpanded by remember { mutableStateOf(false) }
     var roleMenuExpanded by remember { mutableStateOf(false) }
+    var pendingReassignment by remember { mutableStateOf<Pair<CampingAttendee, TeamMemberRole>?>(null) }
+
+    pendingReassignment?.let { (attendee, role) ->
+        val existingTeam = allTeams.firstOrNull { team ->
+            team.id != currentTeamId && team.members.any { it.userId == attendee.userId }
+        }
+        AlertDialog(
+            onDismissRequest = { pendingReassignment = null },
+            title = { Text(stringResource(R.string.teams_reassign_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.teams_reassign_message,
+                        attendee.displayName,
+                        existingTeam?.name.orEmpty(),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingReassignment = null
+                        onAssign(attendee, role)
+                    },
+                ) {
+                    Text(stringResource(R.string.teams_reassign_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingReassignment = null }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
+    }
 
     Column(
         modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(CzRadius.lg)).background(colors.surface).padding(CzSpacing.md),
@@ -584,7 +682,14 @@ private fun AssignMemberCard(
             TextButton(
                 onClick = {
                     val attendee = sorted.firstOrNull { it.id == selectedAttendeeId } ?: return@TextButton
-                    onAssign(attendee, selectedRole)
+                    val existingTeam = allTeams.firstOrNull { team ->
+                        team.id != currentTeamId && team.members.any { it.userId == attendee.userId }
+                    }
+                    if (existingTeam != null) {
+                        pendingReassignment = attendee to selectedRole
+                    } else {
+                        onAssign(attendee, selectedRole)
+                    }
                 },
                 modifier = Modifier.align(Alignment.End),
             ) {
@@ -728,6 +833,7 @@ private fun TeamDetailScreenPreview() {
             team = team,
             campingId = "preview-camping",
             canManageTeams = true,
+            canModerateTeamChat = true,
             authenticatedUserId = "u1",
             approvedAttendees = emptyList(),
             isSaving = false,
@@ -737,10 +843,12 @@ private fun TeamDetailScreenPreview() {
             onBack = {},
             onOpenEditor = {},
             onOpenTeamChat = {},
+            onOpenPointHistory = {},
             onDeleteTeam = {},
             onAssignMember = {},
             onRemoveMember = {},
             onUpdateMemberRole = { _, _ -> },
+            onUpdateMemberScore = { _, _ -> },
             onUpdateScore = {},
             onApplyPenalty = { _, _ -> },
             onClearError = {},

@@ -640,6 +640,18 @@
     <string name="teams_ranking">Ranking</string>
     <string name="teams_personal_pts">Personal Pts</string>
     <string name="teams_members">Members</string>
+    <string name="teams_scores_hidden">Scores hidden until reveal</string>
+    <string name="teams_scores_hidden_short">Hidden</string>
+    <string name="teams_auto_balance">Auto-balance teams</string>
+    <string name="teams_auto_balance_title">Auto-balance teams</string>
+    <string name="teams_auto_balance_summary">%1$d approved attendees across %2$d teams</string>
+    <string name="teams_auto_balance_no_teams">Create at least one team before balancing.</string>
+    <string name="teams_auto_balance_current_members">%1$d current members</string>
+    <string name="teams_auto_balance_preview">Preview assignments</string>
+    <string name="teams_auto_balance_score">Score: %1$d</string>
+    <string name="teams_auto_balance_no_assignments">No assignments</string>
+    <string name="teams_auto_balance_preview_action">Preview</string>
+    <string name="teams_auto_balance_apply">Apply</string>
     <!-- C1: Team detail -->
     <string name="teams_delete_title">Delete Team</string>
     <string name="teams_delete_message">This will permanently delete the team and all its data. This cannot be undone.</string>
@@ -650,9 +662,15 @@
     <string name="teams_delete_team">Delete Team</string>
     <string name="teams_team_chat">Team Chat</string>
     <string name="teams_team_chat_subtitle">Chat with %1$s members</string>
+    <string name="teams_point_history">Point History</string>
     <string name="teams_no_members">No members yet.</string>
     <string name="teams_manage_member">Manage Member</string>
     <string name="teams_remove_member">Remove from Team</string>
+    <string name="teams_adjust_member_score">Adjust personal score</string>
+    <string name="teams_adjust_member_score_title">Adjust %1$s score</string>
+    <string name="teams_reassign_title">Move participant?</string>
+    <string name="teams_reassign_message">%1$s is already assigned to %2$s. Move them to this team?</string>
+    <string name="teams_reassign_confirm">Move to team</string>
     <string name="teams_penalty_no_reason">No reason provided</string>
     <string name="teams_add_member">Add Member</string>
     <string name="teams_no_approved_attendees">No approved attendees available.</string>

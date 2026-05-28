@@ -60,6 +60,22 @@ data class TeamPenalty(
     val createdAt: Date,
 )
 
+fun CampingAttendee.toTeamMember(role: TeamMemberRole = TeamMemberRole.Member): TeamMember =
+    TeamMember(
+        id = userId,
+        userId = userId,
+        displayName = displayName,
+        church = church,
+        role = role,
+        personalScore = 0,
+        notificationUserId = guardianId?.trim()?.takeUnless { it.isBlank() } ?: userId,
+        ageGroup = ageGroup,
+        gender = gender,
+        preferredLanguage = preferredLanguage,
+        languages = languages,
+        photoUrl = photoUrl,
+    )
+
 // region decode
 
 internal fun Map<String, Any?>.toTeamOrNull(documentId: String): Team? =
