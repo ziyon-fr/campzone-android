@@ -357,3 +357,22 @@ private fun PollClosedCard() {
         Text(stringResource(R.string.poll_closed_message), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
     }
 }
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+private fun PollDetailRoutePreview() {
+    fr.ziyon.campzone.core.designsystem.CampzoneTheme {
+        PollDetailRoute(
+            pollId = "p1",
+            campingId = "preview-camp",
+            camping = pollPreviewCamping(),
+            authenticatedUser = pollPreviewUser(),
+            onBack = {},
+            onOpenEditor = {},
+            viewModel = PollViewModel(
+                fr.ziyon.campzone.data.polls.FakePollService(polls = listOf(previewActivePoll())),
+                fr.ziyon.campzone.data.polls.FakePollNotificationDispatcher(),
+            ),
+        )
+    }
+}

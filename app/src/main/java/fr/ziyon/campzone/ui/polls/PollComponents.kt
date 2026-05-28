@@ -155,3 +155,31 @@ fun PollResultsBar(
         }
     }
 }
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+private fun PollCardPreview() {
+    fr.ziyon.campzone.core.designsystem.CampzoneTheme {
+        Column(
+            modifier = Modifier.padding(CzSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            PollCard(poll = previewActivePoll(), onClick = {})
+            PollCard(poll = previewClosedPoll(), onClick = {})
+        }
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+private fun PollResultsBarPreview() {
+    fr.ziyon.campzone.core.designsystem.CampzoneTheme {
+        Column(
+            modifier = Modifier.padding(CzSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            PollResultsBar(PollOption("a", "Pancakes", 12), 0.35, isUserChoice = true, isWinning = false)
+            PollResultsBar(PollOption("b", "Fresh fruit & granola", 15), 0.44, isUserChoice = false, isWinning = true)
+        }
+    }
+}

@@ -615,3 +615,43 @@ private fun formatClock(seconds: Double): String {
     val total = seconds.roundToInt()
     return "%d:%02d".format(total / 60, total % 60)
 }
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+private fun ChatComposerPreview() {
+    fr.ziyon.campzone.core.designsystem.CampzoneTheme {
+        ChatComposer(
+            draft = ChatMessageDraft(text = "Hey @Léa, ready for dinner?"),
+            isEditing = false,
+            isSending = false,
+            isUploading = false,
+            mentionCandidates = listOf(
+                MentionCandidate("everyone", "Everyone", "Notify all participants", isEveryone = true),
+                MentionCandidate("lea", "Léa Müller", "Lausanne SDA"),
+            ),
+            recorder = ChatAudioRecorder(LocalContext.current),
+            onDraftChange = { _, _ -> },
+            onSend = {},
+            onCommitEdit = {},
+            onCancelEdit = {},
+            onSendImage = { _, _, _ -> },
+            onSendVoice = { _, _ -> },
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+private fun MentionPickerPreview() {
+    fr.ziyon.campzone.core.designsystem.CampzoneTheme {
+        MentionPicker(
+            candidates = listOf(
+                MentionCandidate("everyone", "Everyone", "Notify all participants", isEveryone = true),
+                MentionCandidate("lea", "Léa Müller", "Lausanne SDA"),
+                MentionCandidate("david", "David Chen", "Paris 17e"),
+            ),
+            query = "",
+            onSelect = {},
+        )
+    }
+}

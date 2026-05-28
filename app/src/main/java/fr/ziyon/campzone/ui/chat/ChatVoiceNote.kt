@@ -157,3 +157,23 @@ private fun formatVoiceTime(seconds: Double): String {
     val total = seconds.roundToInt()
     return "%d:%02d".format(total / 60, total % 60)
 }
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+private fun ChatVoiceNoteViewPreview() {
+    fr.ziyon.campzone.core.designsystem.CampzoneTheme {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ChatVoiceNoteView(
+                attachment = ChatAttachment(
+                    fr.ziyon.campzone.data.model.ChatAttachmentKind.Audio,
+                    "https://example.com/voice.m4a",
+                    durationSeconds = 14.0,
+                ),
+                isCurrentUser = false,
+            )
+        }
+    }
+}

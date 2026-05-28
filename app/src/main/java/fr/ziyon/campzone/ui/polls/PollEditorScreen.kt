@@ -16,6 +16,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.RemoveCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -77,7 +78,7 @@ fun PollEditorRoute(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(stringResource(if (pollId == null) R.string.poll_new_title else R.string.poll_edit_title))
                 },
@@ -298,3 +299,21 @@ private fun formErrorMessage(error: PollFormError): String = stringResource(
         PollFormError.InvalidCloseDate -> R.string.poll_form_error_close_date
     },
 )
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+private fun PollEditorRoutePreview() {
+    fr.ziyon.campzone.core.designsystem.CampzoneTheme {
+        PollEditorRoute(
+            pollId = null,
+            campingId = "preview-camp",
+            authenticatedUser = pollPreviewUser(),
+            onBack = {},
+            onSaved = {},
+            viewModel = PollViewModel(
+                fr.ziyon.campzone.data.polls.FakePollService(),
+                fr.ziyon.campzone.data.polls.FakePollNotificationDispatcher(),
+            ),
+        )
+    }
+}

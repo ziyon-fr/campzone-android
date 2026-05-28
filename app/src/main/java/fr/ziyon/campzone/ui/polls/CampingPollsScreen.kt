@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import fr.ziyon.campzone.R
@@ -87,7 +90,7 @@ fun CampingPollsRoute(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.poll_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -108,28 +111,38 @@ fun CampingPollsRoute(
             )
         },
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
+        Box(Modifier
+            .padding(padding)
+            .fillMaxSize()) {
             when {
                 !canAccess -> CzEmptyState(
                     title = stringResource(R.string.poll_restricted_title),
                     message = stringResource(R.string.poll_restricted_message),
-                    modifier = Modifier.fillMaxSize().padding(CzSpacing.lg),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(CzSpacing.lg),
                 )
                 state is PollListUiState.Loading -> CzLoadingView(
                     message = stringResource(R.string.poll_loading),
-                    modifier = Modifier.fillMaxSize().padding(CzSpacing.lg),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(CzSpacing.lg),
                 )
                 state is PollListUiState.Error -> CzErrorState(
                     title = stringResource(R.string.poll_error_title),
                     message = (state as PollListUiState.Error).message,
                     onRetry = { viewModel.retry(campingId) },
                     retryLabel = stringResource(R.string.common_retry),
-                    modifier = Modifier.fillMaxSize().padding(CzSpacing.lg),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(CzSpacing.lg),
                 )
                 state is PollListUiState.Empty -> CzEmptyState(
                     title = stringResource(R.string.poll_empty_title),
                     message = stringResource(R.string.poll_empty_message),
-                    modifier = Modifier.fillMaxSize().padding(CzSpacing.lg),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(CzSpacing.lg),
                 )
                 state is PollListUiState.Loaded -> {
                     val loaded = state as PollListUiState.Loaded
@@ -149,7 +162,7 @@ fun CampingPollsRoute(
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.pollSection(
+private fun LazyListScope.pollSection(
     title: String,
     polls: List<Poll>,
     onOpenPollDetail: (String) -> Unit,
@@ -165,5 +178,27 @@ private fun androidx.compose.foundation.lazy.LazyListScope.pollSection(
     }
     items(polls, key = { it.id }) { poll ->
         PollCard(poll = poll, onClick = { onOpenPollDetail(poll.id) })
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+private fun CampingPollsRoutePreview() {
+    fr.ziyon.campzone.core.designsystem.CampzoneTheme {
+        CampingPollsRoute(
+            campingId = "preview-camp",
+            camping = pollPreviewCamping(),
+            attendees = emptyList(),
+            authenticatedUser = pollPreviewUser(),
+            onBack = {},
+            onOpenPollDetail = {},
+            onOpenPollEditor = {},
+            viewModel = PollViewModel(
+                fr.ziyon.campzone.data.polls.FakePollService(
+                    polls = listOf(previewActivePoll(), previewClosedPoll()),
+                ),
+                fr.ziyon.campzone.data.polls.FakePollNotificationDispatcher(),
+            ),
+        )
     }
 }
