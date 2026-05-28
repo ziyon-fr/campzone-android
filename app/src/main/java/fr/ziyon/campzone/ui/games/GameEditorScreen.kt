@@ -385,7 +385,12 @@ fun PointRuleEditorSheet(
 @Composable
 private fun GameEditorScreenPreview() {
     CampzoneTheme {
-        val vm = GameViewModel(FakeGameService(games = listOf(previewGame())), FakeTeamService(), PreviewCampingService())
+        val vm = GameViewModel(
+            FakeGameService(games = listOf(previewGame())),
+            FakeTeamService(),
+            PreviewCampingService(),
+            fr.ziyon.campzone.data.teams.FakeTeamNotificationDispatcher(),
+        )
         GameEditorRoute(
             campingId = "preview-camp",
             gameId = null,

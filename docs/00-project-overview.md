@@ -63,7 +63,7 @@ every platform (`05-deep-linking.md`).
 ## Tech stack per platform
 
 | | iOS (ref) | Web | Android |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Lang/UI | Swift 6 / SwiftUI | TypeScript / React 19 / Next.js App Router | Kotlin / Jetpack Compose |
 | State | `@Observable` MVVM | Server Components + client Observers/hooks | ViewModel + StateFlow MVVM |
 | Backend | Firebase (Auth, Firestore) | `firebase` JS SDK | Firebase Android SDK |
@@ -75,7 +75,7 @@ every platform (`05-deep-linking.md`).
 ## Documentation map
 
 | File | Scope |
-|---|---|
+| --- | --- |
 | `00-project-overview.md` | this - shared product context |
 | `01-architecture.md` | **platform-specific** architecture |
 | `02-firestore-schema.md` | **shared** - exact Firestore wire schema |

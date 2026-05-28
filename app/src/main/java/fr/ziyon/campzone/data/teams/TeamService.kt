@@ -101,14 +101,7 @@ class FirestoreTeamService @Inject constructor(
             updatedAt = Date(),
         )
 
-        val payload = TeamPayload.teamPayload(
-            team = team,
-            serverTimestamp = FieldValue.serverTimestamp(),
-            deleteField = FieldValue.delete(),
-            includeCreatedAt = !existingSnapshot.exists(),
-        ).toMutableMap()
-
-        doc.set(payload, SetOptions.merge()).await()
+        writeTeam(team, includeCreatedAt = !existingSnapshot.exists())
         val saved = doc.get().await()
         return saved.data?.toTeamOrNull(draft.id)
             ?: throw IllegalStateException("Team could not be loaded after save.")
@@ -133,12 +126,13 @@ class FirestoreTeamService @Inject constructor(
                 .let { if (team.id == toTeamId) it + member else it }
             val normalized = TeamPayload.normalizeCaptaincy(updatedMembers)
             val updatedTeam = team.copy(members = normalized, updatedAt = Date())
-            val payload: Map<String, Any?> = mapOf(
-                "members" to normalized.map { TeamPayload.memberMap(it) },
-                "memberUserIDs" to normalized.map { it.userId },
-                "updatedAt" to FieldValue.serverTimestamp(),
-            )
-            batch.set(teamsCollection(campingId).document(team.id), payload, SetOptions.merge())
+            val (payload, requiresMerge) = teamWritePayload(updatedTeam, includeCreatedAt = false)
+            val document = teamsCollection(campingId).document(team.id)
+            if (requiresMerge) {
+                batch.set(document, payload, SetOptions.merge())
+            } else {
+                batch.set(document, payload)
+            }
             updatedTeam
         }
         batch.commit().await()
@@ -206,14 +200,34 @@ class FirestoreTeamService @Inject constructor(
     }
 
     private suspend fun saveMutable(team: Team) {
+        writeTeam(team, includeCreatedAt = false)
+    }
+
+    private suspend fun writeTeam(team: Team, includeCreatedAt: Boolean) {
+        val (payload, requiresMerge) = teamWritePayload(team, includeCreatedAt)
+        val document = teamsCollection(team.campingId).document(team.id)
+        if (requiresMerge) {
+            document.set(payload, SetOptions.merge()).await()
+        } else {
+            document.set(payload).await()
+        }
+    }
+
+    private fun teamWritePayload(
+        team: Team,
+        includeCreatedAt: Boolean,
+    ): Pair<Map<String, Any?>, Boolean> {
         val payload = TeamPayload.teamPayload(
             team = team,
             serverTimestamp = FieldValue.serverTimestamp(),
             deleteField = FieldValue.delete(),
-            includeCreatedAt = false,
+            includeCreatedAt = includeCreatedAt,
         ).toMutableMap()
-        teamsCollection(team.campingId).document(team.id)
-            .set(payload, SetOptions.merge()).await()
+        if (!includeCreatedAt) {
+            team.createdAt?.let { payload["createdAt"] = it }
+        }
+        val requiresMerge = team.photoUrl.isNullOrBlank() || team.photoPublicId.isNullOrBlank()
+        return payload to requiresMerge
     }
 
     private suspend fun loadSingleTeam(id: String, campingId: String): Team {

@@ -49,7 +49,7 @@ Generated 2026-05-18 from the iOS codebase on branch
 
 ## 1. Collection map
 
-```
+```js
 users/{uid}                                         User profile
   users/{uid}/children/{childId}                    ChildParticipant (family)
   users/{uid}/notificationTokens/{sha256hex}        FCM token (client-direct)
@@ -103,7 +103,7 @@ Attendees live exclusively in the `registrations` subcollection.
 - Written by: sign-in (Apple/Google), onboarding, profile edit, account-deletion flags, admin role change. All `merge: true` (partial).
 
 | Wire key | Type | Req/Opt | Default | Notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `uid` | string | opt | doc ID | mirror of doc ID |
 | `displayName` | string | opt | `""` | trimmed; denormalized everywhere (§ Denormalization) |
 | `email` | string | opt | `""` | trimmed; on sign-in only written if existing blank |
@@ -145,7 +145,7 @@ admins will manage, also set `id == uid`.
 - Hard delete on remove. Collection-group query `children` filtered by `displayName == X && age == Y` (needs composite index).
 
 | Wire key | Type | Req/Opt | Default | Notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `id` | string | **req** | - | UUID, == doc ID |
 | `guardianID` | string | **req** | - | owning user uid |
 | `displayName` | string | **req** | - | trimmed |
@@ -172,7 +172,7 @@ admins will manage, also set `id == uid`.
 - This is the **client-direct** Firestore copy (RBAC self-only). The backend API ALSO stores a copy under `notification_apps/...` (see `04-backend-api.md`). Web/Android write **both** (Firestore here + call `POST /notifications/devices`).
 
 | Wire key | Type | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `token` | string | raw FCM token |
 | `platform` | string | iOS writes `"ios"`. Web → `"web"`, Android → `"android"` |
 | `provider` | string | `"fcm"` |
@@ -189,7 +189,7 @@ No `appID` field here (that lives only in the backend API payload).
 - **Doc ID**: literal **`default`** (one doc per user).
 
 | Wire key | Type | Default | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `isEnabled` | bool | `true` | |
 | `authorizationState` | string | `notDetermined` (unknown→`unknown`) | `notDetermined`/`denied`/`authorized`/`provisional`/`ephemeral`/`unknown` |
 | `announcementsEnabled` | bool | `true` | |
@@ -209,7 +209,7 @@ No `appID` field here (that lives only in the backend API payload).
 - **Doc ID**: the blocked user’s uid. Block = `merge:true`; unblock = hard delete.
 
 | Wire key | Type | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `blockedUserID` | string | mirror of doc ID |
 | `displayName` | string | denormalized at block time; read falls back to doc ID |
 | `blockedAt` | timestamp | `serverTimestamp()`; read **strictly as Timestamp** (no Date fallback) |
@@ -220,7 +220,7 @@ No `appID` field here (that lives only in the backend API payload).
 - **Written by the backend** (`badge-evaluator` for objective badges; admin/leader award flow). iOS/web/Android are **readers**; clients must not self-award (RBAC enforces - `request.auth.uid != uid`).
 
 | Wire key | Type | Default | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `id` | string | `UUID` | == achievementId == doc ID |
 | `userID` | string | `""` | target uid |
 | `earnedAt` | timestamp | `now` | `serverTimestamp()` |
@@ -239,7 +239,7 @@ the catalog are kept on read.
 - **Write path bypasses Codable** - the spec is the manual `payload(for:)`. Fields the Swift model has but the payload does **not** write: `attendees` (never on wire), `guidelines` (only via the guidelines update path), `winnerRevealPolicy` (only via the reveal path).
 
 | Wire key | Type | Req/Opt | Default | Notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `id` | string | req(write) | `UUID` | == doc ID |
 | `title` | string | **req** | throws | |
 | `description` | string | **req** | throws | |
@@ -271,6 +271,7 @@ the catalog are kept on read.
 { "type": "church" | "regional" | "international" | "custom",
   "value": "<free-text org name>" }
 ```
+
 Both keys required (decode throws otherwise). RBAC uses
 `organizerLevel.type == "church"` + `organizerLevel.value == <user church>`
 for own-church scoping.
@@ -278,7 +279,7 @@ for own-church scoping.
 ### 3.2 `winnerRevealPolicy` map (optional)
 
 | key | type | default | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `hideDate` | timestamp | `nil` | effective default = `endDate − 24h` (computed client-side) |
 | `revealDate` | timestamp | `nil` | optional auto-reveal |
 | `isRevealed` | bool | `false` | **required if the map is present** (non-optional) |
@@ -292,7 +293,7 @@ edits are **forbidden** from touching this key; only `canRevealWinners`.
 ### 3.3 `priceItems[]` element (CampingPriceItem)
 
 | key | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | `id` | string | UUID |
 | `name` | string | |
 | `details` | string | always present (empty string if none) |
@@ -306,7 +307,7 @@ edits are **forbidden** from touching this key; only `canRevealWinners`.
 ### 3.4 `agePrices[]` element (CampingAgePrice)
 
 | key | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | `id` | string | UUID |
 | `label` | string | always present |
 | `minAge` | int | `>= 0` |
@@ -319,7 +320,7 @@ is the fallback for uncovered ages.
 ### 3.5 `transportationOptions[]` element (CampingTransportationOption)
 
 | key | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | `id` | string | UUID |
 | `name` | string | always present |
 | `mode` | string | `TransportationMode` raw - **camelCase** (`bus`,`coach`,`minibus`,`shuttle`,`train`,`carpool`,`ownCar`,`plane`,`boat`,`bike`,`onFoot`,`other`) |
@@ -335,7 +336,7 @@ is the fallback for uncovered ages.
 - Both `userID` and a duplicate `uid` field are written (same value). Decode accepts either.
 
 | Wire key | Type | Req/Opt | Default | Notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `id` | string | req(write) | userID/uid/UUID | == doc ID |
 | `userID` | string | req(write) | uid → id | |
 | `uid` | string | req(write) | - | duplicate of `userID` (legacy/rule compat) |
@@ -378,7 +379,7 @@ Backend payment confirm additionally writes `paymentReference`,
 ### 4.1 `campings/{id}/schedule/config` (single doc, ID literal `config`)
 
 | key | type | default | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `campingID` | string | - | always written |
 | `reminderTiming` | string | `none` | `ScheduleReminderTiming` (§ Enums). Only the reminder-save path writes it |
 | `createdAt` | timestamp | - | first create only |
@@ -391,7 +392,7 @@ Backend payment confirm additionally writes `paymentReference`,
   with gregorian calendar + `en_US_POSIX` locale + local time zone.
 
 | key | type | default | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `campingID` | string | `""` | |
 | `date` | timestamp | `now` | **local-midnight** (`startOfDay`) of the day. Decoder accepts Timestamp or Date |
 | `title` | string | `"Camp Day"` (read) | written `""` **only on first create**; never overwritten by a program save (preserves a curated title). In-memory normalizer shows `"Day N"` by position - not persisted |
@@ -407,7 +408,7 @@ Backend payment confirm additionally writes `paymentReference`,
   duplicates it.
 
 | key | type | default | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `campingID` | string | `""` | |
 | `campDayID` | string | `""` | == parent day id; recomputed from `startDate` |
 | `title` | string | `""` | |
@@ -428,12 +429,12 @@ docs. `normalizeDays` re-files mis-keyed programs idempotently.
 ### 4.4 `campings/{id}/foodMenu/{entryId}` - FoodMenuEntry
 
 - **Doc ID** (deterministic): `"<yyyy-MM-dd>-<meal>"` (date key gregorian
-  + `en_US_POSIX`, local zone). `campingID` is intentionally **not** in
+  - `en_US_POSIX`, local zone). `campingID` is intentionally **not** in
   the id (collection is already camp-scoped).
 - Not Codable - manual map. Query ordered by `date` asc.
 
 | key | type | req | default | notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `campingID` | string | - | path arg | |
 | `date` | timestamp | **req** | drop | entry dropped if neither Timestamp nor Date |
 | `meal` | string | **req** | drop | `FoodMealKind`: `breakfast`/`lunch`/`dinner`/`snack` |
@@ -470,7 +471,7 @@ deterministic id only:
   check (team chat) reads `memberUserIDs`.
 
 | key | type | default | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `campingID` | string | path arg | |
 | `name` | string | `""` | |
 | `slogan` | string | `""` | always written |
@@ -510,7 +511,7 @@ Pure Swift Codable (wire keys == property names; `Date`→Timestamp;
 `updatedAt` is a **client clock** `Date()`, not serverTimestamp).
 
 | key | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | `id` | string | **stored in body** + doc ID |
 | `campingID` | string | |
 | `name` | string | |
@@ -533,7 +534,7 @@ Full-set write (`merge:false`); `update` is **forbidden** by RBAC.
 Create requires `campingID == path` and `createdBy == auth.uid`.
 
 | key | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | `id` | string | body + doc ID |
 | `campingID` | string | **must equal path** |
 | `gameID` | string | indexed (`whereField`) |
@@ -566,7 +567,7 @@ rewrites the full doc + `memberUserIDs` + `updatedAt`.
 - Decode drops the message if any of `campingID`, `senderID`, `senderName`, `text` is missing/non-string.
 
 | key | type | req | default | notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `campingID` | string | **req** | drop | |
 | `teamID` | string | opt | `nil` | written **only** in team chat; not read back |
 | `senderID` | string | **req** | drop | == auth.uid |
@@ -587,7 +588,7 @@ rewrites the full doc + `memberUserIDs` + `updatedAt`.
 - **Doc ID**: client slug/UUID. Top-level. Read ordered `createdAt` desc, `limit(100)`.
 
 | key | type | default | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `id` | string | doc ID | injected on read |
 | `title` | string | `""` | |
 | `body` | string | `""` | markdown. Decode also accepts legacy `description` |
@@ -609,7 +610,7 @@ when nil).
 Poll (`campingID` NOT stored - from path):
 
 | key | type | default | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `question` | string | `""` | |
 | `description` | string | `""` | |
 | `options` | array\<map> | `[]` | element `{ id (req), label (req), voteCount (int, 0) }`; `voteCount` mutated inside the vote transaction |
@@ -631,7 +632,7 @@ decrement old options, increment new, set vote doc + poll `options`.
 - **Doc ID**: client UUID. Submit = full `set` (no merge). **Brittle read**: the admin list aborts entirely if any doc is missing a required field or has an unknown enum.
 
 | key | type | req | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `id` | string | **req** | == doc ID (injected) |
 | `target` | string | **req** | `announcement`/`camping`/`chatMessage` (**camelCase**) |
 | `contentID` | string | **req** | id of reported content |
@@ -651,7 +652,7 @@ visible topic, merged & deduped by `id`, sorted `sentAt` desc. Tolerant
 decoder. **`appID` MUST be `"campzone"`** or the doc is ignored client-side.
 
 | key | type | default | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `id` | string | doc ID | injected; `UUID` fallback |
 | `appID` | string | `"campzone"` | non-campzone docs filtered out |
 | `kind` | string | inferred | backend writes **`kind`**; decoder also accepts `type` |
@@ -683,7 +684,7 @@ decoder. **`appID` MUST be `"campzone"`** or the doc is ignored client-side.
 - **Doc ID == attendeeId** (one per attendee; re-check-in overwrites - full `set`). Guardians may read a single child doc by id (list is denied).
 
 | key | type | req | default | notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `campingID` | string | **req** | drop | |
 | `attendeeID` | string | **req** | drop | == doc ID |
 | `userID` | string | **req** | drop | attendee/child uid |
@@ -705,7 +706,7 @@ QR payload (not a doc): `campzone://checkin?v=1&c=<campingID>&a=<attendeeID>&u=<
 - RBAC checks literal `paymentStatus == "unpaid"` and `boardingStatus == "not_boarded"` on create.
 
 | key | type | req | default | notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `id` | string | opt | doc ID | |
 | `campingID` | string | **req** | drop | |
 | `registrationID` | string | **req** | drop | |
@@ -730,7 +731,7 @@ QR payload: `campzone://transport?v=1&c=<campingID>&b=<bookingID>&r=<registratio
 ### 7.3 `campings/{id}/lodging/{unitId}` - LodgingUnit
 
 | key | type | default | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `campingID` | string | path | |
 | `name` | string | `""` | |
 | `kind` | string | `tent` | `tent`/`cabin`/`room`/`dorm` |
@@ -744,7 +745,7 @@ QR payload: `campzone://transport?v=1&c=<campingID>&b=<bookingID>&r=<registratio
 ### 7.4 `campings/{id}/venueMap/config` (single doc, ID literal `config`)
 
 | key | type | default | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `campingID` | string | path | |
 | `imageURL` | string | `nil` | Cloudinary secure_url; **delete-when-empty** |
 | `imagePublicID` | string | `nil` | **delete-when-empty** |
@@ -763,7 +764,7 @@ or neither.
 - **Doc ID == submitting uid** (one per person; RBAC enforces `overallRating` int 1–5). Codable; all fields effectively required.
 
 | key | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | `id` | string | == doc ID (uid) |
 | `campingID` | string | |
 | `userID` | string | uid (or child id) |
@@ -792,7 +793,7 @@ MediaItem (full `set`, ordered `uploadedAt` desc): `campingID`, `kind`
 ### 7.7 `campings/{id}/songs/{songId}` - Song
 
 | key | type | default | notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `title` | string | `""` | |
 | `artist` / `composer` | string | `""` | |
 | `lyrics` | string | `""` | plain blob |
@@ -841,7 +842,7 @@ Documented in `04-backend-api.md`. Fields: `uid`, `kind`
 ## 8. Enum raw-value reference (case-sensitive - copy exactly)
 
 | Enum | Wire field(s) | Raw strings |
-|---|---|---|
+| --- | --- | --- |
 | `UserRole` | `role` | `guest`, `user`, `youth_director`, `pastor`, `game_master`, `leader`, `photographer`, `adult`, `admin`. Legacy read-only: `senior`,`youth` → `user` |
 | `UserGender` | `gender` | `female`, `male`, `prefer_not_to_say` |
 | `CampingAgeGroup` | `ageGroup` | `kids`, `youth`, `adult` (age <13 / 13–35 / ≥36) |
@@ -885,7 +886,7 @@ Documented in `04-backend-api.md`. Fields: `uid`, `kind`
 ## 9. Timestamp format per collection (do NOT normalize)
 
 | Collection / field | Wire form |
-|---|---|
+| --- | --- |
 | camping `startDate`/`endDate`, `createdAt`/`updatedAt`; registration `createdAt`/`updatedAt`/`guardianConsentAt`; `winnerRevealPolicy.*`; schedule day/program/config `*At`; checkIns `checkedInAt`; media `uploadedAt`; contentReports `createdAt`/`reviewedAt`; chat `createdAt`/`deletedAt`; poll `votes.votedAt`; feedback `submittedAt`/`updatedAt`; lodging/venueMap/song `*At`; user/child `*At` | Firestore **`Timestamp`** (serverTimestamp for `createdAt`/`updatedAt`; raw Date for explicit ones) |
 | `poll.createdAt`, `poll.closesAt` | **client `Date()`** Timestamp; `closesAt` is explicit **`null`** when absent |
 | `team.penalties[].createdAt`, `chordSheet.updatedAt`, `team.createdAt/updatedAt` (model init default) | raw `Date` → Timestamp |
@@ -904,7 +905,7 @@ On profile save the iOS app fans the new profile into denormalized
 copies. Web/Android must do the same or data drifts:
 
 | Target (query) | Match | Keys written |
-|---|---|---|
+| --- | --- | --- |
 | `registrations` (CG, `userID==uid`) | `userID` | `displayName`,`church`,`photoURL`,`preferredLanguage`,`languages`,`age`,`ageGroup`,`gender`,`updatedAt` |
 | parent `campings/{id}` | - | `updatedAt` bump |
 | `teams` (CG, `members[].userID==uid`) | member | member `displayName`,`church`,`preferredLanguage`,`languages`,`age`,`ageGroup`,`gender`,`photoURL`; doc `members` rewrite + `updatedAt` |

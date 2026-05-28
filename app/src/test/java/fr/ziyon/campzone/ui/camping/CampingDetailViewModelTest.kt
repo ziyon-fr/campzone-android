@@ -10,6 +10,7 @@ import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
+import fr.ziyon.campzone.data.model.TransportationPaymentStatus
 import fr.ziyon.campzone.testing.MainDispatcherRule
 import java.util.Date
 import org.junit.Assert.assertEquals
@@ -128,6 +129,48 @@ class CampingDetailViewModelTest {
     }
 
     @Test
+    fun pendingPaidRegistrationSurfacesPaymentShortcut() = runTest {
+        val service = service(
+            attendees = listOf(
+                attendee(
+                    "user-1",
+                    "Me",
+                    RegistrationApprovalStatus.Pending,
+                    userId = "user-1",
+                    paymentStatus = TransportationPaymentStatus.Unpaid,
+                ),
+            ),
+            registrationFeeCents = 12_00,
+        )
+        val viewModel = CampingDetailViewModel(service)
+
+        viewModel.load("camp-1", user(role = UserRole.User, church = "Other", uid = "user-1"))
+
+        assertTrue(viewModel.uiState.value.hasPendingRegistrationPayment)
+    }
+
+    @Test
+    fun paidRegistrationDoesNotSurfacePaymentShortcut() = runTest {
+        val service = service(
+            attendees = listOf(
+                attendee(
+                    "user-1",
+                    "Me",
+                    RegistrationApprovalStatus.Pending,
+                    userId = "user-1",
+                    paymentStatus = TransportationPaymentStatus.Paid,
+                ),
+            ),
+            registrationFeeCents = 12_00,
+        )
+        val viewModel = CampingDetailViewModel(service)
+
+        viewModel.load("camp-1", user(role = UserRole.User, church = "Other", uid = "user-1"))
+
+        assertFalse(viewModel.uiState.value.hasPendingRegistrationPayment)
+    }
+
+    @Test
     fun attendeeSearchFiltersRoster() = runTest {
         val service = service(
             attendees = listOf(
@@ -156,6 +199,7 @@ class CampingDetailViewModelTest {
         attendees: List<CampingAttendee>,
         organizerLevel: OrganizerLevel = OrganizerLevel(OrganizerType.Church, church),
         createdByUid: String? = null,
+        registrationFeeCents: Int? = null,
     ) = FakeCampingService(
         initial = listOf(
             Camping(
@@ -168,6 +212,7 @@ class CampingDetailViewModelTest {
                 location = "Lake Annecy",
                 registrationStatus = CampingRegistrationStatus.Open,
                 participantCapacity = 120,
+                registrationFeeCents = registrationFeeCents,
                 createdByUid = createdByUid,
             ),
         ),
@@ -179,6 +224,7 @@ class CampingDetailViewModelTest {
         name: String,
         status: RegistrationApprovalStatus,
         userId: String = id,
+        paymentStatus: TransportationPaymentStatus = TransportationPaymentStatus.Unpaid,
     ) = CampingAttendee(
         id = id,
         userId = userId,
@@ -187,6 +233,7 @@ class CampingDetailViewModelTest {
         age = 20,
         languages = listOf("fr"),
         registrationStatus = status,
+        paymentStatus = paymentStatus,
     )
 
     private fun user(role: UserRole, church: String, uid: String) = AuthenticatedUser(

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -239,7 +240,7 @@ private fun ChatConversation(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text(title, maxLines = 1) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -254,7 +255,7 @@ private fun ChatConversation(
                         Icon(Icons.Rounded.Block, stringResource(R.string.chat_blocked_users))
                     }
                 },
-                windowInsets = WindowInsets(0),
+                windowInsets = WindowInsets(),
             )
         },
         bottomBar = {

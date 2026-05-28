@@ -28,13 +28,17 @@ import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -47,6 +51,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,9 +78,12 @@ import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.model.TeamMemberRole
+import fr.ziyon.campzone.data.model.WinnerRevealPolicy
+import fr.ziyon.campzone.data.teams.TeamBalanceResult
 import fr.ziyon.campzone.data.teams.FakeTeamService
 
 // ── Route ─────────────────────────────────────────────────────────────────────
@@ -85,6 +93,7 @@ fun TeamsRoute(
     campingId: String,
     camping: Camping?,
     authenticatedUser: AuthenticatedUser,
+    approvedAttendees: List<CampingAttendee>,
     onBack: () -> Unit,
     onOpenTeamDetail: (String) -> Unit,
     onOpenTeamEditor: (String?) -> Unit,
@@ -106,10 +115,17 @@ fun TeamsRoute(
     }
 
     val canManageTeams = campingCtx != null && evaluator.canManageTeams(permissionUser, campingCtx)
+    val canSeeScores = campingCtx != null &&
+        (evaluator.canRevealWinners(permissionUser, campingCtx) ||
+            evaluator.canManageGames(permissionUser, campingCtx))
+    val scoresHidden = camping
+        ?.let { !canSeeScores && (it.winnerRevealPolicy ?: WinnerRevealPolicy()).areScoresHidden(it.endDate) }
+        ?: false
 
     val uiState by viewModel.uiState.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
     val operationError by viewModel.operationError.collectAsState()
+    val autoBalancePreview by viewModel.autoBalancePreview.collectAsState()
 
     LaunchedEffect(campingId) { viewModel.loadIfNeeded(campingId) }
     DisposableEffect(campingId) {
@@ -123,12 +139,18 @@ fun TeamsRoute(
         isSaving = isSaving,
         operationError = operationError,
         canManageTeams = canManageTeams,
+        scoresHidden = scoresHidden,
         authenticatedUserId = authenticatedUser.uid,
+        approvedAttendees = approvedAttendees,
+        autoBalancePreview = autoBalancePreview,
         onBack = onBack,
         onOpenTeamDetail = onOpenTeamDetail,
         onCreateTeam = { onOpenTeamEditor(null) },
         onOpenGames = { onOpenGames(campingId) },
         onRefresh = { viewModel.refresh(campingId) },
+        onPreviewAutoBalance = { teamIds -> viewModel.previewAutoBalance(approvedAttendees, teamIds) },
+        onApplyAutoBalance = { viewModel.applyAutoBalance(campingId) },
+        onClearAutoBalancePreview = viewModel::clearAutoBalancePreview,
         onClearError = viewModel::clearOperationError,
     )
 }
@@ -143,18 +165,45 @@ private fun TeamsScreen(
     isSaving: Boolean,
     operationError: String?,
     canManageTeams: Boolean,
+    scoresHidden: Boolean,
     authenticatedUserId: String,
+    approvedAttendees: List<CampingAttendee>,
+    autoBalancePreview: TeamBalanceResult?,
     onBack: () -> Unit,
     onOpenTeamDetail: (String) -> Unit,
     onCreateTeam: () -> Unit,
     onOpenGames: () -> Unit,
     onRefresh: () -> Unit,
+    onPreviewAutoBalance: (List<String>) -> Unit,
+    onApplyAutoBalance: () -> Unit,
+    onClearAutoBalancePreview: () -> Unit,
     onClearError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
     var menuExpanded by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var showAutoBalanceSheet by rememberSaveable { mutableStateOf(false) }
+
+    val loadedTeams = (uiState as? TeamsUiState.Loaded)?.teams.orEmpty()
+    if (showAutoBalanceSheet) {
+        TeamAutoBalanceSheet(
+            teams = loadedTeams,
+            approvedAttendees = approvedAttendees,
+            preview = autoBalancePreview,
+            isSaving = isSaving,
+            onPreview = onPreviewAutoBalance,
+            onApply = {
+                onApplyAutoBalance()
+                showAutoBalanceSheet = false
+            },
+            onClearPreview = onClearAutoBalancePreview,
+            onDismiss = {
+                showAutoBalanceSheet = false
+                onClearAutoBalancePreview()
+            },
+        )
+    }
 
     Scaffold(
         containerColor = colors.background,
@@ -193,6 +242,10 @@ private fun TeamsScreen(
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.teams_new_team)) },
                                     onClick = { menuExpanded = false; onCreateTeam() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.teams_auto_balance)) },
+                                    onClick = { menuExpanded = false; showAutoBalanceSheet = true },
                                 )
                             }
                         }
@@ -238,6 +291,7 @@ private fun TeamsScreen(
                 is TeamsUiState.Loaded -> {
                     TeamsLoadedContent(
                         teams = s.teams,
+                        scoresHidden = scoresHidden,
                         authenticatedUserId = authenticatedUserId,
                         onOpenTeamDetail = { onOpenTeamDetail(it) },
                     )
@@ -247,11 +301,206 @@ private fun TeamsScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TeamAutoBalanceSheet(
+    teams: List<Team>,
+    approvedAttendees: List<CampingAttendee>,
+    preview: TeamBalanceResult?,
+    isSaving: Boolean,
+    onPreview: (List<String>) -> Unit,
+    onApply: () -> Unit,
+    onClearPreview: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.czColors
+    var selectedTeamIds by rememberSaveable(teams.map { it.id }) {
+        mutableStateOf(teams.map { it.id })
+    }
+    val orderedSelectedTeamIds = teams.map { it.id }.filter { it in selectedTeamIds }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = colors.background,
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = CzSpacing.lg)
+                .padding(bottom = CzSpacing.xl),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            Text(
+                text = stringResource(R.string.teams_auto_balance_title),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.textPrimary,
+            )
+            Text(
+                text = stringResource(
+                    R.string.teams_auto_balance_summary,
+                    approvedAttendees.size,
+                    teams.size,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+
+            if (teams.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.teams_auto_balance_no_teams),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(CzRadius.lg))
+                        .background(colors.surface),
+                ) {
+                    teams.forEachIndexed { index, team ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedTeamIds = if (team.id in selectedTeamIds) {
+                                        selectedTeamIds - team.id
+                                    } else {
+                                        selectedTeamIds + team.id
+                                    }
+                                    onClearPreview()
+                                }
+                                .padding(horizontal = CzSpacing.sm, vertical = CzSpacing.xs),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                        ) {
+                            Checkbox(
+                                checked = team.id in selectedTeamIds,
+                                onCheckedChange = { checked ->
+                                    selectedTeamIds = if (checked) (selectedTeamIds + team.id).distinct() else selectedTeamIds - team.id
+                                    onClearPreview()
+                                },
+                            )
+                            TeamBadgeView(team = team, size = 32)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = team.name,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = colors.textPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = stringResource(R.string.teams_auto_balance_current_members, team.members.size),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.textSecondary,
+                                )
+                            }
+                        }
+                        if (index < teams.lastIndex) {
+                            Box(Modifier.height(0.5.dp).fillMaxWidth().background(colors.divider))
+                        }
+                    }
+                }
+            }
+
+            if (preview != null) {
+                Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = stringResource(R.string.teams_auto_balance_preview),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = colors.textPrimary,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = stringResource(R.string.teams_auto_balance_score, preview.balanceScore.toInt()),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (preview.balanceScore <= 4.0) colors.success else colors.warning,
+                        )
+                    }
+                    orderedSelectedTeamIds.forEach { teamId ->
+                        val team = teams.firstOrNull { it.id == teamId } ?: return@forEach
+                        val assignments = preview.assignmentsByTeamId[teamId].orEmpty()
+                        AutoBalancePreviewRow(team = team, attendees = assignments)
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                OutlinedButton(
+                    onClick = { onPreview(orderedSelectedTeamIds) },
+                    enabled = orderedSelectedTeamIds.isNotEmpty() && approvedAttendees.isNotEmpty() && !isSaving,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.teams_auto_balance_preview_action))
+                }
+                Button(
+                    onClick = onApply,
+                    enabled = preview != null && !isSaving,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.teams_auto_balance_apply))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AutoBalancePreviewRow(
+    team: Team,
+    attendees: List<CampingAttendee>,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.czColors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CzRadius.md))
+            .background(colors.surface)
+            .padding(CzSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+    ) {
+        TeamBadgeView(team = team, size = 36)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = team.name,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = attendees.take(4).joinToString { it.displayName }
+                    .ifBlank { stringResource(R.string.teams_auto_balance_no_assignments) },
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textSecondary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            text = "${attendees.size}",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = team.colorHex.toComposeColor() ?: colors.ember,
+        )
+    }
+}
+
 // ── Loaded content ────────────────────────────────────────────────────────────
 
 @Composable
 private fun TeamsLoadedContent(
     teams: List<Team>,
+    scoresHidden: Boolean,
     authenticatedUserId: String,
     onOpenTeamDetail: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -275,6 +524,7 @@ private fun TeamsLoadedContent(
                     team = personalTeam,
                     member = member,
                     rank = rank,
+                    scoresHidden = scoresHidden,
                     onClick = { onOpenTeamDetail(personalTeam.id) },
                 )
             }
@@ -283,12 +533,12 @@ private fun TeamsLoadedContent(
         // Podium for top 3
         if (teams.size >= 2) {
             TeamSectionLabel(stringResource(R.string.teams_top_teams), Icons.Outlined.EmojiEvents)
-            PodiumSection(topTeams = teams.take(3))
+            PodiumSection(topTeams = teams.take(3), scoresHidden = scoresHidden)
         }
 
         // Full ranking list
         TeamSectionLabel(stringResource(R.string.teams_ranking), Icons.AutoMirrored.Outlined.List)
-        RankingList(teams = teams, onClick = onOpenTeamDetail)
+        RankingList(teams = teams, scoresHidden = scoresHidden, onClick = onOpenTeamDetail)
 
         Spacer(Modifier.height(CzSpacing.lg))
     }
@@ -301,6 +551,7 @@ private fun PersonalTeamCard(
     team: Team,
     member: TeamMember,
     rank: Int?,
+    scoresHidden: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -336,16 +587,30 @@ private fun PersonalTeamCard(
         }
 
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = "${member.personalScore}",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
-                color = teamColor,
-            )
-            Text(
-                text = stringResource(R.string.teams_personal_pts),
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textSecondary,
-            )
+            if (scoresHidden) {
+                Icon(
+                    imageVector = Icons.Outlined.VisibilityOff,
+                    contentDescription = stringResource(R.string.teams_scores_hidden),
+                    tint = colors.textSecondary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text = stringResource(R.string.teams_scores_hidden_short),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textSecondary,
+                )
+            } else {
+                Text(
+                    text = "${member.personalScore}",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
+                    color = teamColor,
+                )
+                Text(
+                    text = stringResource(R.string.teams_personal_pts),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textSecondary,
+                )
+            }
         }
 
         Icon(
@@ -360,22 +625,22 @@ private fun PersonalTeamCard(
 // ── Podium ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun PodiumSection(topTeams: List<Team>, modifier: Modifier = Modifier) {
+private fun PodiumSection(topTeams: List<Team>, scoresHidden: Boolean, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.Bottom,
     ) {
-        if (topTeams.size >= 2) PodiumBlock(team = topTeams[1], rank = 2, height = 64)
+        if (topTeams.size >= 2) PodiumBlock(team = topTeams[1], rank = 2, height = 64, scoresHidden = scoresHidden)
         Spacer(Modifier.width(CzSpacing.sm))
-        PodiumBlock(team = topTeams[0], rank = 1, height = 88)
+        PodiumBlock(team = topTeams[0], rank = 1, height = 88, scoresHidden = scoresHidden)
         Spacer(Modifier.width(CzSpacing.sm))
-        if (topTeams.size >= 3) PodiumBlock(team = topTeams[2], rank = 3, height = 48)
+        if (topTeams.size >= 3) PodiumBlock(team = topTeams[2], rank = 3, height = 48, scoresHidden = scoresHidden)
     }
 }
 
 @Composable
-private fun PodiumBlock(team: Team, rank: Int, height: Int, modifier: Modifier = Modifier) {
+private fun PodiumBlock(team: Team, rank: Int, height: Int, scoresHidden: Boolean, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.czColors
     val teamColor = team.colorHex.toComposeColor() ?: colors.ember
     val medalColor = when (rank) {
@@ -399,7 +664,7 @@ private fun PodiumBlock(team: Team, rank: Int, height: Int, modifier: Modifier =
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = "${team.totalScore} pts",
+            text = if (scoresHidden) stringResource(R.string.teams_scores_hidden_short) else "${team.totalScore} pts",
             style = MaterialTheme.typography.labelSmall,
             color = colors.textSecondary,
             maxLines = 1,
@@ -428,6 +693,7 @@ private fun PodiumBlock(team: Team, rank: Int, height: Int, modifier: Modifier =
 @Composable
 private fun RankingList(
     teams: List<Team>,
+    scoresHidden: Boolean,
     onClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -443,6 +709,7 @@ private fun RankingList(
             TeamRankingRow(
                 team = team,
                 rank = index + 1,
+                scoresHidden = scoresHidden,
                 onClick = { onClick(team.id) },
             )
             if (index < teams.lastIndex) {
@@ -462,6 +729,7 @@ private fun RankingList(
 private fun TeamRankingRow(
     team: Team,
     rank: Int,
+    scoresHidden: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -505,11 +773,20 @@ private fun TeamRankingRow(
             )
         }
 
-        Text(
-            text = "${team.totalScore}",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-            color = teamColor,
-        )
+        if (scoresHidden) {
+            Icon(
+                imageVector = Icons.Outlined.VisibilityOff,
+                contentDescription = stringResource(R.string.teams_scores_hidden),
+                tint = colors.textSecondary,
+                modifier = Modifier.size(18.dp),
+            )
+        } else {
+            Text(
+                text = "${team.totalScore}",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                color = teamColor,
+            )
+        }
 
         Icon(
             imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
@@ -598,12 +875,18 @@ private fun TeamsScreenPreview() {
             isSaving = false,
             operationError = null,
             canManageTeams = true,
+            scoresHidden = false,
             authenticatedUserId = "u1",
+            approvedAttendees = emptyList(),
+            autoBalancePreview = null,
             onBack = {},
             onOpenTeamDetail = {},
             onCreateTeam = {},
             onOpenGames = {},
             onRefresh = {},
+            onPreviewAutoBalance = {},
+            onApplyAutoBalance = {},
+            onClearAutoBalancePreview = {},
             onClearError = {},
         )
     }

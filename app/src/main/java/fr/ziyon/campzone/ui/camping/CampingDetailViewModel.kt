@@ -15,6 +15,7 @@ import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
+import fr.ziyon.campzone.data.model.TransportationPaymentStatus
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,12 +46,14 @@ data class CampingDetailUiState(
     val canManageFoodMenu: Boolean = false,
     val canManageTeams: Boolean = false,
     val canManageGames: Boolean = false,
+    val canRevealWinners: Boolean = false,
     val canManageCheckIns: Boolean = false,
     val canManageTransportation: Boolean = false,
     val canAwardAchievements: Boolean = false,
     val canManageAnyCamping: Boolean = false,
     val wasCreatedByCurrentUser: Boolean = false,
     val isApprovedParticipant: Boolean = false,
+    val hasPendingRegistrationPayment: Boolean = false,
     val attendeeSearch: String = "",
     val filters: CampingAttendeeFilters = CampingAttendeeFilters(),
     val errorMessage: String? = null,
@@ -210,6 +213,7 @@ class CampingDetailViewModel @Inject constructor(
                         canManageFoodMenu = permissions.canManageFoodMenu(permissionUser, context),
                         canManageTeams = permissions.canManageTeams(permissionUser, context),
                         canManageGames = permissions.canManageGames(permissionUser, context),
+                        canRevealWinners = permissions.canRevealWinners(permissionUser, context),
                         canManageCheckIns = permissions.canManageCheckIns(permissionUser, context),
                         canManageTransportation = permissions.canManageTransportation(
                             permissionUser,
@@ -222,6 +226,11 @@ class CampingDetailViewModel @Inject constructor(
                         canManageAnyCamping = permissions.canManageAnyCamping(permissionUser),
                         wasCreatedByCurrentUser = camping.createdByUid == user.uid,
                         isApprovedParticipant = isApproved,
+                        hasPendingRegistrationPayment = userRegistrations.any { attendee ->
+                            attendee.registrationStatus == RegistrationApprovalStatus.Pending &&
+                                attendee.paymentStatus != TransportationPaymentStatus.Paid &&
+                                camping.resolvedRegistrationFeeCents(attendee.age) > 0
+                        },
                     )
                 }
                 .onFailure { error ->

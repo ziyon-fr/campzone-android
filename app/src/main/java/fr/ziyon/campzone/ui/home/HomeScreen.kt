@@ -270,11 +270,6 @@ private fun DashboardHeader(
                 .size(CzSpacing.minTouchTarget)
                 .clip(RoundedCornerShape(CzRadius.md))
                 .background(MaterialTheme.czColors.surface)
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.czColors.divider.copy(alpha = 0.7f),
-                    shape = RoundedCornerShape(CzRadius.md),
-                ),
         ) {
             Icon(
                 imageVector = Icons.Filled.Notifications,
@@ -624,7 +619,7 @@ private fun FeaturedCampingCard(
                         .height(5.dp)
                         .clip(CircleShape),
                     color = progressColor,
-                    trackColor = MaterialTheme.czColors.divider.copy(alpha = 0.72f),
+                    trackColor = MaterialTheme.czColors.divider,
                 )
 
                 Row(
