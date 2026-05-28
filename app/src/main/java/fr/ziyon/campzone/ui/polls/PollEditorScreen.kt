@@ -264,26 +264,33 @@ private fun CloseDatePickerField(closesAt: Date, onPicked: (Date) -> Unit) {
             is24Hour = true,
         )
         Dialog(onDismissRequest = { showTime = false }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(CzSpacing.lg),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            androidx.compose.material3.Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                    fr.ziyon.campzone.core.designsystem.CzRadius.lg,
+                ),
+                color = MaterialTheme.czColors.surface,
             ) {
-                TimePicker(state = timeState)
-                Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
-                    TextButton(onClick = { showTime = false }) { Text(stringResource(R.string.common_cancel)) }
-                    TextButton(onClick = {
-                        val cal = Calendar.getInstance().apply {
-                            timeInMillis = pendingDateMillis
-                            set(Calendar.HOUR_OF_DAY, timeState.hour)
-                            set(Calendar.MINUTE, timeState.minute)
-                            set(Calendar.SECOND, 0)
-                        }
-                        onPicked(cal.time)
-                        showTime = false
-                    }) { Text(stringResource(R.string.common_ok)) }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(CzSpacing.lg),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+                ) {
+                    TimePicker(state = timeState)
+                    Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
+                        TextButton(onClick = { showTime = false }) { Text(stringResource(R.string.common_cancel)) }
+                        TextButton(onClick = {
+                            val cal = Calendar.getInstance().apply {
+                                timeInMillis = pendingDateMillis
+                                set(Calendar.HOUR_OF_DAY, timeState.hour)
+                                set(Calendar.MINUTE, timeState.minute)
+                                set(Calendar.SECOND, 0)
+                            }
+                            onPicked(cal.time)
+                            showTime = false
+                        }) { Text(stringResource(R.string.common_ok)) }
+                    }
                 }
             }
         }

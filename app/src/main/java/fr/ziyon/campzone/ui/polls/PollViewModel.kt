@@ -89,11 +89,12 @@ class PollViewModel @Inject constructor(
 
     fun startObservingPoll(pollId: String, campingId: String, voterId: String) {
         observeJob?.cancel()
-        viewModelScope.launch {
-            _activeVote.value = runCatching { service.loadVote(pollId, campingId, voterId) }.getOrNull()
-            _selectedOptionIds.value = _activeVote.value?.selectedOptionIds?.toSet().orEmpty()
-        }
+        // Load the existing vote + observe in one job so cancellation covers both
+        // and a stale vote load can't overwrite newer state.
         observeJob = viewModelScope.launch {
+            val vote = runCatching { service.loadVote(pollId, campingId, voterId) }.getOrNull()
+            _activeVote.value = vote
+            _selectedOptionIds.value = vote?.selectedOptionIds?.toSet().orEmpty()
             service.observePoll(pollId, campingId).collect { _activePoll.value = it }
         }
     }
@@ -132,12 +133,23 @@ class PollViewModel @Inject constructor(
             return
         }
         if (_isSaving.value) return
+        val previousVote = _activeVote.value
         viewModelScope.launch {
             _isSaving.value = true
             _operationError.value = null
             try {
                 service.castVote(poll.campingId, poll.id, voterId, selected.toList())
                 _activeVote.value = PollVote(voterId, selected.toList(), Date())
+                // Mirror the transaction's count change locally so the list + detail stay in sync.
+                val updatedOptions = poll.options.map { option ->
+                    var count = option.voteCount
+                    if (previousVote?.selectedOptionIds?.contains(option.id) == true) count = maxOf(0, count - 1)
+                    if (selected.contains(option.id)) count += 1
+                    option.copy(voteCount = count)
+                }
+                val updatedPoll = poll.copy(options = updatedOptions)
+                _activePoll.value = updatedPoll
+                upsertLocal(updatedPoll)
             } catch (e: Exception) {
                 _operationError.value = e.message ?: "Could not submit your vote."
             } finally {
@@ -210,14 +222,30 @@ class PollViewModel @Inject constructor(
         }
     }
 
-    /** Preserves vote counts on edit: match by label, else positionally (rename), else fresh. */
-    private fun buildOptions(labels: List<String>, existing: List<PollOption>): List<PollOption> =
-        labels.mapIndexed { index, label ->
-            existing.firstOrNull { it.label == label }
-                ?.copy(label = label)
-                ?: existing.getOrNull(index)?.copy(label = label)
-                ?: PollOption(id = UUID.randomUUID().toString(), label = label)
+    /**
+     * Preserves vote counts on edit: match by label, else positionally (rename),
+     * else by the next unused option, else fresh. Tracks consumed options so an
+     * option can never be reused — which would otherwise emit duplicate IDs.
+     */
+    private fun buildOptions(labels: List<String>, existing: List<PollOption>): List<PollOption> {
+        val unused = existing.toMutableList()
+        return labels.mapIndexed { index, label ->
+            val byLabel = unused.firstOrNull { it.label == label }
+            if (byLabel != null) {
+                unused.remove(byLabel)
+                byLabel
+            } else {
+                val positional = existing.getOrNull(index)?.takeIf { it in unused }
+                val reuse = positional ?: unused.firstOrNull()
+                if (reuse != null) {
+                    unused.remove(reuse)
+                    reuse.copy(label = label)
+                } else {
+                    PollOption(id = UUID.randomUUID().toString(), label = label)
+                }
+            }
         }
+    }
 
     // MARK: - Open / close / delete
 

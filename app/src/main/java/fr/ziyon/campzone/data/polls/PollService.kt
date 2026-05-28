@@ -112,7 +112,7 @@ class FirestorePollService @Inject constructor(
             val rawOptions = (pollSnapshot.get(Field.Options) as? List<Map<String, Any?>>)
                 ?.map { it.toMutableMap() }
                 ?.toMutableList()
-                ?: return@runTransaction null
+                ?: throw IllegalArgumentException("Poll options not found or malformed.")
 
             // All reads must precede writes in a Firestore transaction.
             val voteSnapshot = transaction.get(voteDoc)
