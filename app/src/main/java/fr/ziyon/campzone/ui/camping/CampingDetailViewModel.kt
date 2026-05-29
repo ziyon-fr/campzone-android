@@ -47,6 +47,7 @@ data class CampingDetailUiState(
     val canManageTeams: Boolean = false,
     val canManageGames: Boolean = false,
     val canRevealWinners: Boolean = false,
+    val canManageAlbumMedia: Boolean = false,
     val canManageCheckIns: Boolean = false,
     val canManageTransportation: Boolean = false,
     val canAwardAchievements: Boolean = false,
@@ -115,7 +116,7 @@ data class CampingDetailUiState(
 
     val showManagementSection: Boolean
         get() = canManageAnyCamping || canManageTransportation || wasCreatedByCurrentUser ||
-            canManageTeams || canManageSchedule || canManageCheckIns
+            canManageTeams || canManageSchedule || canManageCheckIns || canManageAlbumMedia
 
     private fun matchesFilters(attendee: CampingAttendee): Boolean {
         if (filters.church.isNotBlank() && !attendee.church.contains(filters.church, ignoreCase = true)) {
@@ -215,6 +216,7 @@ class CampingDetailViewModel @Inject constructor(
                         canManageTeams = permissions.canManageTeams(permissionUser, context),
                         canManageGames = permissions.canManageGames(permissionUser, context),
                         canRevealWinners = permissions.canRevealWinners(permissionUser, context),
+                        canManageAlbumMedia = permissions.canManageAlbumMedia(permissionUser, context),
                         canManageCheckIns = permissions.canManageCheckIns(permissionUser, context),
                         canManageTransportation = permissions.canManageTransportation(
                             permissionUser,

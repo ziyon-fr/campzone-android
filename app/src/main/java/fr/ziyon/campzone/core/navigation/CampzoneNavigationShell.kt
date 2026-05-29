@@ -98,6 +98,7 @@ import fr.ziyon.campzone.ui.announcements.AnnouncementComposerRoute
 import fr.ziyon.campzone.ui.announcements.AnnouncementDetailRoute
 import fr.ziyon.campzone.ui.announcements.AnnouncementViewModel
 import fr.ziyon.campzone.ui.announcements.AnnouncementsRoute
+import fr.ziyon.campzone.ui.album.CampingAlbumRoute
 
 @Composable
 fun CampzoneNavigationShell(
@@ -359,6 +360,33 @@ fun CampzoneNavigationShell(
                     onOpenBadgeAward = { campingId ->
                         navController.navigate(AppRoute.CampingBadgeAward(campingId).route)
                     },
+                    onOpenAlbum = { campingId ->
+                        navController.navigate(AppRoute.CampingAlbum(campingId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingAlbum,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                LaunchedEffect(campingId, authenticatedUser.uid) {
+                    campingDetailVm.load(campingId, authenticatedUser)
+                }
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                CampingAlbumRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    canViewAlbum = campingDetailState.canManageAlbumMedia || campingDetailState.isApprovedParticipant,
+                    canManageAlbum = campingDetailState.canManageAlbumMedia,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(

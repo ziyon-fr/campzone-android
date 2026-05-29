@@ -140,6 +140,10 @@ sealed interface AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Polls}"
     }
 
+    data class CampingAlbum(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Album}"
+    }
+
     data class CheckInScanner(val campingId: String) : AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.CheckInScanner}"
     }
@@ -354,6 +358,7 @@ internal object AppRoutePath {
     const val Teams = "teams"
     const val PointHistory = "points"
     const val Polls = "polls"
+    const val Album = "album"
     const val CheckInScanner = "check-in-scanner"
     const val CheckInRecords = "check-in-records"
     const val CheckInQrPasses = "qr-passes"
@@ -391,6 +396,7 @@ internal object AppRoutePattern {
     const val PointHistory = "$CampingDetail/${AppRoutePath.PointHistory}"
     const val TeamPointHistory = "$PointHistory/{${AppRouteArgs.TeamId}}"
     const val CampingPolls = "$CampingDetail/${AppRoutePath.Polls}"
+    const val CampingAlbum = "$CampingDetail/${AppRoutePath.Album}"
     const val CheckInScanner = "$CampingDetail/${AppRoutePath.CheckInScanner}"
     const val CheckInRecords = "$CampingDetail/${AppRoutePath.CheckInRecords}"
     const val CheckInQrPasses = "$CampingDetail/${AppRoutePath.CheckInQrPasses}"
