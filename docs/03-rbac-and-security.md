@@ -184,7 +184,12 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
     `paymentStatus=="unpaid"`, `boardingStatus=="not_boarded"`.
     `update` `canManageTransportation` and the immutable keys
     (`ticketToken`,`campingID`,`registrationID`,`participantID`,`userID`)
-    unchanged. `delete` admin.
+    unchanged. `delete` admin. Manager updates cover the round-trip/scan
+    fields added in `02` §7.2 (`scanHistory` append via `arrayUnion`,
+    `boardingStatus`/`boardedBy/At`/`arrivedBy/At` mirrors, `paymentStatus`,
+    `isActive`/`canceledBy/At`/`cancelReason`); the deployed rules already
+    accept these (iOS writes them) since they touch none of the immutable
+    keys.
   - `checkIns`: `read` `canManageCheckIns` OR own (`userID==auth.uid`)
     OR a guardian whose sibling `registrations/{sameId}.guardianID ==
     auth.uid` (single `get()`). `create` `canManageCheckIns`,
