@@ -281,7 +281,7 @@
 
 ### C11. Analytics
 
-- [ ] Firebase Analytics; mirror iOS event set: `viewCamping`, `registerForCamping`, `cancelCamping`, `viewSchedule`, `viewSongbook`, `viewTeams`, `playSong`, `favoriteSong`, `searchCampings`, `signIn`, `signOut`
+- [x] Firebase Analytics; mirror iOS event set: `viewCamping`, `registerForCamping`, `cancelCamping`, `viewSchedule`, `viewSongbook`, `viewTeams`, `playSong`, `favoriteSong`, `searchCampings`, `signIn`, `signOut`
 
 ---
 

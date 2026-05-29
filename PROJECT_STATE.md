@@ -1,14 +1,43 @@
-# Project State - C10 Notifications (FCM + in-app feed)
+# Project State - C11 Analytics
 
 Updated: 2026-05-29
 
 ## Current position
 
-- Branch: `c10-notifications` (off committed C9 `c9-content-moderation`).
-- Phase C is complete through C10. Remaining: C11 Analytics, then Phase D.
-- Verification green on this branch: `./gradlew :app:assembleDebug`,
-  `:app:testDebugUnitTest`, `:app:lintDebug` all SUCCESSFUL
+- Branch: `c11-analytics` (branched from clean `c10-notifications` state).
+- Phase C is complete through C11. Remaining: Phase D.
+- Verification green on this branch: `./gradlew :app:testDebugUnitTest`,
+  `:app:assembleDebug`, `:app:lintDebug` all SUCCESSFUL
   (JAVA_HOME = Android Studio JBR).
+
+## C11 surface shipped
+
+Firebase Analytics wrapper (`data/analytics/`):
+- `AnalyticsService` mirrors the iOS event API:
+  `viewCamping`, `registerForCamping`, `cancelCamping`, `viewSchedule`,
+  `viewSongbook`, `viewTeams`, `playSong`, `favoriteSong`,
+  `searchCampings`, `signIn`, `signOut`.
+- Event names and params match iOS `AnalyticsService.swift`:
+  `view_item` with `item_id`/`item_name`/`content_type=camping`,
+  custom camping events (`register_camping`, `cancel_camping`,
+  `view_schedule`, `view_songbook`, `view_teams`), song events
+  (`play_song`, `favorite_song`), and Firebase-standard `search`/`login`.
+- `FirebaseAnalyticsLogger` is bound through Hilt; `FirebaseModule` provides
+  `Firebase.analytics`.
+
+Wired call sites:
+- Camping detail load logs `viewCamping`.
+- Detail resource taps log `viewSchedule`, `viewSongbook`, and `viewTeams`
+  before navigating.
+- Registration success logs `registerForCamping`.
+- Admin cancellation success logs `cancelCamping`.
+- Campings search logs non-empty `searchCampings` terms.
+- Auth success/sign-out log `signIn` and `signOut`.
+- Song audio start logs `playSong`; adding a favorite logs `favoriteSong`.
+
+Tests added:
+- `CampzoneAnalyticsServiceTest` covers the iOS event names/parameters,
+  blank-search suppression, and auth/song/camping mappings.
 
 ## C10 surface shipped
 
@@ -78,7 +107,7 @@ Localization: all new strings in `values` + `values-fr` + `values-pt-rBR`.
   (`NotificationSettingsView`, `AppNotificationFeedView`), Observer/*.
 
 ## Not done / deferred
-- C11 Analytics; Phase D.
+- Phase D.
 - Backend `dispatch/*` hookups were already wired in earlier phases.
 - Owner-side: ensure the CG single-field index for `registrations` supports
   the channel-picker queries (same pattern as profile denormalization).

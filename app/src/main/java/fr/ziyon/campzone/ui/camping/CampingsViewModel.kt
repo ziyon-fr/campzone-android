@@ -3,6 +3,8 @@ package fr.ziyon.campzone.ui.camping
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.data.analytics.AnalyticsService
+import fr.ziyon.campzone.data.analytics.NoOpAnalyticsService
 import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.model.Camping
 import java.text.SimpleDateFormat
@@ -39,6 +41,7 @@ data class CampingsUiState(
 @HiltViewModel
 class CampingsViewModel @Inject constructor(
     private val service: CampingService,
+    private val analyticsService: AnalyticsService = NoOpAnalyticsService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CampingsUiState())
@@ -53,6 +56,7 @@ class CampingsViewModel @Inject constructor(
 
     fun updateSearch(text: String) {
         _uiState.update { it.copy(searchText = text) }
+        analyticsService.searchCampings(text)
         recompute()
     }
 

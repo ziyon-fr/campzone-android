@@ -184,7 +184,10 @@ fun CampingDetailRoute(
             context.startActivity(Intent.createChooser(shareIntent, camping.title))
         },
         onOpenGuidelines = onOpenGuidelines,
-        onOpenSchedule = onOpenSchedule,
+        onOpenSchedule = { id ->
+            viewModel.trackScheduleView(id)
+            onOpenSchedule(id)
+        },
         onOpenChat = onOpenChat,
         onOpenPolls = onOpenPolls,
         onOpenEditCamping = onOpenEditCamping,
@@ -192,8 +195,14 @@ fun CampingDetailRoute(
         onOpenRegistrationReview = onOpenRegistrationReview,
         onOpenAttendees = onOpenAttendees,
         onOpenFoodMenu = onOpenFoodMenu,
-        onOpenSongbook = onOpenSongbook,
-        onOpenTeams = onOpenTeams,
+        onOpenSongbook = { id ->
+            viewModel.trackSongbookView(id)
+            onOpenSongbook(id)
+        },
+        onOpenTeams = { id ->
+            viewModel.trackTeamsView(id)
+            onOpenTeams(id)
+        },
         onOpenGames = onOpenGames,
         onOpenTeamDetail = onOpenTeamDetail,
         onOpenTeamEditor = onOpenTeamEditor,
