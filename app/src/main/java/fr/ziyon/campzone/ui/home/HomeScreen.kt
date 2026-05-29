@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
@@ -60,6 +61,7 @@ import fr.ziyon.campzone.core.designsystem.CzLoadingView
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
+import fr.ziyon.campzone.data.model.Announcement
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.Program
 import fr.ziyon.campzone.ui.camping.campingDateRange
@@ -73,6 +75,7 @@ import java.util.Locale
 fun HomeRoute(
     onOpenCamping: (String) -> Unit,
     onOpenProgram: (campingId: String, programId: String) -> Unit = { _, _ -> },
+    onOpenAnnouncement: (String) -> Unit = {},
     onOpenNotifications: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
@@ -82,6 +85,7 @@ fun HomeRoute(
         state = state,
         onOpenCamping = onOpenCamping,
         onOpenProgram = onOpenProgram,
+        onOpenAnnouncement = onOpenAnnouncement,
         onOpenNotifications = onOpenNotifications,
         onRetry = viewModel::retry,
         modifier = modifier,
@@ -93,6 +97,7 @@ fun HomeScreen(
     state: HomeUiState,
     onOpenCamping: (String) -> Unit,
     onOpenProgram: (campingId: String, programId: String) -> Unit,
+    onOpenAnnouncement: (String) -> Unit,
     onOpenNotifications: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -118,7 +123,7 @@ fun HomeScreen(
 
             is HomePhase.Loaded -> {
                 val featured = phase.featuredCamping
-                if (featured == null) {
+                if (featured == null && phase.upcomingPrograms.isEmpty() && phase.announcements.isEmpty()) {
                     CzEmptyState(
                         title = stringResource(R.string.home_empty_dashboard_title),
                         message = stringResource(R.string.home_empty_dashboard_message),
@@ -136,8 +141,10 @@ fun HomeScreen(
                     HomeDashboard(
                         featuredCamping = featured,
                         upcomingPrograms = phase.upcomingPrograms,
+                        announcements = phase.announcements,
                         onOpenCamping = onOpenCamping,
                         onOpenProgram = onOpenProgram,
+                        onOpenAnnouncement = onOpenAnnouncement,
                         onOpenNotifications = onOpenNotifications,
                     )
                 }
@@ -148,18 +155,20 @@ fun HomeScreen(
 
 @Composable
 private fun HomeDashboard(
-    featuredCamping: Camping,
+    featuredCamping: Camping?,
     upcomingPrograms: List<Program>,
+    announcements: List<Announcement>,
     onOpenCamping: (String) -> Unit,
     onOpenProgram: (campingId: String, programId: String) -> Unit,
+    onOpenAnnouncement: (String) -> Unit,
     onOpenNotifications: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val programsTitle = if (featuredCamping.title.isBlank()) {
-        stringResource(R.string.home_programs_title)
-    } else {
-        stringResource(R.string.home_programs_for_camping_title, featuredCamping.title)
-    }
+    val programsTitle = featuredCamping
+        ?.title
+        ?.takeUnless { it.isBlank() }
+        ?.let { stringResource(R.string.home_programs_for_camping_title, it) }
+        ?: stringResource(R.string.home_programs_title)
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -175,15 +184,17 @@ private fun HomeDashboard(
             DashboardHeader(onOpenNotifications = onOpenNotifications)
         }
 
-        item(key = "featured") {
-            HomeSection(
-                icon = Icons.Filled.Park,
-                title = stringResource(R.string.home_feature_title),
-            ) {
-                FeaturedCampingCard(
-                    camping = featuredCamping,
-                    onClick = { onOpenCamping(featuredCamping.id) },
-                )
+        if (featuredCamping != null) {
+            item(key = "featured") {
+                HomeSection(
+                    icon = Icons.Filled.Park,
+                    title = stringResource(R.string.home_feature_title),
+                ) {
+                    FeaturedCampingCard(
+                        camping = featuredCamping,
+                        onClick = { onOpenCamping(featuredCamping.id) },
+                    )
+                }
             }
         }
 
@@ -202,7 +213,7 @@ private fun HomeDashboard(
                     HomeProgramList(
                         programs = upcomingPrograms,
                         onOpenProgram = { programId ->
-                            onOpenProgram(featuredCamping.id, programId)
+                            featuredCamping?.let { onOpenProgram(it.id, programId) }
                         },
                     )
                 }
@@ -211,14 +222,21 @@ private fun HomeDashboard(
 
         item(key = "announcements") {
             HomeSection(
-                icon = Icons.Filled.Info,
+                icon = Icons.Filled.Campaign,
                 title = stringResource(R.string.home_announcements_title),
             ) {
-                HomeEmptyCard(
-                    icon = Icons.Filled.Info,
-                    title = stringResource(R.string.home_announcements_empty_title),
-                    message = stringResource(R.string.home_announcements_empty_message),
-                )
+                if (announcements.isEmpty()) {
+                    HomeEmptyCard(
+                        icon = Icons.Filled.Campaign,
+                        title = stringResource(R.string.home_announcements_empty_title),
+                        message = stringResource(R.string.home_announcements_empty_message),
+                    )
+                } else {
+                    HomeAnnouncementList(
+                        announcements = announcements,
+                        onOpenAnnouncement = onOpenAnnouncement,
+                    )
+                }
             }
         }
     }
@@ -422,6 +440,95 @@ private fun HomeProgramRow(
                     .background(MaterialTheme.czColors.ember.copy(alpha = 0.12f))
                     .padding(horizontal = CzSpacing.sm, vertical = 3.dp),
                 maxLines = 1,
+            )
+        }
+
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.czColors.textTertiary,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+@Composable
+private fun HomeAnnouncementList(
+    announcements: List<Announcement>,
+    onOpenAnnouncement: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CzRadius.lg))
+            .background(MaterialTheme.czColors.surface),
+    ) {
+        announcements.forEachIndexed { index, announcement ->
+            HomeAnnouncementRow(
+                announcement = announcement,
+                onClick = { onOpenAnnouncement(announcement.id) },
+            )
+            if (index < announcements.lastIndex) {
+                Box(
+                    modifier = Modifier
+                        .padding(start = 56.dp)
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(MaterialTheme.czColors.divider),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeAnnouncementRow(
+    announcement: Announcement,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.czColors.amber.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Campaign,
+                contentDescription = null,
+                tint = MaterialTheme.czColors.amber,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                text = announcement.title.ifBlank { stringResource(R.string.home_announcement_fallback_title) },
+                color = MaterialTheme.czColors.textPrimary,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = announcement.summary,
+                color = MaterialTheme.czColors.textSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
 
@@ -765,6 +872,7 @@ fun HomeScreenPreview() {
             ),
             onOpenCamping = {},
             onOpenProgram = { _, _ -> },
+            onOpenAnnouncement = {},
             onOpenNotifications = {},
             onRetry = {},
         )

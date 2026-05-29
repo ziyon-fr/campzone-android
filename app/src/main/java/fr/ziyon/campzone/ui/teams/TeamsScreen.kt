@@ -1,5 +1,7 @@
 package fr.ziyon.campzone.ui.teams
 
+import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,8 +29,11 @@ import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -41,7 +46,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -51,6 +56,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,9 +64,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -84,7 +89,9 @@ import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.model.TeamMemberRole
 import fr.ziyon.campzone.data.model.WinnerRevealPolicy
 import fr.ziyon.campzone.data.teams.TeamBalanceResult
-import fr.ziyon.campzone.data.teams.FakeTeamService
+import fr.ziyon.campzone.ui.games.GameViewModel
+import androidx.core.graphics.toColorInt
+import kotlinx.coroutines.launch
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
@@ -99,14 +106,20 @@ fun TeamsRoute(
     onOpenTeamEditor: (String?) -> Unit,
     onOpenGames: (String) -> Unit,
     viewModel: TeamViewModel = hiltViewModel(),
+    revealViewModel: GameViewModel = hiltViewModel(),
 ) {
     val evaluator = remember { AppPermissionEvaluator() }
+    val scope = rememberCoroutineScope()
+    var localRevealPolicy by remember(camping?.id) { mutableStateOf<WinnerRevealPolicy?>(null) }
+    val currentCamping = localRevealPolicy?.let { policy ->
+        camping?.copy(winnerRevealPolicy = policy)
+    } ?: camping
     val permissionUser = PermissionUser(
         role = authenticatedUser.role,
         userId = authenticatedUser.uid,
         church = authenticatedUser.church,
     )
-    val campingCtx = camping?.let { c ->
+    val campingCtx = currentCamping?.let { c ->
         CampingPermissionContext(
             organizerLevelType = c.organizerLevel.type.wireValue,
             organizerLevelValue = c.organizerLevel.value,
@@ -115,10 +128,16 @@ fun TeamsRoute(
     }
 
     val canManageTeams = campingCtx != null && evaluator.canManageTeams(permissionUser, campingCtx)
+    val canToggleReveal = campingCtx != null && evaluator.canRevealWinners(permissionUser, campingCtx)
     val canSeeScores = campingCtx != null &&
         (evaluator.canRevealWinners(permissionUser, campingCtx) ||
             evaluator.canManageGames(permissionUser, campingCtx))
-    val scoresHidden = camping
+    val revealPolicy = currentCamping?.winnerRevealPolicy ?: WinnerRevealPolicy()
+    val isPolicyRevealed = revealPolicy.hasRevealFired()
+    val revealPolicyTriggered = currentCamping
+        ?.let { revealPolicy.hasRevealFired() && !revealPolicy.areScoresHidden(it.endDate) }
+        ?: false
+    val scoresHidden = currentCamping
         ?.let { !canSeeScores && (it.winnerRevealPolicy ?: WinnerRevealPolicy()).areScoresHidden(it.endDate) }
         ?: false
 
@@ -139,6 +158,11 @@ fun TeamsRoute(
         isSaving = isSaving,
         operationError = operationError,
         canManageTeams = canManageTeams,
+        canToggleReveal = canToggleReveal,
+        isPolicyRevealed = isPolicyRevealed,
+        revealPolicyTriggered = revealPolicyTriggered,
+        isUpdatingReveal = revealViewModel.isUpdatingReveal,
+        revealOperationError = revealViewModel.operationError,
         scoresHidden = scoresHidden,
         authenticatedUserId = authenticatedUser.uid,
         approvedAttendees = approvedAttendees,
@@ -152,6 +176,18 @@ fun TeamsRoute(
         onApplyAutoBalance = { viewModel.applyAutoBalance(campingId) },
         onClearAutoBalancePreview = viewModel::clearAutoBalancePreview,
         onClearError = viewModel::clearOperationError,
+        onRevealWinner = {
+            scope.launch {
+                val saved = revealViewModel.reveal(campingId, currentCamping?.winnerRevealPolicy, authenticatedUser)
+                if (saved != null) localRevealPolicy = saved
+            }
+        },
+        onHideWinner = {
+            scope.launch {
+                val saved = revealViewModel.unreveal(campingId, currentCamping?.winnerRevealPolicy)
+                if (saved != null) localRevealPolicy = saved
+            }
+        },
     )
 }
 
@@ -165,6 +201,11 @@ private fun TeamsScreen(
     isSaving: Boolean,
     operationError: String?,
     canManageTeams: Boolean,
+    canToggleReveal: Boolean,
+    isPolicyRevealed: Boolean,
+    revealPolicyTriggered: Boolean,
+    isUpdatingReveal: Boolean,
+    revealOperationError: String?,
     scoresHidden: Boolean,
     authenticatedUserId: String,
     approvedAttendees: List<CampingAttendee>,
@@ -178,14 +219,117 @@ private fun TeamsScreen(
     onApplyAutoBalance: () -> Unit,
     onClearAutoBalancePreview: () -> Unit,
     onClearError: () -> Unit,
+    onRevealWinner: () -> Unit,
+    onHideWinner: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
+    val context = LocalContext.current
+    val ceremonyPrefs = remember(context) {
+        context.getSharedPreferences("campzone_team_ceremony", Context.MODE_PRIVATE)
+    }
+    val ceremonyKey = remember(campingId) { "cz.team.ceremony.seen.$campingId" }
     var menuExpanded by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     var showAutoBalanceSheet by rememberSaveable { mutableStateOf(false) }
+    var showRevealConfirm by rememberSaveable { mutableStateOf(false) }
+    var showHideRevealConfirm by rememberSaveable { mutableStateOf(false) }
+    var ceremonyTeam by remember { mutableStateOf<Team?>(null) }
+    var ceremonyAcknowledged by remember(campingId) {
+        mutableStateOf(ceremonyPrefs.getBoolean(ceremonyKey, false))
+    }
+    var ceremonyHasShown by rememberSaveable(campingId) { mutableStateOf(false) }
+    var revealStateInitialized by rememberSaveable(campingId) { mutableStateOf(false) }
+    var previousRevealPolicyTriggered by rememberSaveable(campingId) { mutableStateOf(false) }
+    var pendingCeremony by rememberSaveable(campingId) { mutableStateOf(false) }
 
     val loadedTeams = (uiState as? TeamsUiState.Loaded)?.teams.orEmpty()
+    val winningTeam = loadedTeams.firstOrNull()
+
+    fun markCeremonySeen() {
+        ceremonyPrefs.edit().putBoolean(ceremonyKey, true).apply()
+        ceremonyAcknowledged = true
+    }
+
+    fun clearCeremonySeen() {
+        ceremonyPrefs.edit().remove(ceremonyKey).apply()
+        ceremonyAcknowledged = false
+    }
+
+    LaunchedEffect(revealPolicyTriggered, winningTeam?.id) {
+        if (!revealStateInitialized) {
+            revealStateInitialized = true
+            previousRevealPolicyTriggered = revealPolicyTriggered
+            if (revealPolicyTriggered && !ceremonyAcknowledged) {
+                markCeremonySeen()
+                ceremonyHasShown = true
+            }
+            return@LaunchedEffect
+        }
+
+        if (!revealPolicyTriggered) {
+            clearCeremonySeen()
+            ceremonyHasShown = false
+            pendingCeremony = false
+            ceremonyTeam = null
+            previousRevealPolicyTriggered = false
+            return@LaunchedEffect
+        }
+
+        if (!previousRevealPolicyTriggered && !ceremonyAcknowledged && !ceremonyHasShown) {
+            winningTeam?.let { ceremonyTeam = it } ?: run { pendingCeremony = true }
+        } else if (pendingCeremony && !ceremonyAcknowledged && !ceremonyHasShown) {
+            winningTeam?.let {
+                ceremonyTeam = it
+                pendingCeremony = false
+            }
+        }
+
+        previousRevealPolicyTriggered = revealPolicyTriggered
+    }
+
+    if (showRevealConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRevealConfirm = false },
+            title = { Text(stringResource(R.string.teams_reveal_confirm_title)) },
+            text = { Text(stringResource(R.string.teams_reveal_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRevealConfirm = false
+                        onRevealWinner()
+                    },
+                ) { Text(stringResource(R.string.teams_reveal_winner), color = colors.success) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRevealConfirm = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
+    }
+
+    if (showHideRevealConfirm) {
+        AlertDialog(
+            onDismissRequest = { showHideRevealConfirm = false },
+            title = { Text(stringResource(R.string.teams_hide_confirm_title)) },
+            text = { Text(stringResource(R.string.teams_hide_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showHideRevealConfirm = false
+                        onHideWinner()
+                    },
+                ) { Text(stringResource(R.string.teams_hide_winner), color = colors.warning) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showHideRevealConfirm = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
+    }
+
     if (showAutoBalanceSheet) {
         TeamAutoBalanceSheet(
             teams = loadedTeams,
@@ -205,98 +349,200 @@ private fun TeamsScreen(
         )
     }
 
-    Scaffold(
-        containerColor = colors.background,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.teams_title), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = colors.background,
-                    titleContentColor = colors.textPrimary,
-                    actionIconContentColor = colors.textPrimary,
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = stringResource(R.string.common_back),
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onOpenGames) {
-                        Icon(
-                            imageVector = Icons.Outlined.SportsEsports,
-                            contentDescription = stringResource(R.string.teams_games_and_points),
-                        )
-                    }
-                    if (canManageTeams) {
-                        Box {
-                            IconButton(onClick = { menuExpanded = true }) {
-                                Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.teams_management))
-                            }
-                            DropdownMenu(
-                                expanded = menuExpanded,
-                                onDismissRequest = { menuExpanded = false },
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.teams_new_team)) },
-                                    onClick = { menuExpanded = false; onCreateTeam() },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.teams_auto_balance)) },
-                                    onClick = { menuExpanded = false; showAutoBalanceSheet = true },
-                                )
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = colors.background,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text(stringResource(R.string.teams_title), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = colors.background,
+                        titleContentColor = colors.textPrimary,
+                        actionIconContentColor = colors.textPrimary,
+                    ),
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                contentDescription = stringResource(R.string.common_back),
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onOpenGames) {
+                            Icon(
+                                imageVector = Icons.Outlined.SportsEsports,
+                                contentDescription = stringResource(R.string.teams_games_and_points),
+                            )
+                        }
+                        if (isUpdatingReveal) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = colors.ember,
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                        if (canManageTeams) {
+                            Box {
+                                IconButton(onClick = { menuExpanded = true }) {
+                                    Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.teams_management))
+                                }
+                                DropdownMenu(
+                                    expanded = menuExpanded,
+                                    onDismissRequest = { menuExpanded = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.teams_new_team)) },
+                                        onClick = { menuExpanded = false; onCreateTeam() },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.teams_auto_balance)) },
+                                        onClick = { menuExpanded = false; showAutoBalanceSheet = true },
+                                    )
+                                    if (canToggleReveal) {
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    if (isPolicyRevealed) {
+                                                        stringResource(R.string.teams_hide_winner)
+                                                    } else {
+                                                        stringResource(R.string.teams_reveal_winner)
+                                                    },
+                                                )
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = if (isPolicyRevealed) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                                    contentDescription = null,
+                                                    tint = if (isPolicyRevealed) colors.warning else colors.success,
+                                                )
+                                            },
+                                            onClick = {
+                                                menuExpanded = false
+                                                if (isPolicyRevealed) showHideRevealConfirm = true else showRevealConfirm = true
+                                            },
+                                            enabled = !isUpdatingReveal,
+                                        )
+                                    }
+                                }
                             }
                         }
-                    }
-                },
-                windowInsets = WindowInsets()
-            )
-        },
-        modifier = modifier,
-    ) { innerPadding ->
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = {
-                isRefreshing = true
-                onRefresh()
-                isRefreshing = false
+                    },
+                    windowInsets = WindowInsets()
+                )
             },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
-            when (val s = uiState) {
-                is TeamsUiState.Loading -> {
-                    fr.ziyon.campzone.core.designsystem.CzLoadingView(
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                is TeamsUiState.Empty -> {
-                    fr.ziyon.campzone.core.designsystem.CzEmptyState(
-                        title = stringResource(R.string.teams_empty_title),
-                        message = stringResource(R.string.teams_empty_message),
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                is TeamsUiState.Error -> {
-                    fr.ziyon.campzone.core.designsystem.CzErrorState(
-                        title = stringResource(R.string.teams_title),
-                        message = s.message,
-                        onRetry = onRefresh,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                is TeamsUiState.Loaded -> {
-                    TeamsLoadedContent(
-                        teams = s.teams,
-                        scoresHidden = scoresHidden,
-                        authenticatedUserId = authenticatedUserId,
-                        onOpenTeamDetail = { onOpenTeamDetail(it) },
-                    )
+            modifier = Modifier.fillMaxSize(),
+        ) { innerPadding ->
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    isRefreshing = true
+                    onRefresh()
+                    isRefreshing = false
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) {
+                when (uiState) {
+                    is TeamsUiState.Loading -> {
+                        fr.ziyon.campzone.core.designsystem.CzLoadingView(
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    is TeamsUiState.Empty -> {
+                        fr.ziyon.campzone.core.designsystem.CzEmptyState(
+                            title = stringResource(R.string.teams_empty_title),
+                            message = stringResource(R.string.teams_empty_message),
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    is TeamsUiState.Error -> {
+                        fr.ziyon.campzone.core.designsystem.CzErrorState(
+                            title = stringResource(R.string.teams_title),
+                            message = uiState.message,
+                            onRetry = onRefresh,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    is TeamsUiState.Loaded -> {
+                        TeamsLoadedContent(
+                            teams = uiState.teams,
+                            scoresHidden = scoresHidden,
+                            authenticatedUserId = authenticatedUserId,
+                            onOpenTeamDetail = { onOpenTeamDetail(it) },
+                        )
+                    }
                 }
             }
+        }
+
+        AnimatedVisibility(
+            visible = operationError != null || revealOperationError != null,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(CzSpacing.lg),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(CzRadius.md))
+                    .background(colors.error.copy(alpha = 0.12f))
+                    .border(1.dp, colors.error.copy(alpha = 0.24f), RoundedCornerShape(CzRadius.md))
+                    .padding(CzSpacing.md),
+            ) {
+                Text(
+                    text = revealOperationError ?: operationError.orEmpty(),
+                    color = colors.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
+        ceremonyTeam?.let { team ->
+            WinnerRevealCeremonyOverlay(
+                winningTeam = team,
+                onComplete = {
+                    markCeremonySeen()
+                    ceremonyHasShown = true
+                    ceremonyTeam = null
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HiddenScoresBanner(modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.czColors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CzRadius.lg))
+            .background(colors.warning.copy(alpha = 0.12f))
+            .border(1.dp, colors.warning.copy(alpha = 0.28f), RoundedCornerShape(CzRadius.lg))
+            .padding(CzSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.VisibilityOff,
+            contentDescription = null,
+            tint = colors.warning,
+            modifier = Modifier.size(22.dp),
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = stringResource(R.string.teams_hidden_banner_title),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.textPrimary,
+            )
+            Text(
+                text = stringResource(R.string.teams_hidden_banner_message),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
         }
     }
 }
@@ -506,6 +752,11 @@ private fun TeamsLoadedContent(
     modifier: Modifier = Modifier,
 ) {
     val personalTeam = teams.firstOrNull { t -> t.members.any { it.userId == authenticatedUserId } }
+    val displayTeams = if (scoresHidden) {
+        teams.sortedBy { it.name.lowercase() }
+    } else {
+        teams
+    }
 
     Column(
         modifier = modifier
@@ -514,10 +765,18 @@ private fun TeamsLoadedContent(
             .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.md),
         verticalArrangement = Arrangement.spacedBy(CzSpacing.xl),
     ) {
+        if (scoresHidden) {
+            HiddenScoresBanner()
+        }
+
         // Personal team card
         if (personalTeam != null) {
             val member = personalTeam.members.firstOrNull { it.userId == authenticatedUserId }
-            val rank = teams.indexOfFirst { it.id == personalTeam.id }.takeIf { it >= 0 }?.plus(1)
+            val rank = if (scoresHidden) {
+                null
+            } else {
+                teams.indexOfFirst { it.id == personalTeam.id }.takeIf { it >= 0 }?.plus(1)
+            }
             if (member != null) {
                 TeamSectionLabel(stringResource(R.string.teams_my_team), Icons.Outlined.Groups)
                 PersonalTeamCard(
@@ -531,14 +790,14 @@ private fun TeamsLoadedContent(
         }
 
         // Podium for top 3
-        if (teams.size >= 2) {
+        if (!scoresHidden && teams.size >= 2) {
             TeamSectionLabel(stringResource(R.string.teams_top_teams), Icons.Outlined.EmojiEvents)
-            PodiumSection(topTeams = teams.take(3), scoresHidden = scoresHidden)
+            PodiumSection(topTeams = teams.take(3), scoresHidden = false)
         }
 
         // Full ranking list
         TeamSectionLabel(stringResource(R.string.teams_ranking), Icons.AutoMirrored.Outlined.List)
-        RankingList(teams = teams, scoresHidden = scoresHidden, onClick = onOpenTeamDetail)
+        RankingList(teams = displayTeams, scoresHidden = scoresHidden, onClick = onOpenTeamDetail)
 
         Spacer(Modifier.height(CzSpacing.lg))
     }
@@ -847,14 +1106,14 @@ private fun TeamSectionLabel(title: String, icon: ImageVector, modifier: Modifie
 // ── Color utility ─────────────────────────────────────────────────────────────
 
 fun String.toComposeColor(): Color? = runCatching {
-    val c = android.graphics.Color.parseColor(this)
+    val c = this.toColorInt()
     Color(c)
 }.getOrNull()
 
 fun TeamMemberRole.displayName(): String = when (this) {
-    fr.ziyon.campzone.data.model.TeamMemberRole.Captain -> "Captain"
-    fr.ziyon.campzone.data.model.TeamMemberRole.ViceCaptain -> "Vice-captain"
-    fr.ziyon.campzone.data.model.TeamMemberRole.Member -> "Member"
+    TeamMemberRole.Captain -> "Captain"
+    TeamMemberRole.ViceCaptain -> "Vice-captain"
+    TeamMemberRole.Member -> "Member"
 }
 
 // ── Previews ──────────────────────────────────────────────────────────────────
@@ -863,18 +1122,22 @@ fun TeamMemberRole.displayName(): String = when (this) {
 @Composable
 private fun TeamsScreenPreview() {
     CampzoneTheme {
-        val service = FakeTeamService()
         TeamsScreen(
             campingId = "preview-camping",
             uiState = TeamsUiState.Loaded(
                 listOf(
-                    Team("lions", "preview-camping", "Lions", "Courage!", "flame.fill", "#D9432F", points = 180, members = listOf(TeamMember("u1", "u1", "Admin", "SDA", role = fr.ziyon.campzone.data.model.TeamMemberRole.Captain, personalScore = 40))),
+                    Team("lions", "preview-camping", "Lions", "Courage!", "flame.fill", "#D9432F", points = 180, members = listOf(TeamMember("u1", "u1", "Admin", "SDA", role = TeamMemberRole.Captain, personalScore = 40))),
                     Team("eagles", "preview-camping", "Eagles", "Higher!", "paperplane.fill", "#2364AA", points = 150, members = listOf(TeamMember("u2", "u2", "Marc", "SDA", personalScore = 20))),
                 )
             ),
             isSaving = false,
             operationError = null,
             canManageTeams = true,
+            canToggleReveal = true,
+            isPolicyRevealed = false,
+            revealPolicyTriggered = false,
+            isUpdatingReveal = false,
+            revealOperationError = null,
             scoresHidden = false,
             authenticatedUserId = "u1",
             approvedAttendees = emptyList(),
@@ -888,6 +1151,8 @@ private fun TeamsScreenPreview() {
             onApplyAutoBalance = {},
             onClearAutoBalancePreview = {},
             onClearError = {},
+            onRevealWinner = {},
+            onHideWinner = {},
         )
     }
 }

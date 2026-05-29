@@ -53,6 +53,7 @@ data class CampingDetailUiState(
     val canManageAnyCamping: Boolean = false,
     val wasCreatedByCurrentUser: Boolean = false,
     val isApprovedParticipant: Boolean = false,
+    val hasManagedRegistration: Boolean = false,
     val hasPendingRegistrationPayment: Boolean = false,
     val attendeeSearch: String = "",
     val filters: CampingAttendeeFilters = CampingAttendeeFilters(),
@@ -114,7 +115,7 @@ data class CampingDetailUiState(
 
     val showManagementSection: Boolean
         get() = canManageAnyCamping || canManageTransportation || wasCreatedByCurrentUser ||
-            canManageTeams || canManageSchedule
+            canManageTeams || canManageSchedule || canManageCheckIns
 
     private fun matchesFilters(attendee: CampingAttendee): Boolean {
         if (filters.church.isNotBlank() && !attendee.church.contains(filters.church, ignoreCase = true)) {
@@ -226,6 +227,7 @@ class CampingDetailViewModel @Inject constructor(
                         canManageAnyCamping = permissions.canManageAnyCamping(permissionUser),
                         wasCreatedByCurrentUser = camping.createdByUid == user.uid,
                         isApprovedParticipant = isApproved,
+                        hasManagedRegistration = userRegistrations.isNotEmpty(),
                         hasPendingRegistrationPayment = userRegistrations.any { attendee ->
                             attendee.registrationStatus == RegistrationApprovalStatus.Pending &&
                                 attendee.paymentStatus != TransportationPaymentStatus.Paid &&

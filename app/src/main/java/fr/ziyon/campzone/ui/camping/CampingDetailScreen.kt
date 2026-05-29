@@ -137,6 +137,10 @@ fun CampingDetailRoute(
     onOpenTeamDetail: (String, String) -> Unit = { _, _ -> },
     onOpenTeamEditor: (String, String?) -> Unit = { _, _ -> },
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenCheckInScanner: (String) -> Unit = {},
+    onOpenCheckInRecords: (String) -> Unit = {},
+    onOpenQrPasses: (String) -> Unit = {},
+    onOpenBadgeAward: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
     teamViewModel: TeamViewModel = hiltViewModel(),
 ) {
@@ -192,6 +196,10 @@ fun CampingDetailRoute(
         onOpenTeamDetail = onOpenTeamDetail,
         onOpenTeamEditor = onOpenTeamEditor,
         onOpenRegistrationPayment = onOpenRegistrationPayment,
+        onOpenCheckInScanner = onOpenCheckInScanner,
+        onOpenCheckInRecords = onOpenCheckInRecords,
+        onOpenQrPasses = onOpenQrPasses,
+        onOpenBadgeAward = onOpenBadgeAward,
         modifier = modifier,
     )
 }
@@ -222,6 +230,10 @@ fun CampingDetailScreen(
     onOpenTeamDetail: (String, String) -> Unit = { _, _ -> },
     onOpenTeamEditor: (String, String?) -> Unit = { _, _ -> },
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenCheckInScanner: (String) -> Unit = {},
+    onOpenCheckInRecords: (String) -> Unit = {},
+    onOpenQrPasses: (String) -> Unit = {},
+    onOpenBadgeAward: (String) -> Unit = {},
 ) {
     val camping = state.camping
     Scaffold(
@@ -288,6 +300,10 @@ fun CampingDetailScreen(
                     onOpenFoodMenu = onOpenFoodMenu,
                     onOpenSongbook = onOpenSongbook,
                     onOpenRegistrationPayment = onOpenRegistrationPayment,
+                    onOpenCheckInScanner = onOpenCheckInScanner,
+                    onOpenCheckInRecords = onOpenCheckInRecords,
+                    onOpenQrPasses = onOpenQrPasses,
+                    onOpenBadgeAward = onOpenBadgeAward,
                 )
             }
         }
@@ -358,6 +374,10 @@ private fun CampingDetailContent(
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenCheckInScanner: (String) -> Unit = {},
+    onOpenCheckInRecords: (String) -> Unit = {},
+    onOpenQrPasses: (String) -> Unit = {},
+    onOpenBadgeAward: (String) -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(CampingDetailTab.Overview) }
     val disabledAlpha = if (camping.registrationStatus == CampingRegistrationStatus.Cancelled) 0.5f else 1f
@@ -450,11 +470,15 @@ private fun CampingDetailContent(
                 onOpenFoodMenu = onOpenFoodMenu,
                 onOpenSongbook = onOpenSongbook,
                 onOpenRegistrationPayment = onOpenRegistrationPayment,
+                onOpenCheckInScanner = onOpenCheckInScanner,
+                onOpenCheckInRecords = onOpenCheckInRecords,
+                onOpenQrPasses = onOpenQrPasses,
+                onOpenBadgeAward = onOpenBadgeAward,
             )
         }
 
-        // Deferred Phase C/D operations are intentionally hidden until their
-        // Android destinations exist, matching the current C1 scope.
+        // Deferred Phase D operations remain hidden until their Android
+        // destinations exist.
     }
 }
 
@@ -1210,12 +1234,20 @@ private fun ResourcesSection(
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenCheckInScanner: (String) -> Unit = {},
+    onOpenCheckInRecords: (String) -> Unit = {},
+    onOpenQrPasses: (String) -> Unit = {},
+    onOpenBadgeAward: (String) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
             title = stringResource(R.string.camping_resources),
             icon = Icons.Filled.WorkspacePremium,
         )
+
+        if (state.hasManagedRegistration) {
+            PrimaryPassResource(onClick = { onOpenQrPasses(camping.id) })
+        }
 
         val campLifeResources = buildList {
             add(
@@ -1275,14 +1307,50 @@ private fun ResourcesSection(
             resources = campLifeResources,
         )
 
-        // QR passes, scanners, transportation dashboard, album, support, and
-        // operations hubs are Phase C/D surfaces on Android; C1 hides those
-        // rows instead of presenting inert affordances.
+        val operationsResources = buildList {
+            if (state.canManageCheckIns) {
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.camping_check_in_scanner),
+                        subtitle = stringResource(R.string.camping_check_in_scanner_subtitle),
+                        icon = Icons.Filled.QrCode,
+                        accent = MaterialTheme.czColors.success,
+                        onClick = { onOpenCheckInScanner(camping.id) },
+                    ),
+                )
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.checkin_records_title),
+                        subtitle = stringResource(R.string.checkin_records_subtitle),
+                        icon = Icons.Filled.CheckCircle,
+                        accent = MaterialTheme.czColors.ember,
+                        onClick = { onOpenCheckInRecords(camping.id) },
+                    ),
+                )
+            }
+            if (state.canAwardAchievements) {
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.camping_award_badges),
+                        subtitle = stringResource(R.string.camping_award_badges_subtitle),
+                        icon = Icons.Filled.WorkspacePremium,
+                        accent = MaterialTheme.czColors.amber,
+                        onClick = { onOpenBadgeAward(camping.id) },
+                    ),
+                )
+            }
+        }
+
+        ResourceGroup(
+            title = stringResource(R.string.camping_operations),
+            icon = Icons.Filled.Security,
+            resources = operationsResources,
+        )
     }
 }
 
 @Composable
-private fun PrimaryPassResource() {
+private fun PrimaryPassResource(onClick: () -> Unit) {
     val cream = Color(0xFFFFF4E0)
     Row(
         modifier = Modifier
@@ -1296,7 +1364,7 @@ private fun PrimaryPassResource() {
                     ),
                 ),
             )
-            .clickable { }
+            .clickable { onClick() }
             .padding(CzSpacing.lg),
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
         verticalAlignment = Alignment.CenterVertically,

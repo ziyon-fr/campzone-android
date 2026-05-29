@@ -1,5 +1,12 @@
 package fr.ziyon.campzone.data.model
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+
 /**
  * Firestore enum raw values from `02-firestore-schema.md` §8. Raw strings are
  * **case-sensitive** and copied verbatim - a single drift (e.g. `providedBus`
@@ -427,19 +434,83 @@ enum class PaymentKind(val wireValue: String) {
 }
 
 /** Achievement catalog `rarity` (in-code, never persisted as a doc field). */
-enum class AchievementRarity(val wireValue: String) {
-    Common("common"),
-    Uncommon("uncommon"),
-    Rare("rare"),
-    Epic("epic"),
-    Legendary("legendary");
+enum class AchievementRarity(
+    val wireValue: String,
+    val materialName: String,
+    val glowColor: Color,
+    val medalBrush: Brush
+) {
+
+    Common(
+        wireValue = "common",
+        materialName = "Silver",
+        glowColor = Color(0xFFBFC4D1),
+        medalBrush = Brush.linearGradient(
+            listOf(
+                Color(0xFFE2E5EA),
+                Color(0xFF8E96A3),
+                Color(0xFFF8F9FA)
+            )
+        )
+    ),
+
+    Uncommon(
+        wireValue = "uncommon",
+        materialName = "Gold",
+        glowColor = Color(0xFFFFC733),
+        medalBrush = Brush.linearGradient(
+            listOf(
+                Color(0xFFFFE49A),
+                Color(0xFFFFB300),
+                Color(0xFFFFF1B8)
+            )
+        )
+    ),
+
+    Rare(
+        wireValue = "rare",
+        materialName = "Platinum",
+        glowColor = Color(0xFFCCDFFF),
+        medalBrush = Brush.linearGradient(
+            listOf(
+                Color(0xFFEAF2FF),
+                Color(0xFF9FB7D9),
+                Color(0xFFFFFFFF)
+            )
+        )
+    ),
+
+    Epic(
+        wireValue = "epic",
+        materialName = "Diamond",
+        glowColor = Color(0xFF73D9FF),
+        medalBrush = Brush.linearGradient(
+            listOf(
+                Color(0xFFE6FBFF),
+                Color(0xFF4DD8FF),
+                Color(0xFFFFFFFF)
+            )
+        )
+    ),
+
+    Legendary(
+        wireValue = "legendary",
+        materialName = "Painite",
+        glowColor = Color(0xFFD91926),
+        medalBrush = Brush.linearGradient(
+            listOf(
+                Color(0xFFFF6A6A),
+                Color(0xFF9B000D),
+                Color(0xFFFFB1B1)
+            )
+        )
+    );
 
     companion object {
         fun fromWire(value: String?): AchievementRarity =
             entries.firstOrNull { it.wireValue == value } ?: Common
     }
 }
-
 /** Achievement catalog `awardKind` (in-code). */
 enum class AchievementAwardKind(val wireValue: String) {
     Manual("manual"),

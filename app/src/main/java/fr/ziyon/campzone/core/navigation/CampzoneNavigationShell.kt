@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -52,12 +53,17 @@ import fr.ziyon.campzone.ui.camping.registrations.RegistrationReviewRoute
 import fr.ziyon.campzone.ui.camping.register.CampingRegistrationRoute
 import fr.ziyon.campzone.ui.chat.CampingChatRoute
 import fr.ziyon.campzone.ui.chat.TeamChatRoute
+import fr.ziyon.campzone.ui.checkin.CheckInQrPassesRoute
+import fr.ziyon.campzone.ui.checkin.CheckInRecordsRoute
+import fr.ziyon.campzone.ui.checkin.CheckInScannerRoute
 import fr.ziyon.campzone.ui.family.FamilyParticipantsScreen
 import fr.ziyon.campzone.ui.home.HomeRoute
 import fr.ziyon.campzone.ui.payments.CampingRegistrationPaymentRoute
 import fr.ziyon.campzone.ui.profile.ProfileScreen
 import fr.ziyon.campzone.ui.profile.ProfileSettingsScreen
 import fr.ziyon.campzone.ui.profile.UserDataExportScreen
+import fr.ziyon.campzone.ui.profile.badges.AchievementsRoute
+import fr.ziyon.campzone.ui.profile.badges.CampingBadgeAwardRoute
 import fr.ziyon.campzone.ui.schedule.ProgramDetailScreen
 import fr.ziyon.campzone.ui.schedule.ProgramEditorScreen
 import fr.ziyon.campzone.ui.schedule.ScheduleEditorScreen
@@ -139,6 +145,9 @@ fun CampzoneNavigationShell(
                     onOpenProgram = { campingId, programId ->
                         navController.navigate(AppRoute.CampingScheduleProgram(campingId, programId).route)
                     },
+                    onOpenAnnouncement = { announcementId ->
+                        navController.navigate(AppRoute.AnnouncementDetail(announcementId).route)
+                    },
                     onOpenNotifications = {
                         navController.navigate(AppRoute.NotificationSettings.route)
                     },
@@ -160,9 +169,9 @@ fun CampzoneNavigationShell(
             }
             // ── Announcements ────────────────────────────────────────────────
             // Composer must be before Detail to prevent "compose" matching {announcementId}
-            composable(AppRoutePattern.AnnouncementComposer) {
-                val announcementsEntry = remember(it) {
-                    navController.getBackStackEntry(AppRoute.Announcements.route)
+            composable(AppRoutePattern.AnnouncementComposer) { backStackEntry ->
+                val announcementsEntry = remember(backStackEntry) {
+                    navController.announcementComposerOwner(backStackEntry)
                 }
                 val announcementViewModel: AnnouncementViewModel = hiltViewModel(announcementsEntry)
                 val permissionUser = PermissionUser(
@@ -184,9 +193,10 @@ fun CampzoneNavigationShell(
                 arguments = listOf(navArgument(AppRouteArgs.AnnouncementId) { type = NavType.StringType }),
             ) { backStackEntry ->
                 val announcementsEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(AppRoute.Announcements.route)
+                    navController.announcementDetailOwner(backStackEntry)
                 }
                 val announcementViewModel: AnnouncementViewModel = hiltViewModel(announcementsEntry)
+                val campings by announcementViewModel.campings.collectAsState()
                 val announcementId = backStackEntry.arguments?.getString(AppRouteArgs.AnnouncementId) ?: return@composable
                 val permissionUser = PermissionUser(
                     role = authenticatedUser.role,
@@ -194,6 +204,17 @@ fun CampzoneNavigationShell(
                     church = authenticatedUser.church,
                 )
                 val evaluator = remember { AppPermissionEvaluator() }
+                LaunchedEffect(announcementViewModel) {
+                    announcementViewModel.loadIfNeeded()
+                }
+                LaunchedEffect(campings, authenticatedUser.uid) {
+                    announcementViewModel.configureVisibility(
+                        currentUser = authenticatedUser,
+                        campings = campings,
+                        permissionUser = permissionUser,
+                        evaluator = evaluator,
+                    )
+                }
                 AnnouncementDetailRoute(
                     viewModel = announcementViewModel,
                     announcementId = announcementId,
@@ -247,7 +268,10 @@ fun CampzoneNavigationShell(
                 )
             }
             composable(AppRoute.ProfileAchievements.route) {
-                DetailPlaceholderScreen(title = stringResource(R.string.profile_my_achievements), value = authenticatedUser.uid)
+                AchievementsRoute(
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(AppRoute.NotificationSettings.route) {
                 DetailPlaceholderScreen(title = stringResource(R.string.profile_notifications), value = stringResource(R.string.profile_coming_soon))
@@ -323,6 +347,78 @@ fun CampzoneNavigationShell(
                     onOpenRegistrationPayment = { campingId ->
                         navController.navigate(AppRoute.CampingRegistrationPayment(campingId).route)
                     },
+                    onOpenCheckInScanner = { campingId ->
+                        navController.navigate(AppRoute.CheckInScanner(campingId).route)
+                    },
+                    onOpenCheckInRecords = { campingId ->
+                        navController.navigate(AppRoute.CheckInRecords(campingId).route)
+                    },
+                    onOpenQrPasses = { campingId ->
+                        navController.navigate(AppRoute.CheckInQrPasses(campingId).route)
+                    },
+                    onOpenBadgeAward = { campingId ->
+                        navController.navigate(AppRoute.CampingBadgeAward(campingId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CheckInScanner,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                CheckInScannerRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenRecords = {
+                        navController.navigate(AppRoute.CheckInRecords(campingId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CheckInRecords,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                CheckInRecordsRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenScanner = {
+                        navController.navigate(AppRoute.CheckInScanner(campingId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CheckInQrPasses,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                LaunchedEffect(campingId, authenticatedUser.uid) {
+                    campingDetailVm.load(campingId, authenticatedUser)
+                }
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
+                CheckInQrPassesRoute(
+                    state = campingDetailState,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingBadgeAward,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                CampingBadgeAwardRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(route = AppRoutePattern.RegistrationReview) {
@@ -1280,6 +1376,19 @@ fun ScreenColumn(
 
 private fun NavBackStackEntry.stringArg(name: String): String =
     arguments?.getString(name).orEmpty()
+
+private fun NavController.announcementDetailOwner(
+    currentEntry: NavBackStackEntry,
+): NavBackStackEntry =
+    announcementsBackStackEntryOrNull() ?: currentEntry
+
+private fun NavController.announcementComposerOwner(
+    currentEntry: NavBackStackEntry,
+): NavBackStackEntry =
+    announcementsBackStackEntryOrNull() ?: previousBackStackEntry ?: currentEntry
+
+private fun NavController.announcementsBackStackEntryOrNull(): NavBackStackEntry? =
+    runCatching { getBackStackEntry(AppRoute.Announcements.route) }.getOrNull()
 
 private fun teamRouteArguments() = listOf(
     navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
