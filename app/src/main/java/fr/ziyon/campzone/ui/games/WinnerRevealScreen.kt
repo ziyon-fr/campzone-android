@@ -1,3 +1,5 @@
+@file:android.annotation.SuppressLint("ViewModelConstructorInComposable")
+
 package fr.ziyon.campzone.ui.games
 
 import android.app.DatePickerDialog

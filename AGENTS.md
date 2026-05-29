@@ -24,7 +24,6 @@ contract:
 7. `docs/09-setup.md` - Gradle, Firebase, Stripe wiring
 8. `docs/05-deep-linking.md`, `docs/06-design-tokens.md`,
    `docs/08-feature-parity.md` - as needed
-9. All written code MUST BE production ready, dont create enought for MVP code.
 
 `docs/00` and `docs/02`-`08` are **byte-identical** to the web repo's
 `docs/`. They are derived from the iOS source - if the contract must
@@ -32,16 +31,13 @@ change, change iOS first (schema + `firestore-rbac.rules`,
 owner-deployed), then update `02/03/04` and copy to the web repo. Never
 let the three platforms drift.
 
-## Mandatory & Non-negotiables - iOS parity rule
+## Mandatory iOS parity rule
 
-- Every AI agent must read this file and the relevant `docs/` entries
+Every AI agent must read this file and the relevant `docs/` entries
 above before making any project change. For any new or modified UI view,
 also open the matching iOS SwiftUI source under:
 
-`/Users/leon/Desktop/Business Projects/Campzone/Campzone`.
-
-- **Required**
-Always write in `PROJECT_STATUS` projects current state.
+`/Users/leon/Desktop/Business Projects/Campzone/Campzone`
 
 The shipped iOS app is the source of truth for view structure, copy,
 visual style, interaction flow, navigation state, and Firestore payload

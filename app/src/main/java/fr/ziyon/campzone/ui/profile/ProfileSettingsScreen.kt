@@ -104,7 +104,8 @@ fun ProfileSettingsScreen(
         )
     }
     val permissions = remember { AppPermissionEvaluator() }
-    val canViewAdminUi = permissions.hasPermission(permissionUser, AppPermission.ViewAdminTools)
+    val canViewAdminUi = permissions.canViewAdminTools(permissionUser) ||
+        permissions.canModerateContent(permissionUser)
     val canManageFamily = permissions.hasPermission(
         permissionUser,
         AppPermission.ManageFamilyRegistrations,

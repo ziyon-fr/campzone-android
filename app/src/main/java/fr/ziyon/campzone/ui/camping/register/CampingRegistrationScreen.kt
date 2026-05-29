@@ -57,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -743,7 +744,8 @@ private fun transportIcon(
 @Composable
 private fun optionLabel(option: CampingTransportationOption): String {
     val fee = option.feeCents?.takeIf { it > 0 }?.let {
-        NumberFormat.getCurrencyInstance(Locale.getDefault()).apply {
+        val locale = Locale.forLanguageTag(ComposeLocale.current.toLanguageTag())
+        NumberFormat.getCurrencyInstance(locale).apply {
             currency = java.util.Currency.getInstance(option.currency.ifBlank { "EUR" }.uppercase())
         }.format(it / 100.0)
     }

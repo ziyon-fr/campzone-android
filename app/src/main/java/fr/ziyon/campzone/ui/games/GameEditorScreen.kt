@@ -1,3 +1,5 @@
+@file:android.annotation.SuppressLint("ViewModelConstructorInComposable")
+
 package fr.ziyon.campzone.ui.games
 
 import androidx.compose.foundation.layout.Arrangement

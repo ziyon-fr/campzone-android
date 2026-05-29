@@ -215,6 +215,17 @@ class AppPermissionEvaluator {
         can(user, AppPermission.EditGuidelines) ||
         (can(user, AppPermission.EditOwnChurchGuidelines) && user.isOwnChurchCamping(camping))
 
+    fun canModerateContent(user: PermissionUser?): Boolean =
+        user?.role in setOf(
+            UserRole.YouthDirector,
+            UserRole.Pastor,
+            UserRole.Leader,
+            UserRole.Admin,
+        )
+
+    fun canViewAdminTools(user: PermissionUser?): Boolean =
+        can(user, AppPermission.ViewAdminTools)
+
     fun canManageAnyCamping(user: PermissionUser?): Boolean =
         canCreateAnyCamping(user) ||
             can(user, AppPermission.EditCampings) ||

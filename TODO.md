@@ -263,9 +263,9 @@
 
 ### C9. Content Moderation (`ui/admin/moderation/`)
 
-- [ ] Report: create `contentReports/{uuid}` (full set, no merge); all required fields must be present - **brittle reader** (admin list aborts on missing field or unknown enum)
-- [ ] `target` enum: `announcement`/`camping`/`chatMessage` (**camelCase**)
-- [ ] Admin queue: read + update status (`dismissed`/`resolved`); gate `canModerateContent`
+- [x] Report: create `contentReports/{uuid}` (full set, no merge); all required fields must be present - **brittle reader** (admin list aborts on missing field or unknown enum)
+- [x] `target` enum: `announcement`/`camping`/`chatMessage` (**camelCase**)
+- [x] Admin queue: read + update status (`dismissed`/`resolved`); gate `canModerateContent`
 
 ### C10. Notifications (`core/notifications/`)
 

@@ -65,6 +65,10 @@ sealed interface AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}"
     }
 
+    data object ModerationQueue : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.ModerationQueue}"
+    }
+
     data object UserDataExport : AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.UserDataExport}"
     }
@@ -352,6 +356,7 @@ internal object AppRoutePath {
     const val NotificationSettings = "notifications"
     const val FamilyParticipants = "family"
     const val AdminTools = "admin"
+    const val ModerationQueue = "moderation"
     const val UserDataExport = "export"
     const val AppSupport = "support"
     const val Chat = "chat"
@@ -428,6 +433,7 @@ internal object AppRoutePattern {
     const val GameEdit = "$GameEditor/{${AppRouteArgs.GameId}}"
     const val WinnerReveal = "$CampingGames/${AppRoutePath.WinnerReveal}"
     const val GameDetail = "$CampingGames/{${AppRouteArgs.GameId}}"
+    const val ModerationQueue = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.ModerationQueue}"
 }
 
 private fun String.asRouteSegment(): String =

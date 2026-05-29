@@ -99,6 +99,8 @@ import fr.ziyon.campzone.ui.announcements.AnnouncementDetailRoute
 import fr.ziyon.campzone.ui.announcements.AnnouncementViewModel
 import fr.ziyon.campzone.ui.announcements.AnnouncementsRoute
 import fr.ziyon.campzone.ui.album.CampingAlbumRoute
+import fr.ziyon.campzone.ui.admin.AdminToolsRoute
+import fr.ziyon.campzone.ui.admin.moderation.ModerationQueueRoute
 
 @Composable
 fun CampzoneNavigationShell(
@@ -284,7 +286,19 @@ fun CampzoneNavigationShell(
                 )
             }
             composable(AppRoute.AdminTools.route) {
-                DetailPlaceholderScreen(title = stringResource(R.string.profile_admin_tools), value = stringResource(R.string.profile_coming_soon))
+                AdminToolsRoute(
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenModerationQueue = {
+                        navController.navigate(AppRoute.ModerationQueue.route)
+                    },
+                )
+            }
+            composable(AppRoute.ModerationQueue.route) {
+                ModerationQueueRoute(
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(AppRoute.UserDataExport.route) {
                 UserDataExportScreen(

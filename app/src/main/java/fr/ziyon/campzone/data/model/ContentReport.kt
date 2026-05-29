@@ -58,8 +58,12 @@ internal object ContentReportPayload {
     fun reportPayload(
         report: ContentReport,
         serverTimestamp: Any,
-    ): Map<String, Any?> =
-        linkedMapOf(
+    ): Map<String, Any?> {
+        require(report.id.isNotBlank()) { "contentReport id is required." }
+        require(report.contentId.isNotBlank()) { "contentReport contentID is required." }
+        require(report.reporterId.isNotBlank()) { "contentReport reporterID is required." }
+
+        return linkedMapOf(
             "id" to report.id,
             "target" to report.target.wireValue,
             "contentID" to report.contentId,
@@ -69,15 +73,22 @@ internal object ContentReportPayload {
             "status" to ContentReportStatus.Pending.wireValue,
             "createdAt" to serverTimestamp,
         )
+    }
 
     fun statusUpdatePayload(
         status: ContentReportStatus,
         reviewedById: String,
         serverTimestamp: Any,
-    ): Map<String, Any?> =
-        linkedMapOf(
+    ): Map<String, Any?> {
+        require(status == ContentReportStatus.Dismissed || status == ContentReportStatus.Resolved) {
+            "contentReport status update must dismiss or resolve."
+        }
+        require(reviewedById.isNotBlank()) { "contentReport reviewerID is required." }
+
+        return linkedMapOf(
             "status" to status.wireValue,
             "reviewedByID" to reviewedById,
             "reviewedAt" to serverTimestamp,
         )
+    }
 }

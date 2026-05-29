@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -267,7 +268,8 @@ private fun DashboardHeader(
                     tint = MaterialTheme.czColors.leaf,
                 )
                 Text(
-                    text = stringResource(R.string.home_slogan).uppercase(Locale.getDefault()),
+                    text = stringResource(R.string.home_slogan)
+                        .uppercase(Locale.forLanguageTag(ComposeLocale.current.toLanguageTag())),
                     color = MaterialTheme.czColors.textSecondary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
