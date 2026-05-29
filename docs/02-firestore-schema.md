@@ -715,18 +715,49 @@ QR payload (not a doc): `campzone://checkin?v=1&c=<campingID>&a=<attendeeID>&u=<
 | `participantName` | string | **req** | drop | |
 | `userID` | string | **req** | drop | |
 | `paymentStatus` | string | **req** | drop | `unpaid`/`paid`/`waived` |
-| `boardingStatus` | string | **req** | drop | `not_boarded`/`boarded` |
+| `boardingStatus` | string | **req** | drop | `not_boarded`/`boarded` (legacy outbound mirror; see `scanHistory`) |
 | `validFrom` | timestamp | **req** | `now` | raw Date → Timestamp |
 | `validUntil` | timestamp | **req** | `now` | |
 | `ticketToken` | string | **req** | drop | opaque server-issued secret |
+| `isActive` | bool | opt | `true` | cancel sets `false`; decode default `true` |
+| `coversReturn` | bool | opt | `true` | round-trip vs one-way; decode default `true` |
+| `scanHistory` | array\<map> | opt | `[]` | append-only marshal scan log (see element below) |
 | `guardianID` | string | opt | `nil` | omit-when-nil |
-| `boardedBy` / `boardedAt` | string / ts | opt | `nil` | on `markBoarded` |
+| `boardedBy` / `boardedAt` | string / ts | opt | `nil` | legacy outbound-departure mirror of `markBoarded` |
+| `arrivedBy` / `arrivedAt` | string / ts | opt | `nil` | legacy outbound-arrival mirror of `markArrived` |
+| `canceledBy` / `canceledAt` | string / ts | opt | `nil` | on cancel |
+| `cancelReason` | string | opt | `nil` | **delete-when-empty** on cancel |
 | `paymentUpdatedBy` / `paymentUpdatedAt` | string / ts | opt | `nil` | on payment update |
 | `paymentReference` | string | opt | - | **backend** writes the Stripe intent id on confirm |
 | `createdAt` / `updatedAt` | timestamp | opt | `nil` | created by booking creator; `updatedAt` serverTimestamp on every mutation |
 
-`canBoard` = `paymentStatus ∈ {paid,waived}` AND `boardingStatus == not_boarded`.
+`canBoard` = `isActive` AND `paymentStatus ∈ {paid,waived}` AND
+`boardingStatus == not_boarded`.
 QR payload: `campzone://transport?v=1&c=<campingID>&b=<bookingID>&r=<registrationID>&p=<participantID>&t=<ticketToken>`.
+
+**Round-trip + scan history** (iOS-authoritative; the model grew past the
+original field set above): a ticket covers an outbound (origin → camp) and,
+when `coversReturn`, a return (camp → home) leg. Each leg has a `departure` and
+an `arrival` checkpoint. Every marshal scan appends a `scanHistory[]` element
+(`arrayUnion`, never rewritten); leg progress is derived on read, never stored.
+An outbound scan also mirrors the legacy `boardingStatus`/`boardedBy/At` and
+`arrivedBy/At` fields so older readers still work. Bookings written before
+`scanHistory` existed are back-filled on read from the legacy
+`boardedAt`/`arrivedAt` pair into the outbound leg.
+
+`scanHistory[]` element: `id` (UUID), `leg` (`TransportationLeg` raw:
+`outbound`/`return`), `checkpoint` (`TransportationCheckpoint` raw:
+`departure`/`arrival`), `at` (timestamp - client `Date()` at scan), `by` (uid),
+`byName` (string, omit-when-nil), `location` (string, omit-when-nil).
+
+`markBoarded`/`markArrived` set only `scanHistory` (arrayUnion) + the legacy
+outbound mirror + `updatedAt`. `updatePaymentStatus` sets
+`paymentStatus`/`paymentUpdatedBy/At`. Cancel sets
+`isActive=false`/`canceledBy/At` + `cancelReason` (delete-when-empty). All are
+`canManageTransportation`-gated and leave the immutable keys (`ticketToken`,
+`campingID`, `registrationID`, `participantID`, `userID`) unchanged. On create
+the booking is still `unpaid`/`not_boarded` (RBAC literals); a free organizer
+option is settled to `waived` afterward via the manager update path.
 
 ### 7.3 `campings/{id}/lodging/{unitId}` - LodgingUnit
 
@@ -855,6 +886,8 @@ Documented in `04-backend-api.md`. Fields: `uid`, `kind`
 | `TransportationChoice` | `transportationChoice` | `own_car`, `provided_bus` |
 | `TransportationPaymentStatus` | `paymentStatus` | `unpaid`, `paid`, `waived` |
 | `TransportationBoardingStatus` | `boardingStatus` | `not_boarded`, `boarded` |
+| `TransportationLeg` | `scanHistory[].leg` | `outbound`, `return` |
+| `TransportationCheckpoint` | `scanHistory[].checkpoint` | `departure`, `arrival` |
 | `TransportationMode` | `transportationOptions[].mode` | **camelCase**: `bus`,`coach`,`minibus`,`shuttle`,`train`,`carpool`,`ownCar`,`plane`,`boat`,`bike`,`onFoot`,`other` |
 | `CampingPaymentOption` | `priceItems[].paymentOptions[]` | **camelCase**: `cardOneTime`,`cardInstallments`,`bankTransfer` |
 | `ProgramType` | program `type` | `reception`,`games`,`preaching`,`prayer`,`breakfast`,`lunch`,`dinner`,`snack`,`other`,`rest`,`break`,`custom` |
