@@ -6,6 +6,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import fr.ziyon.campzone.core.permissions.AppPermission
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.PermissionUser
+import fr.ziyon.campzone.data.analytics.AnalyticsService
+import fr.ziyon.campzone.data.analytics.NoOpAnalyticsService
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.family.FamilyRepository
@@ -54,6 +56,7 @@ class CampingRegistrationViewModel @Inject constructor(
     private val campingService: CampingService,
     private val familyRepository: FamilyRepository,
     private val notificationDispatcher: RegistrationNotificationDispatcher,
+    private val analyticsService: AnalyticsService = NoOpAnalyticsService,
 ) : ViewModel() {
 
     private val permissions = AppPermissionEvaluator()
@@ -159,6 +162,7 @@ class CampingRegistrationViewModel @Inject constructor(
                     user = user,
                 )
             }.onSuccess { updatedCamping ->
+                analyticsService.registerForCamping(updatedCamping.id)
                 _uiState.update {
                     it.copy(
                         isSubmitting = false,

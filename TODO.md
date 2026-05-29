@@ -263,24 +263,25 @@
 
 ### C9. Content Moderation (`ui/admin/moderation/`)
 
-- [ ] Report: create `contentReports/{uuid}` (full set, no merge); all required fields must be present - **brittle reader** (admin list aborts on missing field or unknown enum)
-- [ ] `target` enum: `announcement`/`camping`/`chatMessage` (**camelCase**)
-- [ ] Admin queue: read + update status (`dismissed`/`resolved`); gate `canModerateContent`
+- [x] Report: create `contentReports/{uuid}` (full set, no merge); all required fields must be present - **brittle reader** (admin list aborts on missing field or unknown enum)
+- [x] `target` enum: `announcement`/`camping`/`chatMessage` (**camelCase**)
+- [x] Admin queue: read + update status (`dismissed`/`resolved`); gate `canModerateContent`
 
-### C10. Notifications (`core/notifications/`)
+### C10. Notifications (`core/notifications/`) ✅
 
-- [ ] `FirebaseMessagingService`: get FCM token; on token refresh, write to **both**:
+- [x] `FirebaseMessagingService` (`CampzoneMessagingService`): on token refresh, write to **both**:
   1. Firestore `users/{uid}/notificationTokens/{sha256hex}` - doc ID = lowercase hex SHA-256 of the raw token; `platform: "android"`
-  2. `POST /notifications/devices` with `appID: "campzone"`, `platform: "android"` + user role + locale
-- [ ] Notification settings screen: read/write `users/{uid}/notificationSettings/default` **and** call `POST /notifications/settings` (both required - API call drives FCM topic subscription)
-- [ ] `subscribedRoleRawValues` (not `subscribedRoles`) stored in Firestore; trimmed, deduped, sorted
-- [ ] In-app notification feed: read `ziyon_notifications` filtered by `appID == "campzone"` + visible topics; sorted `sentAt` desc; `sentAt` is ISO-8601 string (also accepts Timestamp/Date)
-- [ ] Deep link handler in `MainActivity`: parse FCM data payload → `campzone://` route per `05-deep-linking.md`; park until auth/nav ready
-- [ ] Notification channels keyed by type: `announcement`, `chat_message`, `poll`, `schedule_reminder`, …
+  2. `POST /notifications/devices` with `appID: "campzone"`, `platform: "android"` + user role + locale (`NotificationDeviceRegistrar`; also registered once per user on sign-in via `NotificationBootstrapViewModel`)
+- [x] Notification settings screen: read/write `users/{uid}/notificationSettings/default` **and** call `POST /notifications/settings` (both required - API call drives FCM topic subscription)
+- [x] `subscribedRoleRawValues` (not `subscribedRoles`) stored in Firestore; trimmed, deduped, sorted (reused existing `NotificationPrefsPayload`; API sends both keys for backend tolerance)
+- [x] In-app notification feed: read `ziyon_notifications` filtered by `appID == "campzone"` + visible topics; sorted `sentAt` desc; `sentAt` is ISO-8601 string (also accepts Timestamp/Date) — Home bell opens the feed; rows deep-link
+- [x] Deep link handler in `MainActivity`: parse FCM data payload → `campzone://` route per `05-deep-linking.md`; park until auth/nav ready (pre-existing `IntentDeepLinks`/`DeepLinkInbox`; FCM tap PendingIntent forwards the data map)
+- [x] Notification channels keyed by type: `announcement`, `chat_message`, `poll`, `schedule_reminder`, `team_update`, `registration`, `general`
+- [x] iOS parity: full notification settings (master + 5 categories + role audiences + camping/team channel pickers); feed rows with audience/kind, `concerns()` role + `@mention` scoping; topics/`visibleTopics` ported verbatim
 
 ### C11. Analytics
 
-- [ ] Firebase Analytics; mirror iOS event set: `viewCamping`, `registerForCamping`, `cancelCamping`, `viewSchedule`, `viewSongbook`, `viewTeams`, `playSong`, `favoriteSong`, `searchCampings`, `signIn`, `signOut`
+- [x] Firebase Analytics; mirror iOS event set: `viewCamping`, `registerForCamping`, `cancelCamping`, `viewSchedule`, `viewSongbook`, `viewTeams`, `playSong`, `favoriteSong`, `searchCampings`, `signIn`, `signOut`
 
 ---
 
@@ -419,8 +420,8 @@ C5 Polls
 C6 QR check-in
 C7 Badges
 C8 Album media
-C9 Content moderation
-C10 Notifications (FCM + in-app feed)
+C9 Content moderation ✅
+C10 Notifications (FCM + in-app feed) ✅
 C11 Analytics
 
 D1 Transportation tickets

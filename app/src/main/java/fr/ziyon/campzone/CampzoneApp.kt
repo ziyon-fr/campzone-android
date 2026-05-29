@@ -8,6 +8,7 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.firestore.firestoreSettings
 import com.google.firebase.firestore.persistentCacheSettings
 import dagger.hilt.android.HiltAndroidApp
+import fr.ziyon.campzone.core.notifications.NotificationChannels
 
 @HiltAndroidApp
 class CampzoneApp : Application() {
@@ -21,5 +22,6 @@ class CampzoneApp : Application() {
                 }
             )
         }
+        NotificationChannels.registerAll(this)
     }
 }

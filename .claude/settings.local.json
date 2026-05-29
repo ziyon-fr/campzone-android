@@ -58,7 +58,20 @@
       "Bash(./gradlew :app:compileDebugKotlin --no-daemon)",
       "Bash(find /Users/leon/.gradle -name \"material-icons-*.jar\" 2>/dev/null | head -5)",
       "Bash(./gradlew :app:assembleDebug --no-daemon)",
-      "Bash(JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ./gradlew :app:compileDebugKotlin)"
+      "Bash(JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ./gradlew :app:compileDebugKotlin)",
+      "Bash(gh pr *)",
+      "Bash(echo \"GRADLE_EXIT=$?\")",
+      "Bash(export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" && ./gradlew assembleDebug testDebugUnitTest lint --console=plain > /tmp/cz_build_phase1b.log 2>&1)",
+      "Bash(gh api *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(n['comments']['nodes'][0]['databaseId'], n['isResolved'], n['id']\\) for n in d['data']['repository']['pullRequest']['reviewThreads']['nodes'] if n['comments']['nodes']]\")",
+      "Bash(echo \"exit=$?\")",
+      "Bash(grep -nE \"^e: |: error:|BUILD FAILED|BUILD SUCCESSFUL\" /tmp/cz_previews.log)",
+      "Bash(awk '{print $2}')",
+      "Bash(git fetch *)",
+      "Bash(git commit *)",
+      "Bash(echo \"gradle_exit=$?\")",
+      "Bash(git merge *)",
+      "Bash(./gradlew :app:testDebugUnitTest --tests \"fr.ziyon.campzone.data.model.CheckInQrTest\" --tests \"fr.ziyon.campzone.data.model.CheckInRecordPayloadTest\" --tests \"fr.ziyon.campzone.ui.checkin.CheckInViewModelTest\")"
     ]
   }
 }

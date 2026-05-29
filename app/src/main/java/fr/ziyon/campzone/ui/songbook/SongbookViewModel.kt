@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.PermissionUser
+import fr.ziyon.campzone.data.analytics.AnalyticsService
+import fr.ziyon.campzone.data.analytics.NoOpAnalyticsService
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.model.Chord
@@ -103,6 +105,7 @@ internal val SongLyricsPartKind.displayName: String
 class SongbookViewModel @Inject constructor(
     private val songbookService: SongbookService,
     private val campingService: CampingService,
+    private val analyticsService: AnalyticsService = NoOpAnalyticsService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<SongbookUiState>(SongbookUiState.Loading)
@@ -461,6 +464,7 @@ class SongbookViewModel @Inject constructor(
             return
         }
         val song = songById(songId, campingId) ?: return
+        val willFavorite = !song.isFavoritedBy(userId)
         viewModelScope.launch {
             _operationError.value = null
             runCatching {
@@ -468,8 +472,9 @@ class SongbookViewModel @Inject constructor(
                     songId = songId,
                     campingId = campingId,
                     userId = userId,
-                    isFavorite = !song.isFavoritedBy(userId),
+                    isFavorite = willFavorite,
                 )
+                if (willFavorite) analyticsService.favoriteSong(updated.id, updated.title)
                 upsert(updated, campingId)
                 publish(campingId)
             }.onFailure { e ->
@@ -497,6 +502,7 @@ class SongbookViewModel @Inject constructor(
                 setOnPreparedListener {
                     it.start()
                     _playingSongId.value = song.id
+                    analyticsService.playSong(song.id, song.title)
                 }
                 setOnCompletionListener { stopAudio() }
                 setOnErrorListener { _, _, _ ->

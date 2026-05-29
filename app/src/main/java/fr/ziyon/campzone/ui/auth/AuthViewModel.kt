@@ -4,6 +4,8 @@ import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.data.analytics.AnalyticsService
+import fr.ziyon.campzone.data.analytics.NoOpAnalyticsService
 import fr.ziyon.campzone.data.auth.AuthSessionRepository
 import fr.ziyon.campzone.data.auth.AuthState
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
@@ -27,6 +29,7 @@ data class AuthUiState(
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val authSessionRepository: AuthSessionRepository,
+    private val analyticsService: AnalyticsService = NoOpAnalyticsService,
 ) : ViewModel() {
     val authState: StateFlow<AuthState> = authSessionRepository.authState
 
@@ -35,6 +38,7 @@ class AuthViewModel @Inject constructor(
 
     fun signInWithGoogle(activity: Activity) {
         signIn(
+            provider = "google",
             start = { _uiState.value = AuthUiState(isSigningInWithGoogle = true) },
             action = { authSessionRepository.signInWithGoogle(activity) },
         )
@@ -42,6 +46,7 @@ class AuthViewModel @Inject constructor(
 
     fun signInWithApple(activity: Activity) {
         signIn(
+            provider = "apple",
             start = { _uiState.value = AuthUiState(isSigningInWithApple = true) },
             action = { authSessionRepository.signInWithApple(activity) },
         )
@@ -49,6 +54,7 @@ class AuthViewModel @Inject constructor(
 
     fun signInWithEmail(email: String, password: String) {
         signIn(
+            provider = "email",
             start = { _uiState.value = AuthUiState(isSigningInWithEmail = true) },
             action = { authSessionRepository.signInWithEmail(email, password) },
         )
@@ -56,6 +62,7 @@ class AuthViewModel @Inject constructor(
 
     fun signUpWithEmail(email: String, password: String, displayName: String?) {
         signIn(
+            provider = "email",
             start = { _uiState.value = AuthUiState(isSigningInWithEmail = true) },
             action = { authSessionRepository.signUpWithEmail(email, password, displayName) },
         )
@@ -85,6 +92,7 @@ class AuthViewModel @Inject constructor(
 
     fun signOut() {
         authSessionRepository.signOut()
+        analyticsService.signOut()
         _uiState.value = AuthUiState()
     }
 
@@ -110,6 +118,7 @@ class AuthViewModel @Inject constructor(
     }
 
     private fun signIn(
+        provider: String,
         start: () -> Unit,
         action: suspend () -> Unit,
     ) {
@@ -118,7 +127,10 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             start()
             runCatching { action() }
-                .onSuccess { _uiState.value = AuthUiState() }
+                .onSuccess {
+                    analyticsService.signIn(provider)
+                    _uiState.value = AuthUiState()
+                }
                 .onFailure { error ->
                     _uiState.value = AuthUiState(errorMessage = error.friendlyMessage())
                 }

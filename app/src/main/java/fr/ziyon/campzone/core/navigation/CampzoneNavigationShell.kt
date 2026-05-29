@@ -99,6 +99,12 @@ import fr.ziyon.campzone.ui.announcements.AnnouncementDetailRoute
 import fr.ziyon.campzone.ui.announcements.AnnouncementViewModel
 import fr.ziyon.campzone.ui.announcements.AnnouncementsRoute
 import fr.ziyon.campzone.ui.album.CampingAlbumRoute
+import fr.ziyon.campzone.ui.admin.AdminToolsRoute
+import fr.ziyon.campzone.ui.admin.moderation.ModerationQueueRoute
+import fr.ziyon.campzone.ui.notifications.AppNotificationFeedRoute
+import fr.ziyon.campzone.ui.notifications.NotificationCampingChannelsScreen
+import fr.ziyon.campzone.ui.notifications.NotificationSettingsRoute
+import fr.ziyon.campzone.ui.notifications.NotificationTeamChannelsScreen
 
 @Composable
 fun CampzoneNavigationShell(
@@ -150,8 +156,16 @@ fun CampzoneNavigationShell(
                         navController.navigate(AppRoute.AnnouncementDetail(announcementId).route)
                     },
                     onOpenNotifications = {
-                        navController.navigate(AppRoute.NotificationSettings.route)
+                        navController.navigate(AppRoute.NotificationFeed.route)
                     },
+                )
+            }
+            composable(AppRoute.NotificationFeed.route) {
+                AppNotificationFeedRoute(
+                    uid = authenticatedUser.uid,
+                    role = authenticatedUser.role,
+                    onBack = { navController.popBackStack() },
+                    onOpenDeepLink = { deepLink -> navController.navigateToDeepLink(deepLink) },
                 )
             }
             composable(AppRoute.Campings.route) {
@@ -275,7 +289,35 @@ fun CampzoneNavigationShell(
                 )
             }
             composable(AppRoute.NotificationSettings.route) {
-                DetailPlaceholderScreen(title = stringResource(R.string.profile_notifications), value = stringResource(R.string.profile_coming_soon))
+                NotificationSettingsRoute(
+                    uid = authenticatedUser.uid,
+                    role = authenticatedUser.role,
+                    onBack = { navController.popBackStack() },
+                    onOpenCampingChannels = {
+                        navController.navigate(AppRoute.NotificationCampingChannels.route)
+                    },
+                    onOpenTeamChannels = {
+                        navController.navigate(AppRoute.NotificationTeamChannels.route)
+                    },
+                )
+            }
+            composable(AppRoute.NotificationCampingChannels.route) { entry ->
+                val parentEntry = remember(entry) {
+                    navController.getBackStackEntry(AppRoute.NotificationSettings.route)
+                }
+                NotificationCampingChannelsScreen(
+                    viewModel = hiltViewModel(parentEntry),
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(AppRoute.NotificationTeamChannels.route) { entry ->
+                val parentEntry = remember(entry) {
+                    navController.getBackStackEntry(AppRoute.NotificationSettings.route)
+                }
+                NotificationTeamChannelsScreen(
+                    viewModel = hiltViewModel(parentEntry),
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(AppRoute.FamilyParticipants.route) {
                 FamilyParticipantsScreen(
@@ -284,7 +326,19 @@ fun CampzoneNavigationShell(
                 )
             }
             composable(AppRoute.AdminTools.route) {
-                DetailPlaceholderScreen(title = stringResource(R.string.profile_admin_tools), value = stringResource(R.string.profile_coming_soon))
+                AdminToolsRoute(
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenModerationQueue = {
+                        navController.navigate(AppRoute.ModerationQueue.route)
+                    },
+                )
+            }
+            composable(AppRoute.ModerationQueue.route) {
+                ModerationQueueRoute(
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(AppRoute.UserDataExport.route) {
                 UserDataExportScreen(

@@ -3,6 +3,8 @@ package fr.ziyon.campzone.ui.camping.admin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.data.analytics.AnalyticsService
+import fr.ziyon.campzone.data.analytics.NoOpAnalyticsService
 import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.media.ImageUploader
 import fr.ziyon.campzone.data.model.Camping
@@ -32,6 +34,7 @@ data class CampingAdminUiState(
 class CampingAdminViewModel @Inject constructor(
     private val campingService: CampingService,
     private val imageUploader: ImageUploader,
+    private val analyticsService: AnalyticsService = NoOpAnalyticsService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CampingAdminUiState())
@@ -104,6 +107,7 @@ class CampingAdminViewModel @Inject constructor(
             _uiState.update { it.copy(isCancelling = true, errorMessage = null) }
             runCatching { campingService.cancelCamping(id) }
                 .onSuccess {
+                    analyticsService.cancelCamping(id)
                     _uiState.update { it.copy(isCancelling = false, successMessage = "Camping cancelled.") }
                     onCancelled()
                 }

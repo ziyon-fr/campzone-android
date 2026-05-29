@@ -92,6 +92,21 @@ class AppPermissionEvaluatorTest {
             assertTrue(evaluator.hasPermission(admin, permission, regionalCamping))
         }
         assertTrue(evaluator.hasPermission(admin, AppPermission.ViewAdminTools))
+        assertTrue(evaluator.canModerateContent(admin))
+    }
+
+    @Test
+    fun contentModerationMatchesFirestoreRoleGate() {
+        assertTrue(evaluator.canModerateContent(PermissionUser(role = UserRole.YouthDirector)))
+        assertTrue(evaluator.canModerateContent(PermissionUser(role = UserRole.Pastor)))
+        assertTrue(evaluator.canModerateContent(PermissionUser(role = UserRole.Leader)))
+        assertTrue(evaluator.canModerateContent(PermissionUser(role = UserRole.Admin)))
+
+        assertFalse(evaluator.canModerateContent(PermissionUser(role = UserRole.Guest)))
+        assertFalse(evaluator.canModerateContent(PermissionUser(role = UserRole.User)))
+        assertFalse(evaluator.canModerateContent(PermissionUser(role = UserRole.Adult)))
+        assertFalse(evaluator.canModerateContent(PermissionUser(role = UserRole.GameMaster)))
+        assertFalse(evaluator.canModerateContent(PermissionUser(role = UserRole.Photographer)))
     }
 
     @Test

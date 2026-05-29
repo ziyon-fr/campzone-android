@@ -57,12 +57,28 @@ sealed interface AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.NotificationSettings}"
     }
 
+    data object NotificationCampingChannels : AppRoute {
+        override val route = "${NotificationSettings.route}/${AppRoutePath.ChannelCampings}"
+    }
+
+    data object NotificationTeamChannels : AppRoute {
+        override val route = "${NotificationSettings.route}/${AppRoutePath.ChannelTeams}"
+    }
+
+    data object NotificationFeed : AppRoute {
+        override val route = "${AppRoutePath.Home}/${AppRoutePath.NotificationFeed}"
+    }
+
     data object FamilyParticipants : AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.FamilyParticipants}"
     }
 
     data object AdminTools : AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}"
+    }
+
+    data object ModerationQueue : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.ModerationQueue}"
     }
 
     data object UserDataExport : AppRoute {
@@ -350,8 +366,12 @@ internal object AppRoutePath {
     const val ProfileEdit = "edit"
     const val Achievements = "achievements"
     const val NotificationSettings = "notifications"
+    const val NotificationFeed = "notifications"
+    const val ChannelCampings = "channel-campings"
+    const val ChannelTeams = "channel-teams"
     const val FamilyParticipants = "family"
     const val AdminTools = "admin"
+    const val ModerationQueue = "moderation"
     const val UserDataExport = "export"
     const val AppSupport = "support"
     const val Chat = "chat"
@@ -428,6 +448,7 @@ internal object AppRoutePattern {
     const val GameEdit = "$GameEditor/{${AppRouteArgs.GameId}}"
     const val WinnerReveal = "$CampingGames/${AppRoutePath.WinnerReveal}"
     const val GameDetail = "$CampingGames/{${AppRouteArgs.GameId}}"
+    const val ModerationQueue = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.ModerationQueue}"
 }
 
 private fun String.asRouteSegment(): String =

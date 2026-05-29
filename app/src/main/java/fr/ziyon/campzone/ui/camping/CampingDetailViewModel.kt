@@ -8,6 +8,8 @@ import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.core.permissions.UserRole
+import fr.ziyon.campzone.data.analytics.AnalyticsService
+import fr.ziyon.campzone.data.analytics.NoOpAnalyticsService
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.CampingAgeGroup
 import fr.ziyon.campzone.data.camping.CampingService
@@ -135,6 +137,7 @@ data class CampingDetailUiState(
 @HiltViewModel
 class CampingDetailViewModel @Inject constructor(
     private val service: CampingService,
+    private val analyticsService: AnalyticsService = NoOpAnalyticsService,
 ) : ViewModel() {
 
     private val permissions = AppPermissionEvaluator()
@@ -164,6 +167,7 @@ class CampingDetailViewModel @Inject constructor(
             _uiState.value = CampingDetailUiState(isLoading = true)
             runCatching { service.fetchCamping(campingId) }
                 .onSuccess { camping ->
+                    analyticsService.viewCamping(camping.id, camping.title)
                     val attendees = runCatching { service.loadAttendees(campingId) }
                         .getOrDefault(emptyList())
                     val context = CampingPermissionContext(
@@ -250,4 +254,10 @@ class CampingDetailViewModel @Inject constructor(
     fun updateAttendeeSearch(value: String) = _uiState.update { it.copy(attendeeSearch = value) }
 
     fun updateFilters(filters: CampingAttendeeFilters) = _uiState.update { it.copy(filters = filters) }
+
+    fun trackScheduleView(campingId: String) = analyticsService.viewSchedule(campingId)
+
+    fun trackSongbookView(campingId: String) = analyticsService.viewSongbook(campingId)
+
+    fun trackTeamsView(campingId: String) = analyticsService.viewTeams(campingId)
 }

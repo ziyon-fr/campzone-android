@@ -27,6 +27,23 @@ class ContentReportTest {
     }
 
     @Test
+    fun statusUpdateRejectsPendingStatus() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ContentReportPayload.statusUpdatePayload(ContentReportStatus.Pending, "admin-1", TS)
+        }
+    }
+
+    @Test
+    fun submitRejectsMissingRequiredIds() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ContentReportPayload.reportPayload(sampleReport().copy(reporterId = ""), TS)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ContentReportPayload.reportPayload(sampleReport().copy(contentId = ""), TS)
+        }
+    }
+
+    @Test
     fun roundTripsThroughBrittleDecoder() {
         val created = Date(1)
         val payload = ContentReportPayload.reportPayload(sampleReport(), created)
