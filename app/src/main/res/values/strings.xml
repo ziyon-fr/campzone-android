@@ -952,4 +952,93 @@
     <string name="poll_dispatch_body_created">Open Campzone to vote before it closes.</string>
     <string name="poll_dispatch_body_closed">Final results are now available.</string>
     <string name="poll_dispatch_body_reopened">Voting is open again.</string>
+
+    <!-- C10 Notifications: channels -->
+    <string name="notif_default_title">Campzone</string>
+    <string name="notif_channel_announcement">Announcements</string>
+    <string name="notif_channel_announcement_desc">Camp-wide news and updates from organizers.</string>
+    <string name="notif_channel_chat">Chat messages</string>
+    <string name="notif_channel_chat_desc">New messages in camping or team chats you follow.</string>
+    <string name="notif_channel_poll">Polls</string>
+    <string name="notif_channel_poll_desc">New polls and poll results.</string>
+    <string name="notif_channel_reminder">Schedule reminders</string>
+    <string name="notif_channel_reminder_desc">Reminders before each program activity starts.</string>
+    <string name="notif_channel_team">Team updates</string>
+    <string name="notif_channel_team_desc">Score changes, member additions, and team alerts.</string>
+    <string name="notif_channel_registration">Registrations</string>
+    <string name="notif_channel_registration_desc">Registration requests awaiting your review.</string>
+    <string name="notif_channel_general">General</string>
+    <string name="notif_channel_general_desc">Other Campzone notifications.</string>
+
+    <!-- C10 Notifications: settings -->
+    <string name="notif_settings_title">Notifications</string>
+    <string name="notif_settings_loading">Loading notifications…</string>
+    <string name="notif_settings_error_title">Could not load notifications</string>
+    <string name="notif_settings_error_generic">Could not load your notification settings.</string>
+    <string name="notif_settings_saving">Saving notifications…</string>
+    <string name="notif_settings_saved">Notification settings saved.</string>
+    <string name="notif_settings_save_error">Could not save your notification settings.</string>
+    <string name="notif_retry">Try again</string>
+    <string name="notif_back_cd">Back</string>
+    <string name="notif_master_title">Allow notifications</string>
+    <string name="notif_master_desc">Receive push notifications from Campzone on this device.</string>
+    <string name="notif_master_footer">Disable this to mute every Campzone alert without removing your preferences below.</string>
+    <string name="notif_system_permission_title">System permission</string>
+    <string name="notif_system_permission_desc">Open Android settings to change the notification permission.</string>
+    <string name="notif_section_categories">Categories</string>
+    <string name="notif_cat_announcements_title">Announcements</string>
+    <string name="notif_cat_announcements_desc">Camp-wide news and updates from organizers.</string>
+    <string name="notif_cat_chat_title">Chat messages</string>
+    <string name="notif_cat_chat_desc">New messages in camping or team chats you follow.</string>
+    <string name="notif_cat_reminders_title">Schedule reminders</string>
+    <string name="notif_cat_reminders_desc">Reminders before each program activity starts.</string>
+    <string name="notif_cat_role_title">Role messages</string>
+    <string name="notif_cat_role_desc">Direct messages sent to your camping role.</string>
+    <string name="notif_cat_team_title">Team updates</string>
+    <string name="notif_cat_team_desc">Score changes, member additions, and team alerts.</string>
+    <string name="notif_section_role_audiences">Role audiences</string>
+    <string name="notif_role_audience_desc">Receive notifications sent to the %1$s audience.</string>
+    <string name="notif_role_audience_footer">Admins can subscribe to any role. Other users only see their own role.</string>
+    <string name="notif_section_channels">Channels</string>
+    <string name="notif_chan_camping_title">Camping channels</string>
+    <string name="notif_chan_camping_desc">Choose which campings push you their updates.</string>
+    <string name="notif_chan_team_title">Team channels</string>
+    <string name="notif_chan_team_desc">Pick which teams alert you about scores and changes.</string>
+    <string name="notif_channels_footer">Channels limit notifications to a single camping or team. Leave them empty to receive everything for your role.</string>
+    <string name="notif_channels_footer_empty">Register for a camping to pick channels.</string>
+    <string name="notif_value_all">All</string>
+    <string name="notif_value_none">None</string>
+    <string name="notif_value_not_attending">Not attending</string>
+    <string name="notif_value_selected">%1$d selected</string>
+    <string name="notif_auth_not_requested">Not requested</string>
+    <string name="notif_auth_disabled">Disabled</string>
+    <string name="notif_auth_enabled">Enabled</string>
+    <string name="notif_auth_quiet">Quietly enabled</string>
+    <string name="notif_auth_temporary">Temporarily enabled</string>
+    <string name="notif_auth_unknown">Unknown</string>
+
+    <!-- C10 Notifications: camping channel picker -->
+    <string name="notif_camping_channels_title">Camping channels</string>
+    <string name="notif_camping_channels_empty_title">No campings to subscribe to</string>
+    <string name="notif_camping_channels_empty_msg">Register for a camping to receive its updates.</string>
+    <string name="notif_camping_channels_footer">Selected campings push you notifications even when no channel filter is set.</string>
+
+    <!-- C10 Notifications: team channel picker -->
+    <string name="notif_team_channels_title">Team channels</string>
+    <string name="notif_team_channels_no_camping_title">No team to subscribe to</string>
+    <string name="notif_team_channels_no_camping_msg">Join a camping to see team channels.</string>
+    <string name="notif_team_channels_no_team_title">You\'re not on any team yet</string>
+    <string name="notif_team_channels_no_team_msg">Organizers add you to a team once teams are set up for your camping.</string>
+    <string name="notif_team_channels_footer">Only teams that include you are listed.</string>
+
+    <!-- C10 Notifications: in-app feed -->
+    <string name="notif_feed_title">Notifications</string>
+    <string name="notif_feed_loading">Loading notifications…</string>
+    <string name="notif_feed_empty_title">No notifications</string>
+    <string name="notif_feed_empty_msg">Role and camp-wide notifications will appear here.</string>
+    <string name="notif_feed_error_title">Could not load notifications</string>
+    <string name="notif_feed_error_msg">Something went wrong loading your notifications.</string>
+    <string name="notif_feed_refresh">Refresh</string>
+    <string name="notif_feed_open_cd">Opens this notification</string>
+    <string name="notif_audience_everyone">Everyone</string>
 </resources>

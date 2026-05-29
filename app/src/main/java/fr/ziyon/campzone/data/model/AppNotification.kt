@@ -1,6 +1,8 @@
 package fr.ziyon.campzone.data.model
 
 import com.google.firebase.Timestamp
+import fr.ziyon.campzone.core.navigation.CampzoneDeepLink
+import fr.ziyon.campzone.core.permissions.UserRole
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -28,10 +30,68 @@ data class AppNotification(
     val role: String? = null,
     val senderId: String? = null,
     val messageId: String? = null,
+    val event: String? = null,
+    val mentionedUserIds: List<String> = emptyList(),
 ) {
+    /**
+     * Whether this notification should appear in [role]'s feed, given the set
+     * of topics that user is subscribed to. Mirrors iOS `concerns(user:visibleTopics:)`:
+     * role-scoped rows are gated to the matching role topic and either the
+     * matching role or admin; `@mention` rows are personal to `mentionedUserIds`.
+     */
+    fun concerns(userId: String, role: UserRole, visibleTopics: Set<String>): Boolean {
+        if (appId != APP_ID) return false
+
+        this.role?.let { roleRaw ->
+            val roleTopic = NotificationTopics.roleTopic(roleRaw)
+            if (!visibleTopics.contains(roleTopic)) return false
+            if (!(role.isAdmin || roleRaw == role.rawValue)) return false
+        }
+
+        if (kind == AppNotificationKind.ChatMention && mentionedUserIds.isNotEmpty()) {
+            if (!mentionedUserIds.contains(userId)) return false
+        }
+
+        return visibleTopics.contains(topic)
+    }
+
+    /**
+     * The deep-link destination for a tapped feed row, derived from the
+     * notification's kind + ids. Mirrors iOS `AppNotification.deepLink`.
+     */
+    fun deepLink(): CampzoneDeepLink? = when (kind) {
+        AppNotificationKind.Announcement ->
+            announcementId?.let(CampzoneDeepLink::Announcement)
+
+        AppNotificationKind.ChatMessage, AppNotificationKind.ChatMention -> campingId?.let {
+            if (teamId != null) CampzoneDeepLink.TeamChat(it, teamId) else CampzoneDeepLink.CampingChat(it)
+        }
+
+        AppNotificationKind.Poll ->
+            campingId?.let { CampzoneDeepLink.Poll(campingId = it, pollId = pollId) }
+
+        AppNotificationKind.Registration ->
+            campingId?.let(CampzoneDeepLink::RegistrationReview)
+
+        AppNotificationKind.TeamUpdate -> campingId?.let {
+            when {
+                isPointEvent(event) -> CampzoneDeepLink.TeamPoints(campingId = it, teamId = teamId)
+                teamId != null -> CampzoneDeepLink.TeamUpdate(campingId = it, teamId = teamId)
+                else -> CampzoneDeepLink.Camping(it)
+            }
+        }
+
+        AppNotificationKind.ScheduleReminder, AppNotificationKind.Unknown -> null
+    }
+
     companion object {
         const val APP_ID = "campzone"
         val DISTANT_PAST = Date(0)
+
+        private val POINT_EVENTS = setOf("scorechanged", "memberscorechanged", "penaltyapplied")
+
+        private fun isPointEvent(event: String?): Boolean =
+            event?.trim()?.lowercase() in POINT_EVENTS
     }
 }
 
@@ -66,9 +126,11 @@ internal fun Map<String, Any?>.toAppNotificationOrNull(documentId: String): AppN
         campingId = campingId,
         pollId = pollId,
         teamId = stringValue("teamID"),
-        role = stringValue("role"),
+        role = stringValue("role") ?: NotificationTopics.roleFromTopic(rawStringValue("topic").orEmpty()),
         senderId = stringValue("senderId"),
         messageId = stringValue("messageId"),
+        event = stringValue("event"),
+        mentionedUserIds = stringListValue("mentionedUserIDs"),
     )
 }
 

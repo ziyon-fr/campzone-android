@@ -306,8 +306,11 @@ enum class ContentReportStatus(val wireValue: String) {
 enum class AppNotificationKind(val wireValue: String) {
     Announcement("announcement"),
     ChatMessage("chat_message"),
+    ChatMention("chat_mention"),
     Poll("poll"),
+    Registration("registration"),
     ScheduleReminder("schedule_reminder"),
+    TeamUpdate("team_update"),
     Unknown("unknown");
 
     companion object {
@@ -315,8 +318,11 @@ enum class AppNotificationKind(val wireValue: String) {
             when (value?.trim()?.lowercase()) {
                 "announcement" -> Announcement
                 "chat_message", "chatmessage" -> ChatMessage
+                "chat_mention", "chatmention" -> ChatMention
                 "poll" -> Poll
+                "registration", "registration_request" -> Registration
                 "schedule_reminder", "schedulereminder" -> ScheduleReminder
+                "team_update", "teamupdate" -> TeamUpdate
                 "unknown" -> Unknown
                 else -> null
             }

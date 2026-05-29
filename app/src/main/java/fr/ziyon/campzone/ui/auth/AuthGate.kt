@@ -90,6 +90,7 @@ import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.core.navigation.CampzoneNavigationShell
 import fr.ziyon.campzone.core.navigation.DeepLinkInbox
 import fr.ziyon.campzone.data.auth.AuthState
+import fr.ziyon.campzone.ui.notifications.NotificationBootstrapViewModel
 import fr.ziyon.campzone.ui.onboarding.OnboardingScreen
 
 private val AuthNight = Color(0xFF070E1A)
@@ -147,6 +148,13 @@ fun AuthGate(
         is AuthState.SignedIn -> {
             val signedInState = authState as AuthState.SignedIn
             RequestNotificationPermissionAfterOnboarding()
+            val bootstrapViewModel: NotificationBootstrapViewModel = hiltViewModel()
+            LaunchedEffect(signedInState.user.uid) {
+                bootstrapViewModel.registerDevice(
+                    uid = signedInState.user.uid,
+                    role = signedInState.user.role,
+                )
+            }
             CampzoneNavigationShell(
                 deepLinkInbox = deepLinkInbox,
                 authenticatedUser = signedInState.user,

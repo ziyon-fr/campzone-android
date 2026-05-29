@@ -57,6 +57,18 @@ sealed interface AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.NotificationSettings}"
     }
 
+    data object NotificationCampingChannels : AppRoute {
+        override val route = "${NotificationSettings.route}/${AppRoutePath.ChannelCampings}"
+    }
+
+    data object NotificationTeamChannels : AppRoute {
+        override val route = "${NotificationSettings.route}/${AppRoutePath.ChannelTeams}"
+    }
+
+    data object NotificationFeed : AppRoute {
+        override val route = "${AppRoutePath.Home}/${AppRoutePath.NotificationFeed}"
+    }
+
     data object FamilyParticipants : AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.FamilyParticipants}"
     }
@@ -354,6 +366,9 @@ internal object AppRoutePath {
     const val ProfileEdit = "edit"
     const val Achievements = "achievements"
     const val NotificationSettings = "notifications"
+    const val NotificationFeed = "notifications"
+    const val ChannelCampings = "channel-campings"
+    const val ChannelTeams = "channel-teams"
     const val FamilyParticipants = "family"
     const val AdminTools = "admin"
     const val ModerationQueue = "moderation"

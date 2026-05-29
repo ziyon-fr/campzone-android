@@ -1,81 +1,84 @@
-# Project State - C6 QR Check-In + C7 Badges Parity
+# Project State - C10 Notifications (FCM + in-app feed)
 
-Updated: 2026-05-28T16:18:00Z
+Updated: 2026-05-29
 
-## Current Architecture
+## Current position
 
-- Branch/worktree: `c6-qr-check-in` with C6 check-in, C7 badges, Home announcement wiring, and older dirty work preserved.
-- Android still follows the layered Compose MVVM shape: composable route -> Hilt `ViewModel` -> service interface -> manual Firestore maps.
-- Check-in records use the canonical Firestore path `campings/{campingId}/checkIns/{attendeeId}`. The doc id is the attendee id, and a successful re-check-in overwrites that one doc with a full `set`.
-- `CheckInRecord` and `CheckInQrPayload` exist in `data/model/`, with manual decoding/encoding for `campzone://checkin?v=1&c=<campingID>&a=<attendeeID>&u=<userID>&iat=<unixSeconds>`.
-- `CheckInService` exists with `FirestoreCheckInService` and `FakeCheckInService`. It loads all records for managers, loads a single attendee record for guardian-style reads, and writes `checkedInAt: FieldValue.serverTimestamp()`.
-- `CheckInViewModel` exists and validates scanned QR codes against the loaded camping attendees before writing. It rejects wrong-camp, unknown/forged attendee, unapproved, malformed, and duplicate scans, and supports manual check-in.
-- `QrCameraPreview` exists with CameraX + ML Kit QR analysis.
+- Branch: `c10-notifications` (off committed C9 `c9-content-moderation`).
+- Phase C is complete through C10. Remaining: C11 Analytics, then Phase D.
+- Verification green on this branch: `./gradlew :app:assembleDebug`,
+  `:app:testDebugUnitTest`, `:app:lintDebug` all SUCCESSFUL
+  (JAVA_HOME = Android Studio JBR).
 
-## iOS Parity Reference Read
+## C10 surface shipped
 
-- `Features/CheckIn/Model/CheckInRecord.swift`
-- `Features/CheckIn/Service/CheckInService.swift`
-- `Features/CheckIn/Observer/CheckInObserver.swift`
-- `Features/CheckIn/View/CheckInScannerView.swift`
-- `Features/CheckIn/View/CheckInRecordsView.swift`
-- `Features/CheckIn/View/CheckInQRView.swift`
-- `Features/CheckIn/Components/CheckInRow.swift`
-- `Features/CheckIn/Components/QRCodeImage.swift`
-- `Features/Campings/View/CampingDetailView.swift` operations/resources wiring
+Push + token plumbing (`core/notifications/`):
+- `CampzoneMessagingService : FirebaseMessagingService` (`@AndroidEntryPoint`)
+  - `onNewToken` → `NotificationDeviceRegistrar.storeToken` (role read from
+    `users/{uid}`).
+  - `onMessageReceived` → channel notification keyed by `data.type`; tap
+    `PendingIntent` re-opens `MainActivity` with the FCM data map as extras
+    (existing `IntentDeepLinks`/`CampzoneDeepLink.fromPayload` resolves it).
+- `NotificationChannels` (announcement/chat_message/poll/schedule_reminder/
+  team_update/registration/general) created in `CampzoneApp.onCreate`;
+  manifest `<service>` + `default_notification_channel_id=general`.
+- `NotificationDeviceRegistrar`: token doc `users/{uid}/notificationTokens/
+  {sha256hex}` (reuses `NotificationPrefsPayload.tokenPayload`) **and**
+  `POST /notifications/devices`. Run once per uid on sign-in via
+  `NotificationBootstrapViewModel` (LaunchedEffect in `AuthGate` SignedIn).
+- `FirebaseModule` now provides `FirebaseMessaging`.
 
-## Completed C6 Surface
+Backend client (`data/notifications/`):
+- `NotificationApi` / `BackendNotificationApi` (HttpURLConnection + Firebase
+  ID token, mirrors `RegistrationNotificationDispatcher`): `registerDevice`,
+  `syncSettings` (sends both `subscribedRoleRawValues` + `subscribedRoles`).
 
-- QR payload round-trip and malformed-code unit tests exist.
-- Check-in payload tests cover required fields, `qr`/`manual` method wire values, omit-when-nil optionals, blank photo omission, and tolerant decode.
-- ViewModel tests cover QR success, wrong camp, unknown/forged attendee, unapproved attendee, already checked-in, malformed code, duplicate-frame protection, manual fallback, restricted users, and record search.
-- Permission plumbing already exposes `canManageCheckIns` in `CampingDetailViewModel`.
-- Camera/ML Kit dependencies are present in Gradle, and `AndroidManifest.xml` has check-in-related camera changes in this worktree.
-- C6 now has typed Android routes for scanner, records, and QR passes: `CheckInScanner`, `CheckInRecords`, and `CheckInQrPasses`.
-- `CampzoneNavigationShell` registers all three C6 destinations and wires them from `CampingDetailScreen`.
-- `CampingDetailScreen` now shows "My QR Passes" for users with any managed registration and an Operations group with scanner/records for users with `canManageCheckIns`.
-- `CheckInScannerRoute` shows the CameraX/ML Kit preview, camera-permission prompt, saving chip, scan-result status card, and checked-in count summary.
-- `CheckInRecordsRoute` shows iOS-style summary stats, search, pending manual check-in rows, checked-in rows, and scanner navigation.
-- `CheckInQrPassesRoute` generates local QR bitmaps for approved self/child registrations, sorts self first then children alphabetically, and shows pending/not-registered states.
-- C6 strings are filled across default/PT/FR resources.
-- `TODO.md` C6 checklist is marked complete.
-- Focused verification passed: `JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew testDebugUnitTest --tests 'fr.ziyon.campzone.ui.checkin.*' --tests 'fr.ziyon.campzone.data.model.CheckIn*'`.
-- Build verification passed: `JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew assembleDebug`.
-- `lintDebug` is still blocked by pre-existing Compose preview ViewModel-constructor errors, first at `app/src/main/java/fr/ziyon/campzone/ui/polls/CampingPollsScreen.kt:196`. The lint report does not show C6 check-in errors, MissingTranslation, ExtraTranslation, or stale MyView hits.
+Settings (`data/notifications/` + `ui/notifications/`):
+- `NotificationSettingsRules` (pure): defaults / `normalizedFor` /
+  `roleAudienceOptions` / `sanitized` — ported from iOS.
+- `NotificationSettingsService` (`Firestore…` + `Fake…`): read/write
+  `users/{uid}/notificationSettings/default` (merge + `updatedAt`) then
+  `api.syncSettings`.
+- `NotificationSettingsViewModel` (shared via the settings nav back-stack
+  entry) + `NotificationSettingsScreen`: master, 5 categories, role audiences
+  (admins all roles, others own), channel nav rows. Optimistic apply +
+  revert-on-failure with typed `NotificationOpMessage`.
+- Full-parity channel pickers: `NotificationCampingChannelsScreen` /
+  `NotificationTeamChannelsScreen`, backed by `NotificationChannelsLoader`
+  (interface + `Firestore…` impl): attended campings via CG `registrations`
+  (`userID`/`guardianID`) ∩ camping list; personal team via
+  `memberUserIds.contains(uid)`.
 
-## Remaining C6 Gaps
+In-app feed (`data/model/` + `data/notifications/` + `ui/notifications/`):
+- `AppNotificationKind` extended (+`chat_mention`, `registration`,
+  `team_update`); `AppNotification` gained `event`, `mentionedUserIds`,
+  `concerns()`, `deepLink()`.
+- `NotificationTopics` (topic builder + `visibleTopics` + role gating) ported
+  verbatim from iOS.
+- `AppNotificationFeedService` (`Firestore…` per-topic snapshot listeners,
+  merge/dedupe/sort, `awaitClose` removes all; `Fake…`) +
+  `AppNotificationFeedViewModel` (single owned stream, cancelled in
+  `onCleared`) + `AppNotificationFeedScreen` (tappable rows → deep link).
 
-- No known C6 implementation gaps remain in the Android code after the current pass.
-- Bus tickets, lodging cards, and transportation boarding remain Phase D surfaces even though the iOS "My QR Passes" page already combines them with check-in passes.
-- Device/emulator camera QA is still needed because unit tests cannot validate real camera permission/session behavior.
+Navigation: `AppRoute.NotificationFeed` (Home bell) + `…CampingChannels` /
+`…TeamChannels` (under settings). Home bell now opens the **feed**; Profile →
+settings (iOS parity).
 
-## Completed C7 Surface
+Localization: all new strings in `values` + `values-fr` + `values-pt-rBR`.
 
-- `AchievementCatalog` is embedded in code from the shipped iOS catalog. The iOS source currently contains 45 achievement ids despite the old TODO/docs wording saying 50; Android tests assert the shipped tier counts.
-- `EarnedBadge` manually decodes `users/{uid}/badges/{achievementId}` and filters unknown ids out through the service layer.
-- Manual award writes use deterministic doc id `achievementId`, `earnedAt: FieldValue.serverTimestamp()`, and explicit Firestore `null` for absent `campingID` / `note`.
-- `AchievementService` exists with Firestore and fake implementations.
-- `AchievementsRoute` replaces the profile placeholder with a read-only badge display for the signed-in user.
-- `CampingBadgeAwardRoute` is wired from camping operations when `canAwardAchievements` is true and supports team or individual approved-participant awards while blocking self-award.
-- C7 checklist is marked complete with wording adjusted to "shipped iOS catalog" rather than the stale "50 badges" count.
+## Tests added
+- `NotificationSettingsRulesTest`, `NotificationTopicsTest`,
+  `AppNotificationDeepLinkTest` (deepLink + concerns + extended `fromWire`),
+  `NotificationSettingsViewModelTest`, `AppNotificationFeedViewModelTest`.
 
-## Home Follow-up
+## iOS parity reference read
+- `Features/Notifications/` Service (`NotificationService`,
+  `ZiyonNotificationAPIClient`, `AppNotificationFeedService`), Model
+  (`AppNotification`, `NotificationModels`), View
+  (`NotificationSettingsView`, `AppNotificationFeedView`), Observer/*.
 
-- Home now loads app-wide, non-role-targeted announcement previews through `AnnouncementService`, shows up to two rows, and routes taps to announcement detail.
-- Home no longer hides announcements when there is no featured camping.
-
-## Current Verification
-
-- Passed: `JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew testDebugUnitTest --tests 'fr.ziyon.campzone.ui.checkin.*' --tests 'fr.ziyon.campzone.data.model.CheckIn*' --tests 'fr.ziyon.campzone.data.model.AchievementPayloadTest' --tests 'fr.ziyon.campzone.ui.profile.badges.AchievementViewModelTest'`.
-- Passed: `JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew testDebugUnitTest assembleDebug`.
-- Passed: `git diff --check`.
-- Still blocked: `lintDebug` fails on pre-existing Compose preview ViewModel constructor errors in polls/games, first at `app/src/main/java/fr/ziyon/campzone/ui/polls/CampingPollsScreen.kt:196`. No lint errors were reported in C6/C7 files.
-
-## Next Steps
-
-- Real-device QA: open a registered participant's QR pass, scan it from the manager scanner, verify the record appears once, and verify duplicate scan messaging.
-- Real-device/admin QA: award a manual badge to a team and one approved participant, verify the target user's badge appears and self-award is denied by rules.
-
-## Worktree Notes
-
-- Pre-existing dirty changes include `.claude/settings.local.json`, Gradle/build files, `AndroidManifest.xml`, C1 Teams reveal edits, generated MyView cleanup/deletions, localization changes, and Home announcement wiring. Preserve unrelated work and stage only the requested scope if a commit is requested.
+## Not done / deferred
+- C11 Analytics; Phase D.
+- Backend `dispatch/*` hookups were already wired in earlier phases.
+- Owner-side: ensure the CG single-field index for `registrations` supports
+  the channel-picker queries (same pattern as profile denormalization).

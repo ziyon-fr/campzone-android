@@ -936,4 +936,93 @@
     <string name="poll_dispatch_body_created">Abra o Campzone para votar antes de encerrar.</string>
     <string name="poll_dispatch_body_closed">Os resultados finais já estão disponíveis.</string>
     <string name="poll_dispatch_body_reopened">A votação está aberta novamente.</string>
+
+    <!-- C10 Notificações: canais -->
+    <string name="notif_default_title">Campzone</string>
+    <string name="notif_channel_announcement">Avisos</string>
+    <string name="notif_channel_announcement_desc">Notícias e atualizações do acampamento enviadas pelos organizadores.</string>
+    <string name="notif_channel_chat">Mensagens do chat</string>
+    <string name="notif_channel_chat_desc">Novas mensagens nos chats do acampamento ou da equipe que você segue.</string>
+    <string name="notif_channel_poll">Enquetes</string>
+    <string name="notif_channel_poll_desc">Novas enquetes e resultados.</string>
+    <string name="notif_channel_reminder">Lembretes da programação</string>
+    <string name="notif_channel_reminder_desc">Lembretes antes do início de cada atividade.</string>
+    <string name="notif_channel_team">Atualizações da equipe</string>
+    <string name="notif_channel_team_desc">Mudanças de pontuação, novos membros e alertas da equipe.</string>
+    <string name="notif_channel_registration">Inscrições</string>
+    <string name="notif_channel_registration_desc">Pedidos de inscrição aguardando sua análise.</string>
+    <string name="notif_channel_general">Geral</string>
+    <string name="notif_channel_general_desc">Outras notificações do Campzone.</string>
+
+    <!-- C10 Notificações: configurações -->
+    <string name="notif_settings_title">Notificações</string>
+    <string name="notif_settings_loading">Carregando notificações…</string>
+    <string name="notif_settings_error_title">Não foi possível carregar as notificações</string>
+    <string name="notif_settings_error_generic">Não foi possível carregar suas configurações de notificação.</string>
+    <string name="notif_settings_saving">Salvando notificações…</string>
+    <string name="notif_settings_saved">Configurações de notificação salvas.</string>
+    <string name="notif_settings_save_error">Não foi possível salvar suas configurações de notificação.</string>
+    <string name="notif_retry">Tentar novamente</string>
+    <string name="notif_back_cd">Voltar</string>
+    <string name="notif_master_title">Permitir notificações</string>
+    <string name="notif_master_desc">Receba notificações push do Campzone neste dispositivo.</string>
+    <string name="notif_master_footer">Desative isto para silenciar todos os alertas do Campzone sem remover suas preferências abaixo.</string>
+    <string name="notif_system_permission_title">Permissão do sistema</string>
+    <string name="notif_system_permission_desc">Abra as configurações do Android para alterar a permissão de notificação.</string>
+    <string name="notif_section_categories">Categorias</string>
+    <string name="notif_cat_announcements_title">Avisos</string>
+    <string name="notif_cat_announcements_desc">Notícias e atualizações do acampamento enviadas pelos organizadores.</string>
+    <string name="notif_cat_chat_title">Mensagens do chat</string>
+    <string name="notif_cat_chat_desc">Novas mensagens nos chats do acampamento ou da equipe que você segue.</string>
+    <string name="notif_cat_reminders_title">Lembretes da programação</string>
+    <string name="notif_cat_reminders_desc">Lembretes antes do início de cada atividade.</string>
+    <string name="notif_cat_role_title">Mensagens de função</string>
+    <string name="notif_cat_role_desc">Mensagens diretas enviadas à sua função no acampamento.</string>
+    <string name="notif_cat_team_title">Atualizações da equipe</string>
+    <string name="notif_cat_team_desc">Mudanças de pontuação, novos membros e alertas da equipe.</string>
+    <string name="notif_section_role_audiences">Públicos por função</string>
+    <string name="notif_role_audience_desc">Receber notificações enviadas ao público %1$s.</string>
+    <string name="notif_role_audience_footer">Administradores podem assinar qualquer função. Outros usuários veem apenas a própria função.</string>
+    <string name="notif_section_channels">Canais</string>
+    <string name="notif_chan_camping_title">Canais de acampamento</string>
+    <string name="notif_chan_camping_desc">Escolha quais acampamentos enviam atualizações para você.</string>
+    <string name="notif_chan_team_title">Canais de equipe</string>
+    <string name="notif_chan_team_desc">Escolha quais equipes alertam você sobre pontuações e mudanças.</string>
+    <string name="notif_channels_footer">Os canais limitam as notificações a um único acampamento ou equipe. Deixe-os vazios para receber tudo da sua função.</string>
+    <string name="notif_channels_footer_empty">Inscreva-se em um acampamento para escolher canais.</string>
+    <string name="notif_value_all">Todos</string>
+    <string name="notif_value_none">Nenhum</string>
+    <string name="notif_value_not_attending">Não inscrito</string>
+    <string name="notif_value_selected">%1$d selecionado(s)</string>
+    <string name="notif_auth_not_requested">Não solicitada</string>
+    <string name="notif_auth_disabled">Desativada</string>
+    <string name="notif_auth_enabled">Ativada</string>
+    <string name="notif_auth_quiet">Ativada silenciosamente</string>
+    <string name="notif_auth_temporary">Ativada temporariamente</string>
+    <string name="notif_auth_unknown">Desconhecida</string>
+
+    <!-- C10 Notificações: seletor de acampamentos -->
+    <string name="notif_camping_channels_title">Canais de acampamento</string>
+    <string name="notif_camping_channels_empty_title">Nenhum acampamento para assinar</string>
+    <string name="notif_camping_channels_empty_msg">Inscreva-se em um acampamento para receber suas atualizações.</string>
+    <string name="notif_camping_channels_footer">Acampamentos selecionados enviam notificações mesmo sem filtro de canal.</string>
+
+    <!-- C10 Notificações: seletor de equipes -->
+    <string name="notif_team_channels_title">Canais de equipe</string>
+    <string name="notif_team_channels_no_camping_title">Nenhuma equipe para assinar</string>
+    <string name="notif_team_channels_no_camping_msg">Participe de um acampamento para ver os canais de equipe.</string>
+    <string name="notif_team_channels_no_team_title">Você ainda não está em nenhuma equipe</string>
+    <string name="notif_team_channels_no_team_msg">Os organizadores adicionam você a uma equipe assim que as equipes do seu acampamento são criadas.</string>
+    <string name="notif_team_channels_footer">Apenas as equipes que incluem você são listadas.</string>
+
+    <!-- C10 Notificações: feed no app -->
+    <string name="notif_feed_title">Notificações</string>
+    <string name="notif_feed_loading">Carregando notificações…</string>
+    <string name="notif_feed_empty_title">Nenhuma notificação</string>
+    <string name="notif_feed_empty_msg">Notificações de função e do acampamento aparecerão aqui.</string>
+    <string name="notif_feed_error_title">Não foi possível carregar as notificações</string>
+    <string name="notif_feed_error_msg">Algo deu errado ao carregar suas notificações.</string>
+    <string name="notif_feed_refresh">Atualizar</string>
+    <string name="notif_feed_open_cd">Abre esta notificação</string>
+    <string name="notif_audience_everyone">Todos</string>
 </resources>
