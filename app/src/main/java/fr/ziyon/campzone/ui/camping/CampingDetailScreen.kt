@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Poll
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Restaurant
@@ -141,6 +142,7 @@ fun CampingDetailRoute(
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
+    onOpenAlbum: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
     teamViewModel: TeamViewModel = hiltViewModel(),
 ) {
@@ -200,6 +202,7 @@ fun CampingDetailRoute(
         onOpenCheckInRecords = onOpenCheckInRecords,
         onOpenQrPasses = onOpenQrPasses,
         onOpenBadgeAward = onOpenBadgeAward,
+        onOpenAlbum = onOpenAlbum,
         modifier = modifier,
     )
 }
@@ -234,6 +237,7 @@ fun CampingDetailScreen(
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
+    onOpenAlbum: (String) -> Unit = {},
 ) {
     val camping = state.camping
     Scaffold(
@@ -304,6 +308,7 @@ fun CampingDetailScreen(
                     onOpenCheckInRecords = onOpenCheckInRecords,
                     onOpenQrPasses = onOpenQrPasses,
                     onOpenBadgeAward = onOpenBadgeAward,
+                    onOpenAlbum = onOpenAlbum,
                 )
             }
         }
@@ -378,6 +383,7 @@ private fun CampingDetailContent(
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
+    onOpenAlbum: (String) -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(CampingDetailTab.Overview) }
     val disabledAlpha = if (camping.registrationStatus == CampingRegistrationStatus.Cancelled) 0.5f else 1f
@@ -474,6 +480,7 @@ private fun CampingDetailContent(
                 onOpenCheckInRecords = onOpenCheckInRecords,
                 onOpenQrPasses = onOpenQrPasses,
                 onOpenBadgeAward = onOpenBadgeAward,
+                onOpenAlbum = onOpenAlbum,
             )
         }
 
@@ -1238,6 +1245,7 @@ private fun ResourcesSection(
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
+    onOpenAlbum: (String) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
@@ -1259,7 +1267,16 @@ private fun ResourcesSection(
                     onClick = { onOpenSongbook(camping.id) },
                 ),
             )
-            if (state.isApprovedParticipant) {
+            if (state.isApprovedParticipant || state.canManageAlbumMedia) {
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.camping_album),
+                        subtitle = stringResource(R.string.camping_album_subtitle),
+                        icon = Icons.Filled.PhotoLibrary,
+                        accent = MaterialTheme.czColors.twilight,
+                        onClick = { onOpenAlbum(camping.id) },
+                    ),
+                )
                 add(
                     DetailResource(
                         title = stringResource(R.string.camping_chat),

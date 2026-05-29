@@ -255,10 +255,11 @@
 
 ### C8. Album Media (`ui/media/`)
 
-- [ ] Read gate: approved participant or album-manager
-- [ ] Upload: check `albumSettings/default.allowedUploadRoles` contains user's role; `POST /cloudinary/sign` → upload image/video; write `media/{mediaId}` (full set)
-- [ ] Admin delete/edit: gate `canManageAlbumMedia` or uploader
-- [ ] Load with Coil from Cloudinary URLs; thumbnail via `thumbnailURL`
+- [x] Read gate: approved participant or album-manager
+- [x] Upload: check `albumSettings/default.allowedUploadRoles` contains user's role; `POST /cloudinary/sign` → upload image/video; write `media/{mediaId}` (full set)
+- [x] Admin delete/edit: gate `canManageAlbumMedia` or uploader
+- [x] Settings: `albumSettings/default.allowedUploadRoles` sorted role raws, manager-only writes
+- [x] Load with Coil from Cloudinary URLs; thumbnail via `thumbnailURL`
 
 ### C9. Content Moderation (`ui/admin/moderation/`)
 
