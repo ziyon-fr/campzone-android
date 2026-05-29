@@ -105,6 +105,10 @@ import fr.ziyon.campzone.ui.notifications.AppNotificationFeedRoute
 import fr.ziyon.campzone.ui.notifications.NotificationCampingChannelsScreen
 import fr.ziyon.campzone.ui.notifications.NotificationSettingsRoute
 import fr.ziyon.campzone.ui.notifications.NotificationTeamChannelsScreen
+import fr.ziyon.campzone.ui.transportation.TransportationDashboardRoute
+import fr.ziyon.campzone.ui.transportation.TransportationHistoryRoute
+import fr.ziyon.campzone.ui.transportation.TransportationScannerRoute
+import fr.ziyon.campzone.ui.transportation.TransportationTicketsRoute
 
 @Composable
 fun CampzoneNavigationShell(
@@ -411,6 +415,12 @@ fun CampzoneNavigationShell(
                     onOpenQrPasses = { campingId ->
                         navController.navigate(AppRoute.CheckInQrPasses(campingId).route)
                     },
+                    onOpenTransportationTickets = { campingId ->
+                        navController.navigate(AppRoute.TransportationTickets(campingId).route)
+                    },
+                    onOpenTransportationDashboard = { campingId ->
+                        navController.navigate(AppRoute.TransportationDashboard(campingId).route)
+                    },
                     onOpenBadgeAward = { campingId ->
                         navController.navigate(AppRoute.CampingBadgeAward(campingId).route)
                     },
@@ -489,6 +499,52 @@ fun CampzoneNavigationShell(
                 val campingDetailState by campingDetailVm.uiState.collectAsState()
                 CheckInQrPassesRoute(
                     state = campingDetailState,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.TransportationTickets,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                TransportationTicketsRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.TransportationScanner,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                TransportationScannerRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenHistory = { campingId ->
+                        navController.navigate(AppRoute.TransportationHistory(campingId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.TransportationDashboard,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                TransportationDashboardRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenScanner = { navController.navigate(AppRoute.TransportationScanner(it).route) },
+                    onOpenHistory = { navController.navigate(AppRoute.TransportationHistory(it).route) },
+                )
+            }
+            composable(
+                route = AppRoutePattern.TransportationHistory,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                TransportationHistoryRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
                 )

@@ -172,6 +172,22 @@ sealed interface AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.CheckInQrPasses}"
     }
 
+    data class TransportationTickets(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.TransportationTickets}"
+    }
+
+    data class TransportationScanner(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.TransportationScanner}"
+    }
+
+    data class TransportationDashboard(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.TransportationDashboard}"
+    }
+
+    data class TransportationHistory(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.TransportationHistory}"
+    }
+
     data class CampingBadgeAward(val campingId: String) : AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Achievements}/${AppRoutePath.Award}"
     }
@@ -382,6 +398,10 @@ internal object AppRoutePath {
     const val CheckInScanner = "check-in-scanner"
     const val CheckInRecords = "check-in-records"
     const val CheckInQrPasses = "qr-passes"
+    const val TransportationTickets = "transportation"
+    const val TransportationScanner = "transportation-scanner"
+    const val TransportationDashboard = "transportation-dashboard"
+    const val TransportationHistory = "transportation-history"
     const val Award = "award"
     const val PollEditor = "poll-editor"
     const val Registration = "register"
@@ -420,6 +440,10 @@ internal object AppRoutePattern {
     const val CheckInScanner = "$CampingDetail/${AppRoutePath.CheckInScanner}"
     const val CheckInRecords = "$CampingDetail/${AppRoutePath.CheckInRecords}"
     const val CheckInQrPasses = "$CampingDetail/${AppRoutePath.CheckInQrPasses}"
+    const val TransportationTickets = "$CampingDetail/${AppRoutePath.TransportationTickets}"
+    const val TransportationScanner = "$CampingDetail/${AppRoutePath.TransportationScanner}"
+    const val TransportationDashboard = "$CampingDetail/${AppRoutePath.TransportationDashboard}"
+    const val TransportationHistory = "$CampingDetail/${AppRoutePath.TransportationHistory}"
     const val CampingBadgeAward = "$CampingDetail/${AppRoutePath.Achievements}/${AppRoutePath.Award}"
     const val PollEditor = "$CampingPolls/${AppRoutePath.PollEditor}"
     const val PollEdit = "$PollEditor/{${AppRouteArgs.PollId}}"

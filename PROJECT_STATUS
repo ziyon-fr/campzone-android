@@ -1,0 +1,55 @@
+# Project Status - D1 Transportation Tickets (iOS-parity pass)
+
+Updated: 2026-05-29
+
+- Branch: `d1-transportation-tickets`
+- Current completed phase: D1 Transportation Tickets — closed the iOS-parity gap
+- Next phase: D2 Stripe Payments
+- Verification:
+  - `./gradlew assembleDebug` SUCCESSFUL
+  - `./gradlew testDebugUnitTest` SUCCESSFUL (Transportation: 9 booking-model +
+    5 payload + 17 ViewModel tests, all green)
+  - `./gradlew lint` SUCCESSFUL
+
+## D1 summary (original)
+
+- `TransportationTicketPayload` canonical QR:
+  `campzone://transport?v=1&c=<campingID>&b=<bookingID>&r=<registrationID>&p=<participantID>&t=<ticketToken>`.
+- Firestore service: manual mapping, deterministic `{participant.id}-bus` ids,
+  user+guardian read merge, unpaid/not-boarded create literals, raw `Date`
+  validity fields.
+- Passenger ticket + marshal scanner screens, typed routes, EN/FR/PT strings.
+
+## D1 iOS-parity pass (this change)
+
+The shipped iOS app had grown well past the original Android v1; this pass ports
+the full feature (iOS is authoritative).
+
+- **Model** (`TransportationBooking`, `Enums`): round-trip `coversReturn`,
+  `TransportationLeg` (outbound/return) × `TransportationCheckpoint`
+  (departure/arrival), `TransportationLegProgress`, append-only
+  `scanHistory: List<TransportationScanEvent>`, plus `isActive`, `arrivedBy/At`,
+  `canceledBy/At`, `cancelReason`. Per-leg helpers (`progress`, `didScan`,
+  `isTripComplete`, `nextLeg`, `canBoard` now requires `isActive`). Legacy
+  bookings back-fill an outbound timeline from `boardedAt`/`arrivedAt`. Schema
+  extended beyond docs `02` §7.2 to match iOS (rules already accept these
+  fields since iOS writes them). 4 new scan-result states (arrival success,
+  already arrived, inactive, departure-missing).
+- **Service**: leg-aware `markBoarded`/`markArrived` (`arrayUnion` scan events +
+  legacy outbound mirror), `updatePaymentStatus`, `cancelBooking`
+  (`cancelReason` delete-when-empty via passed `deleteField` sentinel). Create
+  stays `unpaid` per RBAC.
+- **ViewModel**: single shared VM (mirrors iOS observer) backing My Passes,
+  Dashboard, Scanner, History; full iOS scan-validation order; grouping helpers
+  (`TransportationGrouping.kt`); ops `updatePaymentStatus` / `cancelBooking` /
+  `addVoyager` (free option → `waived` via the manager update path).
+- **UI**: marshal **Dashboard** (per-leg progress, state-grouped sections,
+  payment segmented control, cancel, add-voyager `ModalBottomSheet`),
+  **Scan History** audit feed (leg filter), round-trip **BusTicketCard** (leg
+  cards + per-checkpoint timeline + perforated stub + QR shown only once
+  approved), **Scanner** upgrade (leg/checkpoint mode picker + arrival + per-leg
+  live tally). Previews on every screen with fixtures.
+- **Navigation**: new `TransportationDashboard` + `TransportationHistory`
+  routes; managers now land on the Dashboard (which reaches Scanner + History).
+- Passenger fare shows status pills only; the real Stripe PaymentSheet stays in
+  D2.

@@ -83,6 +83,10 @@ enum class TransportationPaymentStatus(val wireValue: String) {
     Paid("paid"),
     Waived("waived");
 
+    /** A ticket may board only once the fare is settled (paid or waived). */
+    val allowsBoarding: Boolean
+        get() = this == Paid || this == Waived
+
     companion object {
         fun fromWire(value: String?): TransportationPaymentStatus =
             entries.firstOrNull { it.wireValue == value } ?: Unpaid
@@ -98,6 +102,39 @@ enum class TransportationBoardingStatus(val wireValue: String) {
         fun fromWire(value: String?): TransportationBoardingStatus =
             entries.firstOrNull { it.wireValue == value } ?: NotBoarded
     }
+}
+
+/**
+ * Which half of a round-trip a scan event belongs to. A round-trip ticket has
+ * two legs (outbound = origin → camp, return = camp → home); a one-way ticket
+ * only uses [Outbound]. Wire raws are **lowercase** (`outbound`/`return`).
+ */
+enum class TransportationLeg(val wireValue: String) {
+    Outbound("outbound"),
+    Return("return");
+
+    companion object {
+        fun fromWire(value: String?): TransportationLeg =
+            entries.firstOrNull { it.wireValue == value } ?: Outbound
+    }
+}
+
+/** Where on a leg a scan happened: boarding ([Departure]) or arrival. */
+enum class TransportationCheckpoint(val wireValue: String) {
+    Departure("departure"),
+    Arrival("arrival");
+
+    companion object {
+        fun fromWire(value: String?): TransportationCheckpoint =
+            entries.firstOrNull { it.wireValue == value } ?: Departure
+    }
+}
+
+/** Where a leg currently stands. Derived on read - never stored. */
+enum class TransportationLegProgress {
+    NotStarted,
+    InTransit,
+    Arrived,
 }
 
 /** `transportationOptions[].mode` - **camelCase** raws. */
