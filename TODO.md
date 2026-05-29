@@ -237,21 +237,21 @@
 - [x] After create/close/reopen: `POST /notifications/dispatch/poll`
 - [x] iOS parity: list (Live/Closed sections, PollCard), detail (vote rows, results bars, change-vote, admin close/reopen/delete), editor (2–8 unique options, settings, auto-close date/time). Single `PollViewModel` shared across list/detail/editor via the polls back-stack entry
 
-### C6. QR Check-In (`ui/checkin/`)
+### C6. QR Check-In (`ui/checkin/`) ✅
 
-- [ ] Scanner: decode QR payload `campzone://checkin?v=1&c=<campingID>&a=<attendeeID>&u=<userID>&iat=<unixSeconds>`
-- [ ] Write `checkIns/{attendeeId}` (doc ID == attendeeId); required: `campingID`, `attendeeID`, `userID`, `displayName`, `method`, `checkedInBy == auth.uid`; gate `canManageCheckIns`
-- [ ] `checkedInAt: serverTimestamp()`; gender/ageGroup/photoURL omit-when-nil
-- [ ] Manual check-in fallback: search registrations list
-- [ ] Guardian can read their child's single check-in doc (list denied)
+- [x] Scanner: decode QR payload `campzone://checkin?v=1&c=<campingID>&a=<attendeeID>&u=<userID>&iat=<unixSeconds>`
+- [x] Write `checkIns/{attendeeId}` (doc ID == attendeeId); required: `campingID`, `attendeeID`, `userID`, `displayName`, `method`, `checkedInBy == auth.uid`; gate `canManageCheckIns`
+- [x] `checkedInAt: serverTimestamp()`; gender/ageGroup/photoURL omit-when-nil
+- [x] Manual check-in fallback: search registrations list
+- [x] Guardian can read their child's single check-in doc (list denied)
 
-### C7. Badges / Achievements (`ui/profile/badges/`)
+### C7. Badges / Achievements (`ui/profile/badges/`) ✅
 
-- [ ] Read-only display of `users/{uid}/badges/{achievementId}`
-- [ ] Filter by `AchievementCatalog` in-code (50 badges; unknown ids filtered out)
-- [ ] Catalog rarity/awardKind embedded in app - not in Firestore
-- [ ] `campingID` and `note` are explicit Firestore `null` when absent (not omitted)
-- [ ] Manual award: gate `canAwardAchievements`; write to `users/{targetUid}/badges/{achievementId}` (RBAC asserts `request.auth.uid != uid`)
+- [x] Read-only display of `users/{uid}/badges/{achievementId}`
+- [x] Filter by `AchievementCatalog` in-code (shipped iOS catalog; unknown ids filtered out)
+- [x] Catalog rarity/awardKind embedded in app - not in Firestore
+- [x] `campingID` and `note` are explicit Firestore `null` when absent (not omitted)
+- [x] Manual award: gate `canAwardAchievements`; write to `users/{targetUid}/badges/{achievementId}` (RBAC asserts `request.auth.uid != uid`)
 
 ### C8. Album Media (`ui/media/`)
 
