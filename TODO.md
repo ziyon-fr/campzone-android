@@ -287,13 +287,13 @@
 
 ## Phase D - Operations & Growth
 
-### D1. Transportation Tickets (`ui/transportation/`)
+### D1. Transportation Tickets (`ui/transportation/`) ✅
 
-- [ ] Read bookings: merge `userID==uid` + `guardianID==uid` queries
-- [ ] RBAC on create: `paymentStatus == "unpaid"`, `boardingStatus == "not_boarded"` literals
-- [ ] QR payload: `campzone://transport?v=1&c=<campingID>&b=<bookingID>&r=<registrationID>&p=<participantID>&t=<ticketToken>`
-- [ ] Admin scanner: decode QR → validate `ticketToken`; update `boardingStatus: "boarded"` + `boardedBy`/`boardedAt`; gate `canManageTransportation`
-- [ ] `validFrom`/`validUntil`: raw Date → Timestamp (not serverTimestamp)
+- [x] Read bookings: merge `userID==uid` + `guardianID==uid` queries
+- [x] RBAC on create: `paymentStatus == "unpaid"`, `boardingStatus == "not_boarded"` literals
+- [x] QR payload: `campzone://transport?v=1&c=<campingID>&b=<bookingID>&r=<registrationID>&p=<participantID>&t=<ticketToken>`
+- [x] Admin scanner: decode QR → validate `ticketToken`; update `boardingStatus: "boarded"` + `boardedBy`/`boardedAt`; gate `canManageTransportation`
+- [x] `validFrom`/`validUntil`: raw Date → Timestamp (not serverTimestamp)
 
 ### D2. Stripe Payments (`ui/payments/`)
 

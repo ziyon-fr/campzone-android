@@ -1,14 +1,64 @@
-# Project State - C11 Analytics
+# Project State - D1 Transportation Tickets
 
 Updated: 2026-05-29
 
 ## Current position
 
-- Branch: `c11-analytics` (branched from clean `c10-notifications` state).
-- Phase C is complete through C11. Remaining: Phase D.
-- Verification green on this branch: `./gradlew :app:testDebugUnitTest`,
-  `:app:assembleDebug`, `:app:lintDebug` all SUCCESSFUL
-  (JAVA_HOME = Android Studio JBR).
+- Branch: `d1-transportation-tickets` (branched from updated `main` after
+  C11 merge).
+- Phase C is complete through C11. Phase D is complete through D1. Next:
+  D2 Stripe Payments.
+- Verification on this branch:
+  - `./gradlew :app:testDebugUnitTest` SUCCESSFUL
+  - `./gradlew :app:assembleDebug :app:lintDebug` SUCCESSFUL
+  - JAVA_HOME = Android Studio JBR
+
+## D1 surface shipped
+
+Transportation model contract (`data/model/TransportationBooking.kt`):
+- Added the canonical D1 QR payload
+  `campzone://transport?v=1&c=<campingID>&b=<bookingID>&r=<registrationID>&p=<participantID>&t=<ticketToken>`
+  via `TransportationTicketPayload`.
+- Added `TransportationScanResult` states for marshal scanning:
+  success, already-boarded, unpaid, wrong camp, unknown booking, token
+  mismatch, not approved, expired, malformed.
+- `TransportationBookingPayload.createPayload` keeps the RBAC-required
+  `paymentStatus = "unpaid"` and `boardingStatus = "not_boarded"` literals,
+  and writes `validFrom`/`validUntil` as raw `Date` values.
+
+Transportation service (`data/transportation/`):
+- `FirestoreTransportationService` reads `campings/{id}/transportationBookings`.
+- User ticket reads merge both `userID == uid` and `guardianID == uid`,
+  dedupe by booking id, and sort by participant name.
+- `createBooking` uses deterministic `{participant.id}-bus` booking ids and
+  the exact hand-built payload.
+- `markBoarded` writes only `boardingStatus: "boarded"`, `boardedBy`,
+  `boardedAt`, and `updatedAt` with `serverTimestamp()`.
+
+UI + navigation (`ui/transportation/`):
+- Added passenger tickets screen showing the user's/guardian's transport
+  bookings with generated QR bitmaps and payment/boarding status.
+- Added marshal scanner screen using the shared camera QR preview. It gates
+  with `canManageTransportation`, decodes D1 payloads, validates camping id,
+  token, registration/participant ids, approved registration, validity window,
+  payment status, and already-boarded state before boarding.
+- Added typed routes:
+  `AppRoute.TransportationTickets(campingID)` and
+  `AppRoute.TransportationScanner(campingID)`.
+- Camping detail now exposes Transportation under registered participant camp
+  life resources, and Transportation scanner under manager operations.
+
+Localization:
+- Added English, French, and Portuguese strings for tickets, scanner, QR,
+  statuses, and scan-result copy.
+
+Tests added:
+- `TransportationTicketPayloadTest` covers canonical encoding/decoding,
+  case-insensitive scheme/host, rejected malformed/foreign payloads, and
+  create payload defaults/raw dates.
+- `TransportationViewModelTest` covers self+guardian ticket reads,
+  successful boarding, wrong camp, token mismatch, unapproved registration,
+  unpaid, expired, already-boarded, and restricted scanner access.
 
 ## C11 surface shipped
 

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Festival
@@ -141,6 +142,8 @@ fun CampingDetailRoute(
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
+    onOpenTransportationTickets: (String) -> Unit = {},
+    onOpenTransportationScanner: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
@@ -210,6 +213,8 @@ fun CampingDetailRoute(
         onOpenCheckInScanner = onOpenCheckInScanner,
         onOpenCheckInRecords = onOpenCheckInRecords,
         onOpenQrPasses = onOpenQrPasses,
+        onOpenTransportationTickets = onOpenTransportationTickets,
+        onOpenTransportationScanner = onOpenTransportationScanner,
         onOpenBadgeAward = onOpenBadgeAward,
         onOpenAlbum = onOpenAlbum,
         modifier = modifier,
@@ -245,6 +250,8 @@ fun CampingDetailScreen(
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
+    onOpenTransportationTickets: (String) -> Unit = {},
+    onOpenTransportationScanner: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
 ) {
@@ -316,6 +323,8 @@ fun CampingDetailScreen(
                     onOpenCheckInScanner = onOpenCheckInScanner,
                     onOpenCheckInRecords = onOpenCheckInRecords,
                     onOpenQrPasses = onOpenQrPasses,
+                    onOpenTransportationTickets = onOpenTransportationTickets,
+                    onOpenTransportationScanner = onOpenTransportationScanner,
                     onOpenBadgeAward = onOpenBadgeAward,
                     onOpenAlbum = onOpenAlbum,
                 )
@@ -391,6 +400,8 @@ private fun CampingDetailContent(
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
+    onOpenTransportationTickets: (String) -> Unit = {},
+    onOpenTransportationScanner: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
 ) {
@@ -488,6 +499,8 @@ private fun CampingDetailContent(
                 onOpenCheckInScanner = onOpenCheckInScanner,
                 onOpenCheckInRecords = onOpenCheckInRecords,
                 onOpenQrPasses = onOpenQrPasses,
+                onOpenTransportationTickets = onOpenTransportationTickets,
+                onOpenTransportationScanner = onOpenTransportationScanner,
                 onOpenBadgeAward = onOpenBadgeAward,
                 onOpenAlbum = onOpenAlbum,
             )
@@ -1253,6 +1266,8 @@ private fun ResourcesSection(
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
+    onOpenTransportationTickets: (String) -> Unit = {},
+    onOpenTransportationScanner: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
 ) {
@@ -1325,6 +1340,17 @@ private fun ResourcesSection(
                     ),
                 )
             }
+            if (state.hasManagedRegistration) {
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.camping_transportation),
+                        subtitle = stringResource(R.string.camping_transportation_subtitle),
+                        icon = Icons.Filled.DirectionsBus,
+                        accent = MaterialTheme.czColors.pine,
+                        onClick = { onOpenTransportationTickets(camping.id) },
+                    ),
+                )
+            }
         }
 
         ResourceGroup(
@@ -1351,6 +1377,17 @@ private fun ResourcesSection(
                         icon = Icons.Filled.CheckCircle,
                         accent = MaterialTheme.czColors.ember,
                         onClick = { onOpenCheckInRecords(camping.id) },
+                    ),
+                )
+            }
+            if (state.canManageTransportation) {
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.transportation_scanner_title),
+                        subtitle = stringResource(R.string.transportation_scanner_subtitle),
+                        icon = Icons.Filled.DirectionsBus,
+                        accent = MaterialTheme.czColors.pine,
+                        onClick = { onOpenTransportationScanner(camping.id) },
                     ),
                 )
             }

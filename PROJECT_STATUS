@@ -1,0 +1,26 @@
+# Project Status - D1 Transportation Tickets
+
+Updated: 2026-05-29
+
+- Branch: `d1-transportation-tickets`
+- Current completed phase: D1 Transportation Tickets
+- Next phase: D2 Stripe Payments
+- Verification:
+  - `./gradlew :app:testDebugUnitTest` SUCCESSFUL
+  - `./gradlew :app:assembleDebug :app:lintDebug` SUCCESSFUL
+
+## D1 summary
+
+- Added `TransportationTicketPayload` for the canonical QR format:
+  `campzone://transport?v=1&c=<campingID>&b=<bookingID>&r=<registrationID>&p=<participantID>&t=<ticketToken>`.
+- Added Firestore transportation service with manual mapping, deterministic
+  `{participant.id}-bus` booking ids, user+guardian read merge, unpaid/not
+  boarded create defaults, raw `Date` validity fields, and manager-only boarding
+  update payloads.
+- Added passenger ticket and marshal scanner screens under typed routes, wired
+  from camping detail resources/operations.
+- Scanner validates camp id, token, registration id, participant id, approval
+  status, validity window, payment/waiver state, and already-boarded status
+  before writing boarded status.
+- Added English, French, and Portuguese strings plus focused payload and
+  ViewModel tests.
