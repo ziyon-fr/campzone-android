@@ -716,6 +716,25 @@
     <string name="registration_payment_complete_title">Pagamento concluído</string>
     <string name="registration_payment_complete_message">Não há pagamentos de inscrição pendentes.</string>
     <string name="registration_payment_done">Concluir</string>
+    <!-- Reusable Stripe PaymentSheet CTA (CzPaymentButton) -->
+    <string name="payment_pay_amount">Pagar %1$s</string>
+    <string name="payment_processing">Processando…</string>
+    <string name="payment_none_due">Sem pagamento devido</string>
+    <string name="payment_exempt">Isento de pagamento</string>
+    <!-- Central de Taxas e Pagamentos -->
+    <string name="fees_registration_section">Inscrição</string>
+    <string name="fees_addons_section">Adicionais e extras</string>
+    <string name="fees_empty_title">Nada a pagar</string>
+    <string name="fees_empty_message">Os organizadores ainda não adicionaram itens pagos.</string>
+    <string name="fees_participant_self">Você</string>
+    <string name="fees_participant_family">Participante da família</string>
+    <string name="price_item_required">Obrigatório</string>
+    <string name="price_item_no_charge">Nenhum pagamento devido para este item.</string>
+    <string name="price_item_installment_hint">%1$s agora · %2$d pagamentos no total</string>
+    <string name="price_item_bank_transfer">Transferência bancária</string>
+    <string name="price_item_iban_copy">Copiar</string>
+    <string name="price_item_iban_copied">IBAN copiado para a área de transferência.</string>
+    <string name="price_item_bank_transfer_hint">Transfira %1$s e guarde o comprovante — os organizadores confirmam pagamentos bancários manualmente.</string>
     <string name="registration_review_title">Revisar inscrições</string>
     <string name="registration_review_loading">Carregando inscrições…</string>
     <string name="registration_review_restricted_title">Restrito</string>

@@ -58,6 +58,7 @@ import fr.ziyon.campzone.ui.checkin.CheckInRecordsRoute
 import fr.ziyon.campzone.ui.checkin.CheckInScannerRoute
 import fr.ziyon.campzone.ui.family.FamilyParticipantsScreen
 import fr.ziyon.campzone.ui.home.HomeRoute
+import fr.ziyon.campzone.ui.camping.pricing.CampingPricingRoute
 import fr.ziyon.campzone.ui.payments.CampingRegistrationPaymentRoute
 import fr.ziyon.campzone.ui.profile.ProfileScreen
 import fr.ziyon.campzone.ui.profile.ProfileSettingsScreen
@@ -406,6 +407,9 @@ fun CampzoneNavigationShell(
                     onOpenRegistrationPayment = { campingId ->
                         navController.navigate(AppRoute.CampingRegistrationPayment(campingId).route)
                     },
+                    onOpenPricing = { campingId ->
+                        navController.navigate(AppRoute.CampingPricing(campingId).route)
+                    },
                     onOpenCheckInScanner = { campingId ->
                         navController.navigate(AppRoute.CheckInScanner(campingId).route)
                     },
@@ -597,6 +601,16 @@ fun CampzoneNavigationShell(
                             inclusive = false,
                         )
                     },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingPricing,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                CampingPricingRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(

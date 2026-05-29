@@ -716,6 +716,25 @@
     <string name="registration_payment_complete_title">Paiement finalisé</string>
     <string name="registration_payment_complete_message">Aucun paiement d’inscription n’est en attente.</string>
     <string name="registration_payment_done">Terminé</string>
+    <!-- Bouton de paiement Stripe réutilisable (CzPaymentButton) -->
+    <string name="payment_pay_amount">Payer %1$s</string>
+    <string name="payment_processing">Traitement…</string>
+    <string name="payment_none_due">Aucun paiement dû</string>
+    <string name="payment_exempt">Exempté de paiement</string>
+    <!-- Espace Frais et paiements -->
+    <string name="fees_registration_section">Inscription</string>
+    <string name="fees_addons_section">Options et extras</string>
+    <string name="fees_empty_title">Rien à payer</string>
+    <string name="fees_empty_message">Les organisateurs n’ont pas encore ajouté d’articles payants.</string>
+    <string name="fees_participant_self">Vous</string>
+    <string name="fees_participant_family">Participant de la famille</string>
+    <string name="price_item_required">Obligatoire</string>
+    <string name="price_item_no_charge">Aucun paiement dû pour cet article.</string>
+    <string name="price_item_installment_hint">%1$s maintenant · %2$d paiements au total</string>
+    <string name="price_item_bank_transfer">Virement bancaire</string>
+    <string name="price_item_iban_copy">Copier</string>
+    <string name="price_item_iban_copied">IBAN copié dans le presse-papiers.</string>
+    <string name="price_item_bank_transfer_hint">Virez %1$s et conservez le reçu — les organisateurs confirment les virements manuellement.</string>
     <string name="registration_review_title">Examiner les inscriptions</string>
     <string name="registration_review_loading">Chargement des inscriptions…</string>
     <string name="registration_review_restricted_title">Accès restreint</string>

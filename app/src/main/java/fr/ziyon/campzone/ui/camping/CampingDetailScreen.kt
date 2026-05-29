@@ -139,6 +139,7 @@ fun CampingDetailRoute(
     onOpenTeamDetail: (String, String) -> Unit = { _, _ -> },
     onOpenTeamEditor: (String, String?) -> Unit = { _, _ -> },
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenPricing: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -210,6 +211,7 @@ fun CampingDetailRoute(
         onOpenTeamDetail = onOpenTeamDetail,
         onOpenTeamEditor = onOpenTeamEditor,
         onOpenRegistrationPayment = onOpenRegistrationPayment,
+        onOpenPricing = onOpenPricing,
         onOpenCheckInScanner = onOpenCheckInScanner,
         onOpenCheckInRecords = onOpenCheckInRecords,
         onOpenQrPasses = onOpenQrPasses,
@@ -247,6 +249,7 @@ fun CampingDetailScreen(
     onOpenTeamDetail: (String, String) -> Unit = { _, _ -> },
     onOpenTeamEditor: (String, String?) -> Unit = { _, _ -> },
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenPricing: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -320,6 +323,7 @@ fun CampingDetailScreen(
                     onOpenFoodMenu = onOpenFoodMenu,
                     onOpenSongbook = onOpenSongbook,
                     onOpenRegistrationPayment = onOpenRegistrationPayment,
+                    onOpenPricing = onOpenPricing,
                     onOpenCheckInScanner = onOpenCheckInScanner,
                     onOpenCheckInRecords = onOpenCheckInRecords,
                     onOpenQrPasses = onOpenQrPasses,
@@ -397,6 +401,7 @@ private fun CampingDetailContent(
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenPricing: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -496,6 +501,7 @@ private fun CampingDetailContent(
                 onOpenFoodMenu = onOpenFoodMenu,
                 onOpenSongbook = onOpenSongbook,
                 onOpenRegistrationPayment = onOpenRegistrationPayment,
+                onOpenPricing = onOpenPricing,
                 onOpenCheckInScanner = onOpenCheckInScanner,
                 onOpenCheckInRecords = onOpenCheckInRecords,
                 onOpenQrPasses = onOpenQrPasses,
@@ -1263,6 +1269,7 @@ private fun ResourcesSection(
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenPricing: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -1329,14 +1336,14 @@ private fun ResourcesSection(
                     ),
                 )
             }
-            if (state.hasPendingRegistrationPayment) {
+            if (state.hasPendingRegistrationPayment || state.hasPayablePriceItems) {
                 add(
                     DetailResource(
                         title = stringResource(R.string.camping_fees_payments),
                         subtitle = stringResource(R.string.camping_fees_payments_subtitle),
                         icon = Icons.Filled.CreditCard,
                         accent = MaterialTheme.czColors.twilight,
-                        onClick = { onOpenRegistrationPayment(camping.id) },
+                        onClick = { onOpenPricing(camping.id) },
                     ),
                 )
             }

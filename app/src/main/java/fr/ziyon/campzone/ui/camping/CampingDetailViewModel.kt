@@ -58,6 +58,7 @@ data class CampingDetailUiState(
     val isApprovedParticipant: Boolean = false,
     val hasManagedRegistration: Boolean = false,
     val hasPendingRegistrationPayment: Boolean = false,
+    val hasPayablePriceItems: Boolean = false,
     val attendeeSearch: String = "",
     val filters: CampingAttendeeFilters = CampingAttendeeFilters(),
     val errorMessage: String? = null,
@@ -239,6 +240,7 @@ class CampingDetailViewModel @Inject constructor(
                                 attendee.paymentStatus != TransportationPaymentStatus.Paid &&
                                 camping.resolvedRegistrationFeeCents(attendee.age) > 0
                         },
+                        hasPayablePriceItems = camping.priceItems.any { it.amountCents > 0 },
                     )
                 }
                 .onFailure { error ->

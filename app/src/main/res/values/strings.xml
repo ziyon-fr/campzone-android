@@ -726,6 +726,25 @@
     <string name="registration_payment_complete_title">Payment Complete</string>
     <string name="registration_payment_complete_message">There are no registration payments pending.</string>
     <string name="registration_payment_done">Done</string>
+    <!-- Reusable Stripe PaymentSheet CTA (CzPaymentButton) -->
+    <string name="payment_pay_amount">Pay %1$s</string>
+    <string name="payment_processing">Processing…</string>
+    <string name="payment_none_due">No payment due</string>
+    <string name="payment_exempt">Payment exempt</string>
+    <!-- Fees &amp; Payments hub (price items + pending registration fees) -->
+    <string name="fees_registration_section">Registration</string>
+    <string name="fees_addons_section">Add-ons &amp; extras</string>
+    <string name="fees_empty_title">Nothing to pay</string>
+    <string name="fees_empty_message">The organizers haven\'t added any paid items yet.</string>
+    <string name="fees_participant_self">You</string>
+    <string name="fees_participant_family">Family participant</string>
+    <string name="price_item_required">Required</string>
+    <string name="price_item_no_charge">No payment due for this item.</string>
+    <string name="price_item_installment_hint">%1$s now · %2$d payments total</string>
+    <string name="price_item_bank_transfer">Bank transfer</string>
+    <string name="price_item_iban_copy">Copy</string>
+    <string name="price_item_iban_copied">IBAN copied to clipboard.</string>
+    <string name="price_item_bank_transfer_hint">Transfer %1$s and keep the receipt — the organizers confirm bank payments manually.</string>
     <string name="registration_review_title">Review Registrations</string>
     <string name="registration_review_loading">Loading registrations…</string>
     <string name="registration_review_restricted_title">Restricted</string>

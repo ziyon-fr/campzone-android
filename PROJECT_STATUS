@@ -1,55 +1,61 @@
-# Project Status - D1 Transportation Tickets (iOS-parity pass)
+# Project Status - D2 Stripe Payments
 
 Updated: 2026-05-29
 
-- Branch: `d1-transportation-tickets`
-- Current completed phase: D1 Transportation Tickets — closed the iOS-parity gap
-- Next phase: D2 Stripe Payments
-- Verification:
+- Branch: `d2-stripe-payments`
+- Current completed phase: D2 Stripe Payments — all three payment kinds live
+  with the native Stripe PaymentSheet (closes the D1 transportation fare
+  deferral)
+- Next phase: D3 Lodging
+- Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew assembleDebug` SUCCESSFUL
-  - `./gradlew testDebugUnitTest` SUCCESSFUL (Transportation: 9 booking-model +
-    5 payload + 17 ViewModel tests, all green)
+  - `./gradlew testDebugUnitTest` SUCCESSFUL — new: 6 `PaymentButtonViewModel`,
+    3 `CampingPriceItemPayments`, 2 `CampingPricingViewModel` (all green);
+    existing `RegistrationPaymentViewModel` tests untouched + green
   - `./gradlew lint` SUCCESSFUL
 
-## D1 summary (original)
+## What shipped
 
-- `TransportationTicketPayload` canonical QR:
-  `campzone://transport?v=1&c=<campingID>&b=<bookingID>&r=<registrationID>&p=<participantID>&t=<ticketToken>`.
-- Firestore service: manual mapping, deterministic `{participant.id}-bus` ids,
-  user+guardian read merge, unpaid/not-boarded create literals, raw `Date`
-  validity fields.
-- Passenger ticket + marshal scanner screens, typed routes, EN/FR/PT strings.
+The B3 registration flow already had a working PaymentSheet path for the
+`registration` kind. D2 generalizes it and wires the two missing kinds
+(`transportation`, `priceItem`), mirroring iOS.
 
-## D1 iOS-parity pass (this change)
+- **Reusable CTA** (`ui/payments/CzPaymentButton` + `PaymentButtonViewModel`):
+  one inline "pay this fee" button mirroring the iOS `PaymentButton`. Runs the
+  full flow — `POST /payments/intent` → present native PaymentSheet → on
+  completion `POST /payments/confirm` → `onPaid`. Renders a "no payment due" /
+  "payment exempt" badge when the request carries no amount. Scoped per item via
+  `hiltViewModel(key = …)` so many instances coexist in one list. The Stripe
+  secret never leaves the backend; the client only holds the publishable key +
+  ephemeral secret returned by the intent call.
+- **Transportation fare CTA** (`ui/transportation`): per-booking CTA beneath
+  each `BusTicketCard` on the passenger tickets screen — `kind = transportation`,
+  `referenceID = booking.id`, amount/currency from the resolved
+  `CampingTransportationOption`. Only the actionable unpaid case shows the CTA
+  (paid/waived stay on the header status pill). `TransportationViewModel.reloadTickets()`
+  silently re-pulls bookings after the backend flips `paymentStatus`.
+- **"Fees & Payments" hub** (`ui/camping/pricing/CampingPricingScreen` +
+  `CampingPricingViewModel`): mirrors iOS `CampingPricingView` and folds in any
+  still-unpaid registration fees. Price-item card supports one-off card,
+  3-payment installment (first slice now), and IBAN bank-transfer copy. The
+  camp-detail "Fees & Payments" entry now routes here, gated on
+  `hasPendingRegistrationPayment || hasPayablePriceItems`.
+- **Model**: `CampingPriceItemPayments.kt` ports the iOS price-item helpers
+  (`installmentAmountCents`, `resolvedCurrency`, `offersCardOneTime/Installments/BankTransfer`).
+- **i18n**: new payment/fees strings added to EN, PT-BR, FR.
 
-The shipped iOS app had grown well past the original Android v1; this pass ports
-the full feature (iOS is authoritative).
+## Data contract
 
-- **Model** (`TransportationBooking`, `Enums`): round-trip `coversReturn`,
-  `TransportationLeg` (outbound/return) × `TransportationCheckpoint`
-  (departure/arrival), `TransportationLegProgress`, append-only
-  `scanHistory: List<TransportationScanEvent>`, plus `isActive`, `arrivedBy/At`,
-  `canceledBy/At`, `cancelReason`. Per-leg helpers (`progress`, `didScan`,
-  `isTripComplete`, `nextLeg`, `canBoard` now requires `isActive`). Legacy
-  bookings back-fill an outbound timeline from `boardedAt`/`arrivedAt`. Schema
-  extended beyond docs `02` §7.2 to match iOS (rules already accept these
-  fields since iOS writes them). 4 new scan-result states (arrival success,
-  already arrived, inactive, departure-missing).
-- **Service**: leg-aware `markBoarded`/`markArrived` (`arrayUnion` scan events +
-  legacy outbound mirror), `updatePaymentStatus`, `cancelBooking`
-  (`cancelReason` delete-when-empty via passed `deleteField` sentinel). Create
-  stays `unpaid` per RBAC.
-- **ViewModel**: single shared VM (mirrors iOS observer) backing My Passes,
-  Dashboard, Scanner, History; full iOS scan-validation order; grouping helpers
-  (`TransportationGrouping.kt`); ops `updatePaymentStatus` / `cancelBooking` /
-  `addVoyager` (free option → `waived` via the manager update path).
-- **UI**: marshal **Dashboard** (per-leg progress, state-grouped sections,
-  payment segmented control, cancel, add-voyager `ModalBottomSheet`),
-  **Scan History** audit feed (leg filter), round-trip **BusTicketCard** (leg
-  cards + per-checkpoint timeline + perforated stub + QR shown only once
-  approved), **Scanner** upgrade (leg/checkpoint mode picker + arrival + per-leg
-  live tally). Previews on every screen with fixtures.
-- **Navigation**: new `TransportationDashboard` + `TransportationHistory`
-  routes; managers now land on the Dashboard (which reaches Scanner + History).
-- Passenger fare shows status pills only; the real Stripe PaymentSheet stays in
-  D2.
+- Amount always integer cents; `PaymentRequest.normalizedCurrency` lowercases
+  the API currency (`eur`); price items keep uppercase ISO for display.
+- `referenceID` = attendee id (registration), booking id (transportation),
+  price-item id (priceItem). Client never writes `registrationStatus` /
+  `paymentStatus`; the backend settles them on confirm.
+
+## Deferred (iOS-richer, not in the Android contract)
+
+- PDF invoice receipts (`PaymentInvoicePDFView`) and the payment-proof/history
+  list (`PaymentProof`/`PaymentInvoice` + `FirestorePaymentProofService`).
+- Mixed registration+transport single-charge bundling with per-kind follow-up
+  confirms — each Stripe kind currently settles as its own charge (the backend
+  contract supports both; iOS bundles, Android pays per kind for now).
