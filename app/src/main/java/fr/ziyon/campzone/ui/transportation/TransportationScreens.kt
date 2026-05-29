@@ -1,9 +1,9 @@
 package fr.ziyon.campzone.ui.transportation
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
-import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,17 +29,26 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -64,6 +72,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
@@ -74,6 +83,7 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import fr.ziyon.campzone.R
+import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzButton
 import fr.ziyon.campzone.core.designsystem.CzButtonVariant
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
@@ -84,13 +94,27 @@ import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.model.CampingAttendee
+import fr.ziyon.campzone.data.model.CampingTransportationOption
+import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
+import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.TransportationBoardingStatus
 import fr.ziyon.campzone.data.model.TransportationBooking
+import fr.ziyon.campzone.data.model.TransportationCheckpoint
+import fr.ziyon.campzone.data.model.TransportationLeg
+import fr.ziyon.campzone.data.model.TransportationLegProgress
+import fr.ziyon.campzone.data.model.TransportationMode
 import fr.ziyon.campzone.data.model.TransportationPaymentStatus
+import fr.ziyon.campzone.data.model.TransportationScanEvent
 import fr.ziyon.campzone.data.model.TransportationScanResult
 import fr.ziyon.campzone.data.model.TransportationTicketPayload
+import fr.ziyon.campzone.ui.camping.previewCamping
 import fr.ziyon.campzone.ui.checkin.QrCameraPreview
-import java.text.DateFormat
+import java.util.Date
+
+// ---------------------------------------------------------------------------
+// Routes
+// ---------------------------------------------------------------------------
 
 @Composable
 fun TransportationTicketsRoute(
@@ -121,6 +145,7 @@ fun TransportationScannerRoute(
     campingId: String,
     authenticatedUser: AuthenticatedUser,
     onBack: () -> Unit,
+    onOpenHistory: (String) -> Unit,
     viewModel: TransportationViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -130,7 +155,7 @@ fun TransportationScannerRoute(
     val isScanning by viewModel.isScanning.collectAsState()
 
     LaunchedEffect(campingId, authenticatedUser.uid) {
-        viewModel.loadScanner(campingId, authenticatedUser)
+        viewModel.loadManaged(campingId, authenticatedUser)
     }
 
     TransportationScannerScreen(
@@ -139,14 +164,18 @@ fun TransportationScannerRoute(
         bookings = bookings,
         result = result,
         isScanning = isScanning,
-        onQrScanned = viewModel::handleScan,
+        onScan = { value, leg, checkpoint -> viewModel.handleScan(value, leg, checkpoint) },
         onDismissResult = viewModel::dismissScanResult,
         onBack = onBack,
-        onRetry = { viewModel.retryScanner(campingId, authenticatedUser) },
+        onOpenHistory = { camping?.let { onOpenHistory(it.id) } },
+        onRetry = { viewModel.retryManaged(campingId, authenticatedUser) },
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ---------------------------------------------------------------------------
+// My Passes (passenger)
+// ---------------------------------------------------------------------------
+
 @Composable
 private fun TransportationTicketsScreen(
     uiState: TransportationUiState,
@@ -169,7 +198,7 @@ private fun TransportationTicketsScreen(
                 modifier = Modifier.fillMaxSize().padding(CzSpacing.xl),
             )
             TransportationUiState.Ready -> {
-                if (bookings.isEmpty()) {
+                if (bookings.isEmpty() || camping == null) {
                     CzEmptyState(
                         title = stringResource(R.string.transportation_empty_tickets_title),
                         message = stringResource(R.string.transportation_empty_tickets_message),
@@ -181,11 +210,10 @@ private fun TransportationTicketsScreen(
                         contentPadding = PaddingValues(CzSpacing.lg),
                         verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
                     ) {
-                        if (camping != null) {
-                            item("header") { TransportationHeader(camping, bookings) }
-                        }
+                        item("header") { TransportationTicketsHeader(camping) }
+                        item("summary") { TransportationTripSummary(bookings) }
                         items(bookings, key = { it.id }) { booking ->
-                            TransportationTicketCard(booking = booking)
+                            BusTicketCard(booking = booking, camping = camping)
                         }
                     }
                 }
@@ -195,17 +223,123 @@ private fun TransportationTicketsScreen(
 }
 
 @Composable
+private fun TransportationTicketsHeader(camping: Camping) {
+    Surface(color = MaterialTheme.czColors.surface, shape = RoundedCornerShape(CzRadius.xl)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            Text(camping.title, color = MaterialTheme.czColors.textPrimary, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = stringResource(R.string.transportation_tickets_header_hint),
+                color = MaterialTheme.czColors.textSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TransportationTripSummary(bookings: List<TransportationBooking>) {
+    val total = bookings.size
+    val outboundArrived = bookings.count { it.progress(TransportationLeg.Outbound) == TransportationLegProgress.Arrived }
+    val home = bookings.count {
+        it.coversReturn && it.progress(TransportationLeg.Return) == TransportationLegProgress.Arrived
+    }
+    val unpaid = bookings.count { it.paymentStatus == TransportationPaymentStatus.Unpaid }
+    Surface(color = MaterialTheme.czColors.surface, shape = RoundedCornerShape(CzRadius.xl)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            TransportationSectionHeader(stringResource(R.string.transportation_tickets_overview), Icons.Outlined.BarChart)
+            Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                SummaryChip(
+                    icon = Icons.Filled.QrCode,
+                    value = total.toString(),
+                    label = stringResource(if (total == 1) R.string.transportation_summary_pass else R.string.transportation_summary_passes),
+                    tint = MaterialTheme.czColors.ember,
+                    modifier = Modifier.weight(1f),
+                )
+                SummaryChip(
+                    icon = Icons.Rounded.ArrowUpward,
+                    value = "$outboundArrived/$total",
+                    label = stringResource(R.string.transportation_summary_at_camp),
+                    tint = MaterialTheme.czColors.success,
+                    modifier = Modifier.weight(1f),
+                )
+                SummaryChip(
+                    icon = Icons.Rounded.ArrowDownward,
+                    value = "$home/$total",
+                    label = stringResource(R.string.transportation_summary_home),
+                    tint = MaterialTheme.czColors.pine,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            if (unpaid > 0) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.CreditCard, contentDescription = null, tint = MaterialTheme.czColors.warning, modifier = Modifier.size(16.dp))
+                    Text(
+                        text = if (unpaid == 1) {
+                            stringResource(R.string.transportation_summary_unpaid_one)
+                        } else {
+                            stringResource(R.string.transportation_summary_unpaid_other, unpaid)
+                        },
+                        color = MaterialTheme.czColors.warning,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryChip(
+    icon: ImageVector,
+    value: String,
+    label: String,
+    tint: Color,
+    modifier: Modifier = Modifier,
+) {
+    Surface(color = tint.copy(alpha = 0.10f), shape = RoundedCornerShape(CzRadius.md), modifier = modifier) {
+        Column(
+            modifier = Modifier.padding(CzSpacing.sm),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+                Text(label.uppercase(), color = tint, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(value, color = MaterialTheme.czColors.textPrimary, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Scanner (marshal)
+// ---------------------------------------------------------------------------
+
+@Composable
 private fun TransportationScannerScreen(
     uiState: TransportationUiState,
     camping: Camping?,
     bookings: List<TransportationBooking>,
     result: TransportationScanResult?,
     isScanning: Boolean,
-    onQrScanned: (String) -> Unit,
+    onScan: (String, TransportationLeg, TransportationCheckpoint) -> Unit,
     onDismissResult: () -> Unit,
     onBack: () -> Unit,
+    onOpenHistory: () -> Unit,
     onRetry: () -> Unit,
 ) {
+    var leg by remember { mutableStateOf(TransportationLeg.Outbound) }
+    var checkpoint by remember { mutableStateOf(TransportationCheckpoint.Departure) }
+
     TransportationScaffold(title = stringResource(R.string.transportation_scanner_title), onBack = onBack) {
         when (uiState) {
             TransportationUiState.Loading -> CzLoadingView(
@@ -224,11 +358,22 @@ private fun TransportationScannerScreen(
                 contentPadding = PaddingValues(CzSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
             ) {
-                item("scanner") { TransportationCameraCard(isScanning = isScanning, onQrScanned = onQrScanned) }
-                item("result") { TransportationScanStatusCard(result = result, onDismiss = onDismissResult) }
-                if (camping != null) {
-                    item("summary") { TransportationScannerSummary(camping = camping, bookings = bookings) }
+                item("mode") {
+                    ScannerModeCard(
+                        leg = leg,
+                        checkpoint = checkpoint,
+                        onLegChange = { leg = it },
+                        onCheckpointChange = { checkpoint = it },
+                    )
                 }
+                item("scanner") {
+                    TransportationCameraCard(
+                        isScanning = isScanning,
+                        onQrScanned = { onScan(it, leg, checkpoint) },
+                    )
+                }
+                item("result") { TransportationScanStatusCard(result = result, onDismiss = onDismissResult) }
+                item("tally") { TransportationLiveTally(bookings = bookings, onOpenHistory = onOpenHistory) }
             }
         }
     }
@@ -236,9 +381,95 @@ private fun TransportationScannerScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TransportationScaffold(
+private fun ScannerModeCard(
+    leg: TransportationLeg,
+    checkpoint: TransportationCheckpoint,
+    onLegChange: (TransportationLeg) -> Unit,
+    onCheckpointChange: (TransportationCheckpoint) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        TransportationSectionHeader(stringResource(R.string.transportation_scan_mode), Icons.Filled.QrCodeScanner)
+        Surface(color = MaterialTheme.czColors.surface, shape = RoundedCornerShape(CzRadius.xl)) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(CzSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    TransportationLeg.entries.forEachIndexed { index, value ->
+                        SegmentedButton(
+                            selected = leg == value,
+                            onClick = { onLegChange(value) },
+                            shape = SegmentedButtonDefaults.itemShape(index, TransportationLeg.entries.size),
+                            icon = { Icon(value.icon(), contentDescription = null, modifier = Modifier.size(16.dp)) },
+                            label = { Text(value.displayName()) },
+                        )
+                    }
+                }
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    TransportationCheckpoint.entries.forEachIndexed { index, value ->
+                        SegmentedButton(
+                            selected = checkpoint == value,
+                            onClick = { onCheckpointChange(value) },
+                            shape = SegmentedButtonDefaults.itemShape(index, TransportationCheckpoint.entries.size),
+                            icon = { Icon(value.icon(), contentDescription = null, modifier = Modifier.size(16.dp)) },
+                            label = { Text(value.displayName()) },
+                        )
+                    }
+                }
+                Surface(color = MaterialTheme.czColors.ember.copy(alpha = 0.10f), shape = RoundedCornerShape(CzRadius.md)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(leg.icon(), contentDescription = null, tint = MaterialTheme.czColors.ember)
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(scanModeTitle(leg, checkpoint), color = MaterialTheme.czColors.textPrimary, style = MaterialTheme.typography.titleSmall)
+                            Text(scanModeSubtitle(leg, checkpoint), color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransportationLiveTally(
+    bookings: List<TransportationBooking>,
+    onOpenHistory: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        TransportationSectionHeader(stringResource(R.string.transportation_live_progress), Icons.Outlined.BarChart)
+        Surface(color = MaterialTheme.czColors.surface, shape = RoundedCornerShape(CzRadius.xl)) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(CzSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            ) {
+                TransportationLegProgressRow(bookings, TransportationLeg.Outbound)
+                TransportationLegProgressRow(bookings, TransportationLeg.Return)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    CzButton(
+                        text = stringResource(R.string.transportation_scan_history),
+                        onClick = onOpenHistory,
+                        variant = CzButtonVariant.Outline,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Shared composables (internal - reused by Dashboard / History / BusTicketCard)
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun TransportationScaffold(
     title: String,
     onBack: () -> Unit,
+    actions: @Composable () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     Scaffold(
@@ -252,6 +483,7 @@ private fun TransportationScaffold(
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
+                actions = { actions() },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.czColors.background,
                     scrolledContainerColor = MaterialTheme.czColors.background,
@@ -265,100 +497,82 @@ private fun TransportationScaffold(
 }
 
 @Composable
-private fun TransportationHeader(camping: Camping, bookings: List<TransportationBooking>) {
-    val paid = bookings.count { it.paymentStatus != TransportationPaymentStatus.Unpaid }
-    val boarded = bookings.count { it.boardingStatus == TransportationBoardingStatus.Boarded }
-    Surface(color = MaterialTheme.czColors.surface, shape = RoundedCornerShape(CzRadius.xl)) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-        ) {
-            Text(camping.title, color = MaterialTheme.czColors.textPrimary, style = MaterialTheme.typography.titleMedium)
+internal fun RestrictedTransportationState() {
+    CzEmptyState(
+        title = stringResource(R.string.transportation_restricted_title),
+        message = stringResource(R.string.transportation_restricted_message),
+        modifier = Modifier.fillMaxSize().padding(CzSpacing.xl),
+    )
+}
+
+@Composable
+internal fun TransportationSectionHeader(title: String, icon: ImageVector) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.czColors.ember, modifier = Modifier.size(18.dp))
+        Text(title, color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+internal fun StatusPill(text: String, color: Color) {
+    Surface(color = color.copy(alpha = 0.12f), contentColor = color, shape = RoundedCornerShape(CzRadius.full)) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = CzSpacing.sm, vertical = 4.dp),
+        )
+    }
+}
+
+/** One leg's progress bar + Boarded/Arrived/Booked tally line. */
+@Composable
+internal fun TransportationLegProgressRow(
+    bookings: List<TransportationBooking>,
+    leg: TransportationLeg,
+) {
+    val total = bookings.legTotal(leg)
+    val arrived = bookings.arrived(leg).size
+    val boarded = bookings.inTransit(leg).size + arrived
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+            Icon(leg.icon(), contentDescription = null, tint = MaterialTheme.czColors.ember, modifier = Modifier.size(18.dp))
+            Text(leg.displayName(), color = MaterialTheme.czColors.textPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Text(
-                text = stringResource(R.string.transportation_tickets_subtitle),
+                text = if (total == 0) {
+                    stringResource(R.string.transportation_progress_no_bookings)
+                } else {
+                    stringResource(R.string.transportation_progress_arrived_count, arrived, total)
+                },
                 color = MaterialTheme.czColors.textSecondary,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelMedium,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-                SummaryPill(Icons.Filled.QrCode, stringResource(R.string.transportation_pass_count, bookings.size))
-                SummaryPill(Icons.Filled.CreditCard, stringResource(R.string.transportation_paid_count, paid, bookings.size))
-                SummaryPill(Icons.Filled.DirectionsBus, stringResource(R.string.transportation_boarded_count, boarded, bookings.size))
-            }
         }
+        LinearProgressIndicator(
+            progress = { if (total == 0) 0f else arrived.toFloat() / total.toFloat() },
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.czColors.success,
+            trackColor = MaterialTheme.czColors.divider,
+        )
+        Text(
+            text = stringResource(R.string.transportation_tally_line, boarded, arrived, total),
+            color = MaterialTheme.czColors.textSecondary,
+            style = MaterialTheme.typography.labelSmall,
+        )
     }
 }
 
 @Composable
-private fun SummaryPill(icon: ImageVector, label: String) {
-    Surface(color = MaterialTheme.czColors.ember.copy(alpha = 0.10f), shape = RoundedCornerShape(CzRadius.full)) {
-        Row(
-            modifier = Modifier.padding(horizontal = CzSpacing.sm, vertical = CzSpacing.xs),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.czColors.ember, modifier = Modifier.size(15.dp))
-            Text(label, color = MaterialTheme.czColors.textPrimary, style = MaterialTheme.typography.labelSmall)
-        }
-    }
-}
-
-@Composable
-private fun TransportationTicketCard(booking: TransportationBooking) {
-    val qrPayload = remember(booking) { TransportationTicketPayload.fromBooking(booking).encoded() }
-    Surface(color = MaterialTheme.czColors.surface, shape = RoundedCornerShape(CzRadius.xl)) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
-        ) {
-            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
-                Icon(
-                    Icons.Filled.DirectionsBus,
-                    contentDescription = null,
-                    tint = MaterialTheme.czColors.ember,
-                    modifier = Modifier.size(34.dp),
-                )
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(booking.participantName, color = MaterialTheme.czColors.textPrimary, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        booking.transportationOptionName ?: stringResource(R.string.transportation_default_option),
-                        color = MaterialTheme.czColors.textSecondary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                StatusPill(text = booking.paymentStatus.label(), color = booking.paymentStatus.color())
-            }
-            QrCodeImage(
-                value = qrPayload,
-                modifier = Modifier
-                    .size(220.dp)
-                    .align(Alignment.CenterHorizontally),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-                StatusPill(text = booking.boardingStatus.label(), color = booking.boardingStatus.color())
-                Text(
-                    text = stringResource(
-                        R.string.transportation_valid_range,
-                        DateFormat.getDateInstance(DateFormat.MEDIUM).format(booking.validFrom),
-                        DateFormat.getDateInstance(DateFormat.MEDIUM).format(booking.validUntil),
-                    ),
-                    color = MaterialTheme.czColors.textSecondary,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun QrCodeImage(value: String, modifier: Modifier = Modifier) {
+internal fun QrCodeImage(value: String, modifier: Modifier = Modifier) {
     val bitmap = remember(value) { generateQrCode(value) }
     Surface(
         modifier = modifier.semantics { contentDescription = "Transportation QR code" },
         color = Color.White,
-        shape = RoundedCornerShape(CzRadius.xl),
+        shape = RoundedCornerShape(CzRadius.lg),
     ) {
         if (bitmap != null) {
             Image(
@@ -367,33 +581,19 @@ private fun QrCodeImage(value: String, modifier: Modifier = Modifier) {
                 modifier = Modifier.fillMaxSize().padding(CzSpacing.sm),
             )
         } else {
-            QrTextBox(value)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(CzSpacing.md),
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.QrCode, contentDescription = null, tint = MaterialTheme.czColors.pine)
+                Text(value, color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
 
-@Composable
-private fun QrTextBox(value: String) {
-    Surface(color = MaterialTheme.czColors.background, shape = RoundedCornerShape(CzRadius.md)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(CzSpacing.md),
-            horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Filled.QrCode, contentDescription = null, tint = MaterialTheme.czColors.pine)
-            Text(
-                text = value,
-                color = MaterialTheme.czColors.textSecondary,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-private fun generateQrCode(value: String, sidePx: Int = 768): ImageBitmap? =
+internal fun generateQrCode(value: String, sidePx: Int = 768): ImageBitmap? =
     runCatching {
         val hints = mapOf(
             EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.H,
@@ -508,79 +708,142 @@ private fun TransportationScanStatusCard(
     }
 }
 
-@Composable
-private fun TransportationScannerSummary(camping: Camping, bookings: List<TransportationBooking>) {
-    val boarded = bookings.count { it.boardingStatus == TransportationBoardingStatus.Boarded }
-    Surface(color = MaterialTheme.czColors.surface, shape = RoundedCornerShape(CzRadius.xl)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
-            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = MaterialTheme.czColors.ember)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    stringResource(R.string.transportation_boarded_count, boarded, bookings.size),
-                    color = MaterialTheme.czColors.textPrimary,
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Text(camping.title, color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.labelMedium)
-            }
-        }
-    }
+// ---------------------------------------------------------------------------
+// Formatting helpers (internal - shared across transportation views)
+// ---------------------------------------------------------------------------
+
+internal fun TransportationLeg.icon(): ImageVector = when (this) {
+    TransportationLeg.Outbound -> Icons.Rounded.ArrowUpward
+    TransportationLeg.Return -> Icons.Rounded.ArrowDownward
+}
+
+internal fun TransportationCheckpoint.icon(): ImageVector = when (this) {
+    TransportationCheckpoint.Departure -> Icons.Filled.DirectionsBus
+    TransportationCheckpoint.Arrival -> Icons.Filled.Map
+}
+
+internal fun TransportationMode.icon(): ImageVector = when (this) {
+    TransportationMode.OwnCar, TransportationMode.Carpool -> Icons.Filled.DirectionsCar
+    else -> Icons.Filled.DirectionsBus
 }
 
 @Composable
-private fun RestrictedTransportationState() {
-    CzEmptyState(
-        title = stringResource(R.string.transportation_restricted_title),
-        message = stringResource(R.string.transportation_restricted_message),
-        modifier = Modifier.fillMaxSize().padding(CzSpacing.xl),
-    )
+internal fun RegistrationParticipantKind.displayName(): String = when (this) {
+    RegistrationParticipantKind.SelfParticipant -> stringResource(R.string.registration_kind_self)
+    RegistrationParticipantKind.Child -> stringResource(R.string.registration_kind_child)
 }
 
 @Composable
-private fun StatusPill(text: String, color: Color) {
-    Surface(color = color.copy(alpha = 0.12f), contentColor = color, shape = RoundedCornerShape(CzRadius.full)) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = CzSpacing.sm, vertical = 4.dp),
-        )
-    }
+internal fun TransportationLeg.displayName(): String = when (this) {
+    TransportationLeg.Outbound -> stringResource(R.string.transportation_leg_outbound)
+    TransportationLeg.Return -> stringResource(R.string.transportation_leg_return)
 }
 
 @Composable
-private fun TransportationPaymentStatus.label(): String = when (this) {
+internal fun TransportationLeg.shortName(): String = when (this) {
+    TransportationLeg.Outbound -> stringResource(R.string.transportation_leg_outbound_short)
+    TransportationLeg.Return -> stringResource(R.string.transportation_leg_return_short)
+}
+
+@Composable
+internal fun TransportationLeg.subtitle(): String = when (this) {
+    TransportationLeg.Outbound -> stringResource(R.string.transportation_leg_outbound_subtitle)
+    TransportationLeg.Return -> stringResource(R.string.transportation_leg_return_subtitle)
+}
+
+@Composable
+internal fun TransportationCheckpoint.displayName(): String = when (this) {
+    TransportationCheckpoint.Departure -> stringResource(R.string.transportation_checkpoint_departure)
+    TransportationCheckpoint.Arrival -> stringResource(R.string.transportation_checkpoint_arrival)
+}
+
+@Composable
+internal fun TransportationLegProgress.displayName(): String = when (this) {
+    TransportationLegProgress.NotStarted -> stringResource(R.string.transportation_progress_not_started)
+    TransportationLegProgress.InTransit -> stringResource(R.string.transportation_progress_in_transit)
+    TransportationLegProgress.Arrived -> stringResource(R.string.transportation_progress_arrived)
+}
+
+@Composable
+internal fun TransportationLegProgress.tint(): Color = when (this) {
+    TransportationLegProgress.NotStarted -> MaterialTheme.czColors.textSecondary
+    TransportationLegProgress.InTransit -> MaterialTheme.czColors.warning
+    TransportationLegProgress.Arrived -> MaterialTheme.czColors.success
+}
+
+@Composable
+internal fun TransportationPaymentStatus.label(): String = when (this) {
     TransportationPaymentStatus.Unpaid -> stringResource(R.string.transportation_payment_unpaid)
     TransportationPaymentStatus.Paid -> stringResource(R.string.transportation_payment_paid)
     TransportationPaymentStatus.Waived -> stringResource(R.string.transportation_payment_waived)
 }
 
 @Composable
-private fun TransportationPaymentStatus.color(): Color = when (this) {
+internal fun TransportationPaymentStatus.color(): Color = when (this) {
     TransportationPaymentStatus.Unpaid -> MaterialTheme.czColors.warning
     TransportationPaymentStatus.Paid -> MaterialTheme.czColors.success
     TransportationPaymentStatus.Waived -> MaterialTheme.czColors.pine
 }
 
 @Composable
-private fun TransportationBoardingStatus.label(): String = when (this) {
+internal fun TransportationBoardingStatus.label(): String = when (this) {
     TransportationBoardingStatus.NotBoarded -> stringResource(R.string.transportation_boarding_not_boarded)
     TransportationBoardingStatus.Boarded -> stringResource(R.string.transportation_boarding_boarded)
 }
 
 @Composable
-private fun TransportationBoardingStatus.color(): Color = when (this) {
-    TransportationBoardingStatus.NotBoarded -> MaterialTheme.czColors.textSecondary
-    TransportationBoardingStatus.Boarded -> MaterialTheme.czColors.success
+internal fun scanModeTitle(leg: TransportationLeg, checkpoint: TransportationCheckpoint): String = when {
+    leg == TransportationLeg.Outbound && checkpoint == TransportationCheckpoint.Departure ->
+        stringResource(R.string.transportation_mode_outbound_departure_title)
+    leg == TransportationLeg.Outbound ->
+        stringResource(R.string.transportation_mode_outbound_arrival_title)
+    checkpoint == TransportationCheckpoint.Departure ->
+        stringResource(R.string.transportation_mode_return_departure_title)
+    else -> stringResource(R.string.transportation_mode_return_arrival_title)
 }
 
 @Composable
-private fun TransportationScanResult.title(): String = when (this) {
+internal fun scanModeSubtitle(leg: TransportationLeg, checkpoint: TransportationCheckpoint): String = when {
+    leg == TransportationLeg.Outbound && checkpoint == TransportationCheckpoint.Departure ->
+        stringResource(R.string.transportation_mode_outbound_departure_subtitle)
+    leg == TransportationLeg.Outbound ->
+        stringResource(R.string.transportation_mode_outbound_arrival_subtitle)
+    checkpoint == TransportationCheckpoint.Departure ->
+        stringResource(R.string.transportation_mode_return_departure_subtitle)
+    else -> stringResource(R.string.transportation_mode_return_arrival_subtitle)
+}
+
+/** Whole-trip status used by the ticket header + dashboard row pill. */
+@Composable
+internal fun TransportationBooking.tripStatusLabel(): String = when {
+    !isActive -> stringResource(R.string.transportation_status_inactive)
+    isTripComplete -> stringResource(R.string.transportation_status_trip_complete)
+    progress(TransportationLeg.Outbound) == TransportationLegProgress.NotStarted ->
+        stringResource(R.string.transportation_status_awaiting_boarding)
+    progress(TransportationLeg.Outbound) == TransportationLegProgress.InTransit ->
+        stringResource(R.string.transportation_status_on_bus)
+    progress(TransportationLeg.Return) == TransportationLegProgress.InTransit ->
+        stringResource(R.string.transportation_status_returning)
+    else -> stringResource(R.string.transportation_status_at_camp)
+}
+
+@Composable
+internal fun TransportationBooking.tripStatusColor(): Color = when {
+    !isActive -> MaterialTheme.czColors.error
+    isTripComplete -> MaterialTheme.czColors.success
+    progress(TransportationLeg.Outbound) == TransportationLegProgress.Arrived -> MaterialTheme.czColors.success
+    progress(TransportationLeg.Outbound) == TransportationLegProgress.InTransit -> MaterialTheme.czColors.warning
+    else -> MaterialTheme.czColors.textSecondary
+}
+
+@Composable
+internal fun TransportationScanResult.title(): String = when (this) {
     is TransportationScanResult.Success -> stringResource(R.string.transportation_scan_success)
+    is TransportationScanResult.ArrivalSuccess -> stringResource(R.string.transportation_scan_arrival_success)
     is TransportationScanResult.AlreadyBoarded -> stringResource(R.string.transportation_scan_already_boarded)
+    is TransportationScanResult.AlreadyArrived -> stringResource(R.string.transportation_scan_already_arrived)
+    is TransportationScanResult.NotBoardedForArrival -> stringResource(R.string.transportation_scan_not_boarded_for_arrival)
+    is TransportationScanResult.Inactive -> stringResource(R.string.transportation_scan_inactive)
     is TransportationScanResult.Unpaid -> stringResource(R.string.transportation_scan_unpaid)
     TransportationScanResult.WrongCamping -> stringResource(R.string.transportation_scan_wrong_camp)
     TransportationScanResult.UnknownBooking -> stringResource(R.string.transportation_scan_unknown)
@@ -591,9 +854,13 @@ private fun TransportationScanResult.title(): String = when (this) {
 }
 
 @Composable
-private fun TransportationScanResult.message(): String = when (this) {
+internal fun TransportationScanResult.message(): String = when (this) {
     is TransportationScanResult.Success -> stringResource(R.string.transportation_scan_success_message, booking.participantName)
+    is TransportationScanResult.ArrivalSuccess -> stringResource(R.string.transportation_scan_arrival_success_message, booking.participantName)
     is TransportationScanResult.AlreadyBoarded -> stringResource(R.string.transportation_scan_already_boarded_message, booking.participantName)
+    is TransportationScanResult.AlreadyArrived -> stringResource(R.string.transportation_scan_already_arrived_message, booking.participantName)
+    is TransportationScanResult.NotBoardedForArrival -> stringResource(R.string.transportation_scan_not_boarded_for_arrival_message, booking.participantName)
+    is TransportationScanResult.Inactive -> stringResource(R.string.transportation_scan_inactive_message, booking.participantName)
     is TransportationScanResult.Unpaid -> stringResource(R.string.transportation_scan_unpaid_message, booking.participantName)
     TransportationScanResult.WrongCamping -> stringResource(R.string.transportation_scan_wrong_camp_message)
     TransportationScanResult.UnknownBooking -> stringResource(R.string.transportation_scan_unknown_message)
@@ -604,9 +871,14 @@ private fun TransportationScanResult.message(): String = when (this) {
 }
 
 @Composable
-private fun TransportationScanResult.color(): Color = when (this) {
-    is TransportationScanResult.Success -> MaterialTheme.czColors.success
+internal fun TransportationScanResult.color(): Color = when (this) {
+    is TransportationScanResult.Success,
+    is TransportationScanResult.ArrivalSuccess,
+    -> MaterialTheme.czColors.success
     is TransportationScanResult.AlreadyBoarded,
+    is TransportationScanResult.AlreadyArrived,
+    is TransportationScanResult.NotBoardedForArrival,
+    is TransportationScanResult.Inactive,
     is TransportationScanResult.Unpaid,
     TransportationScanResult.RegistrationNotApproved,
     TransportationScanResult.Expired,
@@ -618,9 +890,14 @@ private fun TransportationScanResult.color(): Color = when (this) {
     -> MaterialTheme.czColors.error
 }
 
-private fun TransportationScanResult.icon(): ImageVector = when (this) {
-    is TransportationScanResult.Success -> Icons.Filled.CheckCircle
+internal fun TransportationScanResult.icon(): ImageVector = when (this) {
+    is TransportationScanResult.Success,
+    is TransportationScanResult.ArrivalSuccess,
+    -> Icons.Filled.CheckCircle
     is TransportationScanResult.AlreadyBoarded,
+    is TransportationScanResult.AlreadyArrived,
+    is TransportationScanResult.NotBoardedForArrival,
+    is TransportationScanResult.Inactive,
     is TransportationScanResult.Unpaid,
     TransportationScanResult.RegistrationNotApproved,
     TransportationScanResult.Expired,
@@ -630,4 +907,124 @@ private fun TransportationScanResult.icon(): ImageVector = when (this) {
     TransportationScanResult.TokenMismatch,
     TransportationScanResult.Malformed,
     -> Icons.Filled.Error
+}
+
+// ---------------------------------------------------------------------------
+// Preview fixtures + previews
+// ---------------------------------------------------------------------------
+
+internal fun previewTransportationCamping(): Camping =
+    previewCamping("summer-2026", "Summer Pathfinder Camp", 2026, 6).copy(
+        attendees = listOf(
+            CampingAttendee(
+                id = "att-1",
+                userId = "u1",
+                displayName = "Ana Ferreira",
+                church = "Paris Central SDA",
+                age = 16,
+                languages = listOf("fr"),
+                registrationStatus = RegistrationApprovalStatus.Approved,
+            ),
+            CampingAttendee(
+                id = "att-2",
+                userId = "u2",
+                displayName = "Ben Costa",
+                church = "Paris Central SDA",
+                age = 11,
+                languages = listOf("fr"),
+                registrationStatus = RegistrationApprovalStatus.Approved,
+                participantKind = RegistrationParticipantKind.Child,
+                guardianId = "u1",
+            ),
+        ),
+        transportationOptions = listOf(
+            CampingTransportationOption(
+                id = "coach",
+                name = "Coach from Paris-Bercy",
+                mode = TransportationMode.Coach,
+                details = "Departs 08:00",
+                requiresTicket = true,
+                feeCents = 2500,
+            ),
+        ),
+    )
+
+internal fun previewTransportationBookings(): List<TransportationBooking> {
+    val depart = Date(System.currentTimeMillis() - 2L * 24 * 3600 * 1000)
+    val arrive = Date(depart.time + 3L * 3600 * 1000)
+    return listOf(
+        TransportationBooking(
+            id = "att-1-bus",
+            campingId = "summer-2026",
+            registrationId = "att-1",
+            participantId = "att-1",
+            participantKind = RegistrationParticipantKind.SelfParticipant,
+            participantName = "Ana Ferreira",
+            userId = "u1",
+            ticketToken = "AB12CD34EF56",
+            validFrom = depart,
+            validUntil = Date(depart.time + 7L * 24 * 3600 * 1000),
+            transportationOptionId = "coach",
+            transportationOptionName = "Coach from Paris-Bercy",
+            paymentStatus = TransportationPaymentStatus.Paid,
+            boardingStatus = TransportationBoardingStatus.Boarded,
+            boardedBy = "marshal-leon",
+            boardedAt = depart,
+            arrivedBy = "marshal-leon",
+            arrivedAt = arrive,
+            scanHistory = listOf(
+                TransportationScanEvent(leg = TransportationLeg.Outbound, checkpoint = TransportationCheckpoint.Departure, at = depart, by = "marshal-leon", byName = "Leon", location = "Paris-Bercy"),
+                TransportationScanEvent(leg = TransportationLeg.Outbound, checkpoint = TransportationCheckpoint.Arrival, at = arrive, by = "marshal-leon", byName = "Leon", location = "Camp gate"),
+            ),
+        ),
+        TransportationBooking(
+            id = "att-2-bus",
+            campingId = "summer-2026",
+            registrationId = "att-2",
+            participantId = "att-2",
+            participantKind = RegistrationParticipantKind.Child,
+            participantName = "Ben Costa",
+            guardianId = "u1",
+            userId = "u2",
+            ticketToken = "ZZ99YY88XX77",
+            validFrom = depart,
+            validUntil = Date(depart.time + 7L * 24 * 3600 * 1000),
+            transportationOptionId = "coach",
+            transportationOptionName = "Coach from Paris-Bercy",
+            paymentStatus = TransportationPaymentStatus.Unpaid,
+        ),
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TransportationTicketsScreenPreview() {
+    CampzoneTheme {
+        TransportationTicketsScreen(
+            uiState = TransportationUiState.Ready,
+            camping = previewTransportationCamping(),
+            bookings = previewTransportationBookings(),
+            onBack = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TransportationScannerScreenPreview() {
+    CampzoneTheme {
+        TransportationScannerScreen(
+            uiState = TransportationUiState.Ready,
+            camping = previewTransportationCamping(),
+            bookings = previewTransportationBookings(),
+            result = null,
+            isScanning = false,
+            onScan = { _, _, _ -> },
+            onDismissResult = {},
+            onBack = {},
+            onOpenHistory = {},
+            onRetry = {},
+        )
+    }
 }

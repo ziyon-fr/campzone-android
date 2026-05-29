@@ -9,8 +9,13 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.CampingTransportationOption
+import fr.ziyon.campzone.data.model.TransportationBoardingStatus
 import fr.ziyon.campzone.data.model.TransportationBooking
 import fr.ziyon.campzone.data.model.TransportationBookingPayload
+import fr.ziyon.campzone.data.model.TransportationCheckpoint
+import fr.ziyon.campzone.data.model.TransportationLeg
+import fr.ziyon.campzone.data.model.TransportationPaymentStatus
+import fr.ziyon.campzone.data.model.TransportationScanEvent
 import fr.ziyon.campzone.data.model.toTransportationBookingOrNull
 import java.util.Date
 import java.util.UUID
@@ -29,7 +34,34 @@ interface TransportationService {
         validFrom: Date,
         validUntil: Date,
     ): TransportationBooking
-    suspend fun markBoarded(campingId: String, bookingId: String, boardedBy: String): TransportationBooking
+    suspend fun updatePaymentStatus(
+        campingId: String,
+        bookingId: String,
+        status: TransportationPaymentStatus,
+        reviewerId: String,
+    ): TransportationBooking
+    suspend fun cancelBooking(
+        campingId: String,
+        bookingId: String,
+        reviewerId: String,
+        reason: String?,
+    ): TransportationBooking
+    suspend fun markBoarded(
+        campingId: String,
+        bookingId: String,
+        reviewerId: String,
+        leg: TransportationLeg,
+        reviewerName: String?,
+        location: String?,
+    ): TransportationBooking
+    suspend fun markArrived(
+        campingId: String,
+        bookingId: String,
+        reviewerId: String,
+        leg: TransportationLeg,
+        reviewerName: String?,
+        location: String?,
+    ): TransportationBooking
 }
 
 @Singleton
@@ -90,6 +122,8 @@ class FirestoreTransportationService @Inject constructor(
             validUntil = validUntil,
             ticketToken = makeTicketToken(),
         )
+        // RBAC create literal: always written `unpaid`. Free options are flipped
+        // to `waived` by the manager via the update path (see ViewModel).
         collection(campingId)
             .document(bookingId)
             .set(
@@ -103,16 +137,89 @@ class FirestoreTransportationService @Inject constructor(
         return booking(campingId, bookingId)
     }
 
+    override suspend fun updatePaymentStatus(
+        campingId: String,
+        bookingId: String,
+        status: TransportationPaymentStatus,
+        reviewerId: String,
+    ): TransportationBooking {
+        collection(campingId)
+            .document(bookingId)
+            .set(
+                TransportationBookingPayload.updatePaymentStatusPayload(
+                    status = status,
+                    reviewerId = reviewerId,
+                    serverTimestamp = FieldValue.serverTimestamp(),
+                ),
+                SetOptions.merge(),
+            )
+            .await()
+        return booking(campingId, bookingId)
+    }
+
+    override suspend fun cancelBooking(
+        campingId: String,
+        bookingId: String,
+        reviewerId: String,
+        reason: String?,
+    ): TransportationBooking {
+        collection(campingId)
+            .document(bookingId)
+            .set(
+                TransportationBookingPayload.cancelPayload(
+                    reviewerId = reviewerId,
+                    reason = reason,
+                    serverTimestamp = FieldValue.serverTimestamp(),
+                    deleteField = FieldValue.delete(),
+                ),
+                SetOptions.merge(),
+            )
+            .await()
+        return booking(campingId, bookingId)
+    }
+
     override suspend fun markBoarded(
         campingId: String,
         bookingId: String,
-        boardedBy: String,
+        reviewerId: String,
+        leg: TransportationLeg,
+        reviewerName: String?,
+        location: String?,
     ): TransportationBooking {
         collection(campingId)
             .document(bookingId)
             .set(
                 TransportationBookingPayload.markBoardedPayload(
-                    boardedBy = boardedBy,
+                    leg = leg,
+                    reviewerId = reviewerId,
+                    reviewerName = reviewerName,
+                    location = location,
+                    now = Date(),
+                    serverTimestamp = FieldValue.serverTimestamp(),
+                ),
+                SetOptions.merge(),
+            )
+            .await()
+        return booking(campingId, bookingId)
+    }
+
+    override suspend fun markArrived(
+        campingId: String,
+        bookingId: String,
+        reviewerId: String,
+        leg: TransportationLeg,
+        reviewerName: String?,
+        location: String?,
+    ): TransportationBooking {
+        collection(campingId)
+            .document(bookingId)
+            .set(
+                TransportationBookingPayload.markArrivedPayload(
+                    leg = leg,
+                    reviewerId = reviewerId,
+                    reviewerName = reviewerName,
+                    location = location,
+                    now = Date(),
                     serverTimestamp = FieldValue.serverTimestamp(),
                 ),
                 SetOptions.merge(),
@@ -146,7 +253,7 @@ class FakeTransportationService(
     bookings: List<TransportationBooking> = emptyList(),
     var shouldFail: Boolean = false,
 ) : TransportationService {
-    private val store = bookings.map { it.id to it }.toMap().toMutableMap()
+    private val store = bookings.associateBy { it.id }.toMutableMap()
 
     override suspend fun loadBookings(campingId: String): List<TransportationBooking> {
         checkFailure()
@@ -193,17 +300,101 @@ class FakeTransportationService(
         return booking
     }
 
+    override suspend fun updatePaymentStatus(
+        campingId: String,
+        bookingId: String,
+        status: TransportationPaymentStatus,
+        reviewerId: String,
+    ): TransportationBooking {
+        checkFailure()
+        val now = Date()
+        val booking = booking(campingId, bookingId).copy(
+            paymentStatus = status,
+            paymentUpdatedBy = reviewerId,
+            paymentUpdatedAt = now,
+            updatedAt = now,
+        )
+        store[booking.id] = booking
+        return booking
+    }
+
+    override suspend fun cancelBooking(
+        campingId: String,
+        bookingId: String,
+        reviewerId: String,
+        reason: String?,
+    ): TransportationBooking {
+        checkFailure()
+        val now = Date()
+        val booking = booking(campingId, bookingId).copy(
+            isActive = false,
+            canceledBy = reviewerId,
+            canceledAt = now,
+            cancelReason = reason?.trim()?.takeUnless { it.isBlank() },
+            updatedAt = now,
+        )
+        store[booking.id] = booking
+        return booking
+    }
+
     override suspend fun markBoarded(
         campingId: String,
         bookingId: String,
-        boardedBy: String,
+        reviewerId: String,
+        leg: TransportationLeg,
+        reviewerName: String?,
+        location: String?,
     ): TransportationBooking {
         checkFailure()
-        val booking = booking(campingId, bookingId).copy(
-            boardingStatus = fr.ziyon.campzone.data.model.TransportationBoardingStatus.Boarded,
-            boardedBy = boardedBy,
-            boardedAt = Date(),
-            updatedAt = Date(),
+        val now = Date()
+        val current = booking(campingId, bookingId)
+        val event = TransportationScanEvent(
+            leg = leg,
+            checkpoint = TransportationCheckpoint.Departure,
+            at = now,
+            by = reviewerId,
+            byName = reviewerName,
+            location = location,
+        )
+        val booking = current.copy(
+            scanHistory = current.scanHistory + event,
+            boardingStatus = if (leg == TransportationLeg.Outbound) {
+                TransportationBoardingStatus.Boarded
+            } else {
+                current.boardingStatus
+            },
+            boardedBy = if (leg == TransportationLeg.Outbound) reviewerId else current.boardedBy,
+            boardedAt = if (leg == TransportationLeg.Outbound) now else current.boardedAt,
+            updatedAt = now,
+        )
+        store[booking.id] = booking
+        return booking
+    }
+
+    override suspend fun markArrived(
+        campingId: String,
+        bookingId: String,
+        reviewerId: String,
+        leg: TransportationLeg,
+        reviewerName: String?,
+        location: String?,
+    ): TransportationBooking {
+        checkFailure()
+        val now = Date()
+        val current = booking(campingId, bookingId)
+        val event = TransportationScanEvent(
+            leg = leg,
+            checkpoint = TransportationCheckpoint.Arrival,
+            at = now,
+            by = reviewerId,
+            byName = reviewerName,
+            location = location,
+        )
+        val booking = current.copy(
+            scanHistory = current.scanHistory + event,
+            arrivedBy = if (leg == TransportationLeg.Outbound) reviewerId else current.arrivedBy,
+            arrivedAt = if (leg == TransportationLeg.Outbound) now else current.arrivedAt,
+            updatedAt = now,
         )
         store[booking.id] = booking
         return booking

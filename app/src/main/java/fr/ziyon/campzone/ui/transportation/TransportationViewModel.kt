@@ -8,9 +8,13 @@ import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.model.CampingAttendee
+import fr.ziyon.campzone.data.model.CampingTransportationOption
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
-import fr.ziyon.campzone.data.model.TransportationBoardingStatus
 import fr.ziyon.campzone.data.model.TransportationBooking
+import fr.ziyon.campzone.data.model.TransportationCheckpoint
+import fr.ziyon.campzone.data.model.TransportationLeg
+import fr.ziyon.campzone.data.model.TransportationPaymentStatus
 import fr.ziyon.campzone.data.model.TransportationScanResult
 import fr.ziyon.campzone.data.model.TransportationTicketPayload
 import fr.ziyon.campzone.data.transportation.TransportationService
@@ -30,6 +34,13 @@ sealed interface TransportationUiState {
     data class Error(val message: String) : TransportationUiState
 }
 
+/**
+ * Backs every transportation route (passenger My Passes, marshal Dashboard,
+ * Scanner, Scan History). Each route gets its own VM instance, so the single
+ * `bookings` flow means "passenger bookings" after [loadTickets] and "all
+ * bookings" (manager-gated) after [loadManaged]. Mirrors the iOS
+ * `TransportationObserver`.
+ */
 @HiltViewModel
 class TransportationViewModel @Inject constructor(
     private val transportationService: TransportationService,
@@ -52,17 +63,28 @@ class TransportationViewModel @Inject constructor(
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
+    private val _isUpdating = MutableStateFlow(false)
+    val isUpdating: StateFlow<Boolean> = _isUpdating.asStateFlow()
+
+    private val _operationError = MutableStateFlow<String?>(null)
+    val operationError: StateFlow<String?> = _operationError.asStateFlow()
+
     private var reviewerId: String = ""
+    private var reviewerName: String? = null
     private var canManage = false
     private var loadedTicketsKey: Pair<String, String>? = null
-    private var loadedScannerKey: Pair<String, String>? = null
+    private var loadedManagedKey: Pair<String, String>? = null
     private var inFlight = false
     private var lastHandledValue: String? = null
+
+    // MARK: - Loading
 
     fun loadTickets(campingId: String, user: AuthenticatedUser) {
         val key = campingId to user.uid
         if (loadedTicketsKey == key && _uiState.value !is TransportationUiState.Error) return
         loadedTicketsKey = key
+        reviewerId = user.uid
+        reviewerName = user.preferredDisplayName
         _uiState.value = TransportationUiState.Loading
         viewModelScope.launch {
             runCatching {
@@ -80,11 +102,13 @@ class TransportationViewModel @Inject constructor(
         }
     }
 
-    fun loadScanner(campingId: String, user: AuthenticatedUser) {
+    /** Manager-gated load of every booking - backs Dashboard, Scanner, History. */
+    fun loadManaged(campingId: String, user: AuthenticatedUser) {
         val key = campingId to user.uid
-        if (loadedScannerKey == key && _uiState.value !is TransportationUiState.Error) return
-        loadedScannerKey = key
+        if (loadedManagedKey == key && _uiState.value !is TransportationUiState.Error) return
+        loadedManagedKey = key
         reviewerId = user.uid
+        reviewerName = user.preferredDisplayName
         _uiState.value = TransportationUiState.Loading
         viewModelScope.launch {
             runCatching { campingService.fetchCamping(campingId) }
@@ -99,7 +123,7 @@ class TransportationViewModel @Inject constructor(
                     loadAllBookings(campingId)
                 }
                 .onFailure { error ->
-                    loadedScannerKey = null
+                    loadedManagedKey = null
                     _uiState.value = TransportationUiState.Error(error.message ?: DEFAULT_LOAD_ERROR)
                 }
         }
@@ -110,17 +134,36 @@ class TransportationViewModel @Inject constructor(
         loadTickets(campingId, user)
     }
 
-    fun retryScanner(campingId: String, user: AuthenticatedUser) {
-        loadedScannerKey = null
-        loadScanner(campingId, user)
+    fun retryManaged(campingId: String, user: AuthenticatedUser) {
+        loadedManagedKey = null
+        loadManaged(campingId, user)
     }
+
+    private suspend fun loadAllBookings(campingId: String) {
+        runCatching { transportationService.loadBookings(campingId) }
+            .onSuccess {
+                _bookings.value = it
+                _uiState.value = TransportationUiState.Ready
+            }
+            .onFailure { error ->
+                loadedManagedKey = null
+                _uiState.value = TransportationUiState.Error(error.message ?: DEFAULT_LOAD_ERROR)
+            }
+    }
+
+    // MARK: - Scanning
 
     fun dismissScanResult() {
         _lastScanResult.value = null
         lastHandledValue = null
     }
 
-    fun handleScan(value: String, now: Date = Date()) {
+    fun handleScan(
+        value: String,
+        leg: TransportationLeg = TransportationLeg.Outbound,
+        checkpoint: TransportationCheckpoint = TransportationCheckpoint.Departure,
+        now: Date = Date(),
+    ) {
         if (!canManage || inFlight) return
         if (value == lastHandledValue) return
         lastHandledValue = value
@@ -140,18 +183,36 @@ class TransportationViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val booking = transportationService.booking(payload.campingId, payload.bookingId)
-                val result = validate(booking, payload, camping, now)
-                if (result != null) {
-                    _lastScanResult.value = result
+                val rejection = validate(booking, payload, camping, leg, checkpoint, now)
+                if (rejection != null) {
+                    _lastScanResult.value = rejection
                     return@launch
                 }
-                val updated = transportationService.markBoarded(
-                    campingId = booking.campingId,
-                    bookingId = booking.id,
-                    boardedBy = reviewerId,
-                )
+                val updated = if (checkpoint == TransportationCheckpoint.Arrival) {
+                    transportationService.markArrived(
+                        campingId = booking.campingId,
+                        bookingId = booking.id,
+                        reviewerId = reviewerId,
+                        leg = leg,
+                        reviewerName = reviewerName,
+                        location = null,
+                    )
+                } else {
+                    transportationService.markBoarded(
+                        campingId = booking.campingId,
+                        bookingId = booking.id,
+                        reviewerId = reviewerId,
+                        leg = leg,
+                        reviewerName = reviewerName,
+                        location = null,
+                    )
+                }
                 replace(updated)
-                _lastScanResult.value = TransportationScanResult.Success(updated)
+                _lastScanResult.value = if (checkpoint == TransportationCheckpoint.Arrival) {
+                    TransportationScanResult.ArrivalSuccess(updated)
+                } else {
+                    TransportationScanResult.Success(updated)
+                }
             } catch (_: Exception) {
                 _lastScanResult.value = TransportationScanResult.UnknownBooking
                 lastHandledValue = null
@@ -162,22 +223,16 @@ class TransportationViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadAllBookings(campingId: String) {
-        runCatching { transportationService.loadBookings(campingId) }
-            .onSuccess {
-                _bookings.value = it
-                _uiState.value = TransportationUiState.Ready
-            }
-            .onFailure { error ->
-                loadedScannerKey = null
-                _uiState.value = TransportationUiState.Error(error.message ?: DEFAULT_LOAD_ERROR)
-            }
-    }
-
+    /**
+     * Returns a rejection result, or `null` when the scan should be recorded.
+     * Validation order mirrors iOS `TransportationObserver.handleScan`.
+     */
     private fun validate(
         booking: TransportationBooking,
         payload: TransportationTicketPayload,
         camping: Camping,
+        leg: TransportationLeg,
+        checkpoint: TransportationCheckpoint,
         now: Date,
     ): TransportationScanResult? {
         if (
@@ -187,19 +242,105 @@ class TransportationViewModel @Inject constructor(
         ) {
             return TransportationScanResult.TokenMismatch
         }
-        val attendee = camping.attendees.firstOrNull {
+        if (!booking.isActive) return TransportationScanResult.Inactive(booking)
+        val approved = camping.attendees.any {
             it.id == booking.registrationId && it.registrationStatus == RegistrationApprovalStatus.Approved
-        } ?: return TransportationScanResult.RegistrationNotApproved
-        if (attendee.id != payload.participantId) return TransportationScanResult.TokenMismatch
-        if (now.before(booking.validFrom) || now.after(booking.validUntil)) return TransportationScanResult.Expired
-        if (!booking.canBoard) {
-            return if (booking.boardingStatus == TransportationBoardingStatus.Boarded) {
+        }
+        if (!approved) return TransportationScanResult.RegistrationNotApproved
+        if (now.before(booking.validFrom) || now.after(booking.validUntil)) {
+            return TransportationScanResult.Expired
+        }
+        if (!booking.paymentStatus.allowsBoarding) return TransportationScanResult.Unpaid(booking)
+        // Round-trip safety: a return scan can't land on a one-way ticket.
+        if (leg != TransportationLeg.Outbound && !booking.coversReturn) {
+            return TransportationScanResult.Inactive(booking)
+        }
+        return if (checkpoint == TransportationCheckpoint.Arrival) {
+            when {
+                !booking.didScan(leg, TransportationCheckpoint.Departure) ->
+                    TransportationScanResult.NotBoardedForArrival(booking)
+                booking.didScan(leg, TransportationCheckpoint.Arrival) ->
+                    TransportationScanResult.AlreadyArrived(booking)
+                else -> null
+            }
+        } else {
+            if (booking.didScan(leg, TransportationCheckpoint.Departure)) {
                 TransportationScanResult.AlreadyBoarded(booking)
             } else {
-                TransportationScanResult.Unpaid(booking)
+                null
             }
         }
-        return null
+    }
+
+    // MARK: - Operations
+
+    fun updatePaymentStatus(booking: TransportationBooking, status: TransportationPaymentStatus) {
+        if (status == booking.paymentStatus) return
+        runOperation {
+            val updated = transportationService.updatePaymentStatus(
+                campingId = booking.campingId,
+                bookingId = booking.id,
+                status = status,
+                reviewerId = reviewerId,
+            )
+            replace(updated)
+        }
+    }
+
+    fun cancelBooking(booking: TransportationBooking, reason: String? = DEFAULT_CANCEL_REASON) {
+        runOperation {
+            val updated = transportationService.cancelBooking(
+                campingId = booking.campingId,
+                bookingId = booking.id,
+                reviewerId = reviewerId,
+                reason = reason,
+            )
+            replace(updated)
+        }
+    }
+
+    fun addVoyager(
+        camping: Camping,
+        attendee: CampingAttendee,
+        option: CampingTransportationOption?,
+    ) {
+        runOperation {
+            val created = transportationService.createBooking(
+                campingId = camping.id,
+                attendee = attendee,
+                option = option,
+                validFrom = camping.startDate,
+                validUntil = camping.endDate,
+            )
+            // Mirror iOS: a free option settles as `waived`; reach that end-state
+            // via the manager update path so the create literal stays `unpaid`.
+            val settled = if (option?.hasFee != true) {
+                transportationService.updatePaymentStatus(
+                    campingId = camping.id,
+                    bookingId = created.id,
+                    status = TransportationPaymentStatus.Waived,
+                    reviewerId = reviewerId,
+                )
+            } else {
+                created
+            }
+            replace(settled)
+        }
+    }
+
+    fun clearOperationError() {
+        _operationError.value = null
+    }
+
+    private fun runOperation(block: suspend () -> Unit) {
+        if (_isUpdating.value) return
+        _isUpdating.value = true
+        _operationError.value = null
+        viewModelScope.launch {
+            runCatching { block() }
+                .onFailure { _operationError.value = it.message ?: DEFAULT_OP_ERROR }
+            _isUpdating.value = false
+        }
     }
 
     private fun replace(booking: TransportationBooking) {
@@ -211,5 +352,7 @@ class TransportationViewModel @Inject constructor(
 
     private companion object {
         const val DEFAULT_LOAD_ERROR = "Transportation bookings could not be loaded."
+        const val DEFAULT_OP_ERROR = "The transportation update could not be saved."
+        const val DEFAULT_CANCEL_REASON = "Cancelled from dashboard"
     }
 }

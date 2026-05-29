@@ -146,6 +146,10 @@ data class CampingTransportationOption(
 
     val issuesTicket: Boolean
         get() = requiresTicket || mode.defaultRequiresTicket
+
+    /** A seat carries an in-app fare when a positive `feeCents` is set. */
+    val hasFee: Boolean
+        get() = (feeCents ?: 0) > 0
 }
 
 // region decode

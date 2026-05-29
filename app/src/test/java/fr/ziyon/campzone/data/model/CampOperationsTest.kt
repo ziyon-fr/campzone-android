@@ -69,7 +69,14 @@ class CampOperationsTest {
         assertEquals(until, payload["validUntil"])
         assertFalse(payload.containsKey("guardianID")) // omit-when-nil
 
-        val boarded = TransportationBookingPayload.markBoardedPayload("scanner-1", TS)
+        val boarded = TransportationBookingPayload.markBoardedPayload(
+            leg = TransportationLeg.Outbound,
+            reviewerId = "scanner-1",
+            reviewerName = null,
+            location = null,
+            now = Date(0),
+            serverTimestamp = TS,
+        )
         assertEquals("boarded", boarded["boardingStatus"])
         assertEquals("scanner-1", boarded["boardedBy"])
     }

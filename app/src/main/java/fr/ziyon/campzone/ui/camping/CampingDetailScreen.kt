@@ -143,7 +143,7 @@ fun CampingDetailRoute(
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
     onOpenTransportationTickets: (String) -> Unit = {},
-    onOpenTransportationScanner: (String) -> Unit = {},
+    onOpenTransportationDashboard: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
@@ -214,7 +214,7 @@ fun CampingDetailRoute(
         onOpenCheckInRecords = onOpenCheckInRecords,
         onOpenQrPasses = onOpenQrPasses,
         onOpenTransportationTickets = onOpenTransportationTickets,
-        onOpenTransportationScanner = onOpenTransportationScanner,
+        onOpenTransportationDashboard = onOpenTransportationDashboard,
         onOpenBadgeAward = onOpenBadgeAward,
         onOpenAlbum = onOpenAlbum,
         modifier = modifier,
@@ -251,7 +251,7 @@ fun CampingDetailScreen(
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
     onOpenTransportationTickets: (String) -> Unit = {},
-    onOpenTransportationScanner: (String) -> Unit = {},
+    onOpenTransportationDashboard: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
 ) {
@@ -324,7 +324,7 @@ fun CampingDetailScreen(
                     onOpenCheckInRecords = onOpenCheckInRecords,
                     onOpenQrPasses = onOpenQrPasses,
                     onOpenTransportationTickets = onOpenTransportationTickets,
-                    onOpenTransportationScanner = onOpenTransportationScanner,
+                    onOpenTransportationDashboard = onOpenTransportationDashboard,
                     onOpenBadgeAward = onOpenBadgeAward,
                     onOpenAlbum = onOpenAlbum,
                 )
@@ -401,7 +401,7 @@ private fun CampingDetailContent(
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
     onOpenTransportationTickets: (String) -> Unit = {},
-    onOpenTransportationScanner: (String) -> Unit = {},
+    onOpenTransportationDashboard: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
 ) {
@@ -500,7 +500,7 @@ private fun CampingDetailContent(
                 onOpenCheckInRecords = onOpenCheckInRecords,
                 onOpenQrPasses = onOpenQrPasses,
                 onOpenTransportationTickets = onOpenTransportationTickets,
-                onOpenTransportationScanner = onOpenTransportationScanner,
+                onOpenTransportationDashboard = onOpenTransportationDashboard,
                 onOpenBadgeAward = onOpenBadgeAward,
                 onOpenAlbum = onOpenAlbum,
             )
@@ -1267,7 +1267,7 @@ private fun ResourcesSection(
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
     onOpenTransportationTickets: (String) -> Unit = {},
-    onOpenTransportationScanner: (String) -> Unit = {},
+    onOpenTransportationDashboard: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
 ) {
@@ -1383,11 +1383,11 @@ private fun ResourcesSection(
             if (state.canManageTransportation) {
                 add(
                     DetailResource(
-                        title = stringResource(R.string.transportation_scanner_title),
-                        subtitle = stringResource(R.string.transportation_scanner_subtitle),
+                        title = stringResource(R.string.transportation_dashboard_title),
+                        subtitle = stringResource(R.string.transportation_dashboard_entry_subtitle),
                         icon = Icons.Filled.DirectionsBus,
                         accent = MaterialTheme.czColors.pine,
-                        onClick = { onOpenTransportationScanner(camping.id) },
+                        onClick = { onOpenTransportationDashboard(camping.id) },
                     ),
                 )
             }

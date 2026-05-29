@@ -13,6 +13,8 @@ import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.TransportationBoardingStatus
 import fr.ziyon.campzone.data.model.TransportationBooking
+import fr.ziyon.campzone.data.model.TransportationCheckpoint
+import fr.ziyon.campzone.data.model.TransportationLeg
 import fr.ziyon.campzone.data.model.TransportationPaymentStatus
 import fr.ziyon.campzone.data.model.TransportationScanResult
 import fr.ziyon.campzone.data.model.TransportationTicketPayload
@@ -23,6 +25,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -56,7 +60,7 @@ class TransportationViewModelTest {
         val booking = booking(paymentStatus = TransportationPaymentStatus.Paid)
         val service = FakeTransportationService(listOf(booking))
         val viewModel = viewModel(service)
-        viewModel.loadScanner("camp-1", user(role = UserRole.Admin, uid = "marshal-1"))
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin, uid = "marshal-1"))
         advanceUntilIdle()
 
         viewModel.handleScan(qr(booking), now = Date(2_000))
@@ -75,7 +79,7 @@ class TransportationViewModelTest {
         val booking = booking(paymentStatus = TransportationPaymentStatus.Paid)
         val service = FakeTransportationService(listOf(booking))
         val viewModel = viewModel(service)
-        viewModel.loadScanner("camp-1", user(role = UserRole.Admin))
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin))
         advanceUntilIdle()
 
         viewModel.handleScan(
@@ -93,7 +97,7 @@ class TransportationViewModelTest {
         val booking = booking(paymentStatus = TransportationPaymentStatus.Paid)
         val service = FakeTransportationService(listOf(booking))
         val viewModel = viewModel(service)
-        viewModel.loadScanner("camp-1", user(role = UserRole.Admin))
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin))
         advanceUntilIdle()
 
         viewModel.handleScan(qr(booking.copy(ticketToken = "forged-token")), now = Date(2_000))
@@ -111,7 +115,7 @@ class TransportationViewModelTest {
             transportationService = service,
             attendees = listOf(attendee(RegistrationApprovalStatus.Pending)),
         )
-        viewModel.loadScanner("camp-1", user(role = UserRole.Admin))
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin))
         advanceUntilIdle()
 
         viewModel.handleScan(qr(booking), now = Date(2_000))
@@ -126,7 +130,7 @@ class TransportationViewModelTest {
         val booking = booking(paymentStatus = TransportationPaymentStatus.Unpaid)
         val service = FakeTransportationService(listOf(booking))
         val viewModel = viewModel(service)
-        viewModel.loadScanner("camp-1", user(role = UserRole.Admin))
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin))
         advanceUntilIdle()
 
         viewModel.handleScan(qr(booking), now = Date(2_000))
@@ -145,7 +149,7 @@ class TransportationViewModelTest {
         )
         val service = FakeTransportationService(listOf(booking))
         val viewModel = viewModel(service)
-        viewModel.loadScanner("camp-1", user(role = UserRole.Admin))
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin))
         advanceUntilIdle()
 
         viewModel.handleScan(qr(booking), now = Date(2_000))
@@ -160,7 +164,7 @@ class TransportationViewModelTest {
         val booking = booking(paymentStatus = TransportationPaymentStatus.Paid)
         val service = FakeTransportationService(listOf(booking))
         val viewModel = viewModel(service)
-        viewModel.loadScanner("camp-1", user(role = UserRole.Admin))
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin))
         advanceUntilIdle()
 
         val qr = qr(booking)
@@ -181,7 +185,7 @@ class TransportationViewModelTest {
             transportationService = service,
             camping = camping(createdByUid = "someone-else"),
         )
-        viewModel.loadScanner("camp-1", user(role = UserRole.User, uid = "plain-user"))
+        viewModel.loadManaged("camp-1", user(role = UserRole.User, uid = "plain-user"))
         advanceUntilIdle()
 
         assertEquals(TransportationUiState.Restricted, viewModel.uiState.value)
@@ -190,6 +194,144 @@ class TransportationViewModelTest {
 
         assertNull(viewModel.lastScanResult.value)
         assertEquals(TransportationBoardingStatus.NotBoarded, service.booking("camp-1", booking.id).boardingStatus)
+    }
+
+    @Test
+    fun outboundArrivalScanRecordsArrival() = runTest {
+        val booking = booking(paymentStatus = TransportationPaymentStatus.Paid)
+        val service = FakeTransportationService(listOf(booking))
+        val viewModel = viewModel(service)
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin, uid = "marshal-1"))
+        advanceUntilIdle()
+
+        viewModel.handleScan(qr(booking), TransportationLeg.Outbound, TransportationCheckpoint.Departure, Date(2_000))
+        advanceUntilIdle()
+        viewModel.dismissScanResult()
+        viewModel.handleScan(qr(booking), TransportationLeg.Outbound, TransportationCheckpoint.Arrival, Date(2_500))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.lastScanResult.value is TransportationScanResult.ArrivalSuccess)
+        assertNotNull(service.booking("camp-1", booking.id).arrivedAt)
+    }
+
+    @Test
+    fun arrivalBeforeDepartureRejected() = runTest {
+        val booking = booking(paymentStatus = TransportationPaymentStatus.Paid)
+        val service = FakeTransportationService(listOf(booking))
+        val viewModel = viewModel(service)
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin))
+        advanceUntilIdle()
+
+        viewModel.handleScan(qr(booking), TransportationLeg.Outbound, TransportationCheckpoint.Arrival, Date(2_000))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.lastScanResult.value is TransportationScanResult.NotBoardedForArrival)
+    }
+
+    @Test
+    fun secondArrivalReportsAlreadyArrived() = runTest {
+        val booking = booking(paymentStatus = TransportationPaymentStatus.Paid)
+        val service = FakeTransportationService(listOf(booking))
+        val viewModel = viewModel(service)
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin))
+        advanceUntilIdle()
+
+        viewModel.handleScan(qr(booking), TransportationLeg.Outbound, TransportationCheckpoint.Departure, Date(2_000))
+        advanceUntilIdle()
+        viewModel.dismissScanResult()
+        viewModel.handleScan(qr(booking), TransportationLeg.Outbound, TransportationCheckpoint.Arrival, Date(2_500))
+        advanceUntilIdle()
+        viewModel.dismissScanResult()
+        viewModel.handleScan(qr(booking), TransportationLeg.Outbound, TransportationCheckpoint.Arrival, Date(3_000))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.lastScanResult.value is TransportationScanResult.AlreadyArrived)
+    }
+
+    @Test
+    fun cancelledBookingScanRejected() = runTest {
+        val booking = booking(paymentStatus = TransportationPaymentStatus.Paid).copy(isActive = false)
+        val service = FakeTransportationService(listOf(booking))
+        val viewModel = viewModel(service)
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin))
+        advanceUntilIdle()
+
+        viewModel.handleScan(qr(booking), now = Date(2_000))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.lastScanResult.value is TransportationScanResult.Inactive)
+    }
+
+    @Test
+    fun returnScanRejectedOnOneWayTicket() = runTest {
+        val booking = booking(paymentStatus = TransportationPaymentStatus.Paid).copy(coversReturn = false)
+        val service = FakeTransportationService(listOf(booking))
+        val viewModel = viewModel(service)
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin))
+        advanceUntilIdle()
+
+        viewModel.handleScan(qr(booking), TransportationLeg.Return, TransportationCheckpoint.Departure, Date(2_000))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.lastScanResult.value is TransportationScanResult.Inactive)
+    }
+
+    @Test
+    fun updatePaymentStatusPersists() = runTest {
+        val booking = booking(paymentStatus = TransportationPaymentStatus.Unpaid)
+        val service = FakeTransportationService(listOf(booking))
+        val viewModel = viewModel(service)
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin, uid = "marshal-1"))
+        advanceUntilIdle()
+
+        viewModel.updatePaymentStatus(booking, TransportationPaymentStatus.Waived)
+        advanceUntilIdle()
+
+        assertEquals(TransportationPaymentStatus.Waived, service.booking("camp-1", booking.id).paymentStatus)
+        assertEquals(
+            TransportationPaymentStatus.Waived,
+            viewModel.bookings.value.first { it.id == booking.id }.paymentStatus,
+        )
+    }
+
+    @Test
+    fun cancelBookingDeactivates() = runTest {
+        val booking = booking(paymentStatus = TransportationPaymentStatus.Paid)
+        val service = FakeTransportationService(listOf(booking))
+        val viewModel = viewModel(service)
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin))
+        advanceUntilIdle()
+
+        viewModel.cancelBooking(booking, reason = "No longer travelling")
+        advanceUntilIdle()
+
+        assertFalse(service.booking("camp-1", booking.id).isActive)
+    }
+
+    @Test
+    fun addVoyagerWithFreeOptionSettlesAsWaived() = runTest {
+        val service = FakeTransportationService(emptyList())
+        val camping = camping()
+        val viewModel = viewModel(service, camping = camping)
+        viewModel.loadManaged("camp-1", user(role = UserRole.Admin, uid = "marshal-1"))
+        advanceUntilIdle()
+
+        val newcomer = CampingAttendee(
+            id = "participant-2",
+            userId = "participant-2",
+            displayName = "Bob",
+            church = "Paris Central SDA",
+            age = 22,
+            languages = listOf("fr"),
+            registrationStatus = RegistrationApprovalStatus.Approved,
+        )
+        viewModel.addVoyager(camping, newcomer, option = null)
+        advanceUntilIdle()
+
+        assertEquals(
+            TransportationPaymentStatus.Waived,
+            service.booking("camp-1", "participant-2-bus").paymentStatus,
+        )
     }
 
     private fun viewModel(
