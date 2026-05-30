@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Cabin
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
@@ -140,6 +141,7 @@ fun CampingDetailRoute(
     onOpenTeamEditor: (String, String?) -> Unit = { _, _ -> },
     onOpenRegistrationPayment: (String) -> Unit = {},
     onOpenPricing: (String) -> Unit = {},
+    onOpenLodging: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -212,6 +214,7 @@ fun CampingDetailRoute(
         onOpenTeamEditor = onOpenTeamEditor,
         onOpenRegistrationPayment = onOpenRegistrationPayment,
         onOpenPricing = onOpenPricing,
+        onOpenLodging = onOpenLodging,
         onOpenCheckInScanner = onOpenCheckInScanner,
         onOpenCheckInRecords = onOpenCheckInRecords,
         onOpenQrPasses = onOpenQrPasses,
@@ -250,6 +253,7 @@ fun CampingDetailScreen(
     onOpenTeamEditor: (String, String?) -> Unit = { _, _ -> },
     onOpenRegistrationPayment: (String) -> Unit = {},
     onOpenPricing: (String) -> Unit = {},
+    onOpenLodging: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -324,6 +328,7 @@ fun CampingDetailScreen(
                     onOpenSongbook = onOpenSongbook,
                     onOpenRegistrationPayment = onOpenRegistrationPayment,
                     onOpenPricing = onOpenPricing,
+                    onOpenLodging = onOpenLodging,
                     onOpenCheckInScanner = onOpenCheckInScanner,
                     onOpenCheckInRecords = onOpenCheckInRecords,
                     onOpenQrPasses = onOpenQrPasses,
@@ -402,6 +407,7 @@ private fun CampingDetailContent(
     onOpenSongbook: (String) -> Unit = {},
     onOpenRegistrationPayment: (String) -> Unit = {},
     onOpenPricing: (String) -> Unit = {},
+    onOpenLodging: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -502,6 +508,7 @@ private fun CampingDetailContent(
                 onOpenSongbook = onOpenSongbook,
                 onOpenRegistrationPayment = onOpenRegistrationPayment,
                 onOpenPricing = onOpenPricing,
+                onOpenLodging = onOpenLodging,
                 onOpenCheckInScanner = onOpenCheckInScanner,
                 onOpenCheckInRecords = onOpenCheckInRecords,
                 onOpenQrPasses = onOpenQrPasses,
@@ -1270,6 +1277,7 @@ private fun ResourcesSection(
     onOpenSongbook: (String) -> Unit = {},
     onOpenRegistrationPayment: (String) -> Unit = {},
     onOpenPricing: (String) -> Unit = {},
+    onOpenLodging: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -1384,6 +1392,17 @@ private fun ResourcesSection(
                         icon = Icons.Filled.DirectionsBus,
                         accent = MaterialTheme.czColors.pine,
                         onClick = { onOpenTransportationDashboard(camping.id) },
+                    ),
+                )
+            }
+            if (state.canManageTeams) {
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.lodging_title),
+                        subtitle = stringResource(R.string.lodging_entry_subtitle),
+                        icon = Icons.Filled.Cabin,
+                        accent = MaterialTheme.czColors.twilight,
+                        onClick = { onOpenLodging(camping.id) },
                     ),
                 )
             }

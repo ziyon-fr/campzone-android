@@ -310,12 +310,14 @@
 - [x] iOS parity: reusable inline pay button (`CzPaymentButton`, mirrors iOS `PaymentButton`); "Fees & Payments" hub (`CampingPricingScreen`) folds price items (mirrors iOS `CampingPricingView`) + pending registration fees; camp-detail entry gated on `hasPendingRegistrationPayment || hasPayablePriceItems`
 - [ ] Deferred (iOS-richer, not in Android contract): PDF invoice receipts, payment-proof/history list, mixed registration+transport single-charge bundling with per-kind follow-up confirms — each Stripe kind currently settles as its own charge
 
-### D3. Lodging (`ui/lodging/`)
+### D3. Lodging (`ui/lodging/`) ✅
 
-- [ ] CRUD for `campings/{id}/lodging/{unitId}` - gate `canManageTeams`
-- [ ] Read: signed-in users
-- [ ] Occupancy denormalized into `occupantIDs[]` on the unit doc (no separate assignment collection)
-- [ ] Gender policy filter: `any`/`male`/`female`/`family`
+- [x] CRUD for `campings/{id}/lodging/{unitId}` - gate `canManageTeams` (`LodgingViewModel` + `LodgingScreen`/editor sheet; manager-only surface, `Restricted` state otherwise)
+- [x] Read: signed-in users (`MyLodgingViewModel` observe; `LodgingService` Firestore listener, read open per `03`)
+- [x] Occupancy denormalized into `occupantIDs[]` on the unit doc (no separate assignment collection) — `setOccupants` (merge `occupantIDs` + `updatedAt`), assign/remove via the unit's list
+- [x] Gender policy filter: `any`/`male`/`female`/`family` (filter chips); assignment also enforces `genderPolicy.accepts(gender)` + capacity
+- [x] iOS parity: reused the existing `LodgingUnit` model + `LodgingPayload`/`toLodgingUnitOrNull` (added `accepts`, `occupancy`/`availableSpots`/`occupancyText`/`contains`); admin summary + units + "Needs a bed" sections, editor + assignment `ModalBottomSheet`s; **My Lodging** card embedded in My QR Passes (mirrors iOS `CheckInQRView` → `MyLodgingCard`)
+- [ ] Deferred (iOS extra, not in the Android contract): one-tap **auto-allocate** (capacity + gender + family rules) — units are placed by hand for now
 
 ### D4. Post-Camp Feedback (`ui/feedback/`)
 
@@ -432,7 +434,7 @@ C11 Analytics
 
 D1 Transportation tickets ✅
 D2 Stripe payments ✅
-D3 Lodging
+D3 Lodging ✅
 D4 Post-camp feedback
 D5 Venue map
 D6 Family at camp

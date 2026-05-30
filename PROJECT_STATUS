@@ -1,61 +1,57 @@
-# Project Status - D2 Stripe Payments
+# Project Status - D3 Lodging (+ My QR Passes consolidation)
 
-Updated: 2026-05-29
+Updated: 2026-05-30
 
-- Branch: `d2-stripe-payments`
-- Current completed phase: D2 Stripe Payments — all three payment kinds live
-  with the native Stripe PaymentSheet (closes the D1 transportation fare
-  deferral)
-- Next phase: D3 Lodging
+- Branch: `d3-lodging` (based on `d2-stripe-payments`, so it also carries D2)
+- Current completed phase: D3 Lodging, plus a My QR Passes consolidation
+  requested alongside it
+- Next phase: D4 Post-Camp Feedback
 - Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew assembleDebug` SUCCESSFUL
-  - `./gradlew testDebugUnitTest` SUCCESSFUL — new: 6 `PaymentButtonViewModel`,
-    3 `CampingPriceItemPayments`, 2 `CampingPricingViewModel` (all green);
-    existing `RegistrationPaymentViewModel` tests untouched + green
+  - `./gradlew testDebugUnitTest` SUCCESSFUL — new: 6 `LodgingUnitTest`,
+    5 `LodgingViewModelTest` (all green); D2 + prior suites untouched + green
   - `./gradlew lint` SUCCESSFUL
 
-## What shipped
+## My QR Passes consolidation (commit `c2b3c5e`)
 
-The B3 registration flow already had a working PaymentSheet path for the
-`registration` kind. D2 generalizes it and wires the two missing kinds
-(`transportation`, `priceItem`), mirroring iOS.
+Mirrors the iOS `CheckInQRView`: the participant "My QR Passes" hub now shows
+the arrival check-in QR codes **and** the provided-bus boarding tickets (with
+the Stripe fare CTA) — a passenger no longer needs a separate Transportation
+screen. `CheckInQrPassesRoute` loads bookings via `TransportationViewModel` and
+the user's lodging via `MyLodgingViewModel`; the passenger "Transportation"
+entry was removed from the camp-detail resources. (The standalone
+`TransportationTicketsRoute` remains registered but is no longer linked from the
+detail resources — safe to retire later.)
 
-- **Reusable CTA** (`ui/payments/CzPaymentButton` + `PaymentButtonViewModel`):
-  one inline "pay this fee" button mirroring the iOS `PaymentButton`. Runs the
-  full flow — `POST /payments/intent` → present native PaymentSheet → on
-  completion `POST /payments/confirm` → `onPaid`. Renders a "no payment due" /
-  "payment exempt" badge when the request carries no amount. Scoped per item via
-  `hiltViewModel(key = …)` so many instances coexist in one list. The Stripe
-  secret never leaves the backend; the client only holds the publishable key +
-  ephemeral secret returned by the intent call.
-- **Transportation fare CTA** (`ui/transportation`): per-booking CTA beneath
-  each `BusTicketCard` on the passenger tickets screen — `kind = transportation`,
-  `referenceID = booking.id`, amount/currency from the resolved
-  `CampingTransportationOption`. Only the actionable unpaid case shows the CTA
-  (paid/waived stay on the header status pill). `TransportationViewModel.reloadTickets()`
-  silently re-pulls bookings after the backend flips `paymentStatus`.
-- **"Fees & Payments" hub** (`ui/camping/pricing/CampingPricingScreen` +
-  `CampingPricingViewModel`): mirrors iOS `CampingPricingView` and folds in any
-  still-unpaid registration fees. Price-item card supports one-off card,
-  3-payment installment (first slice now), and IBAN bank-transfer copy. The
-  camp-detail "Fees & Payments" entry now routes here, gated on
-  `hasPendingRegistrationPayment || hasPayablePriceItems`.
-- **Model**: `CampingPriceItemPayments.kt` ports the iOS price-item helpers
-  (`installmentAmountCents`, `resolvedCurrency`, `offersCardOneTime/Installments/BankTransfer`).
-- **i18n**: new payment/fees strings added to EN, PT-BR, FR.
+## D3 Lodging
+
+- **Model**: the `LodgingUnit` model + `LodgingKind`/`LodgingGenderPolicy` enums
+  + `LodgingPayload`/`toLodgingUnitOrNull` already existed (A10 data-model pass).
+  Extended in place: added `LodgingGenderPolicy.accepts(gender)` and
+  `LodgingUnit.occupancy`/`availableSpots`/`occupancyText`/`contains`. Did NOT
+  duplicate the model.
+- **Service** (`data/lodging/LodgingService.kt`): interface + Firestore (snapshot
+  listener, `LodgingPayload` write, create-only `createdAt`, `setOccupants` merge)
+  + reactive `FakeLodgingService` + Hilt binding. Collection
+  `campings/{id}/lodging/{unitId}`.
+- **Admin** (`ui/lodging/`): `LodgingViewModel` (gated `canManageTeams`,
+  `Restricted` otherwise) + `LodgingScreen` (summary, gender-policy filter chips,
+  unit cards with occupant rows, "Needs a bed" section) + editor & assignment
+  `ModalBottomSheet`s. Camp-detail "Lodging" entry gated `canManageTeams`.
+- **Participant**: `MyLodgingCard` + `MyLodgingViewModel` (read-only observe)
+  embedded in My QR Passes — self-silences when there's no lodging.
+- **i18n**: lodging strings added to EN, PT-BR, FR.
 
 ## Data contract
 
-- Amount always integer cents; `PaymentRequest.normalizedCurrency` lowercases
-  the API currency (`eur`); price items keep uppercase ISO for display.
-- `referenceID` = attendee id (registration), booking id (transportation),
-  price-item id (priceItem). Client never writes `registrationStatus` /
-  `paymentStatus`; the backend settles them on confirm.
+- Wire keys `campingID` / `occupantIDs` (iOS casing); `kind` ∈
+  tent/cabin/room/dorm; `genderPolicy` ∈ any/male/female/family; capacity int
+  clamped ≥ 1; `createdAt` first-create only, `updatedAt` every write
+  (serverTimestamp). Occupancy denormalized into `occupantIDs[]` (no assignment
+  collection).
 
-## Deferred (iOS-richer, not in the Android contract)
+## Deferred (iOS extra, not in the Android contract)
 
-- PDF invoice receipts (`PaymentInvoicePDFView`) and the payment-proof/history
-  list (`PaymentProof`/`PaymentInvoice` + `FirestorePaymentProofService`).
-- Mixed registration+transport single-charge bundling with per-kind follow-up
-  confirms — each Stripe kind currently settles as its own charge (the backend
-  contract supports both; iOS bundles, Android pays per kind for now).
+- One-tap auto-allocation (capacity + gender + family rules). Hand assignment +
+  the gender/capacity eligibility checks are in place; the allocator itself is
+  not ported.

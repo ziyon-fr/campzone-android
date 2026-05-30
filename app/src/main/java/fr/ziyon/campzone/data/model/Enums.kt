@@ -6,6 +6,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import fr.ziyon.campzone.data.auth.UserGender
 
 /**
  * Firestore enum raw values from `02-firestore-schema.md` §8. Raw strings are
@@ -396,6 +397,16 @@ enum class LodgingGenderPolicy(val wireValue: String) {
     Male("male"),
     Female("female"),
     Family("family");
+
+    /**
+     * Whether an attendee of [gender] is eligible for this policy. `family`
+     * units are grouped by family rather than raw gender, so they accept anyone.
+     */
+    fun accepts(gender: UserGender?): Boolean = when (this) {
+        Any, Family -> true
+        Male -> gender == UserGender.Male
+        Female -> gender == UserGender.Female
+    }
 
     companion object {
         fun fromWire(value: String?): LodgingGenderPolicy =

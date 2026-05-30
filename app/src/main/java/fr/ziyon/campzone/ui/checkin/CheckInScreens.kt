@@ -98,6 +98,7 @@ import fr.ziyon.campzone.data.model.CheckInMethod
 import fr.ziyon.campzone.data.model.CheckInQrPayload
 import fr.ziyon.campzone.data.model.CheckInRecord
 import fr.ziyon.campzone.data.model.CheckInScanResult
+import fr.ziyon.campzone.data.model.LodgingUnit
 import fr.ziyon.campzone.data.model.PaymentKind
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
@@ -105,6 +106,8 @@ import fr.ziyon.campzone.data.model.TransportationBooking
 import fr.ziyon.campzone.data.model.TransportationPaymentStatus
 import fr.ziyon.campzone.data.payments.PaymentRequest
 import fr.ziyon.campzone.ui.camping.CampingDetailUiState
+import fr.ziyon.campzone.ui.lodging.MyLodgingCard
+import fr.ziyon.campzone.ui.lodging.MyLodgingViewModel
 import fr.ziyon.campzone.ui.payments.CzPaymentButton
 import fr.ziyon.campzone.ui.transportation.BusTicketCard
 import fr.ziyon.campzone.ui.transportation.TransportationViewModel
@@ -275,15 +278,18 @@ fun CheckInQrPassesRoute(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     transportationViewModel: TransportationViewModel = hiltViewModel(),
+    lodgingViewModel: MyLodgingViewModel = hiltViewModel(),
 ) {
-    // Bus boarding tickets live alongside the arrival check-in QR codes here,
-    // mirroring the iOS "My QR Passes" view - the passenger no longer needs a
-    // separate Transportation screen.
+    // Bus boarding tickets + the "My Lodging" card live alongside the arrival
+    // check-in QR codes here, mirroring the iOS "My QR Passes" view - the
+    // passenger no longer needs a separate Transportation screen.
     val bookings by transportationViewModel.bookings.collectAsState()
+    val lodgingUnits by lodgingViewModel.units.collectAsState()
     val campingId = state.camping?.id
     LaunchedEffect(campingId, authenticatedUser.uid) {
         if (campingId != null) {
             transportationViewModel.loadTickets(campingId, authenticatedUser)
+            lodgingViewModel.load(campingId)
         }
     }
     Scaffold(
@@ -335,6 +341,7 @@ fun CheckInQrPassesRoute(
                     camping = state.camping,
                     userId = authenticatedUser.uid,
                     bookings = bookings,
+                    lodgingUnits = lodgingUnits,
                     onFarePaid = transportationViewModel::reloadTickets,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -911,6 +918,7 @@ private fun CheckInQrPassesContent(
     camping: Camping,
     userId: String,
     bookings: List<TransportationBooking>,
+    lodgingUnits: List<LodgingUnit>,
     onFarePaid: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -952,6 +960,12 @@ private fun CheckInQrPassesContent(
                             BusTicketCard(booking = booking, camping = camping)
                             QrPassFareCta(booking = booking, camping = camping, onPaid = onFarePaid)
                         }
+                    }
+                }
+                val managed = approved
+                if (lodgingUnits.any { unit -> unit.occupantIds.any { id -> managed.any { it.id == id } } }) {
+                    item("lodging") {
+                        MyLodgingCard(units = lodgingUnits, managedAttendees = managed)
                     }
                 }
                 item("instructions") {
