@@ -297,23 +297,27 @@
 - [x] iOS parity: round-trip model (`coversReturn`) with outbound/return legs × departure/arrival checkpoints + append-only `scanHistory` audit log (legacy `boardedAt`/`arrivedAt` back-filled); `isActive`/`arrived*`/`canceled*` fields. Schema extended beyond `02` §7.2 to match iOS (iOS authoritative)
 - [x] iOS parity: marshal **Dashboard** (per-leg progress, bookings grouped by state, payment segmented control → `updatePaymentStatus`, cancel → `cancelBooking`, add-voyager sheet → `createBooking`); **Scan History** audit feed with leg filter; round-trip **BusTicketCard** (leg cards + per-checkpoint timeline + QR); **Scanner** leg/checkpoint mode picker + arrival scan + per-leg live tally
 - [x] Service: leg-aware `markBoarded`/`markArrived` (arrayUnion scan events + legacy outbound mirror), `updatePaymentStatus`, `cancelBooking` (`cancelReason` delete-when-empty); add-voyager free option settles `waived` via the manager update path (create stays `unpaid` per RBAC)
-- [ ] Passenger fare CTA shows status pills only — Stripe PaymentSheet deferred to D2
+- [x] Passenger fare CTA presents the Stripe PaymentSheet (D2) — per-booking fare CTA under each `BusTicketCard` (`transportation` kind, `referenceID = booking.id`); paid/waived keep the header status pill
 
-### D2. Stripe Payments (`ui/payments/`)
+### D2. Stripe Payments (`ui/payments/`) ✅
 
-- [ ] Call `POST /payments/intent` with Firebase ID token; receive `paymentIntentClientSecret` + `ephemeralKeySecret` + `customerId` + `publishableKey`
-- [ ] Present Stripe Android **PaymentSheet** with the returned params
-- [ ] On PaymentSheet success → call `POST /payments/confirm`; backend auto-approves paid camps (`registrationStatus: "approved"`, `paymentStatus: "paid"`)
-- [ ] Kinds: `registration` / `transportation` / `priceItem`; `referenceID` = attendee/booking/price-item id
-- [ ] Amount in integer cents; currency lowercase (e.g. `"eur"`)
-- [ ] Never embed `STRIPE_SECRET_KEY`; payment audit doc is backend-only
+- [x] Call `POST /payments/intent` with Firebase ID token; receive `paymentIntentClientSecret` + `ephemeralKeySecret` + `customerId` + `publishableKey`
+- [x] Present Stripe Android **PaymentSheet** with the returned params (reusable `CzPaymentButton` + `PaymentButtonViewModel`)
+- [x] On PaymentSheet success → call `POST /payments/confirm`; backend auto-approves paid camps (`registrationStatus: "approved"`, `paymentStatus: "paid"`)
+- [x] Kinds: `registration` / `transportation` / `priceItem`; `referenceID` = attendee/booking/price-item id — registration (registration step-2 screen + Fees hub), transportation (tickets fare CTA), priceItem (Fees hub: card / 3-installment / IBAN bank transfer)
+- [x] Amount in integer cents; currency lowercase (e.g. `"eur"`) — `PaymentRequest.normalizedCurrency`
+- [x] Never embed `STRIPE_SECRET_KEY`; payment audit doc is backend-only
+- [x] iOS parity: reusable inline pay button (`CzPaymentButton`, mirrors iOS `PaymentButton`); "Fees & Payments" hub (`CampingPricingScreen`) folds price items (mirrors iOS `CampingPricingView`) + pending registration fees; camp-detail entry gated on `hasPendingRegistrationPayment || hasPayablePriceItems`
+- [ ] Deferred (iOS-richer, not in Android contract): PDF invoice receipts, payment-proof/history list, mixed registration+transport single-charge bundling with per-kind follow-up confirms — each Stripe kind currently settles as its own charge
 
-### D3. Lodging (`ui/lodging/`)
+### D3. Lodging (`ui/lodging/`) ✅
 
-- [ ] CRUD for `campings/{id}/lodging/{unitId}` - gate `canManageTeams`
-- [ ] Read: signed-in users
-- [ ] Occupancy denormalized into `occupantIDs[]` on the unit doc (no separate assignment collection)
-- [ ] Gender policy filter: `any`/`male`/`female`/`family`
+- [x] CRUD for `campings/{id}/lodging/{unitId}` - gate `canManageTeams` (`LodgingViewModel` + `LodgingScreen`/editor sheet; manager-only surface, `Restricted` state otherwise)
+- [x] Read: signed-in users (`MyLodgingViewModel` observe; `LodgingService` Firestore listener, read open per `03`)
+- [x] Occupancy denormalized into `occupantIDs[]` on the unit doc (no separate assignment collection) — `setOccupants` (merge `occupantIDs` + `updatedAt`), assign/remove via the unit's list
+- [x] Gender policy filter: `any`/`male`/`female`/`family` (filter chips); assignment also enforces `genderPolicy.accepts(gender)` + capacity
+- [x] iOS parity: reused the existing `LodgingUnit` model + `LodgingPayload`/`toLodgingUnitOrNull` (added `accepts`, `occupancy`/`availableSpots`/`occupancyText`/`contains`); admin summary + units + "Needs a bed" sections, editor + assignment `ModalBottomSheet`s; **My Lodging** card embedded in My QR Passes (mirrors iOS `CheckInQRView` → `MyLodgingCard`)
+- [ ] Deferred (iOS extra, not in the Android contract): one-tap **auto-allocate** (capacity + gender + family rules) — units are placed by hand for now
 
 ### D4. Post-Camp Feedback (`ui/feedback/`)
 
@@ -428,9 +432,9 @@ C9 Content moderation ✅
 C10 Notifications (FCM + in-app feed) ✅
 C11 Analytics
 
-D1 Transportation tickets
-D2 Stripe payments
-D3 Lodging
+D1 Transportation tickets ✅
+D2 Stripe payments ✅
+D3 Lodging ✅
 D4 Post-camp feedback
 D5 Venue map
 D6 Family at camp

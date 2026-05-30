@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Cabin
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
@@ -139,6 +140,8 @@ fun CampingDetailRoute(
     onOpenTeamDetail: (String, String) -> Unit = { _, _ -> },
     onOpenTeamEditor: (String, String?) -> Unit = { _, _ -> },
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenPricing: (String) -> Unit = {},
+    onOpenLodging: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -210,6 +213,8 @@ fun CampingDetailRoute(
         onOpenTeamDetail = onOpenTeamDetail,
         onOpenTeamEditor = onOpenTeamEditor,
         onOpenRegistrationPayment = onOpenRegistrationPayment,
+        onOpenPricing = onOpenPricing,
+        onOpenLodging = onOpenLodging,
         onOpenCheckInScanner = onOpenCheckInScanner,
         onOpenCheckInRecords = onOpenCheckInRecords,
         onOpenQrPasses = onOpenQrPasses,
@@ -247,6 +252,8 @@ fun CampingDetailScreen(
     onOpenTeamDetail: (String, String) -> Unit = { _, _ -> },
     onOpenTeamEditor: (String, String?) -> Unit = { _, _ -> },
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenPricing: (String) -> Unit = {},
+    onOpenLodging: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -320,6 +327,8 @@ fun CampingDetailScreen(
                     onOpenFoodMenu = onOpenFoodMenu,
                     onOpenSongbook = onOpenSongbook,
                     onOpenRegistrationPayment = onOpenRegistrationPayment,
+                    onOpenPricing = onOpenPricing,
+                    onOpenLodging = onOpenLodging,
                     onOpenCheckInScanner = onOpenCheckInScanner,
                     onOpenCheckInRecords = onOpenCheckInRecords,
                     onOpenQrPasses = onOpenQrPasses,
@@ -397,6 +406,8 @@ private fun CampingDetailContent(
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenPricing: (String) -> Unit = {},
+    onOpenLodging: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -496,6 +507,8 @@ private fun CampingDetailContent(
                 onOpenFoodMenu = onOpenFoodMenu,
                 onOpenSongbook = onOpenSongbook,
                 onOpenRegistrationPayment = onOpenRegistrationPayment,
+                onOpenPricing = onOpenPricing,
+                onOpenLodging = onOpenLodging,
                 onOpenCheckInScanner = onOpenCheckInScanner,
                 onOpenCheckInRecords = onOpenCheckInRecords,
                 onOpenQrPasses = onOpenQrPasses,
@@ -1263,6 +1276,8 @@ private fun ResourcesSection(
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
     onOpenRegistrationPayment: (String) -> Unit = {},
+    onOpenPricing: (String) -> Unit = {},
+    onOpenLodging: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -1329,25 +1344,14 @@ private fun ResourcesSection(
                     ),
                 )
             }
-            if (state.hasPendingRegistrationPayment) {
+            if (state.hasPendingRegistrationPayment || state.hasPayablePriceItems) {
                 add(
                     DetailResource(
                         title = stringResource(R.string.camping_fees_payments),
                         subtitle = stringResource(R.string.camping_fees_payments_subtitle),
                         icon = Icons.Filled.CreditCard,
                         accent = MaterialTheme.czColors.twilight,
-                        onClick = { onOpenRegistrationPayment(camping.id) },
-                    ),
-                )
-            }
-            if (state.hasManagedRegistration) {
-                add(
-                    DetailResource(
-                        title = stringResource(R.string.camping_transportation),
-                        subtitle = stringResource(R.string.camping_transportation_subtitle),
-                        icon = Icons.Filled.DirectionsBus,
-                        accent = MaterialTheme.czColors.pine,
-                        onClick = { onOpenTransportationTickets(camping.id) },
+                        onClick = { onOpenPricing(camping.id) },
                     ),
                 )
             }
@@ -1388,6 +1392,17 @@ private fun ResourcesSection(
                         icon = Icons.Filled.DirectionsBus,
                         accent = MaterialTheme.czColors.pine,
                         onClick = { onOpenTransportationDashboard(camping.id) },
+                    ),
+                )
+            }
+            if (state.canManageTeams) {
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.lodging_title),
+                        subtitle = stringResource(R.string.lodging_entry_subtitle),
+                        icon = Icons.Filled.Cabin,
+                        accent = MaterialTheme.czColors.twilight,
+                        onClick = { onOpenLodging(camping.id) },
                     ),
                 )
             }

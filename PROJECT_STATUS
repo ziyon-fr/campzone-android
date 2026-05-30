@@ -1,55 +1,57 @@
-# Project Status - D1 Transportation Tickets (iOS-parity pass)
+# Project Status - D3 Lodging (+ My QR Passes consolidation)
 
-Updated: 2026-05-29
+Updated: 2026-05-30
 
-- Branch: `d1-transportation-tickets`
-- Current completed phase: D1 Transportation Tickets — closed the iOS-parity gap
-- Next phase: D2 Stripe Payments
-- Verification:
+- Branch: `d3-lodging` (based on `d2-stripe-payments`, so it also carries D2)
+- Current completed phase: D3 Lodging, plus a My QR Passes consolidation
+  requested alongside it
+- Next phase: D4 Post-Camp Feedback
+- Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew assembleDebug` SUCCESSFUL
-  - `./gradlew testDebugUnitTest` SUCCESSFUL (Transportation: 9 booking-model +
-    5 payload + 17 ViewModel tests, all green)
+  - `./gradlew testDebugUnitTest` SUCCESSFUL — new: 6 `LodgingUnitTest`,
+    5 `LodgingViewModelTest` (all green); D2 + prior suites untouched + green
   - `./gradlew lint` SUCCESSFUL
 
-## D1 summary (original)
+## My QR Passes consolidation (commit `c2b3c5e`)
 
-- `TransportationTicketPayload` canonical QR:
-  `campzone://transport?v=1&c=<campingID>&b=<bookingID>&r=<registrationID>&p=<participantID>&t=<ticketToken>`.
-- Firestore service: manual mapping, deterministic `{participant.id}-bus` ids,
-  user+guardian read merge, unpaid/not-boarded create literals, raw `Date`
-  validity fields.
-- Passenger ticket + marshal scanner screens, typed routes, EN/FR/PT strings.
+Mirrors the iOS `CheckInQRView`: the participant "My QR Passes" hub now shows
+the arrival check-in QR codes **and** the provided-bus boarding tickets (with
+the Stripe fare CTA) — a passenger no longer needs a separate Transportation
+screen. `CheckInQrPassesRoute` loads bookings via `TransportationViewModel` and
+the user's lodging via `MyLodgingViewModel`; the passenger "Transportation"
+entry was removed from the camp-detail resources. (The standalone
+`TransportationTicketsRoute` remains registered but is no longer linked from the
+detail resources — safe to retire later.)
 
-## D1 iOS-parity pass (this change)
+## D3 Lodging
 
-The shipped iOS app had grown well past the original Android v1; this pass ports
-the full feature (iOS is authoritative).
+- **Model**: the `LodgingUnit` model + `LodgingKind`/`LodgingGenderPolicy` enums
+  + `LodgingPayload`/`toLodgingUnitOrNull` already existed (A10 data-model pass).
+  Extended in place: added `LodgingGenderPolicy.accepts(gender)` and
+  `LodgingUnit.occupancy`/`availableSpots`/`occupancyText`/`contains`. Did NOT
+  duplicate the model.
+- **Service** (`data/lodging/LodgingService.kt`): interface + Firestore (snapshot
+  listener, `LodgingPayload` write, create-only `createdAt`, `setOccupants` merge)
+  + reactive `FakeLodgingService` + Hilt binding. Collection
+  `campings/{id}/lodging/{unitId}`.
+- **Admin** (`ui/lodging/`): `LodgingViewModel` (gated `canManageTeams`,
+  `Restricted` otherwise) + `LodgingScreen` (summary, gender-policy filter chips,
+  unit cards with occupant rows, "Needs a bed" section) + editor & assignment
+  `ModalBottomSheet`s. Camp-detail "Lodging" entry gated `canManageTeams`.
+- **Participant**: `MyLodgingCard` + `MyLodgingViewModel` (read-only observe)
+  embedded in My QR Passes — self-silences when there's no lodging.
+- **i18n**: lodging strings added to EN, PT-BR, FR.
 
-- **Model** (`TransportationBooking`, `Enums`): round-trip `coversReturn`,
-  `TransportationLeg` (outbound/return) × `TransportationCheckpoint`
-  (departure/arrival), `TransportationLegProgress`, append-only
-  `scanHistory: List<TransportationScanEvent>`, plus `isActive`, `arrivedBy/At`,
-  `canceledBy/At`, `cancelReason`. Per-leg helpers (`progress`, `didScan`,
-  `isTripComplete`, `nextLeg`, `canBoard` now requires `isActive`). Legacy
-  bookings back-fill an outbound timeline from `boardedAt`/`arrivedAt`. Schema
-  extended beyond docs `02` §7.2 to match iOS (rules already accept these
-  fields since iOS writes them). 4 new scan-result states (arrival success,
-  already arrived, inactive, departure-missing).
-- **Service**: leg-aware `markBoarded`/`markArrived` (`arrayUnion` scan events +
-  legacy outbound mirror), `updatePaymentStatus`, `cancelBooking`
-  (`cancelReason` delete-when-empty via passed `deleteField` sentinel). Create
-  stays `unpaid` per RBAC.
-- **ViewModel**: single shared VM (mirrors iOS observer) backing My Passes,
-  Dashboard, Scanner, History; full iOS scan-validation order; grouping helpers
-  (`TransportationGrouping.kt`); ops `updatePaymentStatus` / `cancelBooking` /
-  `addVoyager` (free option → `waived` via the manager update path).
-- **UI**: marshal **Dashboard** (per-leg progress, state-grouped sections,
-  payment segmented control, cancel, add-voyager `ModalBottomSheet`),
-  **Scan History** audit feed (leg filter), round-trip **BusTicketCard** (leg
-  cards + per-checkpoint timeline + perforated stub + QR shown only once
-  approved), **Scanner** upgrade (leg/checkpoint mode picker + arrival + per-leg
-  live tally). Previews on every screen with fixtures.
-- **Navigation**: new `TransportationDashboard` + `TransportationHistory`
-  routes; managers now land on the Dashboard (which reaches Scanner + History).
-- Passenger fare shows status pills only; the real Stripe PaymentSheet stays in
-  D2.
+## Data contract
+
+- Wire keys `campingID` / `occupantIDs` (iOS casing); `kind` ∈
+  tent/cabin/room/dorm; `genderPolicy` ∈ any/male/female/family; capacity int
+  clamped ≥ 1; `createdAt` first-create only, `updatedAt` every write
+  (serverTimestamp). Occupancy denormalized into `occupantIDs[]` (no assignment
+  collection).
+
+## Deferred (iOS extra, not in the Android contract)
+
+- One-tap auto-allocation (capacity + gender + family rules). Hand assignment +
+  the gender/capacity eligibility checks are in place; the allocator itself is
+  not ported.

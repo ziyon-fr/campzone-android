@@ -233,6 +233,16 @@ sealed interface AppRoute {
             "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.RegistrationPayment}"
     }
 
+    data class CampingPricing(val campingId: String) : AppRoute {
+        override val route =
+            "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.Fees}"
+    }
+
+    data class CampingLodging(val campingId: String) : AppRoute {
+        override val route =
+            "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.Lodging}"
+    }
+
     data object RegistrationReview : AppRoute {
         override val route = AppRoutePath.RegistrationReview
     }
@@ -406,6 +416,8 @@ internal object AppRoutePath {
     const val PollEditor = "poll-editor"
     const val Registration = "register"
     const val RegistrationPayment = "registration-payment"
+    const val Fees = "fees"
+    const val Lodging = "lodging"
     const val RegistrationReview = "registration-review"
     const val Attendees = "attendees"
     const val CampingCreate = "create"
@@ -450,6 +462,8 @@ internal object AppRoutePattern {
     const val PollDetail = "$CampingPolls/{${AppRouteArgs.PollId}}"
     const val CampingRegistration = "$CampingDetail/${AppRoutePath.Registration}"
     const val CampingRegistrationPayment = "$CampingDetail/${AppRoutePath.RegistrationPayment}"
+    const val CampingPricing = "$CampingDetail/${AppRoutePath.Fees}"
+    const val CampingLodging = "$CampingDetail/${AppRoutePath.Lodging}"
     const val RegistrationReview = AppRoutePath.RegistrationReview
     const val CampingAttendees = "$CampingDetail/${AppRoutePath.Attendees}"
     const val AttendeeProfile = "$CampingAttendees/{${AppRouteArgs.AttendeeId}}"

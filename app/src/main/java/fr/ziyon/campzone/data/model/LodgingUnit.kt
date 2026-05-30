@@ -18,8 +18,12 @@ data class LodgingUnit(
     val createdAt: Date? = null,
     val updatedAt: Date? = null,
 ) {
-    val isFull: Boolean
-        get() = occupantIds.size >= capacity
+    val occupancy: Int get() = occupantIds.size
+    val availableSpots: Int get() = (capacity - occupancy).coerceAtLeast(0)
+    val isFull: Boolean get() = occupancy >= capacity
+    val occupancyText: String get() = "$occupancy/$capacity"
+
+    fun contains(attendeeId: String): Boolean = attendeeId in occupantIds
 }
 
 internal fun Map<String, Any?>.toLodgingUnitOrNull(documentId: String): LodgingUnit =

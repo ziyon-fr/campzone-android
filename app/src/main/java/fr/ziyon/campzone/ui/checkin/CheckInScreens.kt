@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
@@ -97,9 +98,19 @@ import fr.ziyon.campzone.data.model.CheckInMethod
 import fr.ziyon.campzone.data.model.CheckInQrPayload
 import fr.ziyon.campzone.data.model.CheckInRecord
 import fr.ziyon.campzone.data.model.CheckInScanResult
+import fr.ziyon.campzone.data.model.LodgingUnit
+import fr.ziyon.campzone.data.model.PaymentKind
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
+import fr.ziyon.campzone.data.model.TransportationBooking
+import fr.ziyon.campzone.data.model.TransportationPaymentStatus
+import fr.ziyon.campzone.data.payments.PaymentRequest
 import fr.ziyon.campzone.ui.camping.CampingDetailUiState
+import fr.ziyon.campzone.ui.lodging.MyLodgingCard
+import fr.ziyon.campzone.ui.lodging.MyLodgingViewModel
+import fr.ziyon.campzone.ui.payments.CzPaymentButton
+import fr.ziyon.campzone.ui.transportation.BusTicketCard
+import fr.ziyon.campzone.ui.transportation.TransportationViewModel
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -266,7 +277,21 @@ fun CheckInQrPassesRoute(
     authenticatedUser: AuthenticatedUser,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    transportationViewModel: TransportationViewModel = hiltViewModel(),
+    lodgingViewModel: MyLodgingViewModel = hiltViewModel(),
 ) {
+    // Bus boarding tickets + the "My Lodging" card live alongside the arrival
+    // check-in QR codes here, mirroring the iOS "My QR Passes" view - the
+    // passenger no longer needs a separate Transportation screen.
+    val bookings by transportationViewModel.bookings.collectAsState()
+    val lodgingUnits by lodgingViewModel.units.collectAsState()
+    val campingId = state.camping?.id
+    LaunchedEffect(campingId, authenticatedUser.uid) {
+        if (campingId != null) {
+            transportationViewModel.loadTickets(campingId, authenticatedUser)
+            lodgingViewModel.load(campingId)
+        }
+    }
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -315,6 +340,9 @@ fun CheckInQrPassesRoute(
                 else -> CheckInQrPassesContent(
                     camping = state.camping,
                     userId = authenticatedUser.uid,
+                    bookings = bookings,
+                    lodgingUnits = lodgingUnits,
+                    onFarePaid = transportationViewModel::reloadTickets,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -889,6 +917,9 @@ private fun CheckInRecordRow(record: CheckInRecord) {
 private fun CheckInQrPassesContent(
     camping: Camping,
     userId: String,
+    bookings: List<TransportationBooking>,
+    lodgingUnits: List<LodgingUnit>,
+    onFarePaid: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val approved = remember(camping.attendees, userId) {
@@ -916,6 +947,26 @@ private fun CheckInQrPassesContent(
                 }
                 items(approved, key = { it.id }) { attendee ->
                     CheckInQrCard(camping = camping, attendee = attendee)
+                }
+                if (bookings.isNotEmpty()) {
+                    item("tickets-header") {
+                        SectionLabel(
+                            title = stringResource(R.string.checkin_bus_tickets_section),
+                            icon = Icons.Filled.DirectionsBus,
+                        )
+                    }
+                    items(bookings, key = { "ticket-${it.id}" }) { booking ->
+                        Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                            BusTicketCard(booking = booking, camping = camping)
+                            QrPassFareCta(booking = booking, camping = camping, onPaid = onFarePaid)
+                        }
+                    }
+                }
+                val managed = approved
+                if (lodgingUnits.any { unit -> unit.occupantIds.any { id -> managed.any { it.id == id } } }) {
+                    item("lodging") {
+                        MyLodgingCard(units = lodgingUnits, managedAttendees = managed)
+                    }
                 }
                 item("instructions") {
                     QrInstructions()
@@ -957,6 +1008,39 @@ private fun CheckInQrPassesContent(
             }
         }
     }
+}
+
+/**
+ * Bus-fare CTA shown under each ticket in My QR Passes, mirroring the
+ * transportation tickets screen: when the booking's option carries a fee and it
+ * is still unpaid, the Stripe PaymentSheet settles `kind = transportation`,
+ * `referenceID = booking.id`. Paid / waived fares keep the ticket header pill.
+ */
+@Composable
+private fun QrPassFareCta(booking: TransportationBooking, camping: Camping, onPaid: () -> Unit) {
+    if (!booking.isActive) return
+    if (booking.paymentStatus != TransportationPaymentStatus.Unpaid) return
+
+    val option = camping.transportationOption(booking.transportationOptionId)
+        ?: camping.attendees.firstOrNull {
+            it.id == booking.participantId || it.id == booking.registrationId
+        }?.let { camping.transportationOption(it.transportationOptionId) }
+    val feeCents = option?.feeCents ?: return
+    if (feeCents <= 0) return
+
+    CzPaymentButton(
+        request = PaymentRequest(
+            kind = PaymentKind.Transportation,
+            campingId = camping.id,
+            referenceId = booking.id,
+            amountCents = feeCents,
+            currency = option.currency,
+        ),
+        onPaid = onPaid,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = CzSpacing.xs),
+    )
 }
 
 @Composable

@@ -134,6 +134,26 @@ class TransportationViewModel @Inject constructor(
         loadTickets(campingId, user)
     }
 
+    /**
+     * Silently re-pulls the signed-in passenger's bookings (and camping) using
+     * the last [loadTickets] key. Used after a fare payment settles so the
+     * ticket's `paymentStatus` flips without a full loading flash.
+     */
+    fun reloadTickets() {
+        val key = loadedTicketsKey ?: return
+        val (campingId, uid) = key
+        viewModelScope.launch {
+            runCatching {
+                val camping = campingService.fetchCamping(campingId)
+                val bookings = transportationService.loadUserBookings(campingId, uid)
+                camping to bookings
+            }.onSuccess { (camping, bookings) ->
+                _camping.value = camping
+                _bookings.value = bookings
+            }
+        }
+    }
+
     fun retryManaged(campingId: String, user: AuthenticatedUser) {
         loadedManagedKey = null
         loadManaged(campingId, user)

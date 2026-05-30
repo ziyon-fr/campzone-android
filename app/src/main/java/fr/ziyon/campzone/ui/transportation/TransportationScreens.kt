@@ -96,6 +96,7 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.CampingTransportationOption
+import fr.ziyon.campzone.data.model.PaymentKind
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.TransportationBoardingStatus
@@ -108,8 +109,10 @@ import fr.ziyon.campzone.data.model.TransportationPaymentStatus
 import fr.ziyon.campzone.data.model.TransportationScanEvent
 import fr.ziyon.campzone.data.model.TransportationScanResult
 import fr.ziyon.campzone.data.model.TransportationTicketPayload
+import fr.ziyon.campzone.data.payments.PaymentRequest
 import fr.ziyon.campzone.ui.camping.previewCamping
 import fr.ziyon.campzone.ui.checkin.QrCameraPreview
+import fr.ziyon.campzone.ui.payments.CzPaymentButton
 import java.util.Date
 
 // ---------------------------------------------------------------------------
@@ -137,6 +140,7 @@ fun TransportationTicketsRoute(
         bookings = bookings,
         onBack = onBack,
         onRetry = { viewModel.retryTickets(campingId, authenticatedUser) },
+        onFarePaid = viewModel::reloadTickets,
     )
 }
 
@@ -183,6 +187,7 @@ private fun TransportationTicketsScreen(
     bookings: List<TransportationBooking>,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    onFarePaid: () -> Unit,
 ) {
     TransportationScaffold(title = stringResource(R.string.transportation_tickets_title), onBack = onBack) {
         when (uiState) {
@@ -213,13 +218,58 @@ private fun TransportationTicketsScreen(
                         item("header") { TransportationTicketsHeader(camping) }
                         item("summary") { TransportationTripSummary(bookings) }
                         items(bookings, key = { it.id }) { booking ->
-                            BusTicketCard(booking = booking, camping = camping)
+                            Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                                BusTicketCard(booking = booking, camping = camping)
+                                TransportationFareCta(
+                                    booking = booking,
+                                    camping = camping,
+                                    onPaid = onFarePaid,
+                                )
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * Per-booking fare CTA shown beneath each [BusTicketCard], mirroring the iOS
+ * `TransportationTicketsView.transportationFee`. When the option the booking was
+ * made under carries a fee and the fare is still unpaid, it presents the Stripe
+ * PaymentSheet ([CzPaymentButton]) for `kind = transportation`,
+ * `referenceID = booking.id`; the backend flips `paymentStatus` to `paid`.
+ * Paid / waived fares are already reflected by the status pill in the card
+ * header, so the CTA only renders for the actionable unpaid case.
+ */
+@Composable
+private fun TransportationFareCta(
+    booking: TransportationBooking,
+    camping: Camping,
+    onPaid: () -> Unit,
+) {
+    if (!booking.isActive) return
+    if (booking.paymentStatus != TransportationPaymentStatus.Unpaid) return
+
+    val option = camping.transportationOption(booking.transportationOptionId)
+        ?: camping.attendees.firstOrNull {
+            it.id == booking.participantId || it.id == booking.registrationId
+        }?.let { camping.transportationOption(it.transportationOptionId) }
+    val feeCents = option?.feeCents ?: return
+    if (feeCents <= 0) return
+
+    CzPaymentButton(
+        request = PaymentRequest(
+            kind = PaymentKind.Transportation,
+            campingId = camping.id,
+            referenceId = booking.id,
+            amountCents = feeCents,
+            currency = option.currency,
+        ),
+        onPaid = onPaid,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = CzSpacing.xs),
+    )
 }
 
 @Composable
@@ -1006,6 +1056,7 @@ private fun TransportationTicketsScreenPreview() {
             bookings = previewTransportationBookings(),
             onBack = {},
             onRetry = {},
+            onFarePaid = {},
         )
     }
 }
