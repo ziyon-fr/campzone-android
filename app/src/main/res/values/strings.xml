@@ -506,6 +506,7 @@
     <string name="checkin_method_qr">QR Scan</string>
     <string name="checkin_method_manual">Manual</string>
     <string name="checkin_arrival_section">Arrival Check-In</string>
+    <string name="checkin_bus_tickets_section">Bus Tickets</string>
     <string name="checkin_child">Child</string>
     <string name="checkin_you">You</string>
     <string name="checkin_qr_code_cd">QR check-in code</string>

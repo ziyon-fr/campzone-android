@@ -1347,17 +1347,6 @@ private fun ResourcesSection(
                     ),
                 )
             }
-            if (state.hasManagedRegistration) {
-                add(
-                    DetailResource(
-                        title = stringResource(R.string.camping_transportation),
-                        subtitle = stringResource(R.string.camping_transportation_subtitle),
-                        icon = Icons.Filled.DirectionsBus,
-                        accent = MaterialTheme.czColors.pine,
-                        onClick = { onOpenTransportationTickets(camping.id) },
-                    ),
-                )
-            }
         }
 
         ResourceGroup(

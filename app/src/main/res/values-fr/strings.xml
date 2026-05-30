@@ -496,6 +496,7 @@
     <string name="checkin_method_qr">Scan QR</string>
     <string name="checkin_method_manual">Manuel</string>
     <string name="checkin_arrival_section">Enregistrement à l’arrivée</string>
+    <string name="checkin_bus_tickets_section">Billets de bus</string>
     <string name="checkin_child">Enfant</string>
     <string name="checkin_you">Vous</string>
     <string name="checkin_qr_code_cd">Code QR d’enregistrement</string>
