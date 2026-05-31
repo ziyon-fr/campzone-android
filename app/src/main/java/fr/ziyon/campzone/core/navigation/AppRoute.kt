@@ -81,6 +81,14 @@ sealed interface AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.ModerationQueue}"
     }
 
+    data object RoleManagement : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.RoleManagement}"
+    }
+
+    data object AdminOnboarding : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.AdminOnboarding}"
+    }
+
     data object UserDataExport : AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.UserDataExport}"
     }
@@ -423,6 +431,8 @@ internal object AppRoutePath {
     const val FamilyParticipants = "family"
     const val AdminTools = "admin"
     const val ModerationQueue = "moderation"
+    const val RoleManagement = "roles"
+    const val AdminOnboarding = "onboarding"
     const val UserDataExport = "export"
     const val AppSupport = "support"
     const val Chat = "chat"

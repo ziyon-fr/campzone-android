@@ -108,6 +108,8 @@ import fr.ziyon.campzone.ui.announcements.AnnouncementsRoute
 import fr.ziyon.campzone.ui.album.CampingAlbumRoute
 import fr.ziyon.campzone.ui.admin.AdminToolsRoute
 import fr.ziyon.campzone.ui.admin.moderation.ModerationQueueRoute
+import fr.ziyon.campzone.ui.admin.onboarding.AdminOnboardingRoute
+import fr.ziyon.campzone.ui.admin.role.RoleManagementRoute
 import fr.ziyon.campzone.ui.notifications.AppNotificationFeedRoute
 import fr.ziyon.campzone.ui.notifications.NotificationCampingChannelsScreen
 import fr.ziyon.campzone.ui.notifications.NotificationSettingsRoute
@@ -343,12 +345,38 @@ fun CampzoneNavigationShell(
                     onOpenModerationQueue = {
                         navController.navigate(AppRoute.ModerationQueue.route)
                     },
+                    onOpenAdminOnboarding = {
+                        navController.navigate(AppRoute.AdminOnboarding.route)
+                    },
+                    onOpenRoleManagement = {
+                        navController.navigate(AppRoute.RoleManagement.route)
+                    },
+                    onOpenRegistrationReview = {
+                        navController.navigate(AppRoute.RegistrationReview.route)
+                    },
                 )
             }
             composable(AppRoute.ModerationQueue.route) {
                 ModerationQueueRoute(
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
+                )
+            }
+            composable(AppRoute.RoleManagement.route) {
+                RoleManagementRoute(
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(AppRoute.AdminOnboarding.route) {
+                AdminOnboardingRoute(
+                    onBack = { navController.popBackStack() },
+                    onCreateCamping = {
+                        navController.navigate(AppRoute.CampingCreate.route)
+                    },
+                    onComposeAnnouncement = {
+                        navController.navigate(AppRoute.AnnouncementComposer.route)
+                    },
                 )
             }
             composable(AppRoute.UserDataExport.route) {
