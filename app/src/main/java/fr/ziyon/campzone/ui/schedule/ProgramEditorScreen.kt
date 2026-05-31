@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -34,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -67,6 +70,8 @@ import fr.ziyon.campzone.core.designsystem.CzTypeScale
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.model.CampDay
 import fr.ziyon.campzone.data.model.ProgramType
+import fr.ziyon.campzone.data.model.VenuePoint
+import fr.ziyon.campzone.ui.venuemap.icon
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -85,6 +90,7 @@ fun ProgramEditorScreen(
     val validationErrors by viewModel.validationErrors.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
     val operationError by viewModel.operationError.collectAsState()
+    val venuePoints by viewModel.venuePoints.collectAsState()
     val isEditing = editingProgramId != null
 
     val schedule = viewModel.schedule(campingId)
@@ -96,11 +102,13 @@ fun ProgramEditorScreen(
         isEditing = isEditing,
         scheduleDays = scheduleDays,
         selectedDay = selectedDay,
+        venuePoints = venuePoints,
         validationErrors = validationErrors,
         isSaving = isSaving,
         operationError = operationError,
         onTitleChanged = { viewModel.updateEditorForm { f -> f.copy(title = it) } },
-        onLocationChanged = { viewModel.updateEditorForm { f -> f.copy(location = it) } },
+        onLocationChanged = { viewModel.updateEditorForm { f -> f.copy(location = it, venuePointId = null) } },
+        onSelectVenuePoint = viewModel::selectVenuePoint,
         onDescriptionChanged = { viewModel.updateEditorForm { f -> f.copy(description = it) } },
         onTypeSelected = { viewModel.updateEditorForm { f -> f.copy(type = it) } },
         onDaySelected = { day ->
@@ -129,11 +137,13 @@ private fun ProgramEditorContent(
     isEditing: Boolean,
     scheduleDays: List<CampDay>,
     selectedDay: CampDay?,
+    venuePoints: List<VenuePoint>,
     validationErrors: List<ProgramValidationError>,
     isSaving: Boolean,
     operationError: String?,
     onTitleChanged: (String) -> Unit,
     onLocationChanged: (String) -> Unit,
+    onSelectVenuePoint: (VenuePoint) -> Unit,
     onDescriptionChanged: (String) -> Unit,
     onTypeSelected: (ProgramType) -> Unit,
     onDaySelected: (CampDay) -> Unit,
@@ -205,6 +215,9 @@ private fun ProgramEditorContent(
                 BasicInfoSection(
                     title = form.title,
                     location = form.location,
+                    venuePoints = venuePoints,
+                    selectedVenuePointId = form.venuePointId,
+                    onSelectVenuePoint = onSelectVenuePoint,
                     onTitleChanged = onTitleChanged,
                     onLocationChanged = onLocationChanged,
                 )
@@ -320,10 +333,14 @@ private fun FormSectionHeader(title: String, icon: androidx.compose.ui.graphics.
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BasicInfoSection(
     title: String,
     location: String,
+    venuePoints: List<VenuePoint>,
+    selectedVenuePointId: String?,
+    onSelectVenuePoint: (VenuePoint) -> Unit,
     onTitleChanged: (String) -> Unit,
     onLocationChanged: (String) -> Unit,
 ) {
@@ -371,6 +388,24 @@ private fun BasicInfoSection(
                         )
                     },
                 )
+                if (venuePoints.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+                        venuePoints.forEach { point ->
+                            FilterChip(
+                                selected = point.id == selectedVenuePointId,
+                                onClick = { onSelectVenuePoint(point) },
+                                label = { Text(point.name) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = point.category.icon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
                 Text(
                     text = "Pick a spot from the venue map or type a custom location.",
                     style = CzTypeScale.caption,

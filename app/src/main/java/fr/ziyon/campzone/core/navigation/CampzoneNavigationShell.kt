@@ -60,6 +60,8 @@ import fr.ziyon.campzone.ui.family.FamilyParticipantsScreen
 import fr.ziyon.campzone.ui.feedback.CampFeedbackResultsRoute
 import fr.ziyon.campzone.ui.feedback.CampFeedbackSurveyRoute
 import fr.ziyon.campzone.ui.home.HomeRoute
+import fr.ziyon.campzone.ui.venuemap.VenueMapEditorRoute
+import fr.ziyon.campzone.ui.venuemap.VenueMapRoute
 import fr.ziyon.campzone.ui.camping.pricing.CampingPricingRoute
 import fr.ziyon.campzone.ui.lodging.LodgingRoute
 import fr.ziyon.campzone.ui.payments.CampingRegistrationPaymentRoute
@@ -422,6 +424,9 @@ fun CampzoneNavigationShell(
                     onOpenFeedbackResults = { campingId ->
                         navController.navigate(AppRoute.CampFeedbackResults(campingId).route)
                     },
+                    onOpenVenueMap = { campingId ->
+                        navController.navigate(AppRoute.CampingVenueMap(campingId).route)
+                    },
                     onOpenCheckInScanner = { campingId ->
                         navController.navigate(AppRoute.CheckInScanner(campingId).route)
                     },
@@ -653,6 +658,32 @@ fun CampzoneNavigationShell(
                     campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingVenueMap,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                VenueMapRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenEditor = { campingId ->
+                        navController.navigate(AppRoute.CampingVenueMapEditor(campingId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingVenueMapEditor,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                VenueMapEditorRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenPreview = { campingId ->
+                        navController.navigate(AppRoute.CampingVenueMap(campingId).route)
+                    },
                 )
             }
             composable(

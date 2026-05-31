@@ -16,9 +16,12 @@ import fr.ziyon.campzone.data.model.FoodMenuProgramSync
 import fr.ziyon.campzone.data.model.Program
 import fr.ziyon.campzone.data.model.ProgramType
 import fr.ziyon.campzone.data.model.ScheduleReminderTiming
+import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.model.normalizedForCamping
 import fr.ziyon.campzone.data.schedule.FoodMenuService
 import fr.ziyon.campzone.data.schedule.ScheduleService
+import fr.ziyon.campzone.data.venuemap.FakeVenueMapService
+import fr.ziyon.campzone.data.venuemap.VenueMapService
 import java.util.Calendar
 import java.util.Date
 import java.util.UUID
@@ -59,6 +62,7 @@ class ScheduleViewModel @Inject constructor(
     private val scheduleService: ScheduleService,
     private val campingService: CampingService,
     private val foodMenuService: FoodMenuService,
+    private val venueMapService: VenueMapService = FakeVenueMapService(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ScheduleUiState>(ScheduleUiState.Loading)
@@ -75,6 +79,10 @@ class ScheduleViewModel @Inject constructor(
 
     private val _editingProgramId = MutableStateFlow<String?>(null)
     val editingProgramId: StateFlow<String?> = _editingProgramId.asStateFlow()
+
+    /** Camp venue-map pins, offered as quick picks for a program's location. */
+    private val _venuePoints = MutableStateFlow<List<VenuePoint>>(emptyList())
+    val venuePoints: StateFlow<List<VenuePoint>> = _venuePoints.asStateFlow()
 
     private val _validationErrors = MutableStateFlow<List<ProgramValidationError>>(emptyList())
     val validationErrors: StateFlow<List<ProgramValidationError>> = _validationErrors.asStateFlow()
@@ -109,6 +117,8 @@ class ScheduleViewModel @Inject constructor(
                 val normalized = if (camping != null) schedule.normalizedForCamping(camping) else schedule
                 schedules[campingId] = normalized
                 updateCanManage(lastUser, camping)
+                _venuePoints.value = runCatching { venueMapService.loadMap(campingId).points }
+                    .getOrDefault(emptyList())
                 publishSchedule(campingId)
             }.onFailure { e ->
                 _uiState.value = ScheduleUiState.Error(
@@ -208,6 +218,12 @@ class ScheduleViewModel @Inject constructor(
 
     fun updateEditorForm(update: (ProgramForm) -> ProgramForm) {
         _editorForm.value = update(_editorForm.value)
+    }
+
+    /** Links the program to a venue pin: keeps the pin name in `location` and
+     *  records `venuePointID` (mirrors iOS program↔venue linkage). */
+    fun selectVenuePoint(point: VenuePoint) {
+        _editorForm.value = _editorForm.value.copy(location = point.name, venuePointId = point.id)
     }
 
     fun clearOperationMessage() {

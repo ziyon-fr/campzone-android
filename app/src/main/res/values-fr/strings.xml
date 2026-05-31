@@ -593,6 +593,68 @@
         <item quantity="other">%1$d notes</item>
     </plurals>
 
+    <!-- D5 venue map: viewer, editor, pins -->
+    <string name="venue_card_title">Plan du site</string>
+    <string name="venue_card_subtitle_empty">Repérez-vous sur le camp</string>
+    <plurals name="venue_card_subtitle">
+        <item quantity="one">%1$d lieu · tentes, repas, premiers secours…</item>
+        <item quantity="many">%1$d de lieux · tentes, repas, premiers secours…</item>
+        <item quantity="other">%1$d lieux · tentes, repas, premiers secours…</item>
+    </plurals>
+    <string name="venue_map_title">Plan du site</string>
+    <string name="venue_loading">Chargement du plan…</string>
+    <string name="venue_error_title">Plan indisponible</string>
+    <string name="venue_empty_title">Pas encore de plan</string>
+    <string name="venue_empty_manager_message">Téléversez une illustration du site et placez des repères pour les tentes, la scène, les repas et les premiers secours.</string>
+    <string name="venue_empty_participant_message">Les organisateurs n\'ont pas encore publié de plan pour ce camp.</string>
+    <string name="venue_build_cta">Créer le plan</string>
+    <string name="venue_locations">Lieux</string>
+    <string name="venue_no_image_notice">Aucune illustration du site. Parcourez les lieux ci-dessous.</string>
+    <string name="venue_open_in_maps">Ouvrir dans Plans</string>
+    <string name="venue_site_image_placeholder">Plan du site</string>
+    <string name="venue_site_image_cd">Illustration du site du camp</string>
+    <string name="venue_edit_title">Modifier le plan</string>
+    <string name="venue_restricted_title">Accès restreint</string>
+    <string name="venue_restricted_message">Seuls les responsables du camp peuvent modifier le plan.</string>
+    <string name="venue_site_section_title">Illustration du site</string>
+    <string name="venue_site_section_hint">Téléversez un plan dessiné ou imprimé. Touchez-le pour placer des repères.</string>
+    <string name="venue_choose_image">Choisir une image</string>
+    <string name="venue_replace_image">Remplacer l\'image</string>
+    <string name="venue_remove_image">Supprimer</string>
+    <string name="venue_place_new_hint">Touchez l\'illustration pour placer le nouveau repère.</string>
+    <string name="venue_place_move_hint">Touchez l\'illustration pour déplacer ce repère.</string>
+    <string name="venue_points_empty">Aucun lieu pour l\'instant. Ajoutez la scène, les repas, les tentes, les premiers secours et les lieux clés du programme.</string>
+    <string name="venue_point_actions">Actions du lieu</string>
+    <string name="venue_more_actions">Plus d\'actions</string>
+    <string name="venue_add_location">Ajouter un lieu</string>
+    <string name="venue_preview">Aperçu</string>
+    <string name="venue_action_edit">Modifier</string>
+    <string name="venue_action_reposition">Repositionner sur l\'image</string>
+    <string name="venue_action_set_location">Définir la position sur la carte</string>
+    <string name="venue_action_delete">Supprimer</string>
+    <string name="venue_point_new_title">Nouveau lieu</string>
+    <string name="venue_point_edit_title">Modifier le lieu</string>
+    <string name="venue_field_name">Nom (ex. Scène principale, Tente médicale)</string>
+    <string name="venue_field_category">Catégorie</string>
+    <string name="venue_field_note">Note (horaires, ce qu\'on y trouve, à qui demander…)</string>
+    <string name="venue_location_title">Position sur la carte</string>
+    <string name="venue_location_hint">Définissez la coordonnée pour %1$s.</string>
+    <string name="venue_latitude">Latitude</string>
+    <string name="venue_longitude">Longitude</string>
+    <string name="venue_use_camp_location">Utiliser le lieu du camp</string>
+    <string name="venue_use_this_location">Utiliser cette position</string>
+    <string name="venue_remove_location">Supprimer la position</string>
+    <string name="venue_category_tent">Tentes</string>
+    <string name="venue_category_stage">Scène</string>
+    <string name="venue_category_dining">Repas</string>
+    <string name="venue_category_first_aid">Premiers secours</string>
+    <string name="venue_category_restroom">Toilettes</string>
+    <string name="venue_category_parking">Parking</string>
+    <string name="venue_category_water">Eau</string>
+    <string name="venue_category_program">Programme</string>
+    <string name="venue_category_info">Point info</string>
+    <string name="venue_category_other">Autre</string>
+
     <string name="checkin_child">Enfant</string>
     <string name="checkin_you">Vous</string>
     <string name="checkin_qr_code_cd">Code QR d’enregistrement</string>
@@ -773,8 +835,6 @@
     <string name="camping_my_qr_passes">Mes pass QR</string>
     <string name="camping_my_qr_passes_subtitle">Arrivée, billets de bus et hébergement</string>
     <string name="camping_management">Gestion</string>
-    <string name="camping_manage_lodging">Gérer l’hébergement</string>
-    <string name="camping_manage_venue_map">Gérer le plan du lieu</string>
     <string name="camping_feedback_results">Résultats des retours</string>
     <string name="camping_register_participants">Inscrire des participants</string>
     <string name="camping_organizer_church_value">Église organisatrice %1$s</string>

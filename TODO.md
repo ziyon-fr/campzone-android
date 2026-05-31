@@ -327,12 +327,14 @@
 - [x] iOS parity: `CampFeedbackSurveyScreen` (availability window opens on `endDate`, closes 60 days later; not-available/closed/thanks/form states; 1–5 star picker, per-session ratings excluding meals, highlights/improvements, would-return + anonymous toggles) and detail-screen "Share your feedback" card + "Feedback Results" management entry, both gated like iOS `CampingDetailView`
 - [x] Two VMs (`FeedbackSurveyViewModel` / `FeedbackResultsViewModel`, sealed `UiState`), typed routes `CampFeedbackSurvey`/`CampFeedbackResults`, EN/FR/PT strings; build + unit tests (`FeedbackViewModelTest`) + lint green
 
-### D5. Venue Map (`ui/venuemap/`)
+### D5. Venue Map (`ui/venuemap/`) ✅
 
-- [ ] Read/write `campings/{id}/venueMap/config` (single doc, ID `config`)
-- [ ] Display: Cloudinary map image overlay + pins at `imageX`/`imageY` positions; optional real lat/lon
-- [ ] Admin: upload map image (delete-when-empty on clear); add/edit/delete pins; gate `canManageTeams` or `canManageSchedule`
-- [ ] Program↔venue link: write `program.venuePointID` (delete-when-empty) and keep pin `name` in `program.location`
+- [x] Read/write `campings/{id}/venueMap/config` (single doc, ID `config`) — `VenueMapService` (interface + Firestore live listener + fake), `VenueMapPayload` hand-built map (`imageURL`/`imagePublicID` **delete-when-empty**, embedded `points[]` with omit-when-nil `imageX`/`imageY`/`latitude`/`longitude`), `updatedAt` serverTimestamp
+- [x] Display: Coil site-image overlay (4:3) + pins positioned at `imageX`/`imageY`; tappable pins + detail card + "Locations" legend; coordinate pins offer **Open in Maps** (`geo:` intent — native stand-in for the iOS in-app MapKit overlay)
+- [x] Admin: upload/replace/remove site image via the shared backend-signed Cloudinary path (delete-when-empty on clear); tap-to-place / reposition / edit / delete pins; set/clear a pin's lat-lon; gate `canManageTeams` OR `canManageSchedule` (else `Restricted`)
+- [x] Program↔venue link: program editor shows the camp's pins as quick-pick chips → sets `venuePointID` + fills `location` with the pin `name`; typing a custom location clears `venuePointID` (write stays delete-when-empty)
+- [x] iOS parity: `VenueMapScreen` (viewer, edit affordance for managers) + `VenueMapEditorScreen` (site image section, interactive canvas, points list, editor/coordinate `ModalBottomSheet`s) + self-silencing `VenueMapEntryCard` in the camp detail **and** the header location chip both deep-link to the map (mirrors iOS `CampingDetailView`). `VenueMapViewModel` (sealed `UiState`, single owned listener), typed routes, EN/FR/PT strings, `VenueMapViewModelTest`; build + tests + lint green
+- [ ] Deferred (iOS-richer, no Android Maps SDK in the project): live in-app map overlay with the user's location + MKDirections routing, and the pan-a-crosshair coordinate picker — Android uses an `Open in Maps` intent and manual lat-lon entry instead
 
 ### D6. "Family at Camp" View (`ui/family/camp/`)
 
@@ -438,7 +440,7 @@ D1 Transportation tickets ✅
 D2 Stripe payments ✅
 D3 Lodging ✅
 D4 Post-camp feedback ✅
-D5 Venue map
+D5 Venue map ✅
 D6 Family at camp
 D7 Admin hub
 ```

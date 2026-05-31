@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -83,6 +84,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -144,6 +146,7 @@ fun CampingDetailRoute(
     onOpenLodging: (String) -> Unit = {},
     onOpenFeedbackSurvey: (String) -> Unit = {},
     onOpenFeedbackResults: (String) -> Unit = {},
+    onOpenVenueMap: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -219,6 +222,7 @@ fun CampingDetailRoute(
         onOpenLodging = onOpenLodging,
         onOpenFeedbackSurvey = onOpenFeedbackSurvey,
         onOpenFeedbackResults = onOpenFeedbackResults,
+        onOpenVenueMap = onOpenVenueMap,
         onOpenCheckInScanner = onOpenCheckInScanner,
         onOpenCheckInRecords = onOpenCheckInRecords,
         onOpenQrPasses = onOpenQrPasses,
@@ -540,6 +544,15 @@ private fun CampingDetailContent(
             )
         }
 
+        state.venueMap?.let { venueMap ->
+            item(key = "venue-map") {
+                VenueMapEntryCard(
+                    pointCount = venueMap.points.size,
+                    onClick = { onOpenVenueMap(camping.id) },
+                )
+            }
+        }
+
         if (showFeedbackSurvey) {
             item(key = "feedback-survey") {
                 FeedbackSurveyCard(onClick = { onOpenFeedbackSurvey(camping.id) })
@@ -555,6 +568,62 @@ private fun CampingDetailContent(
 }
 
 private const val FEEDBACK_WINDOW_MILLIS = 60L * 24 * 60 * 60 * 1000
+
+@Composable
+private fun VenueMapEntryCard(pointCount: Int, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = MaterialTheme.czColors.surface,
+        shape = RoundedCornerShape(CzRadius.xl),
+    ) {
+        Row(
+            modifier = Modifier.padding(CzSpacing.lg),
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(CzRadius.lg))
+                    .background(MaterialTheme.czColors.ember.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Map,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.ember,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.venue_card_title),
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = if (pointCount == 0) {
+                        stringResource(R.string.venue_card_subtitle_empty)
+                    } else {
+                        pluralStringResource(R.plurals.venue_card_subtitle, pointCount, pointCount)
+                    },
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.czColors.textSecondary,
+            )
+        }
+    }
+}
 
 @Composable
 private fun FeedbackSurveyCard(onClick: () -> Unit) {
@@ -603,7 +672,7 @@ private fun FeedbackSurveyCard(onClick: () -> Unit) {
 @Composable
 private fun HeaderSection(
     camping: Camping,
-    @Suppress("UNUSED_PARAMETER") onOpenVenueMap: (String) -> Unit,
+    onOpenVenueMap: (String) -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -633,20 +702,32 @@ private fun HeaderSection(
                 horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
             ) {
                 StatusPill(camping.registrationStatus)
-                Icon(
-                    imageVector = Icons.Filled.LocationOn,
-                    contentDescription = null,
-                    tint = MaterialTheme.czColors.ember,
-                    modifier = Modifier.size(17.dp),
-                )
-                Text(
-                    text = camping.location,
-                    color = MaterialTheme.czColors.textSecondary,
-                    style = MaterialTheme.typography.labelMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
+                Row(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .clip(RoundedCornerShape(CzRadius.sm))
+                        .clickable(onClickLabel = stringResource(R.string.venue_map_title)) {
+                            onOpenVenueMap(camping.id)
+                        }
+                        .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.LocationOn,
+                        contentDescription = null,
+                        tint = MaterialTheme.czColors.ember,
+                        modifier = Modifier.size(17.dp),
+                    )
+                    Text(
+                        text = camping.location,
+                        color = MaterialTheme.czColors.textSecondary,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
             }
         }
     }

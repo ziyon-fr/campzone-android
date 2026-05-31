@@ -24,7 +24,25 @@ data class VenuePoint(
     val imageY: Double? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
-)
+) {
+    /** True when the pin can be drawn over the uploaded illustration. */
+    val hasImagePosition: Boolean get() = imageX != null && imageY != null
+
+    /** True when the pin carries a real-world coordinate (map / directions). */
+    val hasCoordinate: Boolean get() = latitude != null && longitude != null
+}
+
+/** Whether the camp has uploaded a site illustration. */
+val VenueMap.hasImage: Boolean get() = !imageUrl.isNullOrBlank()
+
+/** Drives the self-silencing entry card: anything worth showing at all. */
+val VenueMap.hasContent: Boolean get() = hasImage || points.isNotEmpty()
+
+/** Pins that can be drawn over the illustration (have a relative position). */
+val VenueMap.pointsOnIllustration: List<VenuePoint> get() = points.filter { it.hasImagePosition }
+
+/** Pins that carry a real-world coordinate. */
+val VenueMap.pointsWithCoordinate: List<VenuePoint> get() = points.filter { it.hasCoordinate }
 
 internal fun Map<String, Any?>.toVenueMap(documentId: String): VenueMap =
     VenueMap(

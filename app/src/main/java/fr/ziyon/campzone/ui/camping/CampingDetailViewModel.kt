@@ -18,6 +18,10 @@ import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.TransportationPaymentStatus
+import fr.ziyon.campzone.data.model.VenueMap
+import fr.ziyon.campzone.data.model.hasContent
+import fr.ziyon.campzone.data.venuemap.FakeVenueMapService
+import fr.ziyon.campzone.data.venuemap.VenueMapService
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +63,8 @@ data class CampingDetailUiState(
     val hasManagedRegistration: Boolean = false,
     val hasPendingRegistrationPayment: Boolean = false,
     val hasPayablePriceItems: Boolean = false,
+    /** Loaded venue map; the entry card self-silences when this has no content. */
+    val venueMap: VenueMap? = null,
     val attendeeSearch: String = "",
     val filters: CampingAttendeeFilters = CampingAttendeeFilters(),
     val errorMessage: String? = null,
@@ -138,6 +144,7 @@ data class CampingDetailUiState(
 @HiltViewModel
 class CampingDetailViewModel @Inject constructor(
     private val service: CampingService,
+    private val venueMapService: VenueMapService = FakeVenueMapService(),
     private val analyticsService: AnalyticsService = NoOpAnalyticsService,
 ) : ViewModel() {
 
@@ -171,6 +178,9 @@ class CampingDetailViewModel @Inject constructor(
                     analyticsService.viewCamping(camping.id, camping.title)
                     val attendees = runCatching { service.loadAttendees(campingId) }
                         .getOrDefault(emptyList())
+                    val venueMap = runCatching { venueMapService.loadMap(campingId) }
+                        .getOrNull()
+                        ?.takeIf { it.hasContent }
                     val context = CampingPermissionContext(
                         organizerLevelType = camping.organizerLevel.type.wireValue,
                         organizerLevelValue = camping.organizerLevel.value,
@@ -241,6 +251,7 @@ class CampingDetailViewModel @Inject constructor(
                                 camping.resolvedRegistrationFeeCents(attendee.age) > 0
                         },
                         hasPayablePriceItems = camping.priceItems.any { it.amountCents > 0 },
+                        venueMap = venueMap,
                     )
                 }
                 .onFailure { error ->
