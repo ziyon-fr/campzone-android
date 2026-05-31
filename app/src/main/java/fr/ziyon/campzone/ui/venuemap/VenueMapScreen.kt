@@ -2,6 +2,8 @@ package fr.ziyon.campzone.ui.venuemap
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,10 +19,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Directions
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,6 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,17 +46,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import fr.ziyon.campzone.R
@@ -65,6 +80,9 @@ import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.model.hasContent
 import fr.ziyon.campzone.data.model.hasImage
 import fr.ziyon.campzone.data.model.pointsWithCoordinate
+import kotlin.math.max
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 
 @Composable
@@ -340,11 +358,13 @@ private fun MapMode(
     state: VenueMapUiState.Ready,
     onSelectPoint: (String?) -> Unit,
 ) {
+    val context = LocalContext.current
     val map = state.map
     val coordinatePins = map.pointsWithCoordinate
     val campLat = state.campLatitude
     val campLon = state.campLongitude
     val campMarkerLabel = stringResource(R.string.venue_camp_marker)
+    val emberArgb = MaterialTheme.czColors.ember.toArgb()
     val pineArgb = MaterialTheme.czColors.pine.toArgb()
 
     val center = when {
@@ -381,13 +401,189 @@ private fun MapMode(
         }
     }
 
-    VenueOsmMap(
-        center = center,
-        markers = markers,
-        selectedId = state.selectedPointId,
-        onMarkerClick = { id -> if (id != CAMP_MARKER_ID) onSelectPoint(id) },
-        modifier = Modifier.fillMaxSize(),
-    )
+    // Live user location + in-app directions (osmdroid dot + OSRM route),
+    // mirroring the iOS VenueMapKitCanvas behaviour without a Maps API key.
+    val scope = rememberCoroutineScope()
+    val controller = rememberVenueMapController()
+    var locationGranted by remember { mutableStateOf(hasLocationPermission(context)) }
+    var locationDenied by remember { mutableStateOf(false) }
+    var hasFix by remember { mutableStateOf(false) }
+    var route by remember { mutableStateOf<VenueRoute?>(null) }
+    var isRouting by remember { mutableStateOf(false) }
+    var routeError by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        locationGranted = granted
+        locationDenied = !granted
+    }
+    LaunchedEffect(Unit) {
+        if (!locationGranted) permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+    // A new selection invalidates the current route (iOS clears it too).
+    LaunchedEffect(state.selectedPointId) {
+        route = null
+        routeError = false
+    }
+
+    val selectedCoordPin = state.selectedPoint?.takeIf { it.hasCoordinate }
+    val destination = selectedCoordPin?.let { GeoPoint(it.latitude!!, it.longitude!!) }
+        ?: if (campLat != null && campLon != null) GeoPoint(campLat, campLon) else null
+    val destinationName = selectedCoordPin?.name ?: campMarkerLabel
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        VenueOsmMap(
+            center = center,
+            markers = markers,
+            onMarkerClick = { id -> if (id != CAMP_MARKER_ID) onSelectPoint(id) },
+            controller = controller,
+            userLocationEnabled = locationGranted,
+            routePoints = route?.points ?: emptyList(),
+            routeColorArgb = emberArgb,
+            onFirstLocationFix = { hasFix = true },
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = CzSpacing.sm),
+        ) {
+            when {
+                locationDenied && !locationGranted -> VenueMapPill(
+                    icon = Icons.Filled.LocationOff,
+                    text = stringResource(R.string.venue_location_denied),
+                    tint = MaterialTheme.czColors.warning,
+                    onClick = { openAppSettings(context) },
+                )
+
+                route != null -> VenueMapPill(
+                    icon = Icons.Filled.DirectionsCar,
+                    text = routeEtaText(route!!),
+                    tint = MaterialTheme.czColors.ember,
+                    trailingClear = true,
+                    onClick = { route = null },
+                )
+
+                routeError -> VenueMapPill(
+                    icon = Icons.Filled.ErrorOutline,
+                    text = stringResource(R.string.venue_route_error),
+                    tint = MaterialTheme.czColors.warning,
+                    onClick = { routeError = false },
+                )
+
+                destination != null && locationGranted && hasFix -> VenueMapPill(
+                    icon = Icons.Filled.Directions,
+                    text = if (isRouting) {
+                        stringResource(R.string.venue_route_finding)
+                    } else {
+                        stringResource(R.string.venue_directions_to, destinationName)
+                    },
+                    tint = MaterialTheme.czColors.ember,
+                    loading = isRouting,
+                    onClick = {
+                        val from = controller.userLocation() ?: return@VenueMapPill
+                        isRouting = true
+                        routeError = false
+                        scope.launch {
+                            val result = fetchOsrmRoute(from, destination)
+                            isRouting = false
+                            if (result != null) route = result else routeError = true
+                        }
+                    },
+                )
+            }
+        }
+
+        if (locationGranted && hasFix) {
+            SmallFloatingActionButton(
+                onClick = { controller.recenterOnUser() },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(CzSpacing.lg),
+                containerColor = MaterialTheme.czColors.surface.compositeOver(MaterialTheme.czColors.background),
+                contentColor = MaterialTheme.czColors.ember,
+            ) {
+                Icon(
+                    Icons.Filled.MyLocation,
+                    contentDescription = stringResource(R.string.venue_recenter),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VenueMapPill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    tint: Color,
+    onClick: () -> Unit,
+    loading: Boolean = false,
+    trailingClear: Boolean = false,
+) {
+    Surface(
+        onClick = onClick,
+        shape = androidx.compose.foundation.shape.CircleShape,
+        color = MaterialTheme.czColors.surface.compositeOver(MaterialTheme.czColors.background),
+        shadowElevation = 4.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = tint,
+                )
+            } else {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+            }
+            Text(
+                text = text,
+                color = MaterialTheme.czColors.textPrimary,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (trailingClear) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.textSecondary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun routeEtaText(route: VenueRoute): String {
+    val minutes = max(1, (route.durationSeconds / 60.0).roundToInt())
+    val distance = if (route.distanceMeters < 1000) {
+        stringResource(R.string.venue_route_distance_m, route.distanceMeters.roundToInt())
+    } else {
+        stringResource(R.string.venue_route_distance_km, "%.1f".format(route.distanceMeters / 1000.0))
+    }
+    return stringResource(R.string.venue_route_eta, minutes, distance)
+}
+
+private fun hasLocationPermission(context: android.content.Context): Boolean =
+    ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED
+
+private fun openAppSettings(context: android.content.Context) {
+    val intent = Intent(
+        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        Uri.fromParts("package", context.packageName, null),
+    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }
 }
 
 private const val CAMP_MARKER_ID = "__camp__"

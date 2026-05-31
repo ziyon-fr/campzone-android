@@ -63,10 +63,18 @@ class FamilyViewModelTest {
     }
 
     @Test
-    fun nonAdultCannotManageFamily() = runTest {
+    fun guestCannotManageFamily() = runTest {
+        // Family management is open to every onboarded role; only guest is gated out.
+        val viewModel = viewModel(FakeFamilyRepository(mapOf("guardian-1" to listOf(sampleChild()))))
+        viewModel.load(adultUser.copy(role = UserRole.Guest))
+        assertFalse(viewModel.uiState.value.canManageFamily)
+    }
+
+    @Test
+    fun basicUserCanManageFamily() = runTest {
         val viewModel = viewModel(FakeFamilyRepository(mapOf("guardian-1" to listOf(sampleChild()))))
         viewModel.load(adultUser.copy(role = UserRole.User))
-        assertFalse(viewModel.uiState.value.canManageFamily)
+        assertTrue(viewModel.uiState.value.canManageFamily)
     }
 
     @Test

@@ -88,10 +88,23 @@ sheets/components, and the `CampingDetailView` entry points.
   (omit-when-nil); `updatedAt` serverTimestamp on every write. `program.venuePointID`
   delete-when-empty, pin `name` kept in `program.location`.
 
+## In-app directions + user location (osmdroid)
+
+- Map tab now shows the **live user-location dot** (`MyLocationNewOverlay`,
+  runtime `ACCESS_FINE_LOCATION`, graceful "enable location" pill when denied),
+  a **recenter FAB**, and a **"Directions to <pin/camp>"** control that draws the
+  road `Polyline` + an ETA pill (min · distance). Route geometry comes from the
+  key-free public **OSRM** endpoint (`fetchOsrmRoute`, parsed with `org.json`).
+  Mirrors the iOS `VenueMapKitCanvas`.
+- `VenueMapController` exposes the user location + recenter without leaking the
+  `MapView`; the initial camera is set once (no pan/zoom reset on recompose) and
+  the only auto camera move is fitting a freshly computed route.
+- Production note: `router.project-osrm.org` is OSRM's demo server — self-host
+  OSRM (or another provider) for production.
+
 ## Notes / deviations (iOS authoritative)
 
-- The embedded map + crosshair coordinate picker are ported via **osmdroid /
-  OpenStreetMap** (key-free) instead of Apple/Google Maps. Still deferred: the
-  live user-location dot and in-app MKDirections turn-by-turn routing — pin
-  directions defer to the device maps app via the `geo:` intent. The data
-  contract (real coordinates per pin) is unchanged.
+- The map, crosshair coordinate picker, user-location dot and directions are all
+  ported via **osmdroid / OpenStreetMap + OSRM** (key-free) instead of
+  Apple/Google Maps. The data contract (real coordinates per pin) is unchanged,
+  so iOS/web keep their native map behaviour.

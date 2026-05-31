@@ -616,6 +616,14 @@
     <string name="venue_camp_marker">Camp</string>
     <string name="venue_map_no_pins_title">Aucun lieu sur la carte</string>
     <string name="venue_map_no_pins_message">Aucun repère n\'a encore de coordonnée. Les responsables peuvent en ajouter depuis l\'éditeur.</string>
+    <string name="venue_directions_to">Itinéraire vers %1$s</string>
+    <string name="venue_route_finding">Recherche d\'itinéraire…</string>
+    <string name="venue_route_eta">%1$d min · %2$s</string>
+    <string name="venue_route_distance_m">%1$d m</string>
+    <string name="venue_route_distance_km">%1$s km</string>
+    <string name="venue_route_error">Aucun itinéraire trouvé depuis votre position.</string>
+    <string name="venue_location_denied">Activez la localisation pour voir votre position</string>
+    <string name="venue_recenter">Recentrer sur ma position</string>
     <string name="venue_site_image_placeholder">Plan du site</string>
     <string name="venue_site_image_cd">Illustration du site du camp</string>
     <string name="venue_edit_title">Modifier le plan</string>

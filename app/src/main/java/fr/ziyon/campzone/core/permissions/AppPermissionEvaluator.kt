@@ -313,6 +313,7 @@ class AppPermissionEvaluator {
                 AppPermission.RegisterForCampings,
                 AppPermission.ViewAnnouncements,
                 AppPermission.ViewSongbook,
+                AppPermission.ManageFamilyRegistrations
             )
 
             UserRole.Adult -> setOf(
@@ -320,7 +321,7 @@ class AppPermissionEvaluator {
                 AppPermission.RegisterForCampings,
                 AppPermission.ViewAnnouncements,
                 AppPermission.ViewSongbook,
-                AppPermission.ManageFamilyRegistrations,
+                AppPermission.ManageFamilyRegistrations
             )
 
             UserRole.YouthDirector -> setOf(
@@ -344,6 +345,7 @@ class AppPermissionEvaluator {
                 AppPermission.AssignOwnChurchRoles,
                 AppPermission.ViewParticipantProfiles,
                 AppPermission.EditOwnChurchGuidelines,
+                AppPermission.ManageFamilyRegistrations
             )
 
             UserRole.Pastor -> setOf(
@@ -364,6 +366,7 @@ class AppPermissionEvaluator {
                 AppPermission.AssignOwnChurchRoles,
                 AppPermission.ViewParticipantProfiles,
                 AppPermission.EditOwnChurchGuidelines,
+                AppPermission.ManageFamilyRegistrations
             )
 
             UserRole.GameMaster -> setOf(
@@ -377,6 +380,7 @@ class AppPermissionEvaluator {
                 AppPermission.RevealWinners,
                 AppPermission.AwardAchievements,
                 AppPermission.ViewParticipantProfiles,
+                AppPermission.ManageFamilyRegistrations
             )
 
             UserRole.Leader -> setOf(
@@ -396,6 +400,7 @@ class AppPermissionEvaluator {
                 AppPermission.ManageOwnChurchTransportation,
                 AppPermission.ViewParticipantProfiles,
                 AppPermission.EditOwnChurchGuidelines,
+                AppPermission.ManageFamilyRegistrations
             )
 
             UserRole.Photographer -> setOf(
@@ -404,6 +409,7 @@ class AppPermissionEvaluator {
                 AppPermission.ViewAnnouncements,
                 AppPermission.ViewSongbook,
                 AppPermission.ManageAlbumMedia,
+                AppPermission.ManageFamilyRegistrations
             )
 
             UserRole.Admin -> AppPermission.entries.toSet()

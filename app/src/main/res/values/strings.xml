@@ -624,6 +624,14 @@
     <string name="venue_camp_marker">Camp</string>
     <string name="venue_map_no_pins_title">No mapped locations</string>
     <string name="venue_map_no_pins_message">No pins have a map coordinate yet. Leadership can add one from the editor.</string>
+    <string name="venue_directions_to">Directions to %1$s</string>
+    <string name="venue_route_finding">Finding route…</string>
+    <string name="venue_route_eta">%1$d min · %2$s</string>
+    <string name="venue_route_distance_m">%1$d m</string>
+    <string name="venue_route_distance_km">%1$s km</string>
+    <string name="venue_route_error">Couldn\'t find a route from your location.</string>
+    <string name="venue_location_denied">Enable location to see your position</string>
+    <string name="venue_recenter">Recenter on my location</string>
     <string name="venue_site_image_placeholder">Site map</string>
     <string name="venue_site_image_cd">Camp site illustration</string>
     <string name="venue_edit_title">Edit Venue Map</string>
