@@ -40,6 +40,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -209,9 +210,16 @@ private fun VenueMapContent(
                 },
                 modifier = Modifier.padding(horizontal = CzSpacing.lg, vertical = CzSpacing.sm),
             )
-            // The content fills only the space *below* the picker, so a
-            // fillMaxSize() map never overlaps the segmented control.
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            // The content fills only the space *below* the picker, and
+            // `clipToBounds()` confines the osmdroid MapView's drawing to this
+            // region (Compose doesn't clip child views by default, so without it
+            // the map paints over the segmented control above it).
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clipToBounds(),
+            ) {
                 when (mode) {
                     VenueMapMode.Illustration -> IllustrationMode(state, onSelectPoint)
                     VenueMapMode.Map -> MapMode(state, onSelectPoint)
