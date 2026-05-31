@@ -57,6 +57,8 @@ import fr.ziyon.campzone.ui.checkin.CheckInQrPassesRoute
 import fr.ziyon.campzone.ui.checkin.CheckInRecordsRoute
 import fr.ziyon.campzone.ui.checkin.CheckInScannerRoute
 import fr.ziyon.campzone.ui.family.FamilyParticipantsScreen
+import fr.ziyon.campzone.ui.feedback.CampFeedbackResultsRoute
+import fr.ziyon.campzone.ui.feedback.CampFeedbackSurveyRoute
 import fr.ziyon.campzone.ui.home.HomeRoute
 import fr.ziyon.campzone.ui.camping.pricing.CampingPricingRoute
 import fr.ziyon.campzone.ui.lodging.LodgingRoute
@@ -414,6 +416,12 @@ fun CampzoneNavigationShell(
                     onOpenLodging = { campingId ->
                         navController.navigate(AppRoute.CampingLodging(campingId).route)
                     },
+                    onOpenFeedbackSurvey = { campingId ->
+                        navController.navigate(AppRoute.CampFeedbackSurvey(campingId).route)
+                    },
+                    onOpenFeedbackResults = { campingId ->
+                        navController.navigate(AppRoute.CampFeedbackResults(campingId).route)
+                    },
                     onOpenCheckInScanner = { campingId ->
                         navController.navigate(AppRoute.CheckInScanner(campingId).route)
                     },
@@ -622,6 +630,26 @@ fun CampzoneNavigationShell(
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
             ) { backStackEntry ->
                 LodgingRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampFeedbackSurvey,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                CampFeedbackSurveyRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampFeedbackResults,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                CampFeedbackResultsRoute(
                     campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },

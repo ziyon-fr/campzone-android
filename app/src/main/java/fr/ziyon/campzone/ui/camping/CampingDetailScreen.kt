@@ -41,14 +41,13 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.KingBed
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Poll
+import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
@@ -72,6 +71,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -142,6 +142,8 @@ fun CampingDetailRoute(
     onOpenRegistrationPayment: (String) -> Unit = {},
     onOpenPricing: (String) -> Unit = {},
     onOpenLodging: (String) -> Unit = {},
+    onOpenFeedbackSurvey: (String) -> Unit = {},
+    onOpenFeedbackResults: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -215,6 +217,8 @@ fun CampingDetailRoute(
         onOpenRegistrationPayment = onOpenRegistrationPayment,
         onOpenPricing = onOpenPricing,
         onOpenLodging = onOpenLodging,
+        onOpenFeedbackSurvey = onOpenFeedbackSurvey,
+        onOpenFeedbackResults = onOpenFeedbackResults,
         onOpenCheckInScanner = onOpenCheckInScanner,
         onOpenCheckInRecords = onOpenCheckInRecords,
         onOpenQrPasses = onOpenQrPasses,
@@ -254,6 +258,8 @@ fun CampingDetailScreen(
     onOpenRegistrationPayment: (String) -> Unit = {},
     onOpenPricing: (String) -> Unit = {},
     onOpenLodging: (String) -> Unit = {},
+    onOpenFeedbackSurvey: (String) -> Unit = {},
+    onOpenFeedbackResults: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -329,6 +335,8 @@ fun CampingDetailScreen(
                     onOpenRegistrationPayment = onOpenRegistrationPayment,
                     onOpenPricing = onOpenPricing,
                     onOpenLodging = onOpenLodging,
+                    onOpenFeedbackSurvey = onOpenFeedbackSurvey,
+                    onOpenFeedbackResults = onOpenFeedbackResults,
                     onOpenCheckInScanner = onOpenCheckInScanner,
                     onOpenCheckInRecords = onOpenCheckInRecords,
                     onOpenQrPasses = onOpenQrPasses,
@@ -408,6 +416,8 @@ private fun CampingDetailContent(
     onOpenRegistrationPayment: (String) -> Unit = {},
     onOpenPricing: (String) -> Unit = {},
     onOpenLodging: (String) -> Unit = {},
+    onOpenFeedbackSurvey: (String) -> Unit = {},
+    onOpenFeedbackResults: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -418,6 +428,17 @@ private fun CampingDetailContent(
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(CampingDetailTab.Overview) }
     val disabledAlpha = if (camping.registrationStatus == CampingRegistrationStatus.Cancelled) 0.5f else 1f
+
+    // Post-camp feedback gating (mirrors iOS CampingDetailView): the survey
+    // opens when the camp ends and closes 60 days later; the admin results entry
+    // only surfaces to leadership once the camp has ended.
+    val now = remember { Date() }
+    val campEnded = !now.before(camping.endDate)
+    val feedbackWindowOpen = campEnded &&
+        !now.after(Date(camping.endDate.time + FEEDBACK_WINDOW_MILLIS))
+    val showFeedbackSurvey = feedbackWindowOpen &&
+        (state.isApprovedParticipant || state.canManageAnyCamping || state.canEditCamping)
+    val showFeedbackResults = state.canManageAnyCamping && campEnded
 
     LazyColumn(
         modifier = Modifier
@@ -519,8 +540,63 @@ private fun CampingDetailContent(
             )
         }
 
-        // Deferred Phase D operations remain hidden until their Android
-        // destinations exist.
+        if (showFeedbackSurvey) {
+            item(key = "feedback-survey") {
+                FeedbackSurveyCard(onClick = { onOpenFeedbackSurvey(camping.id) })
+            }
+        }
+
+        if (showFeedbackResults) {
+            item(key = "management") {
+                ManagementSection(onOpenFeedbackResults = { onOpenFeedbackResults(camping.id) })
+            }
+        }
+    }
+}
+
+private const val FEEDBACK_WINDOW_MILLIS = 60L * 24 * 60 * 60 * 1000
+
+@Composable
+private fun FeedbackSurveyCard(onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = MaterialTheme.czColors.surface,
+        shape = RoundedCornerShape(CzRadius.xl),
+    ) {
+        Row(
+            modifier = Modifier.padding(CzSpacing.lg),
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.RateReview,
+                contentDescription = null,
+                tint = MaterialTheme.czColors.ember,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.feedback_survey_card_title),
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.feedback_survey_card_subtitle),
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.czColors.textSecondary,
+            )
+        }
     }
 }
 
@@ -1662,30 +1738,17 @@ private fun DetailResourceButton(
 }
 
 @Composable
-private fun ManagementSection(state: CampingDetailUiState) {
+private fun ManagementSection(onOpenFeedbackResults: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
             title = stringResource(R.string.camping_management),
             icon = Icons.Filled.Security,
         )
-        if (state.canManageTeams) {
-            AdminActionButton(
-                title = stringResource(R.string.camping_manage_lodging),
-                icon = Icons.Filled.KingBed,
-            )
-        }
-        if (state.canManageTeams || state.canManageSchedule) {
-            AdminActionButton(
-                title = stringResource(R.string.camping_manage_venue_map),
-                icon = Icons.Filled.Map,
-            )
-        }
-        if (state.canManageAnyCamping && (state.camping?.endDate?.let { Date() >= it } == true)) {
-            AdminActionButton(
-                title = stringResource(R.string.camping_feedback_results),
-                icon = Icons.Filled.Poll,
-            )
-        }
+        AdminActionButton(
+            title = stringResource(R.string.camping_feedback_results),
+            icon = Icons.Filled.Poll,
+            onClick = onOpenFeedbackResults,
+        )
     }
 }
 
@@ -1693,12 +1756,13 @@ private fun ManagementSection(state: CampingDetailUiState) {
 private fun AdminActionButton(
     title: String,
     icon: ImageVector,
+    onClick: () -> Unit,
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 50.dp)
-            .clickable { },
+            .clickable(onClick = onClick),
         color = MaterialTheme.czColors.surface,
         shape = RoundedCornerShape(CzRadius.md),
         tonalElevation = 0.dp,
