@@ -611,6 +611,11 @@
     <string name="venue_locations">Locais</string>
     <string name="venue_no_image_notice">Nenhuma ilustração do local enviada. Veja os locais abaixo.</string>
     <string name="venue_open_in_maps">Abrir no Mapas</string>
+    <string name="venue_mode_illustration">Ilustração</string>
+    <string name="venue_mode_map">Mapa</string>
+    <string name="venue_camp_marker">Acampamento</string>
+    <string name="venue_map_no_pins_title">Nenhum local no mapa</string>
+    <string name="venue_map_no_pins_message">Nenhum marcador tem coordenada ainda. A liderança pode adicionar uma pelo editor.</string>
     <string name="venue_site_image_placeholder">Mapa do local</string>
     <string name="venue_site_image_cd">Ilustração do local do acampamento</string>
     <string name="venue_edit_title">Editar mapa</string>
@@ -638,10 +643,7 @@
     <string name="venue_field_category">Categoria</string>
     <string name="venue_field_note">Observação (horários, o que há, a quem perguntar…)</string>
     <string name="venue_location_title">Local no mapa</string>
-    <string name="venue_location_hint">Defina a coordenada de %1$s.</string>
-    <string name="venue_latitude">Latitude</string>
-    <string name="venue_longitude">Longitude</string>
-    <string name="venue_use_camp_location">Usar o local do acampamento</string>
+    <string name="venue_location_hint">Mova o mapa para que o marcador fique em %1$s.</string>
     <string name="venue_use_this_location">Usar este local</string>
     <string name="venue_remove_location">Remover local do mapa</string>
     <string name="venue_category_tent">Barracas</string>

@@ -26,14 +26,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -56,6 +63,8 @@ import fr.ziyon.campzone.data.model.VenueMap
 import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.model.hasContent
 import fr.ziyon.campzone.data.model.hasImage
+import fr.ziyon.campzone.data.model.pointsWithCoordinate
+import org.osmdroid.util.GeoPoint
 
 @Composable
 fun VenueMapRoute(
@@ -188,51 +197,24 @@ private fun VenueMapContent(
     onSelectPoint: (String?) -> Unit,
 ) {
     val context = LocalContext.current
-    val map = state.map
+    var mode by rememberSaveable { mutableStateOf(VenueMapMode.Illustration) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(CzSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
-        ) {
-            item("canvas") {
-                if (map.hasImage) {
-                    VenueImageCanvas(
-                        map = map,
-                        selectedPointId = state.selectedPointId,
-                        onTapPin = { onSelectPoint(if (state.selectedPointId == it.id) null else it.id) },
-                    )
-                } else {
-                    NoImageNotice()
-                }
-            }
-
-            if (map.points.isNotEmpty()) {
-                item("legend-header") {
-                    Text(
-                        text = stringResource(R.string.venue_locations),
-                        color = MaterialTheme.czColors.textSecondary,
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                }
-                items(map.points, key = { it.id }) { point ->
-                    VenueLegendRow(
-                        point = point,
-                        onClick = { onSelectPoint(point.id) },
-                        trailing = if (point.hasCoordinate) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Filled.Place,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.czColors.textSecondary,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                        } else {
-                            null
-                        },
-                    )
+        Column(modifier = Modifier.fillMaxSize()) {
+            VenueModePicker(
+                mode = mode,
+                onSelect = {
+                    mode = it
+                    onSelectPoint(null)
+                },
+                modifier = Modifier.padding(horizontal = CzSpacing.lg, vertical = CzSpacing.sm),
+            )
+            // The content fills only the space *below* the picker, so a
+            // fillMaxSize() map never overlaps the segmented control.
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                when (mode) {
+                    VenueMapMode.Illustration -> IllustrationMode(state, onSelectPoint)
+                    VenueMapMode.Map -> MapMode(state, onSelectPoint)
                 }
             }
         }
@@ -261,6 +243,146 @@ private fun VenueMapContent(
         }
     }
 }
+
+private enum class VenueMapMode { Illustration, Map }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VenueModePicker(
+    mode: VenueMapMode,
+    onSelect: (VenueMapMode) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+        VenueMapMode.entries.forEachIndexed { index, option ->
+            SegmentedButton(
+                selected = mode == option,
+                onClick = { onSelect(option) },
+                shape = SegmentedButtonDefaults.itemShape(index, VenueMapMode.entries.size),
+            ) {
+                Text(
+                    stringResource(
+                        if (option == VenueMapMode.Illustration) {
+                            R.string.venue_mode_illustration
+                        } else {
+                            R.string.venue_mode_map
+                        },
+                    ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun IllustrationMode(
+    state: VenueMapUiState.Ready,
+    onSelectPoint: (String?) -> Unit,
+) {
+    val map = state.map
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(CzSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
+    ) {
+        item("canvas") {
+            if (map.hasImage) {
+                VenueImageCanvas(
+                    map = map,
+                    selectedPointId = state.selectedPointId,
+                    onTapPin = { onSelectPoint(if (state.selectedPointId == it.id) null else it.id) },
+                )
+            } else {
+                NoImageNotice()
+            }
+        }
+
+        if (map.points.isNotEmpty()) {
+            item("legend-header") {
+                Text(
+                    text = stringResource(R.string.venue_locations),
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            items(map.points, key = { it.id }) { point ->
+                VenueLegendRow(
+                    point = point,
+                    onClick = { onSelectPoint(point.id) },
+                    trailing = if (point.hasCoordinate) {
+                        {
+                            Icon(
+                                imageVector = Icons.Filled.Place,
+                                contentDescription = null,
+                                tint = MaterialTheme.czColors.textSecondary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapMode(
+    state: VenueMapUiState.Ready,
+    onSelectPoint: (String?) -> Unit,
+) {
+    val map = state.map
+    val coordinatePins = map.pointsWithCoordinate
+    val campLat = state.campLatitude
+    val campLon = state.campLongitude
+    val campMarkerLabel = stringResource(R.string.venue_camp_marker)
+    val pineArgb = MaterialTheme.czColors.pine.toArgb()
+
+    val center = when {
+        state.selectedPoint?.hasCoordinate == true ->
+            GeoPoint(state.selectedPoint!!.latitude!!, state.selectedPoint!!.longitude!!)
+        campLat != null && campLon != null -> GeoPoint(campLat, campLon)
+        coordinatePins.isNotEmpty() -> GeoPoint(coordinatePins.first().latitude!!, coordinatePins.first().longitude!!)
+        else -> null
+    }
+
+    if (center == null) {
+        CzEmptyState(
+            title = stringResource(R.string.venue_map_no_pins_title),
+            message = stringResource(R.string.venue_map_no_pins_message),
+            icon = {
+                Icon(
+                    Icons.Filled.Place,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.ember,
+                    modifier = Modifier.size(42.dp),
+                )
+            },
+            modifier = Modifier.fillMaxSize().padding(CzSpacing.lg),
+        )
+        return
+    }
+
+    val markers = buildList {
+        coordinatePins.forEach { point ->
+            add(OsmMarkerSpec(point.id, point.latitude!!, point.longitude!!, point.name, point.category.tint.toArgb()))
+        }
+        if (campLat != null && campLon != null) {
+            add(OsmMarkerSpec(CAMP_MARKER_ID, campLat, campLon, campMarkerLabel, pineArgb))
+        }
+    }
+
+    VenueOsmMap(
+        center = center,
+        markers = markers,
+        selectedId = state.selectedPointId,
+        onMarkerClick = { id -> if (id != CAMP_MARKER_ID) onSelectPoint(id) },
+        modifier = Modifier.fillMaxSize(),
+    )
+}
+
+private const val CAMP_MARKER_ID = "__camp__"
 
 @Composable
 private fun NoImageNotice() {

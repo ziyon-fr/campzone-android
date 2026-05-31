@@ -6,13 +6,33 @@ Updated: 2026-05-31
   D2 + D3 + D4)
 - Current completed phase: D5 Venue Map (viewer + manager editor + program link)
 - Next phase: D6 "Family at Camp" view
-- Verification (JAVA_HOME = Android Studio JBR):
+- Verification (JAVA_HOME = Android Studio JBR; `clean` build after adding the
+  osmdroid resource set):
   - `./gradlew :app:assembleDebug` SUCCESSFUL
   - `./gradlew :app:testDebugUnitTest` SUCCESSFUL — new: 8 `VenueMapViewModelTest`
     (load/manager gate, pin add/edit/move/delete, coordinate set+clear, image
     upload/remove); D4 + prior suites untouched + green
-  - `./gradlew :app:lintDebug` SUCCESSFUL (no MissingTranslation/MissingQuantity;
-    removed two now-dead strings)
+  - `./gradlew :app:lintDebug` SUCCESSFUL (no MissingTranslation/MissingQuantity)
+
+## In-app map (osmdroid / OpenStreetMap)
+
+User-requested, key-free in-app map (no Google Maps SDK / API key):
+
+- Added `org.osmdroid:osmdroid-android` (catalog + app build). Only INTERNET is
+  needed (already present); the tile cache is app-internal and the OSM
+  user-agent is set to the package id.
+- `ui/venuemap/VenueOsmMap.kt`: a lifecycle-managed `MapView` wrapped in
+  `AndroidView` — `VenueOsmMap` (read-only camp + category-tinted pin markers,
+  tap → select) and `VenueOsmPicker` (interactive, reports its centre as the
+  user pans, for the editor crosshair).
+- Viewer: an **Illustration / Map** `SingleChoiceSegmentedButtonRow` (mirrors iOS
+  `VenueMapMode`). Map mode shows the embedded OSM map centred on the camp /
+  selected pin; empty-state when nothing has a coordinate. The content sits in a
+  `weight(1f)` region so the full-bleed map never overlaps the segmented control.
+- Editor: the "Set map location" sheet is now an interactive osmdroid map with a
+  fixed centre crosshair (pan so the marker sits on the spot → "Use this
+  location"), replacing the manual lat/lon fields. Removed the now-unused
+  lat/lon/use-camp strings.
 
 ## D5 Venue Map
 
@@ -70,8 +90,8 @@ sheets/components, and the `CampingDetailView` entry points.
 
 ## Notes / deviations (iOS authoritative)
 
-- The project has **no Google Maps SDK**, so the iOS live in-app MapKit overlay,
-  the user-location dot, MKDirections routing, and the pan-a-crosshair coordinate
-  picker are not ported. Android substitutes a native `Open in Maps` intent
-  (viewer) and manual lat/lon entry (editor) — the data contract (real
-  coordinates per pin) is unchanged, so iOS/web keep full map behavior.
+- The embedded map + crosshair coordinate picker are ported via **osmdroid /
+  OpenStreetMap** (key-free) instead of Apple/Google Maps. Still deferred: the
+  live user-location dot and in-app MKDirections turn-by-turn routing — pin
+  directions defer to the device maps app via the `geo:` intent. The data
+  contract (real coordinates per pin) is unchanged.

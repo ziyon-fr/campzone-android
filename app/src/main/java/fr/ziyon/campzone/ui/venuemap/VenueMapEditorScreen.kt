@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Place
@@ -51,16 +53,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.text.KeyboardOptions
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzButton
@@ -76,6 +77,7 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.VenueCategory
 import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.model.hasImage
+import org.osmdroid.util.GeoPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -626,15 +628,14 @@ private fun VenuePointLocationSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var latText by remember {
-        mutableStateOf(point.latitude?.toString() ?: campLatitude?.toString() ?: "")
+    val initial = remember {
+        when {
+            point.latitude != null && point.longitude != null -> GeoPoint(point.latitude, point.longitude)
+            campLatitude != null && campLongitude != null -> GeoPoint(campLatitude, campLongitude)
+            else -> GeoPoint(46.8, 8.2)
+        }
     }
-    var lonText by remember {
-        mutableStateOf(point.longitude?.toString() ?: campLongitude?.toString() ?: "")
-    }
-    val lat = latText.trim().toDoubleOrNull()
-    val lon = lonText.trim().toDoubleOrNull()
-    val isValid = lat != null && lat in -90.0..90.0 && lon != null && lon in -180.0..180.0
+    var center by remember { mutableStateOf(initial.latitude to initial.longitude) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -659,36 +660,34 @@ private fun VenuePointLocationSheet(
                 color = MaterialTheme.czColors.textSecondary,
                 style = MaterialTheme.typography.labelMedium,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-                CzTextField(
-                    value = latText,
-                    onValueChange = { latText = it },
-                    label = stringResource(R.string.venue_latitude),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f),
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .clip(RoundedCornerShape(CzRadius.lg)),
+                contentAlignment = Alignment.Center,
+            ) {
+                VenueOsmPicker(
+                    initial = initial,
+                    onCenterChanged = { lat, lon -> center = lat to lon },
+                    modifier = Modifier.fillMaxSize(),
                 )
-                CzTextField(
-                    value = lonText,
-                    onValueChange = { lonText = it },
-                    label = stringResource(R.string.venue_longitude),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            if (campLatitude != null && campLongitude != null) {
-                CzButton(
-                    text = stringResource(R.string.venue_use_camp_location),
-                    onClick = {
-                        latText = campLatitude.toString()
-                        lonText = campLongitude.toString()
-                    },
-                    variant = CzButtonVariant.Ghost,
+                // Fixed crosshair: the marker stays put while the map moves under it.
+                Icon(
+                    imageVector = Icons.Filled.GpsFixed,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.ember,
+                    modifier = Modifier.size(36.dp),
                 )
             }
+            Text(
+                text = String.format(java.util.Locale.US, "%.5f, %.5f", center.first, center.second),
+                color = MaterialTheme.czColors.textSecondary,
+                style = MaterialTheme.typography.labelSmall,
+            )
             CzButton(
                 text = stringResource(R.string.venue_use_this_location),
-                onClick = { if (lat != null && lon != null) onSave(lat, lon) },
-                enabled = isValid,
+                onClick = { onSave(center.first, center.second) },
                 modifier = Modifier.fillMaxWidth(),
             )
             if (point.hasCoordinate) {

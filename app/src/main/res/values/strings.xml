@@ -619,6 +619,11 @@
     <string name="venue_locations">Locations</string>
     <string name="venue_no_image_notice">No site illustration uploaded. Browse the locations below.</string>
     <string name="venue_open_in_maps">Open in Maps</string>
+    <string name="venue_mode_illustration">Illustration</string>
+    <string name="venue_mode_map">Map</string>
+    <string name="venue_camp_marker">Camp</string>
+    <string name="venue_map_no_pins_title">No mapped locations</string>
+    <string name="venue_map_no_pins_message">No pins have a map coordinate yet. Leadership can add one from the editor.</string>
     <string name="venue_site_image_placeholder">Site map</string>
     <string name="venue_site_image_cd">Camp site illustration</string>
     <string name="venue_edit_title">Edit Venue Map</string>
@@ -646,10 +651,7 @@
     <string name="venue_field_category">Category</string>
     <string name="venue_field_note">Note (hours, what\'s here, who to ask…)</string>
     <string name="venue_location_title">Map Location</string>
-    <string name="venue_location_hint">Set the coordinate for %1$s.</string>
-    <string name="venue_latitude">Latitude</string>
-    <string name="venue_longitude">Longitude</string>
-    <string name="venue_use_camp_location">Use camp location</string>
+    <string name="venue_location_hint">Move the map so the marker sits on %1$s.</string>
     <string name="venue_use_this_location">Use this location</string>
     <string name="venue_remove_location">Remove map location</string>
     <string name="venue_category_tent">Tents</string>

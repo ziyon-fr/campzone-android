@@ -93,6 +93,9 @@ dependencies {
     // Coil (image loading from Cloudinary URLs)
     implementation(libs.coil.compose)
 
+    // osmdroid (OpenStreetMap — key-free in-app venue map preview)
+    implementation(libs.osmdroid.android)
+
     // Markwon (Markdown → Spanned for announcement body)
     implementation(libs.markwon.core)
 

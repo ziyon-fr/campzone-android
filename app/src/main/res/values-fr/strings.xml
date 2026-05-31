@@ -611,6 +611,11 @@
     <string name="venue_locations">Lieux</string>
     <string name="venue_no_image_notice">Aucune illustration du site. Parcourez les lieux ci-dessous.</string>
     <string name="venue_open_in_maps">Ouvrir dans Plans</string>
+    <string name="venue_mode_illustration">Illustration</string>
+    <string name="venue_mode_map">Carte</string>
+    <string name="venue_camp_marker">Camp</string>
+    <string name="venue_map_no_pins_title">Aucun lieu sur la carte</string>
+    <string name="venue_map_no_pins_message">Aucun repère n\'a encore de coordonnée. Les responsables peuvent en ajouter depuis l\'éditeur.</string>
     <string name="venue_site_image_placeholder">Plan du site</string>
     <string name="venue_site_image_cd">Illustration du site du camp</string>
     <string name="venue_edit_title">Modifier le plan</string>
@@ -638,10 +643,7 @@
     <string name="venue_field_category">Catégorie</string>
     <string name="venue_field_note">Note (horaires, ce qu\'on y trouve, à qui demander…)</string>
     <string name="venue_location_title">Position sur la carte</string>
-    <string name="venue_location_hint">Définissez la coordonnée pour %1$s.</string>
-    <string name="venue_latitude">Latitude</string>
-    <string name="venue_longitude">Longitude</string>
-    <string name="venue_use_camp_location">Utiliser le lieu du camp</string>
+    <string name="venue_location_hint">Déplacez la carte pour que le marqueur soit sur %1$s.</string>
     <string name="venue_use_this_location">Utiliser cette position</string>
     <string name="venue_remove_location">Supprimer la position</string>
     <string name="venue_category_tent">Tentes</string>
