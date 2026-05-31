@@ -88,7 +88,7 @@ below the table.
 | Assign leadership roles |  |  |  |  |  |  |  |  | ✓ |
 | Assign own-church roles |  |  |  | C | C |  |  |  | ✓ |
 | View admin tools |  |  |  |  |  |  |  |  | ✓ |
-| Manage family registrations |  |  | ✓ |  |  |  |  |  | ✓ |
+| Manage family registrations |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Edit guidelines |  |  |  |  |  |  |  |  | ✓ |
 | Edit own-church guidelines |  |  |  | C | C |  | C |  | ✓ |
 
@@ -138,7 +138,10 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
   - `badges`: `read` self / content-moderator / camp achievement-awarder.
     `create`/`update` only by admin or camp achievement-awarder **and
     `request.auth.uid != uid`** (no self-award). `delete` admin only.
-  - `children`: self **and** role `adult`/`admin`.
+  - `children`: self **and** any onboarded role (every role except
+    `guest`). The privileged collection-group `read` above (cross-guardian
+    duplicate detection) stays `adult`/`admin`; for other roles that read is
+    denied and the client skips cross-guardian duplicate detection gracefully.
 - **`ziyon_notifications`**: `read` if signed-in and the doc’s `topic`
   is `campzone_announcements`, the user’s own role topic, or (admin) any
   role topic. `create/update/delete: false` (backend-only).
