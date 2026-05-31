@@ -616,6 +616,14 @@
     <string name="venue_camp_marker">Acampamento</string>
     <string name="venue_map_no_pins_title">Nenhum local no mapa</string>
     <string name="venue_map_no_pins_message">Nenhum marcador tem coordenada ainda. A liderança pode adicionar uma pelo editor.</string>
+    <string name="venue_directions_to">Rota para %1$s</string>
+    <string name="venue_route_finding">Procurando rota…</string>
+    <string name="venue_route_eta">%1$d min · %2$s</string>
+    <string name="venue_route_distance_m">%1$d m</string>
+    <string name="venue_route_distance_km">%1$s km</string>
+    <string name="venue_route_error">Não foi possível encontrar uma rota a partir da sua posição.</string>
+    <string name="venue_location_denied">Ative a localização para ver sua posição</string>
+    <string name="venue_recenter">Centralizar na minha posição</string>
     <string name="venue_site_image_placeholder">Mapa do local</string>
     <string name="venue_site_image_cd">Ilustração do local do acampamento</string>
     <string name="venue_edit_title">Editar mapa</string>
