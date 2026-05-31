@@ -665,6 +665,35 @@
     <string name="venue_category_info">Point info</string>
     <string name="venue_category_other">Autre</string>
 
+    <!-- D6 family at camp: guardian read-only view -->
+    <string name="guardian_title">Ma famille au camp</string>
+    <string name="guardian_loading">Chargement des informations de votre famille…</string>
+    <string name="guardian_error_title">Impossible de charger les mises à jour</string>
+    <string name="guardian_error_message">Vérifiez votre connexion et réessayez.</string>
+    <string name="guardian_empty_title">Aucun enfant inscrit</string>
+    <string name="guardian_empty_message">Inscrivez un participant de votre famille à ce camp pour voir ses informations ici.</string>
+    <string name="guardian_card_title">Votre famille au camp</string>
+    <string name="guardian_card_open_cd">Ouvre une vue en lecture seule de l\'activité de vos enfants au camp</string>
+    <string name="guardian_summary_checked_in">Enregistré</string>
+    <string name="guardian_child_age_church">%1$d ans · %2$s</string>
+    <string name="guardian_checkin_label">Enregistrement</string>
+    <string name="guardian_not_checked_in">Pas encore enregistré</string>
+    <string name="guardian_checked_in">Enregistré</string>
+    <string name="guardian_checked_in_at">Enregistré le %1$s</string>
+    <string name="guardian_method_qr">QR</string>
+    <string name="guardian_method_manual">Manuel</string>
+    <string name="guardian_team_label">Équipe</string>
+    <string name="guardian_not_on_team">Pas encore dans une équipe</string>
+    <string name="guardian_score_pts">%1$d pts</string>
+    <string name="guardian_scores_hidden">Scores masqués</string>
+    <string name="guardian_role_captain">Capitaine</string>
+    <string name="guardian_role_vice_captain">Vice-capitaine</string>
+    <string name="guardian_today_title">Aujourd\'hui au camp</string>
+    <string name="guardian_today_subtitle">Le programme du camp — ce que fait votre enfant en ce moment</string>
+    <string name="guardian_nothing_scheduled">Rien de prévu pour le moment.</string>
+    <string name="guardian_happening_now">En cours</string>
+    <string name="guardian_up_next">À suivre</string>
+
     <string name="checkin_child">Enfant</string>
     <string name="checkin_you">Vous</string>
     <string name="checkin_qr_code_cd">Code QR d’enregistrement</string>

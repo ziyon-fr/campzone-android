@@ -65,6 +65,9 @@ data class CampingDetailUiState(
     val hasPayablePriceItems: Boolean = false,
     /** Loaded venue map; the entry card self-silences when this has no content. */
     val venueMap: VenueMap? = null,
+    /** Attendee ids of the viewer's own children registered here; drives the
+     *  self-silencing "Family at Camp" guardian card. */
+    val guardianChildAttendeeIds: List<String> = emptyList(),
     val attendeeSearch: String = "",
     val filters: CampingAttendeeFilters = CampingAttendeeFilters(),
     val errorMessage: String? = null,
@@ -181,6 +184,10 @@ class CampingDetailViewModel @Inject constructor(
                     val venueMap = runCatching { venueMapService.loadMap(campingId) }
                         .getOrNull()
                         ?.takeIf { it.hasContent }
+                    val guardianChildIds = attendees.filter {
+                        it.participantKind == RegistrationParticipantKind.Child &&
+                            it.guardianId == user.uid
+                    }.map { it.id }
                     val context = CampingPermissionContext(
                         organizerLevelType = camping.organizerLevel.type.wireValue,
                         organizerLevelValue = camping.organizerLevel.value,
@@ -252,6 +259,7 @@ class CampingDetailViewModel @Inject constructor(
                         },
                         hasPayablePriceItems = camping.priceItems.any { it.amountCents > 0 },
                         venueMap = venueMap,
+                        guardianChildAttendeeIds = guardianChildIds,
                     )
                 }
                 .onFailure { error ->

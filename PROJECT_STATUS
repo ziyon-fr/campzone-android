@@ -1,110 +1,57 @@
-# Project Status - D5 Venue Map
+# Project Status - D6 "Family at Camp"
 
 Updated: 2026-05-31
 
-- Branch: `d5-venue-map` (based on `d4-post-camp-feedback`, so it also carries
-  D2 + D3 + D4)
-- Current completed phase: D5 Venue Map (viewer + manager editor + program link)
-- Next phase: D6 "Family at Camp" view
-- Verification (JAVA_HOME = Android Studio JBR; `clean` build after adding the
-  osmdroid resource set):
+- Branch: `d6-family-at-camp` (based on `d5-venue-map`, so it also carries
+  D2–D5 + the family-RBAC parity fix)
+- Current completed phase: D6 "Family at Camp" (guardian read-only aggregate)
+- Next phase: D7 Admin Hub
+- Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew :app:assembleDebug` SUCCESSFUL
-  - `./gradlew :app:testDebugUnitTest` SUCCESSFUL — new: 8 `VenueMapViewModelTest`
-    (load/manager gate, pin add/edit/move/delete, coordinate set+clear, image
-    upload/remove); D4 + prior suites untouched + green
+  - `./gradlew :app:testDebugUnitTest` SUCCESSFUL — new: 6 `GuardianUpdatesViewModelTest`
+    (empty / registered child / check-in reflection / score visible+hidden by
+    reveal policy / load error); prior suites untouched + green
   - `./gradlew :app:lintDebug` SUCCESSFUL (no MissingTranslation/MissingQuantity)
+  - Not re-verified on the emulator this session (it was closed) — build-bar only.
 
-## In-app map (osmdroid / OpenStreetMap)
+## D6 "Family at Camp"
 
-User-requested, key-free in-app map (no Google Maps SDK / API key):
+iOS is the source of truth — ported `Features/Guardian` (model, service,
+observer, full view, embedded card, child/program components).
 
-- Added `org.osmdroid:osmdroid-android` (catalog + app build). Only INTERNET is
-  needed (already present); the tile cache is app-internal and the OSM
-  user-agent is set to the package id.
-- `ui/venuemap/VenueOsmMap.kt`: a lifecycle-managed `MapView` wrapped in
-  `AndroidView` — `VenueOsmMap` (read-only camp + category-tinted pin markers,
-  tap → select) and `VenueOsmPicker` (interactive, reports its centre as the
-  user pans, for the editor crosshair).
-- Viewer: an **Illustration / Map** `SingleChoiceSegmentedButtonRow` (mirrors iOS
-  `VenueMapMode`). Map mode shows the embedded OSM map centred on the camp /
-  selected pin; empty-state when nothing has a coordinate. The content sits in a
-  `weight(1f)` region so the full-bleed map never overlaps the segmented control.
-- Editor: the "Set map location" sheet is now an interactive osmdroid map with a
-  fixed centre crosshair (pan so the marker sits on the spot → "Use this
-  location"), replacing the manual lat/lon fields. Removed the now-unused
-  lat/lon/use-camp strings.
+- **Model** (`data/guardian/GuardianUpdate.kt`): `GuardianUpdatesData`
+  (childRegistrations, checkIns, teams, programs) with `checkIn(id)`,
+  `team(userId)`, `currentPrograms(now)`, `upcomingProgram(now)`;
+  `GuardianChildUpdate` (attendee + checkIn + team + teamMember + scoresVisible →
+  `isCheckedIn`, `personalScore`); `snapshots(...)` derivation (dedupe across
+  roster / fetched regs / fallback, sort by name, score gated by
+  `winnerRevealPolicy.areScoresHidden`). `ChildParticipant.toCampAttendee()`.
+- **Service** (`data/guardian/GuardianUpdatesService.kt`): owns no query logic of
+  its own — composes the existing services. Per-child `registrations/{id}` +
+  `checkIns/{id}` single-doc gets (the blanket queries are RBAC-denied for a
+  guardian), `TeamService` (live), `ScheduleService` (public). `observeUpdates`
+  loads the static inputs once, then re-emits on every team-score change.
+  `FakeGuardianUpdatesService` + Hilt binding. No new Firestore collection.
+- **ViewModel** (`ui/guardian/GuardianUpdatesViewModel.kt`): resolves candidate
+  child ids (camp roster ∪ the guardian's family list), streams composed data,
+  derives snapshots; sealed `GuardianUpdatesUiState`
+  (Loading/Error/Empty/Loaded), single owned listener. Read-only.
+- **Screen** (`GuardianUpdatesScreen.kt`): per-child `GuardianChildDetailCard`
+  (avatar + age/church, check-in row with QR/Manual method, team row with score /
+  "Scores hidden" / "Not assigned to a team yet") + "Today at camp" program card
+  (happening-now / up-next from the live schedule). Loading/Empty/Error states.
+- **Card** (`GuardianUpdatesCard.kt`): self-silencing pine-gradient summary
+  embedded in the camp detail — rendered only when the viewer registered a child
+  here (detail VM exposes `guardianChildAttendeeIds`); the card's own VM loads the
+  per-child summary rows; taps open the read-only screen.
+- **Navigation**: typed route `AppRoute.CampingGuardianUpdates`
+  (`campings/{id}/family-at-camp`) + destination; `authenticatedUser` +
+  `onOpenFamilyAtCamp` threaded through `CampingDetailScreen`.
+- **i18n**: guardian strings added to EN, FR, PT-BR.
 
-## D5 Venue Map
+## Notes / deviations
 
-iOS is the source of truth — ported `VenueMapModels`, `VenueMapService`,
-`VenueMapObserver`, `VenueMapView`, `VenueMapEditorView`, the pin
-sheets/components, and the `CampingDetailView` entry points.
-
-- **Model**: `VenueMap` + `VenuePoint` + `VenueMapPayload`/`toVenueMap` already
-  existed (A10). Extended in place with derived helpers (`hasImage`,
-  `hasContent`, `pointsOnIllustration`, `pointsWithCoordinate`,
-  `VenuePoint.hasImagePosition`/`hasCoordinate`). No duplication.
-- **Service** (`data/venuemap/VenueMapService.kt`): interface + Firestore (live
-  `config` listener via `callbackFlow`, `VenueMapPayload` write with
-  `imageURL`/`imagePublicID` delete-when-empty + `updatedAt` serverTimestamp) +
-  in-memory `FakeVenueMapService` + Hilt binding. Path
-  `campings/{id}/venueMap/config`.
-- **ViewModel** (`ui/venuemap/VenueMapViewModel.kt`): one VM for both screens,
-  sealed `VenueMapUiState` (Loading/Error/Ready). A single owned listener keeps
-  the embedded pin set live; every pin/image mutation rewrites the full config
-  doc. `canManage = canManageTeams || canManageSchedule`. Site image uploaded via
-  the shared backend-signed `ImageUploader` (Cloudinary).
-- **Viewer** (`VenueMapScreen.kt`): 4:3 Coil site image with pins positioned at
-  `imageX`/`imageY`, tappable detail card, "Locations" legend, empty state
-  (managers get "Build the map"). Coordinate pins offer **Open in Maps** (a
-  `geo:` intent) — the Android-native stand-in for the iOS MapKit overlay +
-  directions.
-- **Editor** (`VenueMapEditorScreen.kt`, gated `canManage` else Restricted):
-  upload/replace/remove the site illustration (photo picker → Cloudinary),
-  tap-to-place / reposition pins on the canvas, per-pin overflow
-  (edit/reposition/set map location/delete), pin editor `ModalBottomSheet`
-  (name + category chips + note) and a coordinate sheet (lat/lon entry, "use camp
-  location", clear).
-- **Camp detail** (`CampingDetailScreen.kt`): the header location chip
-  (pin + place name) deep-links to the venue map (mirrors iOS `headerSection`),
-  and a self-silencing `VenueMapEntryCard` appears in the body when the map has
-  content (the detail VM now loads the map one-shot to drive it). `VenuePointDetailCard`
-  composites the translucent `surface` token over `background` so the floating
-  card is opaque.
-- **Program↔venue link** (`ui/schedule/`): the program editor offers the camp's
-  pins as FilterChips; picking one sets `venuePointID` + fills `location` with
-  the pin name, typing a custom location clears `venuePointID`. The schedule
-  service already wrote `venuePointID` delete-when-empty.
-- **Navigation**: typed routes `AppRoute.CampingVenueMap` /
-  `CampingVenueMapEditor`, two `composable` destinations (viewer ↔ editor).
-- **i18n**: venue strings added to EN, FR, PT-BR (incl. a `venue_card_subtitle`
-  plural with `one`/`many`/`other`).
-
-## Data contract
-
-- Single doc `venueMap/config`; `imageURL`/`imagePublicID` delete-when-empty;
-  `points[]` element `id`/`name` (req; dropped if missing)/`category` (raw)
-  /`note` (`""`)/`imageX`/`imageY` (0…1, omit-when-nil)/`latitude`/`longitude`
-  (omit-when-nil); `updatedAt` serverTimestamp on every write. `program.venuePointID`
-  delete-when-empty, pin `name` kept in `program.location`.
-
-## In-app directions + user location (osmdroid)
-
-- Map tab now shows the **live user-location dot** (`MyLocationNewOverlay`,
-  runtime `ACCESS_FINE_LOCATION`, graceful "enable location" pill when denied),
-  a **recenter FAB**, and a **"Directions to <pin/camp>"** control that draws the
-  road `Polyline` + an ETA pill (min · distance). Route geometry comes from the
-  key-free public **OSRM** endpoint (`fetchOsrmRoute`, parsed with `org.json`).
-  Mirrors the iOS `VenueMapKitCanvas`.
-- `VenueMapController` exposes the user location + recenter without leaking the
-  `MapView`; the initial camera is set once (no pan/zoom reset on recompose) and
-  the only auto camera move is fitting a freshly computed route.
-- Production note: `router.project-osrm.org` is OSRM's demo server — self-host
-  OSRM (or another provider) for production.
-
-## Notes / deviations (iOS authoritative)
-
-- The map, crosshair coordinate picker, user-location dot and directions are all
-  ported via **osmdroid / OpenStreetMap + OSRM** (key-free) instead of
-  Apple/Google Maps. The data contract (real coordinates per pin) is unchanged,
-  so iOS/web keep their native map behaviour.
+- Implemented under `ui/guardian/` + `data/guardian/` (matching the iOS
+  `Features/Guardian` naming) instead of the TODO's `ui/family/camp/` path.
+- Per the F2/F3 roadmap (iOS), the program section is honestly the live camp
+  schedule — there is no per-program per-child attendance model.

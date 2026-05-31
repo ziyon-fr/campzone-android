@@ -673,6 +673,35 @@
     <string name="venue_category_info">Info point</string>
     <string name="venue_category_other">Other</string>
 
+    <!-- D6 family at camp: guardian read-only view -->
+    <string name="guardian_title">Family at Camp</string>
+    <string name="guardian_loading">Loading your family\'s updates…</string>
+    <string name="guardian_error_title">Couldn\'t load updates</string>
+    <string name="guardian_error_message">Check your connection and try again.</string>
+    <string name="guardian_empty_title">No children registered</string>
+    <string name="guardian_empty_message">Register a family participant for this camp to see their updates here.</string>
+    <string name="guardian_card_title">Your family at camp</string>
+    <string name="guardian_card_open_cd">Opens a read-only view of your children\'s camp activity</string>
+    <string name="guardian_summary_checked_in">Checked in</string>
+    <string name="guardian_child_age_church">Age %1$d · %2$s</string>
+    <string name="guardian_checkin_label">Check-in</string>
+    <string name="guardian_not_checked_in">Not checked in yet</string>
+    <string name="guardian_checked_in">Checked in</string>
+    <string name="guardian_checked_in_at">Checked in %1$s</string>
+    <string name="guardian_method_qr">QR</string>
+    <string name="guardian_method_manual">Manual</string>
+    <string name="guardian_team_label">Team</string>
+    <string name="guardian_not_on_team">Not assigned to a team yet</string>
+    <string name="guardian_score_pts">%1$d pts</string>
+    <string name="guardian_scores_hidden">Scores hidden</string>
+    <string name="guardian_role_captain">Captain</string>
+    <string name="guardian_role_vice_captain">Vice-captain</string>
+    <string name="guardian_today_title">Today at camp</string>
+    <string name="guardian_today_subtitle">The camp schedule — what your child is doing now</string>
+    <string name="guardian_nothing_scheduled">Nothing scheduled right now.</string>
+    <string name="guardian_happening_now">Happening now</string>
+    <string name="guardian_up_next">Up next</string>
+
     <string name="checkin_child">Child</string>
     <string name="checkin_you">You</string>
     <string name="checkin_qr_code_cd">QR check-in code</string>

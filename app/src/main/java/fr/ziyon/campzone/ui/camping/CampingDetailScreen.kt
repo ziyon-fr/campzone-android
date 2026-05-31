@@ -107,6 +107,7 @@ import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.core.navigation.CampzoneDeepLink
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.ui.guardian.GuardianUpdatesCard
 import fr.ziyon.campzone.data.auth.CampingAgeGroup
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
@@ -147,6 +148,7 @@ fun CampingDetailRoute(
     onOpenFeedbackSurvey: (String) -> Unit = {},
     onOpenFeedbackResults: (String) -> Unit = {},
     onOpenVenueMap: (String) -> Unit = {},
+    onOpenFamilyAtCamp: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -177,6 +179,7 @@ fun CampingDetailRoute(
 
     CampingDetailScreen(
         state = state,
+        authenticatedUser = authenticatedUser,
         myTeam = myTeam,
         teamScoresHidden = teamScoresHidden,
         onBack = onBack,
@@ -223,6 +226,7 @@ fun CampingDetailRoute(
         onOpenFeedbackSurvey = onOpenFeedbackSurvey,
         onOpenFeedbackResults = onOpenFeedbackResults,
         onOpenVenueMap = onOpenVenueMap,
+        onOpenFamilyAtCamp = onOpenFamilyAtCamp,
         onOpenCheckInScanner = onOpenCheckInScanner,
         onOpenCheckInRecords = onOpenCheckInRecords,
         onOpenQrPasses = onOpenQrPasses,
@@ -237,6 +241,7 @@ fun CampingDetailRoute(
 @Composable
 fun CampingDetailScreen(
     state: CampingDetailUiState,
+    authenticatedUser: AuthenticatedUser,
     onBack: () -> Unit,
     onAttendeeSearchChange: (String) -> Unit,
     onRetry: () -> Unit,
@@ -264,6 +269,7 @@ fun CampingDetailScreen(
     onOpenLodging: (String) -> Unit = {},
     onOpenFeedbackSurvey: (String) -> Unit = {},
     onOpenFeedbackResults: (String) -> Unit = {},
+    onOpenFamilyAtCamp: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -320,6 +326,7 @@ fun CampingDetailScreen(
                 else -> CampingDetailContent(
                     state = state,
                     camping = camping,
+                    authenticatedUser = authenticatedUser,
                     myTeam = myTeam,
                     teamScoresHidden = teamScoresHidden,
                     onAttendeeSearchChange = onAttendeeSearchChange,
@@ -341,6 +348,7 @@ fun CampingDetailScreen(
                     onOpenLodging = onOpenLodging,
                     onOpenFeedbackSurvey = onOpenFeedbackSurvey,
                     onOpenFeedbackResults = onOpenFeedbackResults,
+                    onOpenFamilyAtCamp = onOpenFamilyAtCamp,
                     onOpenCheckInScanner = onOpenCheckInScanner,
                     onOpenCheckInRecords = onOpenCheckInRecords,
                     onOpenQrPasses = onOpenQrPasses,
@@ -401,6 +409,7 @@ private fun DetailTopBar(
 private fun CampingDetailContent(
     state: CampingDetailUiState,
     camping: Camping,
+    authenticatedUser: AuthenticatedUser,
     onAttendeeSearchChange: (String) -> Unit,
     onOpenGuidelines: (String) -> Unit,
     onOpenSchedule: (String) -> Unit,
@@ -422,6 +431,7 @@ private fun CampingDetailContent(
     onOpenLodging: (String) -> Unit = {},
     onOpenFeedbackSurvey: (String) -> Unit = {},
     onOpenFeedbackResults: (String) -> Unit = {},
+    onOpenFamilyAtCamp: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
@@ -542,6 +552,16 @@ private fun CampingDetailContent(
                 onOpenBadgeAward = onOpenBadgeAward,
                 onOpenAlbum = onOpenAlbum,
             )
+        }
+
+        if (state.guardianChildAttendeeIds.isNotEmpty()) {
+            item(key = "family-at-camp") {
+                GuardianUpdatesCard(
+                    campingId = camping.id,
+                    authenticatedUser = authenticatedUser,
+                    onOpen = onOpenFamilyAtCamp,
+                )
+            }
         }
 
         state.venueMap?.let { venueMap ->
@@ -2063,6 +2083,18 @@ private fun CampingDetailScreenPreview() {
                 canManageTeams = true,
                 canManageSchedule = true,
                 canAwardAchievements = true,
+            ),
+            authenticatedUser = AuthenticatedUser(
+                uid = "preview-user",
+                email = "preview@example.com",
+                displayName = "Preview Guardian",
+                photoUrl = null,
+                role = fr.ziyon.campzone.core.permissions.UserRole.Adult,
+                church = "Paris Central SDA",
+                age = 38,
+                preferredLanguage = "fr",
+                gender = fr.ziyon.campzone.data.auth.UserGender.Female,
+                onboardingCompleted = true,
             ),
             onBack = {},
             onAttendeeSearchChange = {},

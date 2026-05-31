@@ -336,10 +336,12 @@
 - [x] iOS parity: `VenueMapScreen` (viewer, edit affordance for managers) + `VenueMapEditorScreen` (site image section, interactive canvas, points list, editor/coordinate `ModalBottomSheet`s) + self-silencing `VenueMapEntryCard` in the camp detail **and** the header location chip both deep-link to the map (mirrors iOS `CampingDetailView`). `VenueMapViewModel` (sealed `UiState`, single owned listener), reusable osmdroid `VenueOsmMap`/`VenueOsmPicker` (lifecycle-managed `MapView`), typed routes, EN/FR/PT strings, `VenueMapViewModelTest`; build + tests + lint green
 - [x] Live user-location + in-app directions (osmdroid, key-free): the Map tab shows the user-location dot (runtime `ACCESS_FINE_LOCATION`, graceful denied pill), a recenter FAB, and a "Directions to <pin/camp>" control that draws the road `Polyline` + an ETA pill (min · distance) using the public OSRM endpoint — mirrors the iOS `VenueMapKitCanvas`. (Production note: OSRM `router.project-osrm.org` is a demo server; self-host for production. The `geo:` "Open in Maps" intent remains as a fallback.)
 
-### D6. "Family at Camp" View (`ui/family/camp/`)
+### D6. "Family at Camp" View (`ui/guardian/`) ✅
 
-- [ ] Guardian read-only aggregate: compose `registrations` + `checkIns` + `teams` + schedule for own children
-- [ ] No new Firestore collection; guardian `checkIns` single-get allowed by RBAC
+- [x] Guardian read-only aggregate: composes per-child `registrations` (per-doc get) + `checkIns` (per-doc get) + `teams` (live) + schedule for own children — `GuardianUpdatesService` owns no query logic of its own, it reuses the existing CheckIn/Team/Schedule services (mirrors iOS `Features/Guardian`); `GuardianUpdate` model derives `GuardianChildUpdate` snapshots (check-in status, team + score gated by `winnerRevealPolicy.areScoresHidden`)
+- [x] No new Firestore collection; guardian `checkIns`/`registrations` read by single-doc id (the blanket queries are denied by RBAC, so per-child gets only); team read signed-in, schedule public
+- [x] iOS parity: `GuardianUpdatesScreen` (per-child detail cards: avatar + age/church, check-in row with method, team row with score/"scores hidden"/"not on a team"; + "Today at camp" schedule card with happening-now / up-next) and a self-silencing pine-gradient `GuardianUpdatesCard` in the camp detail (shown only when the viewer registered a child here; taps → the read-only screen). `GuardianUpdatesViewModel` (sealed `UiState`, single owned team listener), typed route `CampingGuardianUpdates`, EN/FR/PT strings, `GuardianUpdatesViewModelTest`; build + tests + lint green
+- Note: implemented under `ui/guardian/` + `data/guardian/` (matching the iOS `Features/Guardian` naming) rather than `ui/family/camp/`
 
 ### D7. Admin Hub (`ui/admin/`)
 
@@ -441,6 +443,6 @@ D2 Stripe payments ✅
 D3 Lodging ✅
 D4 Post-camp feedback ✅
 D5 Venue map ✅
-D6 Family at camp
+D6 Family at camp ✅
 D7 Admin hub
 ```
