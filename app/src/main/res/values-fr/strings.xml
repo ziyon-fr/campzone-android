@@ -542,6 +542,57 @@
     <string name="lodging_assign_person">Placer %1$s</string>
     <string name="lodging_no_units">Aucune unité éligible n’a de place. Ajoutez de la capacité ou une unité compatible.</string>
     <string name="lodging_my_lodging_title">Mon hébergement</string>
+
+    <!-- D4 post-camp feedback: survey + admin results -->
+    <string name="feedback_survey_card_title">Partagez votre avis</string>
+    <string name="feedback_survey_card_subtitle">Aidez-nous à améliorer les prochains camps</string>
+    <string name="feedback_survey_title">Donner un avis</string>
+    <string name="feedback_survey_loading">Chargement du questionnaire…</string>
+    <string name="feedback_survey_error_title">Questionnaire indisponible</string>
+    <string name="feedback_survey_not_available_title">Pas encore disponible</string>
+    <string name="feedback_survey_not_available_message">Le questionnaire s\'ouvre à la fin du camp, le %1$s.</string>
+    <string name="feedback_survey_closed_title">Questionnaire clôturé</string>
+    <string name="feedback_survey_closed_message">La période de retour pour ce camp est terminée.</string>
+    <string name="feedback_header_eyebrow">Questionnaire de fin de camp</string>
+    <string name="feedback_header_subtitle">Partagez votre expérience — cela ne prend qu\'une minute.</string>
+    <string name="feedback_section_overall">Expérience globale</string>
+    <string name="feedback_overall_prompt">Comment s\'est passé le camp dans l\'ensemble ?</string>
+    <string name="feedback_section_sessions">Sessions</string>
+    <string name="feedback_section_highlights">Points forts</string>
+    <string name="feedback_highlights_prompt">Qu\'avez-vous le plus apprécié ?</string>
+    <string name="feedback_section_improvements">Améliorations</string>
+    <string name="feedback_improvements_prompt">Que pourrait-on améliorer la prochaine fois ?</string>
+    <string name="feedback_program_comment_hint">Ajouter un commentaire (facultatif)</string>
+    <string name="feedback_would_return">Je reviendrais</string>
+    <string name="feedback_anonymous_title">Envoyer de façon anonyme</string>
+    <string name="feedback_anonymous_subtitle">Votre nom n\'apparaîtra pas dans les résultats des organisateurs.</string>
+    <string name="feedback_anonymous_author">Anonyme</string>
+    <string name="feedback_submit">Envoyer l\'avis</string>
+    <string name="feedback_submit_hint">Veuillez noter votre expérience globale pour envoyer.</string>
+    <string name="feedback_star_rate">Noter %1$d sur 5 étoiles pour %2$s</string>
+    <string name="feedback_thanks_title">Merci !</string>
+    <string name="feedback_thanks_message">Votre avis nous aide à améliorer chaque camp à venir.</string>
+    <string name="feedback_thanks_done">Terminé</string>
+    <string name="feedback_results_title">Résultats des avis</string>
+    <string name="feedback_results_loading">Chargement des résultats…</string>
+    <string name="feedback_results_restricted_title">Accès restreint</string>
+    <string name="feedback_results_restricted_message">Seuls les responsables du camp peuvent voir les résultats.</string>
+    <string name="feedback_results_error_title">Impossible de charger les résultats</string>
+    <string name="feedback_results_empty_title">Aucune réponse pour l\'instant</string>
+    <string name="feedback_results_empty_message">Les avis apparaissent ici après l\'envoi des questionnaires par les participants.</string>
+    <string name="feedback_results_stat_responses">Réponses</string>
+    <string name="feedback_results_stat_would_return">Reviendraient</string>
+    <string name="feedback_results_percent">%1$d %%</string>
+    <string name="feedback_results_comments">Commentaires (%1$d)</string>
+    <string name="feedback_results_no_comments">Aucun commentaire écrit.</string>
+    <string name="feedback_results_enjoyed">Apprécié</string>
+    <string name="feedback_results_improve">À améliorer</string>
+    <plurals name="feedback_results_rating_count">
+        <item quantity="one">%1$d note</item>
+        <item quantity="many">%1$d de notes</item>
+        <item quantity="other">%1$d notes</item>
+    </plurals>
+
     <string name="checkin_child">Enfant</string>
     <string name="checkin_you">Vous</string>
     <string name="checkin_qr_code_cd">Code QR d’enregistrement</string>

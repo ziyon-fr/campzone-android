@@ -1,57 +1,72 @@
-# Project Status - D3 Lodging (+ My QR Passes consolidation)
+# Project Status - D4 Post-Camp Feedback
 
-Updated: 2026-05-30
+Updated: 2026-05-31
 
-- Branch: `d3-lodging` (based on `d2-stripe-payments`, so it also carries D2)
-- Current completed phase: D3 Lodging, plus a My QR Passes consolidation
-  requested alongside it
-- Next phase: D4 Post-Camp Feedback
+- Branch: `d4-post-camp-feedback` (based on `d3-lodging`, so it also carries
+  D2 + D3)
+- Current completed phase: D4 Post-Camp Feedback (survey + admin results)
+- Next phase: D5 Venue Map
 - Verification (JAVA_HOME = Android Studio JBR):
-  - `./gradlew assembleDebug` SUCCESSFUL
-  - `./gradlew testDebugUnitTest` SUCCESSFUL — new: 6 `LodgingUnitTest`,
-    5 `LodgingViewModelTest` (all green); D2 + prior suites untouched + green
-  - `./gradlew lint` SUCCESSFUL
+  - `./gradlew :app:assembleDebug` SUCCESSFUL
+  - `./gradlew :app:testDebugUnitTest` SUCCESSFUL — new: 9 `FeedbackViewModelTest`
+    (survey window/seed/submit + results gate/empty/aggregate), all green; the
+    `CampFeedback` round-trip in `CampOperationsTest` already covered the model;
+    prior suites untouched + green
+  - `./gradlew :app:lintDebug` SUCCESSFUL
 
-## My QR Passes consolidation (commit `c2b3c5e`)
+## D4 Post-Camp Feedback
 
-Mirrors the iOS `CheckInQRView`: the participant "My QR Passes" hub now shows
-the arrival check-in QR codes **and** the provided-bus boarding tickets (with
-the Stripe fare CTA) — a passenger no longer needs a separate Transportation
-screen. `CheckInQrPassesRoute` loads bookings via `TransportationViewModel` and
-the user's lodging via `MyLodgingViewModel`; the passenger "Transportation"
-entry was removed from the camp-detail resources. (The standalone
-`TransportationTicketsRoute` remains registered but is no longer linked from the
-detail resources — safe to retire later.)
+iOS is the source of truth — ported `CampFeedbackSurveyView`,
+`CampFeedbackResultsView`, `FeedbackObserver`/`FeedbackService`, and the two
+`CampingDetailView` entry points.
 
-## D3 Lodging
-
-- **Model**: the `LodgingUnit` model + `LodgingKind`/`LodgingGenderPolicy` enums
-  + `LodgingPayload`/`toLodgingUnitOrNull` already existed (A10 data-model pass).
-  Extended in place: added `LodgingGenderPolicy.accepts(gender)` and
-  `LodgingUnit.occupancy`/`availableSpots`/`occupancyText`/`contains`. Did NOT
-  duplicate the model.
-- **Service** (`data/lodging/LodgingService.kt`): interface + Firestore (snapshot
-  listener, `LodgingPayload` write, create-only `createdAt`, `setOccupants` merge)
-  + reactive `FakeLodgingService` + Hilt binding. Collection
-  `campings/{id}/lodging/{unitId}`.
-- **Admin** (`ui/lodging/`): `LodgingViewModel` (gated `canManageTeams`,
-  `Restricted` otherwise) + `LodgingScreen` (summary, gender-policy filter chips,
-  unit cards with occupant rows, "Needs a bed" section) + editor & assignment
-  `ModalBottomSheet`s. Camp-detail "Lodging" entry gated `canManageTeams`.
-- **Participant**: `MyLodgingCard` + `MyLodgingViewModel` (read-only observe)
-  embedded in My QR Passes — self-silences when there's no lodging.
-- **i18n**: lodging strings added to EN, PT-BR, FR.
+- **Model**: `CampFeedback` + `ProgramFeedback` + `CampFeedbackPayload`/
+  `toCampFeedbackOrNull` already existed (A10 data-model pass). Reused as-is — no
+  duplication.
+- **Service** (`data/feedback/FeedbackService.kt`): interface + Firestore
+  (`loadMyFeedback` own doc, `submitFeedback` hand-built payload `set(merge)` with
+  `submittedAt`/`updatedAt` = serverTimestamp, `loadAllFeedback` ordered
+  `submittedAt` desc, limit 500) + in-memory `FakeFeedbackService` (with a `peek`
+  test hook) + Hilt binding. Collection `campings/{id}/feedback/{uid}`.
+- **Survey** (`ui/feedback/CampFeedbackSurveyScreen.kt` +
+  `FeedbackSurveyViewModel`): availability window mirrors iOS — opens on the camp
+  `endDate`, closes 60 days later. States: Loading / Error / NotAvailable (with
+  open date) / Expired / Submitted (thank-you) / Editing. Form: 1–5 star overall
+  (required to submit), per-session star ratings + optional comment (meals
+  excluded, seeded from the schedule), highlights / improvements, would-return +
+  submit-anonymously toggles. Submit filters `rating > 0` sessions, trims text,
+  writes one doc keyed by uid, then shows the thank-you state.
+- **Results** (`ui/feedback/CampFeedbackResultsScreen.kt` +
+  `FeedbackResultsViewModel`): gated `canManageAnyCamping` (else Restricted).
+  Aggregates: average overall (half-up star fill + 1-decimal), responses count,
+  would-return %, per-program averages (best-first), and the written-comment
+  stream (anonymous responses show "Anonymous"). States: Loading / Restricted /
+  Error / Empty / Loaded.
+- **Camp detail** (`ui/camping/CampingDetailScreen.kt`): added the "Share your
+  feedback" card (shown in the 60-day window to approved participants, leadership,
+  or the editor) and wired the previously-dead `ManagementSection` to a working
+  "Feedback Results" entry (gated `canManageAnyCamping && camp ended`). The stale
+  lodging/venue-map placeholder buttons in that section were removed (lodging is
+  reached from Resources; venue map lands in D5).
+- **Navigation**: typed routes `AppRoute.CampFeedbackSurvey` /
+  `CampFeedbackResults` (`campings/{id}/feedback-survey` and `.../feedback`), two
+  `composable` destinations in `CampzoneNavigationShell`.
+- **i18n**: feedback strings added to EN, FR, PT-BR (incl. a `feedback_results_
+  rating_count` plural with `one`/`many`/`other` for fr/pt).
 
 ## Data contract
 
-- Wire keys `campingID` / `occupantIDs` (iOS casing); `kind` ∈
-  tent/cabin/room/dorm; `genderPolicy` ∈ any/male/female/family; capacity int
-  clamped ≥ 1; `createdAt` first-create only, `updatedAt` every write
-  (serverTimestamp). Occupancy denormalized into `occupantIDs[]` (no assignment
-  collection).
+- Doc ID == submitting uid; `overallRating` coerced/clamped 1–5 (RBAC); wire keys
+  `campingID`/`userID`/`displayName`/`overallRating`/`programFeedback[]`
+  (`id`/`programTitle`/`rating`/`comment`)/`highlights`/`improvements`/
+  `wouldReturn`/`isAnonymous`. `submittedAt` + `updatedAt` overridden to
+  `serverTimestamp()` on every write; `isAnonymous` hides `displayName` in the
+  results UI but it is still stored.
 
-## Deferred (iOS extra, not in the Android contract)
+## Notes / deviations (iOS authoritative)
 
-- One-tap auto-allocation (capacity + gender + family rules). Hand assignment +
-  the gender/capacity eligibility checks are in place; the allocator itself is
-  not ported.
+- Results UI gates on `canManageAnyCamping` (matching iOS) even though the
+  deployed rules also permit reads for `canViewParticipantProfiles` — the UI is
+  intentionally the stricter of the two.
+- No notification dispatch on feedback submit (none in the iOS flow or the
+  backend contract).

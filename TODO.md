@@ -319,11 +319,13 @@
 - [x] iOS parity: reused the existing `LodgingUnit` model + `LodgingPayload`/`toLodgingUnitOrNull` (added `accepts`, `occupancy`/`availableSpots`/`occupancyText`/`contains`); admin summary + units + "Needs a bed" sections, editor + assignment `ModalBottomSheet`s; **My Lodging** card embedded in My QR Passes (mirrors iOS `CheckInQRView` → `MyLodgingCard`)
 - [ ] Deferred (iOS extra, not in the Android contract): one-tap **auto-allocate** (capacity + gender + family rules) — units are placed by hand for now
 
-### D4. Post-Camp Feedback (`ui/feedback/`)
+### D4. Post-Camp Feedback (`ui/feedback/`) ✅
 
-- [ ] Submit: `campings/{id}/feedback/{uid}` (doc ID == auth.uid); RBAC enforces `overallRating` 1–5 and `feedbackId == auth.uid`
-- [ ] `submittedAt` overridden to `serverTimestamp()`; `isAnonymous` hides `displayName` in UI (still stored)
-- [ ] Admin results view: gate `canViewParticipantProfiles`
+- [x] Submit: `campings/{id}/feedback/{uid}` (doc ID == auth.uid); RBAC enforces `overallRating` 1–5 and `feedbackId == auth.uid` — `FeedbackService` (interface + Firestore + fake) hand-builds the payload via `CampFeedbackPayload`, `set(merge)`, `overallRating` coerced 1–5
+- [x] `submittedAt` overridden to `serverTimestamp()` (also `updatedAt`); `isAnonymous` hides `displayName` in the results UI (still stored)
+- [x] Admin results view: gate `canManageAnyCamping` (iOS `CampFeedbackResultsView` is authoritative; rules also allow read for `canViewParticipantProfiles`) — average overall, would-return %, per-program averages, comment stream
+- [x] iOS parity: `CampFeedbackSurveyScreen` (availability window opens on `endDate`, closes 60 days later; not-available/closed/thanks/form states; 1–5 star picker, per-session ratings excluding meals, highlights/improvements, would-return + anonymous toggles) and detail-screen "Share your feedback" card + "Feedback Results" management entry, both gated like iOS `CampingDetailView`
+- [x] Two VMs (`FeedbackSurveyViewModel` / `FeedbackResultsViewModel`, sealed `UiState`), typed routes `CampFeedbackSurvey`/`CampFeedbackResults`, EN/FR/PT strings; build + unit tests (`FeedbackViewModelTest`) + lint green
 
 ### D5. Venue Map (`ui/venuemap/`)
 
@@ -435,7 +437,7 @@ C11 Analytics
 D1 Transportation tickets ✅
 D2 Stripe payments ✅
 D3 Lodging ✅
-D4 Post-camp feedback
+D4 Post-camp feedback ✅
 D5 Venue map
 D6 Family at camp
 D7 Admin hub

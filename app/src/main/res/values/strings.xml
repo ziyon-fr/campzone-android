@@ -552,6 +552,56 @@
     <string name="lodging_assign_person">Place %1$s</string>
     <string name="lodging_no_units">No eligible unit has space. Add capacity or a matching unit.</string>
     <string name="lodging_my_lodging_title">My Lodging</string>
+
+    <!-- D4 post-camp feedback: survey + admin results -->
+    <string name="feedback_survey_card_title">Share your feedback</string>
+    <string name="feedback_survey_card_subtitle">Help us improve future camps</string>
+    <string name="feedback_survey_title">Give Feedback</string>
+    <string name="feedback_survey_loading">Loading survey…</string>
+    <string name="feedback_survey_error_title">Survey unavailable</string>
+    <string name="feedback_survey_not_available_title">Not yet available</string>
+    <string name="feedback_survey_not_available_message">The feedback survey opens when the camp ends on %1$s.</string>
+    <string name="feedback_survey_closed_title">Survey closed</string>
+    <string name="feedback_survey_closed_message">The feedback window for this camp has passed.</string>
+    <string name="feedback_header_eyebrow">Post-camp survey</string>
+    <string name="feedback_header_subtitle">Share your experience — it only takes a minute.</string>
+    <string name="feedback_section_overall">Overall experience</string>
+    <string name="feedback_overall_prompt">How was the camp overall?</string>
+    <string name="feedback_section_sessions">Sessions</string>
+    <string name="feedback_section_highlights">Highlights</string>
+    <string name="feedback_highlights_prompt">What did you enjoy most?</string>
+    <string name="feedback_section_improvements">Improvements</string>
+    <string name="feedback_improvements_prompt">What could be better next time?</string>
+    <string name="feedback_program_comment_hint">Add a comment (optional)</string>
+    <string name="feedback_would_return">I would attend again</string>
+    <string name="feedback_anonymous_title">Submit anonymously</string>
+    <string name="feedback_anonymous_subtitle">Your name won\'t appear in the admin results.</string>
+    <string name="feedback_anonymous_author">Anonymous</string>
+    <string name="feedback_submit">Submit Feedback</string>
+    <string name="feedback_submit_hint">Please rate your overall experience to submit.</string>
+    <string name="feedback_star_rate">Rate %1$d of 5 stars for %2$s</string>
+    <string name="feedback_thanks_title">Thank you!</string>
+    <string name="feedback_thanks_message">Your feedback helps us improve every future camp.</string>
+    <string name="feedback_thanks_done">Done</string>
+    <string name="feedback_results_title">Feedback Results</string>
+    <string name="feedback_results_loading">Loading results…</string>
+    <string name="feedback_results_restricted_title">Restricted</string>
+    <string name="feedback_results_restricted_message">Only camp leadership can view feedback results.</string>
+    <string name="feedback_results_error_title">Could not load results</string>
+    <string name="feedback_results_empty_title">No responses yet</string>
+    <string name="feedback_results_empty_message">Feedback appears here after participants submit their surveys.</string>
+    <string name="feedback_results_stat_responses">Responses</string>
+    <string name="feedback_results_stat_would_return">Would return</string>
+    <string name="feedback_results_percent">%1$d%%</string>
+    <string name="feedback_results_comments">Comments (%1$d)</string>
+    <string name="feedback_results_no_comments">No written comments submitted.</string>
+    <string name="feedback_results_enjoyed">Enjoyed</string>
+    <string name="feedback_results_improve">Improve</string>
+    <plurals name="feedback_results_rating_count">
+        <item quantity="one">%1$d rating</item>
+        <item quantity="other">%1$d ratings</item>
+    </plurals>
+
     <string name="checkin_child">Child</string>
     <string name="checkin_you">You</string>
     <string name="checkin_qr_code_cd">QR check-in code</string>
