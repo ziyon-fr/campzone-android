@@ -1,0 +1,348 @@
+package fr.ziyon.campzone.ui.venuemap
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Festival
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocalParking
+import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.Wc
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import fr.ziyon.campzone.R
+import fr.ziyon.campzone.core.designsystem.CzRadius
+import fr.ziyon.campzone.core.designsystem.CzSpacing
+import fr.ziyon.campzone.core.designsystem.czColors
+import fr.ziyon.campzone.data.model.VenueCategory
+import fr.ziyon.campzone.data.model.VenueMap
+import fr.ziyon.campzone.data.model.VenuePoint
+import fr.ziyon.campzone.data.model.pointsOnIllustration
+
+/** Material glyph for a pin category (mirrors the iOS SF Symbols mapping). */
+val VenueCategory.icon: ImageVector
+    get() = when (this) {
+        VenueCategory.Tent -> Icons.Filled.Festival
+        VenueCategory.Stage -> Icons.Filled.Mic
+        VenueCategory.Dining -> Icons.Filled.Restaurant
+        VenueCategory.FirstAid -> Icons.Filled.MedicalServices
+        VenueCategory.Restroom -> Icons.Filled.Wc
+        VenueCategory.Parking -> Icons.Filled.LocalParking
+        VenueCategory.Water -> Icons.Filled.WaterDrop
+        VenueCategory.Program -> Icons.Filled.CalendarMonth
+        VenueCategory.Info -> Icons.Filled.Info
+        VenueCategory.Other -> Icons.Filled.Place
+    }
+
+/** Semantic tint (first-aid is the safety red; the rest use the warm palette). */
+val VenueCategory.tint: Color
+    @Composable get() = when (this) {
+        VenueCategory.FirstAid -> MaterialTheme.czColors.error
+        VenueCategory.Water -> MaterialTheme.czColors.pine
+        VenueCategory.Dining -> MaterialTheme.czColors.amber
+        VenueCategory.Stage -> MaterialTheme.czColors.flame
+        else -> MaterialTheme.czColors.ember
+    }
+
+val VenueCategory.labelRes: Int
+    get() = when (this) {
+        VenueCategory.Tent -> R.string.venue_category_tent
+        VenueCategory.Stage -> R.string.venue_category_stage
+        VenueCategory.Dining -> R.string.venue_category_dining
+        VenueCategory.FirstAid -> R.string.venue_category_first_aid
+        VenueCategory.Restroom -> R.string.venue_category_restroom
+        VenueCategory.Parking -> R.string.venue_category_parking
+        VenueCategory.Water -> R.string.venue_category_water
+        VenueCategory.Program -> R.string.venue_category_program
+        VenueCategory.Info -> R.string.venue_category_info
+        VenueCategory.Other -> R.string.venue_category_other
+    }
+
+/** The category-tinted circular marker used everywhere a pin renders. */
+@Composable
+fun VenuePinGlyph(
+    category: VenueCategory,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    diameter: Dp = 30.dp,
+) {
+    Box(
+        modifier = modifier
+            .size(diameter)
+            .background(category.tint, CircleShape)
+            .border(if (selected) 3.dp else 2.dp, Color.White, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = category.icon,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(diameter * 0.55f),
+        )
+    }
+}
+
+/** Pin glyph plus an optional name capsule below it. */
+@Composable
+fun VenuePinView(
+    category: VenueCategory,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    label: String? = null,
+) {
+    Column(
+        modifier = modifier.semantics(mergeDescendants = true) { this.contentDescription = contentDescription },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        VenuePinGlyph(category = category, selected = selected)
+        if (!label.isNullOrEmpty()) {
+            Surface(
+                color = MaterialTheme.czColors.surface.copy(alpha = 0.92f),
+                shape = CircleShape,
+            ) {
+                Text(
+                    text = label,
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = CzSpacing.xs, vertical = 1.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Coil-loaded site illustration with a graceful placeholder. */
+@Composable
+fun VenueSiteImage(url: String?, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.background(MaterialTheme.czColors.surface), contentAlignment = Alignment.Center) {
+        if (url.isNullOrBlank()) {
+            VenueImagePlaceholder(stringResource(R.string.venue_site_image_placeholder))
+        } else {
+            AsyncImage(
+                model = url,
+                contentDescription = stringResource(R.string.venue_site_image_cd),
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        }
+    }
+}
+
+@Composable
+private fun VenueImagePlaceholder(text: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        Icon(
+            imageVector = Icons.Filled.Place,
+            contentDescription = null,
+            tint = MaterialTheme.czColors.textSecondary,
+            modifier = Modifier.size(32.dp),
+        )
+        Text(text, color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+/**
+ * The 4:3 site illustration with pins overlaid at their relative positions.
+ * Used read-only by the viewer (`onPlaceAt == null`) and interactively by the
+ * editor (tap to place when [isPlacing], or tap a pin to edit).
+ */
+@Composable
+fun VenueImageCanvas(
+    map: VenueMap,
+    selectedPointId: String?,
+    modifier: Modifier = Modifier,
+    isPlacing: Boolean = false,
+    onTapPin: (VenuePoint) -> Unit = {},
+    onPlaceAt: ((Double, Double) -> Unit)? = null,
+) {
+    val borderColor = if (isPlacing) MaterialTheme.czColors.ember else MaterialTheme.czColors.divider
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(4f / 3f)
+            .clip(RoundedCornerShape(CzRadius.xl))
+            .border(if (isPlacing) 2.dp else 1.dp, borderColor, RoundedCornerShape(CzRadius.xl)),
+    ) {
+        val canvasWidth = maxWidth
+        val canvasHeight = maxHeight
+
+        val tapModifier = if (isPlacing && onPlaceAt != null) {
+            Modifier.pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    if (size.width > 0 && size.height > 0) {
+                        onPlaceAt(
+                            (offset.x / size.width).toDouble().coerceIn(0.0, 1.0),
+                            (offset.y / size.height).toDouble().coerceIn(0.0, 1.0),
+                        )
+                    }
+                }
+            }
+        } else {
+            Modifier
+        }
+
+        VenueSiteImage(url = map.imageUrl, modifier = Modifier.fillMaxSize().then(tapModifier))
+
+        val glyph = 30.dp
+        for (point in map.pointsOnIllustration) {
+            val x = (point.imageX ?: 0.5)
+            val y = (point.imageY ?: 0.5)
+            VenuePinView(
+                category = point.category,
+                contentDescription = point.name,
+                selected = point.id == selectedPointId,
+                label = point.name,
+                modifier = Modifier
+                    .offset(
+                        x = canvasWidth * x.toFloat() - glyph / 2,
+                        y = canvasHeight * y.toFloat() - glyph / 2,
+                    )
+                    .then(
+                        if (!isPlacing) Modifier.clickable { onTapPin(point) } else Modifier,
+                    ),
+            )
+        }
+    }
+}
+
+/** Bottom detail card for the tapped pin. */
+@Composable
+fun VenuePointDetailCard(
+    point: VenuePoint,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    footer: (@Composable () -> Unit)? = null,
+) {
+    // `czColors.surface` is a translucent overlay; composite it over the opaque
+    // background so this floating card never shows the map content through it.
+    val cardColor = MaterialTheme.czColors.surface.compositeOver(MaterialTheme.czColors.background)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = cardColor,
+        shape = RoundedCornerShape(CzRadius.xl),
+        shadowElevation = 8.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(CzSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                VenuePinGlyph(category = point.category, diameter = 36.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = point.name,
+                        color = MaterialTheme.czColors.textPrimary,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(point.category.labelRes),
+                        color = MaterialTheme.czColors.textSecondary,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+                IconButton(onClick = onClose) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.common_close),
+                        tint = MaterialTheme.czColors.textSecondary,
+                    )
+                }
+            }
+            if (point.note.isNotBlank()) {
+                Text(
+                    text = point.note,
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            footer?.invoke()
+        }
+    }
+}
+
+/** Tappable row in the "Locations" legend list. */
+@Composable
+fun VenueLegendRow(
+    point: VenuePoint,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
+        color = MaterialTheme.czColors.surface,
+        shape = RoundedCornerShape(CzRadius.lg),
+    ) {
+        Row(
+            modifier = Modifier.padding(CzSpacing.md),
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            VenuePinGlyph(category = point.category, diameter = 28.dp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = point.name,
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(point.category.labelRes),
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+            trailing?.invoke()
+        }
+    }
+}

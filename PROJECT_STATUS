@@ -1,72 +1,97 @@
-# Project Status - D4 Post-Camp Feedback
+# Project Status - D5 Venue Map
 
 Updated: 2026-05-31
 
-- Branch: `d4-post-camp-feedback` (based on `d3-lodging`, so it also carries
-  D2 + D3)
-- Current completed phase: D4 Post-Camp Feedback (survey + admin results)
-- Next phase: D5 Venue Map
-- Verification (JAVA_HOME = Android Studio JBR):
+- Branch: `d5-venue-map` (based on `d4-post-camp-feedback`, so it also carries
+  D2 + D3 + D4)
+- Current completed phase: D5 Venue Map (viewer + manager editor + program link)
+- Next phase: D6 "Family at Camp" view
+- Verification (JAVA_HOME = Android Studio JBR; `clean` build after adding the
+  osmdroid resource set):
   - `./gradlew :app:assembleDebug` SUCCESSFUL
-  - `./gradlew :app:testDebugUnitTest` SUCCESSFUL — new: 9 `FeedbackViewModelTest`
-    (survey window/seed/submit + results gate/empty/aggregate), all green; the
-    `CampFeedback` round-trip in `CampOperationsTest` already covered the model;
-    prior suites untouched + green
-  - `./gradlew :app:lintDebug` SUCCESSFUL
+  - `./gradlew :app:testDebugUnitTest` SUCCESSFUL — new: 8 `VenueMapViewModelTest`
+    (load/manager gate, pin add/edit/move/delete, coordinate set+clear, image
+    upload/remove); D4 + prior suites untouched + green
+  - `./gradlew :app:lintDebug` SUCCESSFUL (no MissingTranslation/MissingQuantity)
 
-## D4 Post-Camp Feedback
+## In-app map (osmdroid / OpenStreetMap)
 
-iOS is the source of truth — ported `CampFeedbackSurveyView`,
-`CampFeedbackResultsView`, `FeedbackObserver`/`FeedbackService`, and the two
-`CampingDetailView` entry points.
+User-requested, key-free in-app map (no Google Maps SDK / API key):
 
-- **Model**: `CampFeedback` + `ProgramFeedback` + `CampFeedbackPayload`/
-  `toCampFeedbackOrNull` already existed (A10 data-model pass). Reused as-is — no
-  duplication.
-- **Service** (`data/feedback/FeedbackService.kt`): interface + Firestore
-  (`loadMyFeedback` own doc, `submitFeedback` hand-built payload `set(merge)` with
-  `submittedAt`/`updatedAt` = serverTimestamp, `loadAllFeedback` ordered
-  `submittedAt` desc, limit 500) + in-memory `FakeFeedbackService` (with a `peek`
-  test hook) + Hilt binding. Collection `campings/{id}/feedback/{uid}`.
-- **Survey** (`ui/feedback/CampFeedbackSurveyScreen.kt` +
-  `FeedbackSurveyViewModel`): availability window mirrors iOS — opens on the camp
-  `endDate`, closes 60 days later. States: Loading / Error / NotAvailable (with
-  open date) / Expired / Submitted (thank-you) / Editing. Form: 1–5 star overall
-  (required to submit), per-session star ratings + optional comment (meals
-  excluded, seeded from the schedule), highlights / improvements, would-return +
-  submit-anonymously toggles. Submit filters `rating > 0` sessions, trims text,
-  writes one doc keyed by uid, then shows the thank-you state.
-- **Results** (`ui/feedback/CampFeedbackResultsScreen.kt` +
-  `FeedbackResultsViewModel`): gated `canManageAnyCamping` (else Restricted).
-  Aggregates: average overall (half-up star fill + 1-decimal), responses count,
-  would-return %, per-program averages (best-first), and the written-comment
-  stream (anonymous responses show "Anonymous"). States: Loading / Restricted /
-  Error / Empty / Loaded.
-- **Camp detail** (`ui/camping/CampingDetailScreen.kt`): added the "Share your
-  feedback" card (shown in the 60-day window to approved participants, leadership,
-  or the editor) and wired the previously-dead `ManagementSection` to a working
-  "Feedback Results" entry (gated `canManageAnyCamping && camp ended`). The stale
-  lodging/venue-map placeholder buttons in that section were removed (lodging is
-  reached from Resources; venue map lands in D5).
-- **Navigation**: typed routes `AppRoute.CampFeedbackSurvey` /
-  `CampFeedbackResults` (`campings/{id}/feedback-survey` and `.../feedback`), two
-  `composable` destinations in `CampzoneNavigationShell`.
-- **i18n**: feedback strings added to EN, FR, PT-BR (incl. a `feedback_results_
-  rating_count` plural with `one`/`many`/`other` for fr/pt).
+- Added `org.osmdroid:osmdroid-android` (catalog + app build). Only INTERNET is
+  needed (already present); the tile cache is app-internal and the OSM
+  user-agent is set to the package id.
+- `ui/venuemap/VenueOsmMap.kt`: a lifecycle-managed `MapView` wrapped in
+  `AndroidView` — `VenueOsmMap` (read-only camp + category-tinted pin markers,
+  tap → select) and `VenueOsmPicker` (interactive, reports its centre as the
+  user pans, for the editor crosshair).
+- Viewer: an **Illustration / Map** `SingleChoiceSegmentedButtonRow` (mirrors iOS
+  `VenueMapMode`). Map mode shows the embedded OSM map centred on the camp /
+  selected pin; empty-state when nothing has a coordinate. The content sits in a
+  `weight(1f)` region so the full-bleed map never overlaps the segmented control.
+- Editor: the "Set map location" sheet is now an interactive osmdroid map with a
+  fixed centre crosshair (pan so the marker sits on the spot → "Use this
+  location"), replacing the manual lat/lon fields. Removed the now-unused
+  lat/lon/use-camp strings.
+
+## D5 Venue Map
+
+iOS is the source of truth — ported `VenueMapModels`, `VenueMapService`,
+`VenueMapObserver`, `VenueMapView`, `VenueMapEditorView`, the pin
+sheets/components, and the `CampingDetailView` entry points.
+
+- **Model**: `VenueMap` + `VenuePoint` + `VenueMapPayload`/`toVenueMap` already
+  existed (A10). Extended in place with derived helpers (`hasImage`,
+  `hasContent`, `pointsOnIllustration`, `pointsWithCoordinate`,
+  `VenuePoint.hasImagePosition`/`hasCoordinate`). No duplication.
+- **Service** (`data/venuemap/VenueMapService.kt`): interface + Firestore (live
+  `config` listener via `callbackFlow`, `VenueMapPayload` write with
+  `imageURL`/`imagePublicID` delete-when-empty + `updatedAt` serverTimestamp) +
+  in-memory `FakeVenueMapService` + Hilt binding. Path
+  `campings/{id}/venueMap/config`.
+- **ViewModel** (`ui/venuemap/VenueMapViewModel.kt`): one VM for both screens,
+  sealed `VenueMapUiState` (Loading/Error/Ready). A single owned listener keeps
+  the embedded pin set live; every pin/image mutation rewrites the full config
+  doc. `canManage = canManageTeams || canManageSchedule`. Site image uploaded via
+  the shared backend-signed `ImageUploader` (Cloudinary).
+- **Viewer** (`VenueMapScreen.kt`): 4:3 Coil site image with pins positioned at
+  `imageX`/`imageY`, tappable detail card, "Locations" legend, empty state
+  (managers get "Build the map"). Coordinate pins offer **Open in Maps** (a
+  `geo:` intent) — the Android-native stand-in for the iOS MapKit overlay +
+  directions.
+- **Editor** (`VenueMapEditorScreen.kt`, gated `canManage` else Restricted):
+  upload/replace/remove the site illustration (photo picker → Cloudinary),
+  tap-to-place / reposition pins on the canvas, per-pin overflow
+  (edit/reposition/set map location/delete), pin editor `ModalBottomSheet`
+  (name + category chips + note) and a coordinate sheet (lat/lon entry, "use camp
+  location", clear).
+- **Camp detail** (`CampingDetailScreen.kt`): the header location chip
+  (pin + place name) deep-links to the venue map (mirrors iOS `headerSection`),
+  and a self-silencing `VenueMapEntryCard` appears in the body when the map has
+  content (the detail VM now loads the map one-shot to drive it). `VenuePointDetailCard`
+  composites the translucent `surface` token over `background` so the floating
+  card is opaque.
+- **Program↔venue link** (`ui/schedule/`): the program editor offers the camp's
+  pins as FilterChips; picking one sets `venuePointID` + fills `location` with
+  the pin name, typing a custom location clears `venuePointID`. The schedule
+  service already wrote `venuePointID` delete-when-empty.
+- **Navigation**: typed routes `AppRoute.CampingVenueMap` /
+  `CampingVenueMapEditor`, two `composable` destinations (viewer ↔ editor).
+- **i18n**: venue strings added to EN, FR, PT-BR (incl. a `venue_card_subtitle`
+  plural with `one`/`many`/`other`).
 
 ## Data contract
 
-- Doc ID == submitting uid; `overallRating` coerced/clamped 1–5 (RBAC); wire keys
-  `campingID`/`userID`/`displayName`/`overallRating`/`programFeedback[]`
-  (`id`/`programTitle`/`rating`/`comment`)/`highlights`/`improvements`/
-  `wouldReturn`/`isAnonymous`. `submittedAt` + `updatedAt` overridden to
-  `serverTimestamp()` on every write; `isAnonymous` hides `displayName` in the
-  results UI but it is still stored.
+- Single doc `venueMap/config`; `imageURL`/`imagePublicID` delete-when-empty;
+  `points[]` element `id`/`name` (req; dropped if missing)/`category` (raw)
+  /`note` (`""`)/`imageX`/`imageY` (0…1, omit-when-nil)/`latitude`/`longitude`
+  (omit-when-nil); `updatedAt` serverTimestamp on every write. `program.venuePointID`
+  delete-when-empty, pin `name` kept in `program.location`.
 
 ## Notes / deviations (iOS authoritative)
 
-- Results UI gates on `canManageAnyCamping` (matching iOS) even though the
-  deployed rules also permit reads for `canViewParticipantProfiles` — the UI is
-  intentionally the stricter of the two.
-- No notification dispatch on feedback submit (none in the iOS flow or the
-  backend contract).
+- The embedded map + crosshair coordinate picker are ported via **osmdroid /
+  OpenStreetMap** (key-free) instead of Apple/Google Maps. Still deferred: the
+  live user-location dot and in-app MKDirections turn-by-turn routing — pin
+  directions defer to the device maps app via the `geo:` intent. The data
+  contract (real coordinates per pin) is unchanged.

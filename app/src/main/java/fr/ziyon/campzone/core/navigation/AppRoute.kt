@@ -253,6 +253,16 @@ sealed interface AppRoute {
             "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.FeedbackResults}"
     }
 
+    data class CampingVenueMap(val campingId: String) : AppRoute {
+        override val route =
+            "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.VenueMap}"
+    }
+
+    data class CampingVenueMapEditor(val campingId: String) : AppRoute {
+        override val route =
+            "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.VenueMapEditor}"
+    }
+
     data object RegistrationReview : AppRoute {
         override val route = AppRoutePath.RegistrationReview
     }
@@ -430,6 +440,8 @@ internal object AppRoutePath {
     const val Lodging = "lodging"
     const val FeedbackSurvey = "feedback-survey"
     const val FeedbackResults = "feedback"
+    const val VenueMap = "venue-map"
+    const val VenueMapEditor = "venue-map-editor"
     const val RegistrationReview = "registration-review"
     const val Attendees = "attendees"
     const val CampingCreate = "create"
@@ -478,6 +490,8 @@ internal object AppRoutePattern {
     const val CampingLodging = "$CampingDetail/${AppRoutePath.Lodging}"
     const val CampFeedbackSurvey = "$CampingDetail/${AppRoutePath.FeedbackSurvey}"
     const val CampFeedbackResults = "$CampingDetail/${AppRoutePath.FeedbackResults}"
+    const val CampingVenueMap = "$CampingDetail/${AppRoutePath.VenueMap}"
+    const val CampingVenueMapEditor = "$CampingDetail/${AppRoutePath.VenueMapEditor}"
     const val RegistrationReview = AppRoutePath.RegistrationReview
     const val CampingAttendees = "$CampingDetail/${AppRoutePath.Attendees}"
     const val AttendeeProfile = "$CampingAttendees/{${AppRouteArgs.AttendeeId}}"
