@@ -158,9 +158,9 @@ class AppPermissionEvaluatorTest {
 
     @Test
     fun familyManagementIsOpenToEveryOnboardedRole() {
-        // Product RBAC: managing one's own family/children is open to every
-        // signed-in role except guest (broadened from adult/admin). The deployed
-        // Firestore rules + iOS + web must mirror this to avoid drift.
+        // Managing one's own family/children is open to every signed-in role
+        // except guest. This matches the shipped iOS `UserRole.permissions` map
+        // (the source of truth); Android had wrongly restricted it to adult/admin.
         val managing = listOf(
             UserRole.User,
             UserRole.Adult,
