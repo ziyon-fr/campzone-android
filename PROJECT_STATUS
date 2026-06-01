@@ -1,13 +1,57 @@
-# Project Status - D7 "Admin Hub"
+# Project Status - Real-time pass (camp/games/reveal) + self-reg notification
 
-Updated: 2026-05-31
+Updated: 2026-06-01
+
+- Branch: `realtime-games-reveal-registration` (based on `d7-admin-hub`, so it
+  also carries D2–D7 + the family-RBAC parity fix)
+- Current completed work: live camping doc + live games/points, synchronized
+  winner-reveal countdown, and a self-registration notification-copy fix — a
+  quality pass over already-shipped Teams/Games/Registration features.
+- Next phase: all TODO phases A–D are ✅; remaining items are the explicit
+  D1/D2/D3 deferreds (out of the Android contract).
+
+## Real-time pass (2026-06-01)
+
+- **Live camping doc** (`CampingService.observeCamping(id)` →
+  `CampingDetailViewModel`): the shared detail VM (resolved off the
+  `CampingDetail` back-stack entry) streams the camping doc, so
+  `winnerRevealPolicy` / score-visibility / capacity reach the detail, teams,
+  and games screens in real time. Attendees + venue map stay one-shot (loaded on
+  first emission); `viewCamping` analytics fires once. Single owned job,
+  cancelled in `onCleared`.
+- **Live games & points** (`GameService.observeGames`/`observeActivities`):
+  `GameViewModel` collects both via `combine` (single owned job per camping,
+  cancelled in `onCleared`) instead of one-shot `.get()`. Awarded points/new
+  games surface on every device with no reload. Team scores were already live
+  via `TeamService.observeTeams`.
+- **Synchronized reveal countdown**: `WinnerRevealCeremonyOverlay` anchors on the
+  persisted `revealedAt` via `revealCountdownSeconds(revealedAt, now, window=10)`.
+  Once an admin reveals, every device streaming the live camping doc converges on
+  the same trophy moment (`revealedAt + 10s`); devices opening after the window
+  skip straight to the trophy. `TeamsScreen` threads `revealedAt` into the
+  overlay; the per-camping "seen" SharedPreferences still prevents replays.
+- **Self-registration notification**: `RegistrationNotificationRequest` gained a
+  `selfRegistration` flag; self-only → "{requester} registered for {camp}. Review
+  and approve." (name once), family registrations keep naming participant(s).
+  `CampingRegistrationViewModel` sets the flag when the sole submission is the
+  `SelfParticipant`.
+- **iOS divergence**: the synced countdown and the self-reg copy differ from
+  current iOS (local ceremony; requester+participant copy) per owner request —
+  mirror into the iOS repo later so the three platforms don't drift.
+- Verification (JBR): `assembleDebug` + `testDebugUnitTest` + `lintDebug` green.
+  New: `GameViewModelTest` (live emission), `RegistrationNotificationRequestTest`
+  (self/family/multi bodies), `RevealCountdownTest` (anchor math);
+  `CampingDetailViewModelTest` still green after the live-stream refactor.
+  Single-device only — cross-device sync not verifiable on one local emulator.
+
+---
+
+# Project Status - D7 "Admin Hub"
 
 - Branch: `d7-admin-hub` (based on `d6-family-at-camp`, so it also carries
   D2–D6 + the family-RBAC parity fix)
-- Current completed phase: D7 Admin Hub (user management / role assignment +
+- Completed phase: D7 Admin Hub (user management / role assignment +
   admin onboarding checklist; moderation queue reused from C9)
-- Next phase: C8 Album Media (the last remaining unchecked Phase-C task) or any
-  cross-cutting cleanup — Phase D is now fully ✅
 - Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew :app:assembleDebug` SUCCESSFUL
   - `./gradlew :app:testDebugUnitTest` SUCCESSFUL — new: 7 `RoleManagementViewModelTest`
