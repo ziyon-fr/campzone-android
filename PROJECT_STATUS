@@ -1,3 +1,22 @@
+# Project Status - Campings list and featured camping iOS parity
+
+Updated: 2026-06-01
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change in progress: porting the newest iOS `CampingsView` /
+  `CampingCard` / `CampingEventSheet` and `FeaturedCampingCard` polish to
+  Android.
+- Implemented so far: Campings tab now uses horizontal full-width event cards
+  with logo/gradient banners, status pill, location overlay, richer date /
+  organizer rows, and iOS-style capacity bars. Tapping an already-approved
+  participant opens detail; everyone else gets an event details bottom sheet
+  with register CTA and manager edit action. Home featured camping now uses the
+  camp logo as the hero image when available and shows stacked recent approved
+  participant avatars in the registration summary row.
+- Verification so far: `:app:compileDebugKotlin` green with Android Studio JBR.
+
+---
+
 # Project Status - Hardcoded-string localization sweep
 
 Updated: 2026-06-01

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,7 +33,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -71,6 +71,7 @@ import fr.ziyon.campzone.ui.camping.previewCamping
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.max
 
 @Composable
 fun HomeRoute(
@@ -556,11 +557,8 @@ private fun FeaturedCampingCard(
     } else {
         0f
     }
-    val progressColor = when {
-        ratio < 0.5f -> MaterialTheme.czColors.leaf
-        ratio < 0.8f -> MaterialTheme.czColors.amber
-        else -> MaterialTheme.czColors.flame
-    }
+    val fillBrush = homeFeatureFillBrush(ratio)
+    val fillAccent = homeFeatureFillAccentColor(ratio)
     val fillText = when {
         ratio == 0f -> camping.registrationStatus.label()
         ratio >= 1f -> stringResource(R.string.home_fully_booked)
@@ -572,6 +570,9 @@ private fun FeaturedCampingCard(
     } else {
         stringResource(R.string.home_registered_count, camping.participantCount)
     }
+    val recentAvatarUrls = camping.approvedAttendees
+        .mapNotNull { attendee -> attendee.photoUrl?.takeUnless { it.isBlank() } }
+        .take(3)
     val heroGradient = if (isDarkMode) {
         listOf(MaterialTheme.czColors.night, MaterialTheme.czColors.twilight, Color(0xFF2D1005))
     } else {
@@ -588,7 +589,9 @@ private fun FeaturedCampingCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(CzRadius.lg)),
         shape = RoundedCornerShape(CzRadius.lg),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.czColors.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isDarkMode) MaterialTheme.czColors.surface else Color.White,
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
@@ -599,17 +602,25 @@ private fun FeaturedCampingCard(
                     .fillMaxWidth()
                     .height(148.dp),
             ) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(Brush.verticalGradient(heroGradient)),
-                )
-
-                FeaturedMountainBackground(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .alpha(if (isDarkMode) 0.82f else 0.4f),
-                )
+                if (!camping.logoUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = camping.logoUrl,
+                        contentDescription = stringResource(R.string.camping_logo_content_description, camping.title),
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Brush.verticalGradient(heroGradient)),
+                    )
+                    FeaturedMountainBackground(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .alpha(if (isDarkMode) 0.82f else 0.4f),
+                    )
+                }
 
                 Box(
                     modifier = Modifier
@@ -634,16 +645,12 @@ private fun FeaturedCampingCard(
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(CzSpacing.md),
+                        .fillMaxWidth()
+                        .padding(CzSpacing.md)
+                        .padding(bottom = CzSpacing.md),
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
                 ) {
-                    CampingLogoBadge(
-                        logoUrl = camping.logoUrl,
-                        title = camping.title,
-                        size = 56,
-                    )
-
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -716,42 +723,127 @@ private fun FeaturedCampingCard(
                         text = fillText,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = progressColor,
+                        color = fillAccent,
                         maxLines = 1,
                     )
                 }
 
-                LinearProgressIndicator(
-                    progress = { ratio },
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(5.dp)
-                        .clip(CircleShape),
-                    color = progressColor,
-                    trackColor = MaterialTheme.czColors.divider,
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .clip(CircleShape)
+                        .background(MaterialTheme.czColors.divider),
                 ) {
-                    Text(
-                        text = registrationSummary,
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.czColors.textSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(ratio)
+                            .clip(CircleShape)
+                            .background(fillBrush),
                     )
+                }
 
-                    Icon(
-                        imageVector = Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.czColors.textTertiary,
-                    )
+                StackedAvatarsRow(
+                    avatarUrls = recentAvatarUrls,
+                    registeredCount = camping.participantCount,
+                    summary = registrationSummary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StackedAvatarsRow(
+    avatarUrls: List<String>,
+    registeredCount: Int,
+    summary: String,
+    modifier: Modifier = Modifier,
+) {
+    val visibleUrls = avatarUrls.take(3)
+    val extraCount = max(0, registeredCount - visibleUrls.size)
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+    ) {
+        if (visibleUrls.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+                visibleUrls.forEach { url ->
+                    ParticipantAvatar(url = url)
+                }
+                if (extraCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.czColors.background)
+                            .border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.camping_avatar_extra_count, extraCount),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.czColors.textSecondary,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }
+        Text(
+            text = summary,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.czColors.textSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.czColors.textTertiary,
+        )
+    }
+}
+
+@Composable
+private fun ParticipantAvatar(url: String) {
+    AsyncImage(
+        model = url,
+        contentDescription = null,
+        modifier = Modifier
+            .size(26.dp)
+            .clip(CircleShape)
+            .border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+        contentScale = ContentScale.Crop,
+    )
+}
+
+@Composable
+private fun homeFeatureFillBrush(ratio: Float): Brush {
+    val colors = MaterialTheme.czColors
+    return when {
+        ratio < 0.5f -> Brush.horizontalGradient(
+            listOf(colors.leaf, colors.leaf.copy(alpha = 0.85f)),
+        )
+        ratio < 0.75f -> Brush.horizontalGradient(
+            listOf(colors.amber, colors.flame.copy(alpha = 0.80f)),
+        )
+        else -> Brush.horizontalGradient(
+            listOf(colors.flame, colors.error),
+        )
+    }
+}
+
+@Composable
+private fun homeFeatureFillAccentColor(ratio: Float): Color {
+    val colors = MaterialTheme.czColors
+    return when {
+        ratio < 0.5f -> colors.leaf
+        ratio < 0.75f -> colors.amber
+        else -> colors.error
     }
 }
 
