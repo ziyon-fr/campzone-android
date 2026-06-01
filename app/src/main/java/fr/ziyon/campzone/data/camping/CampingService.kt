@@ -45,6 +45,14 @@ interface CampingService {
     suspend fun fetchCamping(id: String): Camping
 
     /**
+     * Live single camping document (camping fields only — attendees are loaded
+     * separately so the detail VM controls when the registrations query runs).
+     * Powers real-time `winnerRevealPolicy`/score-visibility across the detail,
+     * teams, and games screens.
+     */
+    fun observeCamping(id: String): Flow<Camping>
+
+    /**
      * Loads the `registrations` subcollection. Falls back to the caller's own
      * registration + the children they registered when the blanket list query
      * is denied by RBAC (mirrors the iOS fallback).
@@ -122,6 +130,19 @@ class FirebaseCampingService @Inject constructor(
         return snapshot.data?.toCampingOrNull(snapshot.id)
             ?.let { it.copy(attendees = loadAttendees(it.id)) }
             ?: error("Camping could not be found.")
+    }
+
+    override fun observeCamping(id: String): Flow<Camping> = callbackFlow {
+        val registration = campings().document(id)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val camping = snapshot?.data?.toCampingOrNull(snapshot.id)
+                if (camping != null) trySend(camping)
+            }
+        awaitClose { registration.remove() }
     }
 
     override suspend fun loadAttendees(campingId: String): List<CampingAttendee> {
@@ -489,6 +510,7 @@ abstract class CampingBindings {
 class PreviewCampingService(private val camping: Camping? = null) : CampingService {
     override fun observeCampings() = kotlinx.coroutines.flow.flowOf(listOfNotNull(camping))
     override suspend fun fetchCamping(id: String) = camping ?: error("No camping")
+    override fun observeCamping(id: String) = kotlinx.coroutines.flow.flowOf(camping ?: error("No camping"))
     override suspend fun loadAttendees(campingId: String) = emptyList<fr.ziyon.campzone.data.model.CampingAttendee>()
     override suspend fun saveCamping(c: Camping) = c
     override suspend fun cancelCamping(id: String) = camping ?: error("No camping")

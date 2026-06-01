@@ -126,7 +126,7 @@
 - [x] Transportation choice: `transportationChoice` (`own_car` / `provided_bus`); if `provided_bus` → create `transportationBookings/{participant.id}-bus`
 - [x] Set `registrationStatus: "pending"` on create; **never** write `paymentStatus` (backend settles)
 - [x] Required fields per `02` §3.6; `gender` omit-when-nil
-- [x] Dispatch `POST /notifications/dispatch/registration` after submit
+- [x] Dispatch `POST /notifications/dispatch/registration` after submit — self-only registration body names the user once as the registrant ("{requester} registered for {camp}") instead of the redundant "{requester} requested to register {requester}"; family registrations still name the participant(s) (diverges from current iOS copy — mirror to iOS later)
 - [x] Waitlist: show when `participantCapacity` reached and status would be `waitlisted`
 - [x] Paid camp: initiate Stripe payment flow (see Phase D)
 
@@ -196,8 +196,9 @@
 - [x] Every team write **rewrites full doc** + derives `memberUserIDs = members[].userID` (RBAC-critical for team chat)
 - [x] `photoURL`/`photoPublicID` delete-when-empty; upload via Cloudinary
 - [x] Captain/vice-captain: at most one each (client-enforced via `normalizeCaptaincy()`); per-member `role` field
-- [ ] After team mutation: `POST /notifications/dispatch/team` (deferred to notification phase)
-- [ ] Auto-balance members (deferred)
+- [x] After team mutation: `POST /notifications/dispatch/team` (`TeamNotificationDispatcher`, dispatched from `TeamViewModel`/`GameViewModel`)
+- [x] Auto-balance members (`TeamBalancer` + `previewAutoBalance`/`applyAutoBalance`, `TeamAutoBalanceSheet`)
+- [x] Real-time: teams stream via `TeamService.observeTeams`; the camping doc (winner-reveal policy/score visibility) streams via `CampingService.observeCamping` so scores/ranking update live across devices
 
 ### C2. Games & Points (`ui/games/`) ✅
 
@@ -208,12 +209,14 @@
   - Negative team award → append positive-magnitude `penalties[]` entry (never decrement `points`)
   - User award → add delta to `members[i].personalScore`; rewrite full team doc + `memberUserIDs`
 - [x] `activities` list: gate `canManageGames` or `canRevealWinners` or (approved participant + `visibility=="immediate"`)
+- [x] Real-time: `GameService.observeGames`/`observeActivities` snapshot listeners; `GameViewModel` streams them (single owned job, removed in `onCleared`) so awarded points/new games surface on every device without a manual reload
 
 ### C3. Winner Reveal (`ui/games/reveal/`) ✅
 
 - [x] Gate: `canRevealWinners`
 - [x] Write only `winnerRevealPolicy` via dedicated update path - forbidden in normal camp edit
 - [x] `winnerRevealPolicy.isRevealed` required if map is present
+- [x] Synchronized reveal: the ceremony countdown anchors on the shared `revealedAt` (`revealCountdownSeconds`), so once an admin reveals, every device streaming the live camping doc converges on the same trophy moment (`revealedAt + 10s`); late joiners skip straight to the trophy
 
 ### C4. Chat (`ui/chat/`) ✅
 
@@ -253,7 +256,7 @@
 - [x] `campingID` and `note` are explicit Firestore `null` when absent (not omitted)
 - [x] Manual award: gate `canAwardAchievements`; write to `users/{targetUid}/badges/{achievementId}` (RBAC asserts `request.auth.uid != uid`)
 
-### C8. Album Media (`ui/media/`)
+### C8. Album Media (`ui/media/`) ✅
 
 - [x] Read gate: approved participant or album-manager
 - [x] Upload: check `albumSettings/default.allowedUploadRoles` contains user's role; `POST /cloudinary/sign` → upload image/video; write `media/{mediaId}` (full set)
@@ -261,7 +264,7 @@
 - [x] Settings: `albumSettings/default.allowedUploadRoles` sorted role raws, manager-only writes
 - [x] Load with Coil from Cloudinary URLs; thumbnail via `thumbnailURL`
 
-### C9. Content Moderation (`ui/admin/moderation/`)
+### C9. Content Moderation (`ui/admin/moderation/`) ✅
 
 - [x] Report: create `contentReports/{uuid}` (full set, no merge); all required fields must be present - **brittle reader** (admin list aborts on missing field or unknown enum)
 - [x] `target` enum: `announcement`/`camping`/`chatMessage` (**camelCase**)
@@ -279,7 +282,7 @@
 - [x] Notification channels keyed by type: `announcement`, `chat_message`, `poll`, `schedule_reminder`, `team_update`, `registration`, `general`
 - [x] iOS parity: full notification settings (master + 5 categories + role audiences + camping/team channel pickers); feed rows with audience/kind, `concerns()` role + `@mention` scoping; topics/`visibleTopics` ported verbatim
 
-### C11. Analytics
+### C11. Analytics ✅
 
 - [x] Firebase Analytics; mirror iOS event set: `viewCamping`, `registerForCamping`, `cancelCamping`, `viewSchedule`, `viewSongbook`, `viewTeams`, `playSong`, `favoriteSong`, `searchCampings`, `signIn`, `signOut`
 
@@ -430,14 +433,14 @@ B9 Guidelines
 C1 Teams ✅
 C2 Games + points ✅
 C3 Winner reveal ✅
-C4 Chat (camping + team)
-C5 Polls
-C6 QR check-in
-C7 Badges
-C8 Album media
+C4 Chat (camping + team) ✅
+C5 Polls ✅
+C6 QR check-in ✅
+C7 Badges ✅
+C8 Album media ✅
 C9 Content moderation ✅
 C10 Notifications (FCM + in-app feed) ✅
-C11 Analytics
+C11 Analytics ✅
 
 D1 Transportation tickets ✅
 D2 Stripe payments ✅

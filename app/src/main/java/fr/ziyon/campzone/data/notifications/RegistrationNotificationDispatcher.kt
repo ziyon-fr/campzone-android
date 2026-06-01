@@ -21,14 +21,22 @@ data class RegistrationNotificationRequest(
     val participantName: String,
     val requestedByName: String,
     val participantCount: Int,
+    /** True when the user registered only themselves (no family members). */
+    val selfRegistration: Boolean = false,
 ) {
     val title: String = "New registration request"
 
     val body: String
-        get() = if (participantCount > 1) {
-            "$requestedByName requested to register $participantCount participants for $campingTitle. Review and approve."
-        } else {
-            "$requestedByName requested to register $participantName for $campingTitle. Review and approve."
+        get() = when {
+            participantCount > 1 ->
+                "$requestedByName requested to register $participantCount participants for $campingTitle. Review and approve."
+            // Self-only: name the user once as the registrant, not the redundant
+            // "X requested to register X". Family registrations keep naming the
+            // participant below.
+            selfRegistration ->
+                "$requestedByName registered for $campingTitle. Review and approve."
+            else ->
+                "$requestedByName requested to register $participantName for $campingTitle. Review and approve."
         }
 }
 

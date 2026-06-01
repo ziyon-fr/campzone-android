@@ -24,9 +24,12 @@ import fr.ziyon.campzone.data.teams.TeamNotificationEvent
 import fr.ziyon.campzone.data.teams.TeamNotificationRequest
 import fr.ziyon.campzone.data.teams.TeamScoreRequest
 import fr.ziyon.campzone.data.teams.TeamService
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.util.Date
 import java.util.UUID
@@ -74,6 +77,7 @@ class GameViewModel @Inject constructor(
     private val gamesByCampingId = mutableMapOf<String, List<Game>>()
     private val activitiesByCampingId = mutableMapOf<String, List<Activity>>()
     private val loadedIds = mutableSetOf<String>()
+    private val observeJobs = mutableMapOf<String, Job>()
 
     var form by mutableStateOf(GameForm())
     var editingGameId by mutableStateOf<String?>(null)
@@ -88,28 +92,47 @@ class GameViewModel @Inject constructor(
     var operationError by mutableStateOf<String?>(null)
 
     fun loadIfNeeded(campingId: String) {
-        if (loadedIds.contains(campingId)) {
+        if (observeJobs[campingId]?.isActive == true) {
             publishState(campingId)
             return
         }
         load(campingId)
     }
 
+    /**
+     * Starts (or restarts) a live listener on the camping's games + activities so
+     * awarded points and new games reflect on every device in real time. The
+     * snapshot stream is the source of truth; the optimistic local upserts in the
+     * mutation methods just remove perceived latency before the listener echoes.
+     */
     fun load(campingId: String) {
-        viewModelScope.launch {
-            _uiState.value = GamesUiState.Loading
-            operationError = null
-            runCatching {
-                val games = gameService.loadGames(campingId)
-                val activities = gameService.loadActivities(campingId)
-                gamesByCampingId[campingId] = games
-                activitiesByCampingId[campingId] = activities
-                loadedIds.add(campingId)
-                publishState(campingId)
-            }.onFailure { e ->
+        observeJobs[campingId]?.cancel()
+        _uiState.value = GamesUiState.Loading
+        operationError = null
+        observeJobs[campingId] = viewModelScope.launch {
+            try {
+                combine(
+                    gameService.observeGames(campingId),
+                    gameService.observeActivities(campingId),
+                ) { games, activities -> games to activities }
+                    .collect { (games, activities) ->
+                        gamesByCampingId[campingId] = games
+                        activitiesByCampingId[campingId] = activities
+                        loadedIds.add(campingId)
+                        publishState(campingId)
+                    }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (e: Exception) {
                 _uiState.value = GamesUiState.Error(e.message ?: "Failed to load games.")
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        observeJobs.values.forEach { it.cancel() }
+        observeJobs.clear()
     }
 
     fun gamesFor(campingId: String): List<Game> =
