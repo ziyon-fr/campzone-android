@@ -7,6 +7,7 @@ import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.camping.CampingService
+import fr.ziyon.campzone.data.lodging.LodgingAllocator
 import fr.ziyon.campzone.data.lodging.LodgingService
 import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.LodgingGenderPolicy
@@ -93,6 +94,10 @@ class LodgingViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow<LodgingUiState>(LodgingUiState.Loading)
     val uiState: StateFlow<LodgingUiState> = _uiState.asStateFlow()
+
+    /** One-shot outcome of the last auto-allocation, for a localized snackbar. */
+    private val _autoAllocateResult = MutableStateFlow<AutoAllocateResult?>(null)
+    val autoAllocateResult: StateFlow<AutoAllocateResult?> = _autoAllocateResult.asStateFlow()
 
     private var campingId: String = ""
     private var attendees: List<CampingAttendee> = emptyList()
@@ -185,6 +190,47 @@ class LodgingViewModel @Inject constructor(
         runOperation { lodgingService.setOccupants(unitId, campingId, occupantIds) }
     }
 
+    /**
+     * One-tap allocation: re-plans every approved attendee into the units via
+     * [LodgingAllocator] (capacity + gender + family rules) and batch-persists
+     * the result. The live `observeUnits` listener refreshes the UI; the outcome
+     * (unplaced count) is surfaced via [autoAllocateResult].
+     */
+    fun autoAllocate() {
+        val current = _uiState.value as? LodgingUiState.Ready ?: return
+        if (current.units.isEmpty()) return
+        _uiState.update { (it as? LodgingUiState.Ready)?.copy(isSaving = true, operationError = null) ?: it }
+        viewModelScope.launch {
+            try {
+                val result = LodgingAllocator().allocate(attendees, current.units)
+                val occupants: MutableMap<String, List<String>> =
+                    current.units.associate { it.id to emptyList<String>() }.toMutableMap()
+                result.assignmentsByUnitId.forEach { (unitId, members) ->
+                    occupants[unitId] = members.map { member -> member.id }
+                }
+                lodgingService.applyAllocation(occupants, campingId)
+                _uiState.update { (it as? LodgingUiState.Ready)?.copy(isSaving = false) ?: it }
+                _autoAllocateResult.value = AutoAllocateResult(
+                    unplacedCount = result.unplaced.size,
+                    placedCount = result.assignmentsByUnitId.values.sumOf { list -> list.size },
+                )
+            } catch (cancellation: kotlinx.coroutines.CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                _uiState.update {
+                    (it as? LodgingUiState.Ready)?.copy(
+                        isSaving = false,
+                        operationError = error.message ?: DEFAULT_OP_ERROR,
+                    ) ?: it
+                }
+            }
+        }
+    }
+
+    fun consumeAutoAllocateResult() {
+        _autoAllocateResult.value = null
+    }
+
     fun clearOperationError() {
         _uiState.update { (it as? LodgingUiState.Ready)?.copy(operationError = null) ?: it }
     }
@@ -212,3 +258,9 @@ class LodgingViewModel @Inject constructor(
         const val DEFAULT_OP_ERROR = "The change could not be saved."
     }
 }
+
+/** Outcome of a one-tap auto-allocation, surfaced once for a localized snackbar. */
+data class AutoAllocateResult(
+    val unplacedCount: Int,
+    val placedCount: Int,
+)

@@ -8,9 +8,13 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import fr.ziyon.campzone.data.model.Achievement
 import fr.ziyon.campzone.data.model.AchievementCatalog
+import fr.ziyon.campzone.data.model.AchievementCatalogEntry
 import fr.ziyon.campzone.data.model.EarnedBadge
 import fr.ziyon.campzone.data.model.EarnedBadgePayload
+import fr.ziyon.campzone.data.model.displayOrder
+import fr.ziyon.campzone.data.model.toAchievementCatalogEntryOrNull
 import fr.ziyon.campzone.data.model.toEarnedBadgeOrNull
 import java.util.Date
 import javax.inject.Inject
@@ -18,6 +22,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.tasks.await
 
 interface AchievementService {
+    suspend fun loadCatalog(): List<Achievement>
     suspend fun loadEarned(userId: String): List<EarnedBadge>
     suspend fun award(achievementId: String, userId: String, campingId: String?, note: String?): EarnedBadge
     suspend fun award(achievementId: String, userIds: List<String>, campingId: String?, note: String?): List<EarnedBadge>
@@ -27,7 +32,32 @@ interface AchievementService {
 class FirestoreAchievementService @Inject constructor(
     private val db: FirebaseFirestore,
 ) : AchievementService {
+    private var cachedCatalog: List<Achievement>? = null
+
+    override suspend fun loadCatalog(): List<Achievement> {
+        cachedCatalog?.let { return it }
+        val snapshot = db.collection(Collection.BadgeCatalog)
+            .get()
+            .await()
+        val catalog = snapshot.documents
+            .mapNotNull { doc ->
+                @Suppress("UNCHECKED_CAST")
+                (doc.data as? Map<String, Any?>)
+                    ?.toAchievementCatalogEntryOrNull(doc.id)
+            }
+            .sortedWith(
+                compareBy<AchievementCatalogEntry> { it.sortOrder }
+                    .thenBy { it.achievement.rarity.displayOrder }
+                    .thenBy { it.achievement.title.lowercase() },
+            )
+            .map { it.achievement }
+            .ifEmpty { AchievementCatalog.all }
+        cachedCatalog = catalog
+        return catalog
+    }
+
     override suspend fun loadEarned(userId: String): List<EarnedBadge> {
+        val catalogIds = loadCatalog().map { it.id }.toSet()
         val snapshot = badgesCollection(userId)
             .orderBy(Field.EarnedAt, Query.Direction.DESCENDING)
             .get()
@@ -36,7 +66,7 @@ class FirestoreAchievementService @Inject constructor(
             @Suppress("UNCHECKED_CAST")
             (doc.data as? Map<String, Any?>)
                 ?.toEarnedBadgeOrNull(doc.id)
-                ?.takeIf { AchievementCatalog.achievement(it.id) != null }
+                ?.takeIf { it.id in catalogIds }
         }
     }
 
@@ -46,7 +76,7 @@ class FirestoreAchievementService @Inject constructor(
         campingId: String?,
         note: String?,
     ): EarnedBadge {
-        require(AchievementCatalog.achievement(achievementId)?.canBeAwardedManually == true) {
+        require(loadCatalog().firstOrNull { it.id == achievementId }?.canBeAwardedManually == true) {
             "This badge is awarded automatically."
         }
         val badge = EarnedBadge(
@@ -69,7 +99,7 @@ class FirestoreAchievementService @Inject constructor(
         campingId: String?,
         note: String?,
     ): List<EarnedBadge> {
-        require(AchievementCatalog.achievement(achievementId)?.canBeAwardedManually == true) {
+        require(loadCatalog().firstOrNull { it.id == achievementId }?.canBeAwardedManually == true) {
             "This badge is awarded automatically."
         }
         val ids = userIds.map { it.trim() }.filter { it.isNotBlank() }.distinct().sorted()
@@ -91,6 +121,7 @@ class FirestoreAchievementService @Inject constructor(
         db.collection(Collection.Users).document(userId).collection(Collection.Badges)
 
     private object Collection {
+        const val BadgeCatalog = "badges"
         const val Users = "users"
         const val Badges = "badges"
     }
@@ -102,26 +133,34 @@ class FirestoreAchievementService @Inject constructor(
 
 class FakeAchievementService(
     initialBadges: List<EarnedBadge> = emptyList(),
+    initialCatalog: List<Achievement> = AchievementCatalog.all,
     var shouldFail: Boolean = false,
 ) : AchievementService {
     private val badgesByUser = initialBadges.groupBy { it.userId }
         .mapValues { it.value.toMutableList() }
         .toMutableMap()
+    private val catalog = initialCatalog
 
     private fun check() {
         if (shouldFail) throw IllegalStateException("FakeAchievementService configured to fail.")
     }
 
+    override suspend fun loadCatalog(): List<Achievement> {
+        check()
+        return catalog
+    }
+
     override suspend fun loadEarned(userId: String): List<EarnedBadge> {
         check()
+        val catalogIds = catalog.map { it.id }.toSet()
         return badgesByUser[userId].orEmpty()
-            .filter { AchievementCatalog.achievement(it.id) != null }
+            .filter { it.id in catalogIds }
             .sortedByDescending { it.earnedAt ?: Date(0) }
     }
 
     override suspend fun award(achievementId: String, userId: String, campingId: String?, note: String?): EarnedBadge {
         check()
-        require(AchievementCatalog.achievement(achievementId)?.canBeAwardedManually == true) {
+        require(catalog.firstOrNull { it.id == achievementId }?.canBeAwardedManually == true) {
             "This badge is awarded automatically."
         }
         val badge = EarnedBadge(achievementId, userId.trim(), Date(), campingId, note?.trim()?.takeUnless { it.isBlank() })

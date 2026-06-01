@@ -46,6 +46,8 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -64,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -110,6 +113,7 @@ fun CampingEditorRoute(
     authenticatedUser: AuthenticatedUser,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onDeleted: () -> Unit = onBack,
     viewModel: CampingAdminViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -189,7 +193,7 @@ fun CampingEditorRoute(
         onFormUpdate = viewModel::updateForm,
         onSave = { if (canSave) viewModel.saveEditorForm(campingId) { onBack() } },
         onCancel = { campingId?.let { viewModel.cancelCamping(it) { onBack() } } },
-        onDelete = { campingId?.let { viewModel.deleteCamping(it) { onBack() } } },
+        onDelete = { campingId?.let { viewModel.deleteCamping(it) { onDeleted() } } },
         onUploadLogo = viewModel::uploadLogo,
         onRemoveLogo = viewModel::removeLogo,
         modifier = modifier,
@@ -227,6 +231,7 @@ fun CampingEditorScreen(
     var editingTransport by remember { mutableStateOf<CampingTransportationOption?>(null) }
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
+    var showDueDatePicker by remember { mutableStateOf(false) }
 
     val logoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -262,6 +267,19 @@ fun CampingEditorScreen(
             },
             cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH),
         ).also { it.setOnCancelListener { showEndDatePicker = false } }.show()
+    }
+
+    if (showDueDatePicker) {
+        val cal = Calendar.getInstance().apply { time = form.registrationDueDate ?: form.endDate }
+        AndroidDatePickerDialog(
+            context,
+            { _, y, m, d ->
+                val newDate = Calendar.getInstance().apply { set(y, m, d) }.time
+                onFormUpdate(form.copy(registrationDueDate = newDate))
+                showDueDatePicker = false
+            },
+            cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH),
+        ).also { it.setOnCancelListener { showDueDatePicker = false } }.show()
     }
 
     if (showDeleteDialog) {
@@ -507,7 +525,23 @@ fun CampingEditorScreen(
                     DateRow(
                         label = stringResource(R.string.camping_editor_date_end),
                         date = form.endDate,
-                        onClick = { },
+                        onClick = { showEndDatePicker = true },
+                    )
+                    Spacer(Modifier.height(CzSpacing.sm))
+                    RegistrationDueDateRow(
+                        dueDate = form.registrationDueDate,
+                        onToggle = { enabled ->
+                            onFormUpdate(
+                                form.copy(
+                                    registrationDueDate = if (enabled) {
+                                        form.registrationDueDate ?: form.endDate
+                                    } else {
+                                        null
+                                    },
+                                ),
+                            )
+                        },
+                        onPickDate = { showDueDatePicker = true },
                     )
                 }
             }
@@ -887,6 +921,49 @@ private fun DateRow(label: String, date: Date, onClick: () -> Unit) {
     }
 }
 
+// MARK: - Registration due date
+
+@Composable
+private fun RegistrationDueDateRow(
+    dueDate: Date?,
+    onToggle: (Boolean) -> Unit,
+    onPickDate: () -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    val enabled = dueDate != null
+    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.camping_editor_due_date_toggle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textSecondary,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = enabled,
+                onCheckedChange = onToggle,
+                colors = SwitchDefaults.colors(checkedTrackColor = colors.ember),
+            )
+        }
+        if (enabled) {
+            DateRow(
+                label = stringResource(R.string.camping_editor_due_date_label),
+                date = dueDate,
+                onClick = onPickDate,
+            )
+        }
+        Text(
+            text = stringResource(R.string.camping_editor_due_date_caption),
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textSecondary,
+        )
+    }
+}
+
 @Composable
 private fun DurationBadge(days: Int) {
     Surface(
@@ -895,7 +972,10 @@ private fun DurationBadge(days: Int) {
         border = BorderStroke(1.dp, MaterialTheme.czColors.amber.copy(alpha = 0.25f)),
     ) {
         Text(
-            text = "🌙 $days ${if (days == 1) "day" else "days"}",
+            text = stringResource(
+                R.string.camping_duration_badge,
+                pluralStringResource(R.plurals.camping_duration_days, days, days),
+            ),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.czColors.amber,
             modifier = Modifier.padding(horizontal = CzSpacing.md, vertical = CzSpacing.xs),

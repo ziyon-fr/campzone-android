@@ -161,6 +161,7 @@ fun TeamsRoute(
         canToggleReveal = canToggleReveal,
         isPolicyRevealed = isPolicyRevealed,
         revealPolicyTriggered = revealPolicyTriggered,
+        revealedAt = revealPolicy.revealedAt,
         isUpdatingReveal = revealViewModel.isUpdatingReveal,
         revealOperationError = revealViewModel.operationError,
         scoresHidden = scoresHidden,
@@ -204,6 +205,7 @@ private fun TeamsScreen(
     canToggleReveal: Boolean,
     isPolicyRevealed: Boolean,
     revealPolicyTriggered: Boolean,
+    revealedAt: java.util.Date? = null,
     isUpdatingReveal: Boolean,
     revealOperationError: String?,
     scoresHidden: Boolean,
@@ -502,6 +504,7 @@ private fun TeamsScreen(
         ceremonyTeam?.let { team ->
             WinnerRevealCeremonyOverlay(
                 winningTeam = team,
+                revealedAt = revealedAt,
                 onComplete = {
                     markCeremonySeen()
                     ceremonyHasShown = true

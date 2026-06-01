@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import java.util.Locale
 
 data class Achievement(
     val id: String,
@@ -79,7 +80,12 @@ enum class BadgeTint(
 
     Gold(
         color = Color(0xFFFFD54F)
-    )
+    );
+
+    companion object {
+        fun fromWire(value: String?): BadgeTint? =
+            entries.firstOrNull { it.name.equals(value?.trim(), ignoreCase = true) }
+    }
 }
 
 data class BadgeViewModel(
@@ -153,6 +159,130 @@ object AchievementCatalog {
         rarity: AchievementRarity,
         awardKind: AchievementAwardKind = AchievementAwardKind.Manual,
     ) = Achievement(id, title, summary, detail, icon, tint, rarity, awardKind)
+}
+
+internal data class AchievementCatalogEntry(
+    val achievement: Achievement,
+    val sortOrder: Int,
+)
+
+internal fun Map<String, Any?>.toAchievementCatalogEntryOrNull(documentId: String): AchievementCatalogEntry? {
+    val id = stringValue("id") ?: documentId.takeUnless { it.isBlank() } ?: return null
+    val fallback = AchievementCatalog.achievement(id)
+    val title = localizedString("title", "name") ?: fallback?.title ?: return null
+    val summary = localizedString("summary", "subtitle", "description") ?: fallback?.summary ?: ""
+    val detail = localizedString("detail", "details", "longDescription") ?: fallback?.detail ?: summary
+    val icon = achievementIcon(
+        stringValue("icon") ?: stringValue("iconName") ?: stringValue("systemImage"),
+        fallback?.icon,
+    )
+    val tint = BadgeTint.fromWire(stringValue("tint") ?: stringValue("color")) ?: fallback?.tint ?: BadgeTint.Ember
+    val rarity = AchievementRarity.fromWire((stringValue("rarity") ?: fallback?.rarity?.wireValue)?.lowercase())
+    val awardKind = achievementAwardKind(fallback?.awardKind)
+    val order = intValue("sortOrder") ?: intValue("order") ?: fallback?.let { AchievementCatalog.all.indexOf(it) } ?: Int.MAX_VALUE
+
+    return AchievementCatalogEntry(
+        achievement = Achievement(
+            id = id,
+            title = title,
+            summary = summary,
+            detail = detail,
+            icon = icon,
+            tint = tint,
+            rarity = rarity,
+            awardKind = awardKind,
+        ),
+        sortOrder = order,
+    )
+}
+
+private fun Map<String, Any?>.achievementAwardKind(fallback: AchievementAwardKind?): AchievementAwardKind {
+    val raw = stringValue("awardKind") ?: stringValue("kind")
+    if (raw != null) return AchievementAwardKind.fromWire(raw.lowercase())
+    return when (boolValue("automatic") ?: boolValue("isAutomatic")) {
+        true -> AchievementAwardKind.Automatic
+        false -> AchievementAwardKind.Manual
+        null -> fallback ?: AchievementAwardKind.Manual
+    }
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun Map<String, Any?>.localizedString(vararg keys: String): String? {
+    val candidates = localeCandidates()
+    for (key in keys) {
+        when (val value = this[key]) {
+            is String -> value.trim().takeUnless { it.isBlank() }?.let { return it }
+            is Map<*, *> -> {
+                val map = value as Map<String, Any?>
+                candidates.forEach { localeKey ->
+                    map.stringValue(localeKey)?.let { return it }
+                }
+            }
+        }
+    }
+    return null
+}
+
+private fun localeCandidates(): List<String> {
+    val locale = Locale.getDefault()
+    val language = locale.language.lowercase()
+    val country = locale.country.lowercase()
+    return buildList {
+        if (language.isNotBlank() && country.isNotBlank()) {
+            add("${language}_${country.uppercase()}")
+            add("${language}-$country")
+            if (language == "pt" && country == "br") add("pt-BR")
+        }
+        if (language.isNotBlank()) add(language)
+        add("en")
+        add("default")
+    }.distinct()
+}
+
+private fun achievementIcon(raw: String?, fallback: ImageVector?): ImageVector {
+    val key = raw
+        ?.lowercase()
+        ?.replace(".", "")
+        ?.replace("-", "")
+        ?.replace("_", "")
+        ?.replace(" ", "")
+    return when (key) {
+        "autorenew", "autoawesome", "sparkles", "sparklemagnifyingglass" -> Icons.Filled.AutoAwesome
+        "backpack", "backpackfill" -> Icons.Filled.Backpack
+        "checkcircle", "checkmarksealfill", "calendarbadgecheckmark" -> Icons.Filled.CheckCircle
+        "cleaningservices", "trashslashfill" -> Icons.Filled.CleaningServices
+        "eco", "leaffill" -> Icons.Filled.Eco
+        "emojievents", "trophyfill", "crownfill" -> Icons.Filled.EmojiEvents
+        "favorite", "heartfill" -> Icons.Filled.Favorite
+        "flag", "flagfill" -> Icons.Filled.Flag
+        "forest" -> Icons.Filled.Forest
+        "groups", "person2fill", "person3fill", "person3sequencefill", "figure2andchildholdinghands" -> Icons.Filled.Groups
+        "handshake", "figure2armsopen", "handsandsparklesfill" -> Icons.Filled.Handshake
+        "home" -> Icons.Filled.Home
+        "kitchen", "takeoutbagandcupandstrawfill" -> Icons.Filled.Kitchen
+        "language", "bubbleleftandbubblerightfill" -> Icons.Filled.Language
+        "localfiredepartment", "flamefill" -> Icons.Filled.LocalFireDepartment
+        "mic", "quotebubblefill" -> Icons.Filled.Mic
+        "militarytech" -> Icons.Filled.MilitaryTech
+        "musicnote", "musicmic", "musicquarternote3", "musicnotelist" -> Icons.Filled.MusicNote
+        "nightlight", "moonstarsfill" -> Icons.Filled.Nightlight
+        "person", "personcropcirclebadgecheckmark" -> Icons.Filled.Person
+        "personadd" -> Icons.Filled.PersonAdd
+        "psychology", "bookclosedfill" -> Icons.Filled.Psychology
+        "qrcodescanner", "qrcodeviewfinder" -> Icons.Filled.QrCodeScanner
+        "restaurant", "forkknife" -> Icons.Filled.Restaurant
+        "rocketlaunch", "chartlineuptrendxyaxis", "globeeuropeafricafill" -> Icons.Filled.RocketLaunch
+        "selfimprovement", "handssparklesfill" -> Icons.Filled.SelfImprovement
+        "shield", "shieldlefthalffilled" -> Icons.Filled.Shield
+        "star", "pluscirclefill" -> Icons.Filled.Star
+        "terrain", "tentfill", "figurehiking" -> Icons.Filled.Terrain
+        "volunteeractivism", "dovefill" -> Icons.Filled.VolunteerActivism
+        "wbsunny", "sunrisefill", "sunhorizonfill" -> Icons.Filled.WbSunny
+        "wavinghand", "handwavefill" -> Icons.Filled.WavingHand
+        "work", "wrenchandscrewdriverfill" -> Icons.Filled.Work
+        "workspacepremium" -> Icons.Filled.WorkspacePremium
+        else -> fallback ?: Icons.Filled.WorkspacePremium
+    }
 }
 
 val AchievementRarity.displayName: String

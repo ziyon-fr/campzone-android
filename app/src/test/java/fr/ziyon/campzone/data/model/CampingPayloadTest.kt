@@ -90,6 +90,26 @@ class CampingPayloadTest {
     }
 
     @Test
+    fun registrationDeadlineWritesWhenSetAndDeletesWhenNil() {
+        val deadline = Date(5_000_000)
+        val withDeadline = CampingPayload.campingPayload(
+            fullCamping().copy(registrationDeadline = deadline), TS, DEL, includeCreatedAt = false,
+        )
+        assertEquals(deadline, withDeadline["registrationDeadline"])
+
+        val withoutDeadline = CampingPayload.campingPayload(
+            fullCamping().copy(registrationDeadline = null), TS, DEL, includeCreatedAt = false,
+        )
+        assertEquals(DEL, withoutDeadline["registrationDeadline"]) // delete-when-nil
+
+        // Round-trips back through the decoder.
+        val realPayload = CampingPayload.campingPayload(
+            fullCamping().copy(registrationDeadline = deadline), Date(1), DEL, includeCreatedAt = false,
+        )
+        assertEquals(deadline, realPayload.toCampingOrNull("summer-2026")!!.registrationDeadline)
+    }
+
+    @Test
     fun guidelinesCancelAndRevealAreSeparatePaths() {
         val guidelines = CampingPayload.guidelinesPayload("# Rules", TS)
         assertEquals("# Rules", guidelines["guidelines"])

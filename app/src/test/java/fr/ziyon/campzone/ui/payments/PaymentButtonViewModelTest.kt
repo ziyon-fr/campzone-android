@@ -1,6 +1,7 @@
 package fr.ziyon.campzone.ui.payments
 
 import fr.ziyon.campzone.data.model.PaymentKind
+import fr.ziyon.campzone.data.payments.FakePaymentProofService
 import fr.ziyon.campzone.data.payments.PaymentConfirmation
 import fr.ziyon.campzone.data.payments.PaymentRequest
 import fr.ziyon.campzone.data.payments.PaymentService
@@ -28,7 +29,7 @@ class PaymentButtonViewModelTest {
     @Test
     fun payMintsIntentAndIdlesReadyToPresent() {
         val service = FakePaymentService()
-        val viewModel = PaymentButtonViewModel(service)
+        val viewModel = PaymentButtonViewModel(service, FakePaymentProofService())
 
         viewModel.pay(request)
 
@@ -43,7 +44,7 @@ class PaymentButtonViewModelTest {
     @Test
     fun confirmAfterSheetCompletionSetsPaid() {
         val service = FakePaymentService()
-        val viewModel = PaymentButtonViewModel(service)
+        val viewModel = PaymentButtonViewModel(service, FakePaymentProofService())
 
         viewModel.pay(request)
         viewModel.confirm(request)
@@ -61,7 +62,7 @@ class PaymentButtonViewModelTest {
     @Test
     fun prepareFailureSurfacesError() {
         val service = FakePaymentService(failPrepare = true)
-        val viewModel = PaymentButtonViewModel(service)
+        val viewModel = PaymentButtonViewModel(service, FakePaymentProofService())
 
         viewModel.pay(request)
 
@@ -75,7 +76,7 @@ class PaymentButtonViewModelTest {
     @Test
     fun unpaidConfirmationSurfacesErrorAndDoesNotMarkPaid() {
         val service = FakePaymentService(confirmPaid = false)
-        val viewModel = PaymentButtonViewModel(service)
+        val viewModel = PaymentButtonViewModel(service, FakePaymentProofService())
 
         viewModel.pay(request)
         viewModel.confirm(request)
@@ -89,7 +90,7 @@ class PaymentButtonViewModelTest {
     @Test
     fun cancelClearsPreparedIntentWithoutError() {
         val service = FakePaymentService()
-        val viewModel = PaymentButtonViewModel(service)
+        val viewModel = PaymentButtonViewModel(service, FakePaymentProofService())
 
         viewModel.pay(request)
         viewModel.cancel()
@@ -104,7 +105,7 @@ class PaymentButtonViewModelTest {
     @Test
     fun payIsIgnoredWhileBusy() {
         val service = FakePaymentService()
-        val viewModel = PaymentButtonViewModel(service)
+        val viewModel = PaymentButtonViewModel(service, FakePaymentProofService())
 
         viewModel.pay(request)
         // An intent is prepared (busy) - a second tap must not mint another.

@@ -63,6 +63,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -76,6 +77,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzButton
 import fr.ziyon.campzone.core.designsystem.CzButtonVariant
@@ -198,16 +200,16 @@ fun SongbookScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Songbook", style = CzTypeScale.headline, color = colors.textPrimary) },
+                title = { Text(stringResource(R.string.songbook_title), style = CzTypeScale.headline, color = colors.textPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = colors.textPrimary)
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = colors.textPrimary)
                     }
                 },
                 actions = {
                     if (canManage) {
                         IconButton(onClick = onAddSong) {
-                            Icon(Icons.Rounded.Add, contentDescription = "Add Song", tint = colors.ember)
+                            Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.songbook_add_song), tint = colors.ember)
                         }
                     }
                 },
@@ -227,11 +229,11 @@ fun SongbookScreen(
             when (uiState) {
                 SongbookUiState.Loading -> CzLoadingView(
                     modifier = Modifier.fillMaxSize(),
-                    message = "Loading songbook...",
+                    message = stringResource(R.string.songbook_loading),
                 )
 
                 is SongbookUiState.Error -> CzErrorState(
-                    title = "Songbook unavailable",
+                    title = stringResource(R.string.songbook_error_title),
                     message = uiState.message,
                     onRetry = onRetry,
                     modifier = Modifier
@@ -240,8 +242,8 @@ fun SongbookScreen(
                 )
 
                 is SongbookUiState.Empty -> CzEmptyState(
-                    title = "No songs yet",
-                    message = "The camping songbook will appear here after leaders add lyrics, chords, and audio.",
+                    title = stringResource(R.string.songbook_empty_title),
+                    message = stringResource(R.string.songbook_empty_message),
                     action = if (canManage) {
                         {
                             CzButton(
@@ -374,7 +376,7 @@ private fun SongbookHeader(
             onValueChange = onSearchChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            placeholder = { Text("Search songs, lyrics, or chords", color = colors.textSecondary) },
+            placeholder = { Text(stringResource(R.string.songbook_search_placeholder), color = colors.textSecondary) },
             textStyle = CzTypeScale.body.copy(color = colors.textPrimary),
             shape = RoundedCornerShape(CzRadius.md),
             colors = TextFieldDefaults.colors(
@@ -411,7 +413,7 @@ private fun FeaturedSongCard(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.Mic, contentDescription = null, tint = Color.White.copy(alpha = 0.86f), modifier = Modifier.size(16.dp))
-            Text("Theme Song", style = CzTypeScale.caption.copy(fontWeight = FontWeight.Bold), color = Color.White.copy(alpha = 0.86f))
+            Text(stringResource(R.string.songbook_theme_song), style = CzTypeScale.caption.copy(fontWeight = FontWeight.Bold), color = Color.White.copy(alpha = 0.86f))
             Spacer(Modifier.weight(1f))
             if (isPlaying) {
                 Icon(Icons.Rounded.SlowMotionVideo, contentDescription = null, tint = Color.White)
@@ -612,23 +614,23 @@ private fun SongRow(
             if (canManage) {
                 Box {
                     IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Rounded.MoreVert, contentDescription = "Song options", tint = colors.textSecondary)
+                        Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.songbook_options_cd), tint = colors.textSecondary)
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(text = { Text("Edit") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.common_edit)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = {
                             showMenu = false
                             onEdit()
                         })
-                        DropdownMenuItem(text = { Text("Move Up") }, leadingIcon = { Icon(Icons.Rounded.ArrowUpward, null) }, onClick = {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.songbook_move_up)) }, leadingIcon = { Icon(Icons.Rounded.ArrowUpward, null) }, onClick = {
                             showMenu = false
                             onMoveUp()
                         })
-                        DropdownMenuItem(text = { Text("Move Down") }, leadingIcon = { Icon(Icons.Rounded.ArrowDownward, null) }, onClick = {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.songbook_move_down)) }, leadingIcon = { Icon(Icons.Rounded.ArrowDownward, null) }, onClick = {
                             showMenu = false
                             onMoveDown()
                         })
                         if (!song.isPinnedTheme) {
-                            DropdownMenuItem(text = { Text("Set as Theme Song") }, leadingIcon = { Icon(Icons.Rounded.Mic, null) }, onClick = {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.songbook_set_theme)) }, leadingIcon = { Icon(Icons.Rounded.Mic, null) }, onClick = {
                                 showMenu = false
                                 onPin()
                             })

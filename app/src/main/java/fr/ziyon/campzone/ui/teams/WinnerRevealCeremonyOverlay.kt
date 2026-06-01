@@ -44,29 +44,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.data.model.Team
+import java.util.Date
 import kotlinx.coroutines.delay
 
 @Composable
 fun WinnerRevealCeremonyOverlay(
     winningTeam: Team,
     modifier: Modifier = Modifier,
+    revealedAt: Date? = null,
     countdownSeconds: Int = 10,
     onComplete: () -> Unit,
 ) {
-    var countdown by remember(winningTeam.id) { mutableStateOf(countdownSeconds) }
-    var stageVisible by remember(winningTeam.id) { mutableStateOf(false) }
-    var curtainsOpen by remember(winningTeam.id) { mutableStateOf(false) }
+    // Anchor the countdown on the shared `revealedAt` so every device watching
+    // when the admin reveals converges on the same trophy moment
+    // (`revealedAt + window`). Devices that open after the window has elapsed
+    // skip straight to the trophy.
+    val initialCountdown = remember(winningTeam.id) {
+        revealCountdownSeconds(revealedAt, Date(), countdownSeconds)
+    }
+    var countdown by remember(winningTeam.id) { mutableStateOf(initialCountdown) }
+    var stageVisible by remember(winningTeam.id) { mutableStateOf(initialCountdown <= 0) }
+    var curtainsOpen by remember(winningTeam.id) { mutableStateOf(initialCountdown <= 0) }
     var labelsVisible by remember(winningTeam.id) { mutableStateOf(false) }
     var confettiVisible by remember(winningTeam.id) { mutableStateOf(false) }
 
     LaunchedEffect(winningTeam.id) {
-        countdown = countdownSeconds
-        stageVisible = false
-        curtainsOpen = false
-        labelsVisible = false
-        confettiVisible = false
-
-        for (tick in countdownSeconds downTo 1) {
+        for (tick in initialCountdown downTo 1) {
             countdown = tick
             delay(1_000)
         }
@@ -321,3 +324,23 @@ private val confettiColors = listOf(
     Color(0xFF66BB6A),
     Color(0xFFFFFFFF),
 )
+
+/**
+ * Whole seconds left in the reveal countdown, measured from the shared
+ * `revealedAt` anchor (`revealedAt + windowSeconds`). Because every device
+ * computes against the same absolute anchor, their countdowns converge on the
+ * same trophy moment. Returns 0 (no countdown → straight to the trophy) when
+ * `revealedAt` is null or the window has already elapsed; never exceeds
+ * `windowSeconds`.
+ */
+internal fun revealCountdownSeconds(
+    revealedAt: Date?,
+    now: Date = Date(),
+    windowSeconds: Int = 10,
+): Int {
+    if (revealedAt == null) return 0
+    val remainingMillis = (revealedAt.time + windowSeconds * 1000L) - now.time
+    if (remainingMillis <= 0L) return 0
+    val seconds = ((remainingMillis + 999L) / 1000L).toInt()
+    return seconds.coerceIn(0, windowSeconds)
+}

@@ -126,7 +126,7 @@
 - [x] Transportation choice: `transportationChoice` (`own_car` / `provided_bus`); if `provided_bus` → create `transportationBookings/{participant.id}-bus`
 - [x] Set `registrationStatus: "pending"` on create; **never** write `paymentStatus` (backend settles)
 - [x] Required fields per `02` §3.6; `gender` omit-when-nil
-- [x] Dispatch `POST /notifications/dispatch/registration` after submit
+- [x] Dispatch `POST /notifications/dispatch/registration` after submit — self-only registration body names the user once as the registrant ("{requester} registered for {camp}") instead of the redundant "{requester} requested to register {requester}"; family registrations still name the participant(s) (diverges from current iOS copy — mirror to iOS later)
 - [x] Waitlist: show when `participantCapacity` reached and status would be `waitlisted`
 - [x] Paid camp: initiate Stripe payment flow (see Phase D)
 
@@ -196,8 +196,9 @@
 - [x] Every team write **rewrites full doc** + derives `memberUserIDs = members[].userID` (RBAC-critical for team chat)
 - [x] `photoURL`/`photoPublicID` delete-when-empty; upload via Cloudinary
 - [x] Captain/vice-captain: at most one each (client-enforced via `normalizeCaptaincy()`); per-member `role` field
-- [ ] After team mutation: `POST /notifications/dispatch/team` (deferred to notification phase)
-- [ ] Auto-balance members (deferred)
+- [x] After team mutation: `POST /notifications/dispatch/team` (`TeamNotificationDispatcher`, dispatched from `TeamViewModel`/`GameViewModel`)
+- [x] Auto-balance members (`TeamBalancer` + `previewAutoBalance`/`applyAutoBalance`, `TeamAutoBalanceSheet`)
+- [x] Real-time: teams stream via `TeamService.observeTeams`; the camping doc (winner-reveal policy/score visibility) streams via `CampingService.observeCamping` so scores/ranking update live across devices
 
 ### C2. Games & Points (`ui/games/`) ✅
 
@@ -208,12 +209,14 @@
   - Negative team award → append positive-magnitude `penalties[]` entry (never decrement `points`)
   - User award → add delta to `members[i].personalScore`; rewrite full team doc + `memberUserIDs`
 - [x] `activities` list: gate `canManageGames` or `canRevealWinners` or (approved participant + `visibility=="immediate"`)
+- [x] Real-time: `GameService.observeGames`/`observeActivities` snapshot listeners; `GameViewModel` streams them (single owned job, removed in `onCleared`) so awarded points/new games surface on every device without a manual reload
 
 ### C3. Winner Reveal (`ui/games/reveal/`) ✅
 
 - [x] Gate: `canRevealWinners`
 - [x] Write only `winnerRevealPolicy` via dedicated update path - forbidden in normal camp edit
 - [x] `winnerRevealPolicy.isRevealed` required if map is present
+- [x] Synchronized reveal: the ceremony countdown anchors on the shared `revealedAt` (`revealCountdownSeconds`), so once an admin reveals, every device streaming the live camping doc converges on the same trophy moment (`revealedAt + 10s`); late joiners skip straight to the trophy
 
 ### C4. Chat (`ui/chat/`) ✅
 
@@ -253,7 +256,7 @@
 - [x] `campingID` and `note` are explicit Firestore `null` when absent (not omitted)
 - [x] Manual award: gate `canAwardAchievements`; write to `users/{targetUid}/badges/{achievementId}` (RBAC asserts `request.auth.uid != uid`)
 
-### C8. Album Media (`ui/media/`)
+### C8. Album Media (`ui/media/`) ✅
 
 - [x] Read gate: approved participant or album-manager
 - [x] Upload: check `albumSettings/default.allowedUploadRoles` contains user's role; `POST /cloudinary/sign` → upload image/video; write `media/{mediaId}` (full set)
@@ -261,7 +264,7 @@
 - [x] Settings: `albumSettings/default.allowedUploadRoles` sorted role raws, manager-only writes
 - [x] Load with Coil from Cloudinary URLs; thumbnail via `thumbnailURL`
 
-### C9. Content Moderation (`ui/admin/moderation/`)
+### C9. Content Moderation (`ui/admin/moderation/`) ✅
 
 - [x] Report: create `contentReports/{uuid}` (full set, no merge); all required fields must be present - **brittle reader** (admin list aborts on missing field or unknown enum)
 - [x] `target` enum: `announcement`/`camping`/`chatMessage` (**camelCase**)
@@ -279,7 +282,7 @@
 - [x] Notification channels keyed by type: `announcement`, `chat_message`, `poll`, `schedule_reminder`, `team_update`, `registration`, `general`
 - [x] iOS parity: full notification settings (master + 5 categories + role audiences + camping/team channel pickers); feed rows with audience/kind, `concerns()` role + `@mention` scoping; topics/`visibleTopics` ported verbatim
 
-### C11. Analytics
+### C11. Analytics ✅
 
 - [x] Firebase Analytics; mirror iOS event set: `viewCamping`, `registerForCamping`, `cancelCamping`, `viewSchedule`, `viewSongbook`, `viewTeams`, `playSong`, `favoriteSong`, `searchCampings`, `signIn`, `signOut`
 
@@ -308,7 +311,9 @@
 - [x] Amount in integer cents; currency lowercase (e.g. `"eur"`) — `PaymentRequest.normalizedCurrency`
 - [x] Never embed `STRIPE_SECRET_KEY`; payment audit doc is backend-only
 - [x] iOS parity: reusable inline pay button (`CzPaymentButton`, mirrors iOS `PaymentButton`); "Fees & Payments" hub (`CampingPricingScreen`) folds price items (mirrors iOS `CampingPricingView`) + pending registration fees; camp-detail entry gated on `hasPendingRegistrationPayment || hasPayablePriceItems`
-- [ ] Deferred (iOS-richer, not in Android contract): PDF invoice receipts, payment-proof/history list, mixed registration+transport single-charge bundling with per-kind follow-up confirms — each Stripe kind currently settles as its own charge
+- [x] PDF invoice receipts: `PaymentReceiptPdf` renders a one-page A4 receipt (invoice number, camp, date, line items, total) to cache and shares it via the existing `${applicationId}.fileprovider`
+- [x] Payment-proof/history list: `PaymentProofService` (interface + Firestore + fake + bindings) reads `campings/{id}/payments` (backend audit) + `campings/{id}/invoices` (client receipt), merged into `PaymentProof`; surfaced as a "Receipts" section in the Fees hub (`CampingPricingScreen`) with per-row PDF share. Invoice write gated by the deployed `isOwnPaidPayment` + `invoiceMatchesPaidPayment` rules (`amount`/`currency`/`paymentID` must match the paid payment doc)
+- [x] Mixed registration+transport single-charge bundling: `PaymentRequest` carries `lineItems` (per-kind) + `summary` + `referenceIDs`; the registration payment step folds an unpaid bus fare into the registration charge. After the primary confirm, `PaymentButtonViewModel`/`RegistrationPaymentViewModel` run a follow-up `confirm()` per extra kind (`subrequest(kind)`) so each Firestore sub-collection flips off the same charge, then `recordInvoice` persists the full line-item set
 
 ### D3. Lodging (`ui/lodging/`) ✅
 
@@ -317,7 +322,7 @@
 - [x] Occupancy denormalized into `occupantIDs[]` on the unit doc (no separate assignment collection) — `setOccupants` (merge `occupantIDs` + `updatedAt`), assign/remove via the unit's list
 - [x] Gender policy filter: `any`/`male`/`female`/`family` (filter chips); assignment also enforces `genderPolicy.accepts(gender)` + capacity
 - [x] iOS parity: reused the existing `LodgingUnit` model + `LodgingPayload`/`toLodgingUnitOrNull` (added `accepts`, `occupancy`/`availableSpots`/`occupancyText`/`contains`); admin summary + units + "Needs a bed" sections, editor + assignment `ModalBottomSheet`s; **My Lodging** card embedded in My QR Passes (mirrors iOS `CheckInQRView` → `MyLodgingCard`)
-- [ ] Deferred (iOS extra, not in the Android contract): one-tap **auto-allocate** (capacity + gender + family rules) — units are placed by hand for now
+- [x] One-tap **auto-allocate** (capacity + gender + family rules): `LodgingAllocator` (port of iOS, deterministic constrained bin-pack; never exceeds capacity, honours male/female policy, keeps a guardian + their children together, soft tight-pack + age coherence) → `LodgingViewModel.autoAllocate()` persists via `LodgingService.applyAllocation` (one batched write); "Auto-allocate beds" button + result snackbar (`LodgingAllocatorTest`)
 
 ### D4. Post-Camp Feedback (`ui/feedback/`) ✅
 
@@ -336,17 +341,20 @@
 - [x] iOS parity: `VenueMapScreen` (viewer, edit affordance for managers) + `VenueMapEditorScreen` (site image section, interactive canvas, points list, editor/coordinate `ModalBottomSheet`s) + self-silencing `VenueMapEntryCard` in the camp detail **and** the header location chip both deep-link to the map (mirrors iOS `CampingDetailView`). `VenueMapViewModel` (sealed `UiState`, single owned listener), reusable osmdroid `VenueOsmMap`/`VenueOsmPicker` (lifecycle-managed `MapView`), typed routes, EN/FR/PT strings, `VenueMapViewModelTest`; build + tests + lint green
 - [x] Live user-location + in-app directions (osmdroid, key-free): the Map tab shows the user-location dot (runtime `ACCESS_FINE_LOCATION`, graceful denied pill), a recenter FAB, and a "Directions to <pin/camp>" control that draws the road `Polyline` + an ETA pill (min · distance) using the public OSRM endpoint — mirrors the iOS `VenueMapKitCanvas`. (Production note: OSRM `router.project-osrm.org` is a demo server; self-host for production. The `geo:` "Open in Maps" intent remains as a fallback.)
 
-### D6. "Family at Camp" View (`ui/family/camp/`)
+### D6. "Family at Camp" View (`ui/guardian/`) ✅
 
-- [ ] Guardian read-only aggregate: compose `registrations` + `checkIns` + `teams` + schedule for own children
-- [ ] No new Firestore collection; guardian `checkIns` single-get allowed by RBAC
+- [x] Guardian read-only aggregate: composes per-child `registrations` (per-doc get) + `checkIns` (per-doc get) + `teams` (live) + schedule for own children — `GuardianUpdatesService` owns no query logic of its own, it reuses the existing CheckIn/Team/Schedule services (mirrors iOS `Features/Guardian`); `GuardianUpdate` model derives `GuardianChildUpdate` snapshots (check-in status, team + score gated by `winnerRevealPolicy.areScoresHidden`)
+- [x] No new Firestore collection; guardian `checkIns`/`registrations` read by single-doc id (the blanket queries are denied by RBAC, so per-child gets only); team read signed-in, schedule public
+- [x] iOS parity: `GuardianUpdatesScreen` (per-child detail cards: avatar + age/church, check-in row with method, team row with score/"scores hidden"/"not on a team"; + "Today at camp" schedule card with happening-now / up-next) and a self-silencing pine-gradient `GuardianUpdatesCard` in the camp detail (shown only when the viewer registered a child here; taps → the read-only screen). `GuardianUpdatesViewModel` (sealed `UiState`, single owned team listener), typed route `CampingGuardianUpdates`, EN/FR/PT strings, `GuardianUpdatesViewModelTest`; build + tests + lint green
+- Note: implemented under `ui/guardian/` + `data/guardian/` (matching the iOS `Features/Guardian` naming) rather than `ui/family/camp/`
 
-### D7. Admin Hub (`ui/admin/`)
+### D7. Admin Hub (`ui/admin/`) ✅
 
-- [ ] Admin tools: user management (read/update `users` docs; admin can set any role)
-- [ ] Onboarding checklist UI; moderation queue (reuse C9)
-- [ ] Role assignment: admin → any; own-church `youth_director`/`pastor` → only `guest`/`user`/`adult`
-- [ ] `id` field written on `users` doc for admin list decoder compatibility
+- [x] Admin tools: user management (read/update `users` docs; admin can set any role) — `RoleManagementScreen` + `RoleAssignmentService` (interface + Firestore + fake) + `RoleManagementViewModel`; `ManagedUser` decoded manually from the raw map (no POJO), `id`→`uid`→docId fallback
+- [x] Onboarding checklist UI (`AdminOnboardingScreen`, SharedPreferences-backed `AdminOnboardingViewModel`, 5 steps mirroring iOS — camping/announcement navigate, roles/rules/notifications toggle, progress ring + bar + reset); moderation queue reused (C9)
+- [x] Role assignment: admin → any (`assignableRoles` = all wire roles); own-church `youth_director`/`pastor` → only `guest`/`user`/`adult` (`selfAssignableRoles`); list church-filtered for non-admin assigners to match the RBAC read rule; church-scoped write stays `{role, updatedAt}` only
+- [x] `id` field written on `users` doc for admin list decoder compatibility — stamped on the **admin** role-update only (`writeIdField`); the self-profile allowlist and `validChurchRoleAssignment` (affectedOnly role+updatedAt) forbid `id` on every other write path, so this is the only RBAC-compliant place
+- [x] Hub expanded (`AdminToolsScreen`): Operations (Setup Guide / Registration Review / Role Assignment) + Moderation + Infrastructure; restricted unless moderator OR admin-tools OR any-role-assigner; typed routes `RoleManagement`/`AdminOnboarding`; EN/FR/PT strings; build + unit tests (7 `RoleManagementViewModelTest`) + lint green
 
 ---
 
@@ -354,46 +362,46 @@
 
 ### Data Contract Enforcement
 
-- [ ] Every write path passes the `07` pre-write checklist (doc ID, required fields, enum case, null/delete/omit encoding, timestamps, integer cents, RBAC fields, denormalization, dual notification stores)
-- [ ] `FieldValue.delete()` for delete-when-nil fields; explicit Firestore `null` for null-when-absent fields; omit for omit-when-nil fields
-- [ ] `createdAt: serverTimestamp()` on first create only; `updatedAt: serverTimestamp()` on every write
-- [ ] Money always integer cents; `priceItems[].currency` uppercase; payments API currency lowercase
-- [ ] Deterministic doc IDs used exactly: `registrations/{attendeeId}`, `checkIns/{attendeeId}`, `feedback/{uid}`, `votes/{voterId}`, `schedule/config`, `venueMap/config`, `albumSettings/default`, `notificationSettings/default`
+- [x] Every write path passes the `07` pre-write checklist (doc ID, required fields, enum case, null/delete/omit encoding, timestamps, integer cents, RBAC fields, denormalization, dual notification stores)
+- [x] `FieldValue.delete()` for delete-when-nil fields; explicit Firestore `null` for null-when-absent fields; omit for omit-when-nil fields
+- [x] `createdAt: serverTimestamp()` on first create only; `updatedAt: serverTimestamp()` on every write
+- [x] Money always integer cents; `priceItems[].currency` uppercase; payments API currency lowercase
+- [x] Deterministic doc IDs used exactly: `registrations/{attendeeId}`, `checkIns/{attendeeId}`, `feedback/{uid}`, `votes/{voterId}`, `schedule/config`, `venueMap/config`, `albumSettings/default`, `notificationSettings/default`
 
 ### Architecture
 
-- [ ] Each feature: `*Screen.kt` (Composable, no business logic) + `*ViewModel.kt` (`StateFlow<UiState>` sealed: Loading/Loaded/Empty/Error) + service interface + real impl + fake impl
-- [ ] Constructor DI via Hilt; no global mutable state
-- [ ] Firestore listeners registered in ViewModel init/`onStart`, removed in `onCleared()`; no stacking on recomposition
-- [ ] `callbackFlow` to bridge Firestore listeners to `Flow`
-- [ ] `@Preview` on every screen using fake service
+- [x] Each feature: `*Screen.kt` (Composable, no business logic) + `*ViewModel.kt` (`StateFlow<UiState>` sealed: Loading/Loaded/Empty/Error) + service interface + real impl + fake impl
+- [x] Constructor DI via Hilt; no global mutable state
+- [x] Firestore listeners registered in ViewModel init/`onStart`, removed in `onCleared()`; no stacking on recomposition
+- [x] `callbackFlow` to bridge Firestore listeners to `Flow`
+- [x] `@Preview` on every screen using fake service
 
 ### Localization
 
-- [ ] String resources in English keys; add `values-pt` (Portuguese) and `values-fr` (French) qualifiers
-- [ ] No hardcoded user-facing strings in Kotlin/Composable code
+- [x] String resources in English keys; add `values-pt` (Portuguese) and `values-fr` (French) qualifiers
+- [x] No hardcoded user-facing strings in Kotlin/Composable code
 
 ### Accessibility
 
-- [ ] `contentDescription` on all images and icon buttons
-- [ ] Touch targets ≥48dp; dynamic font scale (`sp` only)
-- [ ] TalkBack traversal order; contrast ratios per WCAG AA
-- [ ] `LocalReducedMotion` check before animations
+- [x] `contentDescription` on all images and icon buttons (enforced via the `Cz*` components + `czContentDescription`)
+- [x] Touch targets ≥48dp; dynamic font scale (`sp` only) (`CzSpacing.minTouchTarget` + `sp` typography)
+- [ ] TalkBack traversal order; contrast ratios per WCAG AA — not formally audited
+- [ ] `LocalReducedMotion` check before animations — not implemented (animations always run)
 
 ### Offline
 
-- [ ] Firestore disk persistence enabled (Phase A2)
-- [ ] Songbook, schedule, and camp program data prioritized for local cache
-- [ ] UI handles offline gracefully (show cached data; surface offline indicator on write failure)
+- [x] Firestore disk persistence enabled (Phase A2)
+- [x] Songbook, schedule, and camp program data prioritized for local cache (covered by the persistent disk cache)
+- [ ] UI handles offline gracefully — cached reads work via persistence and write failures surface as errors, but there is no dedicated offline indicator yet
 
 ### Testing
 
-- [ ] Model round-trip unit tests (serialize → deserialize against fixtures) for every entity in `02`
-- [ ] ViewModel state-transition tests (coroutine test + fake service)
-- [ ] Permission evaluator unit tests (all 9 roles × all permissions)
-- [ ] Firestore emulator rule tests for RBAC-sensitive write paths
-- [ ] Compose UI tests for navigation, onboarding, and registration happy paths
-- [ ] `./gradlew assembleDebug && ./gradlew testDebugUnitTest && ./gradlew lint` must be green before any PR
+- [x] Model round-trip unit tests (serialize → deserialize against fixtures) for every entity in `02`
+- [x] ViewModel state-transition tests (coroutine test + fake service)
+- [x] Permission evaluator unit tests (all 9 roles × all permissions) (`AppPermissionEvaluatorTest`)
+- [ ] Firestore emulator rule tests for RBAC-sensitive write paths — only partial (`NotificationSettingsRulesTest`); not every write path is covered
+- [ ] Compose UI tests for navigation, onboarding, and registration happy paths — not written (only the boilerplate `ExampleInstrumentedTest`)
+- [x] `./gradlew assembleDebug && ./gradlew testDebugUnitTest && ./gradlew lint` must be green before any PR (standing done-bar, met)
 
 ---
 
@@ -427,20 +435,20 @@ B9 Guidelines
 C1 Teams ✅
 C2 Games + points ✅
 C3 Winner reveal ✅
-C4 Chat (camping + team)
-C5 Polls
-C6 QR check-in
-C7 Badges
-C8 Album media
+C4 Chat (camping + team) ✅
+C5 Polls ✅
+C6 QR check-in ✅
+C7 Badges ✅
+C8 Album media ✅
 C9 Content moderation ✅
 C10 Notifications (FCM + in-app feed) ✅
-C11 Analytics
+C11 Analytics ✅
 
 D1 Transportation tickets ✅
 D2 Stripe payments ✅
 D3 Lodging ✅
 D4 Post-camp feedback ✅
 D5 Venue map ✅
-D6 Family at camp
-D7 Admin hub
+D6 Family at camp ✅
+D7 Admin hub ✅
 ```

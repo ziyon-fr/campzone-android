@@ -41,6 +41,10 @@ internal object CampingPayload {
         payload["logoURL"] = camping.logoUrl?.trim()?.takeUnless { it.isBlank() } ?: deleteField
         payload["logoPublicID"] = camping.logoPublicId?.trim()?.takeUnless { it.isBlank() } ?: deleteField
 
+        // Optional registration deadline (delete-when-nil): clearing the toggle
+        // removes the field so the camp reverts to its manual `registrationStatus`.
+        payload["registrationDeadline"] = camping.registrationDeadline ?: deleteField
+
         if (includeCreatedAt) {
             payload["createdAt"] = serverTimestamp
             camping.createdByUid?.trim()?.takeUnless { it.isBlank() }?.let { payload["createdByUID"] = it }

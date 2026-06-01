@@ -239,7 +239,7 @@ private fun GameDetailScreen(
                 actions = {
                     if (canManage) {
                         IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Outlined.MoreVert, contentDescription = "Options", tint = colors.textPrimary)
+                            Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.common_options), tint = colors.textPrimary)
                         }
                         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                             DropdownMenuItem(

@@ -43,6 +43,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.CzTypeScale
@@ -257,13 +259,13 @@ fun AnnouncementsScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
                             ) {
-                                Text("Failed to load", style = CzTypeScale.body, color = colors.error)
+                                Text(stringResource(R.string.common_failed_to_load), style = CzTypeScale.body, color = colors.error)
                                 Text(
                                     uiState.message,
                                     style = CzTypeScale.caption,
                                     color = colors.textSecondary,
                                 )
-                                Text("Tap to retry", style = CzTypeScale.caption, color = colors.ember)
+                                Text(stringResource(R.string.common_tap_to_retry), style = CzTypeScale.caption, color = colors.ember)
                             }
                         }
                     }
@@ -340,7 +342,7 @@ private fun AnnouncementSearchField(
             ) {
                 Icon(
                     Icons.Rounded.Close,
-                    contentDescription = "Clear search",
+                    contentDescription = stringResource(R.string.common_clear_search),
                     tint = colors.textSecondary,
                     modifier = Modifier.size(16.dp),
                 )

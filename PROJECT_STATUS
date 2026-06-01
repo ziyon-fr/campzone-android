@@ -1,110 +1,211 @@
-# Project Status - D5 Venue Map
+# Project Status - Camping registration due date
 
-Updated: 2026-05-31
+Updated: 2026-06-01
 
-- Branch: `d5-venue-map` (based on `d4-post-camp-feedback`, so it also carries
-  D2 + D3 + D4)
-- Current completed phase: D5 Venue Map (viewer + manager editor + program link)
-- Next phase: D6 "Family at Camp" view
-- Verification (JAVA_HOME = Android Studio JBR; `clean` build after adding the
-  osmdroid resource set):
+- Branch: `camping-registration-due-date`
+- Change completed (Android + iOS): camp creators/admins can set an optional
+  registration deadline. Registration **auto-closes** once `now >=
+  registrationDeadline`; the only way back open is for an admin or the creator
+  to extend (edit) or clear the date.
+  - Android: `Camping.registrationDeadline` (+ `isRegistrationDeadlinePassed`,
+    `effectiveRegistrationStatus`; `acceptsRegistrations` now deadline-aware so
+    the service-level register guard closes too). Editor gains a "Set a
+    registration deadline" toggle + date picker (Timing section); detail screen
+    shows a "Registration closes" row and the status pill reflects the
+    effective status. Wire field is **delete-when-nil**.
+  - iOS (completed the in-progress pass): persisted `registrationDeadline` in
+    the manual `payload(for:)` (delete-when-nil), added
+    `isRegistrationDeadlinePassed`/`effectiveRegistrationStatus`, and gated the
+    register CTA + both register guards + status pill on the effective status.
+  - Contract: added `registrationDeadline` to `docs/02` §3 (propagate to web
+    repo; iOS schema remains authoritative).
+- Verification (JBR): `:app:assembleDebug` green; new
+  `CampingRegistrationDeadlineTest` (4) and `CampingPayloadTest` deadline cases
+  (7) pass. Full `:app:testDebugUnitTest`/lint is blocked by an unrelated
+  concurrent-WIP duplicate string (`fees_receipts_section` in `values-pt-rBR`)
+  and the known `proofService`/`transportationService` test-constructor drift —
+  both outside this task's files.
+
+---
+
+# Project Status - Localization resources sweep
+
+Updated: 2026-06-01
+
+- Branch: `camping-registration-due-date`
+- Change completed: moved the active runtime strings touched by the sweep into
+  Android resources, added general Portuguese `values-pt` alongside
+  `values-pt-rBR` and `values-fr`, and wired non-Compose fallbacks through a
+  small `StringProvider` where ViewModels need resource text.
+- Scope notes: remaining grep hits are preview/sample records, decorative
+  separators/icons, or user/data-derived strings rather than fixed UI copy.
+- Verification (JBR): `:app:assembleDebug`, `:app:lintDebug`, and
+  `:app:testDebugUnitTest` are green.
+
+---
+
+# Project Status - Camping delete dismissal
+
+Updated: 2026-06-01
+
+- Branch: `camping-registration-due-date`
+- Change in progress: deleting a camping from the Android editor now has a
+  dedicated deletion navigation callback. The nav host removes the matching
+  `CampingDetail` back-stack entry inclusively, matching iOS
+  `CampingDetailView` (`deleteCamping` then `routeSystem.pop()`), so the active
+  deleted camping screen is dismissed instead of resurfacing underneath the
+  editor.
+- Verification: `:app:assembleDebug` green. Focused
+  `CampingAdminViewModelTest` could not run because debug unit-test compilation
+  is currently blocked by existing payment/pricing test constructor drift
+  (`proofService`, `transportationService`).
+
+---
+
+# Project Status - Real-time pass (camp/games/reveal) + self-reg notification
+
+Updated: 2026-06-01
+
+- Branch: `realtime-games-reveal-registration` (based on `d7-admin-hub`, so it
+  also carries D2–D7 + the family-RBAC parity fix)
+- Current completed work: live camping doc + live games/points, synchronized
+  winner-reveal countdown, and a self-registration notification-copy fix — a
+  quality pass over already-shipped Teams/Games/Registration features.
+- Next phase: all TODO phases A–D are ✅; remaining items are the explicit
+  D1/D2/D3 deferreds (out of the Android contract).
+
+## Real-time pass (2026-06-01)
+
+- **Live camping doc** (`CampingService.observeCamping(id)` →
+  `CampingDetailViewModel`): the shared detail VM (resolved off the
+  `CampingDetail` back-stack entry) streams the camping doc, so
+  `winnerRevealPolicy` / score-visibility / capacity reach the detail, teams,
+  and games screens in real time. Attendees + venue map stay one-shot (loaded on
+  first emission); `viewCamping` analytics fires once. Single owned job,
+  cancelled in `onCleared`.
+- **Live games & points** (`GameService.observeGames`/`observeActivities`):
+  `GameViewModel` collects both via `combine` (single owned job per camping,
+  cancelled in `onCleared`) instead of one-shot `.get()`. Awarded points/new
+  games surface on every device with no reload. Team scores were already live
+  via `TeamService.observeTeams`.
+- **Synchronized reveal countdown**: `WinnerRevealCeremonyOverlay` anchors on the
+  persisted `revealedAt` via `revealCountdownSeconds(revealedAt, now, window=10)`.
+  Once an admin reveals, every device streaming the live camping doc converges on
+  the same trophy moment (`revealedAt + 10s`); devices opening after the window
+  skip straight to the trophy. `TeamsScreen` threads `revealedAt` into the
+  overlay; the per-camping "seen" SharedPreferences still prevents replays.
+- **Self-registration notification**: `RegistrationNotificationRequest` gained a
+  `selfRegistration` flag; self-only → "{requester} registered for {camp}. Review
+  and approve." (name once), family registrations keep naming participant(s).
+  `CampingRegistrationViewModel` sets the flag when the sole submission is the
+  `SelfParticipant`.
+- **iOS divergence**: the synced countdown and the self-reg copy differ from
+  current iOS (local ceremony; requester+participant copy) per owner request —
+  mirror into the iOS repo later so the three platforms don't drift.
+- Verification (JBR): `assembleDebug` + `testDebugUnitTest` + `lintDebug` green.
+  New: `GameViewModelTest` (live emission), `RegistrationNotificationRequestTest`
+  (self/family/multi bodies), `RevealCountdownTest` (anchor math);
+  `CampingDetailViewModelTest` still green after the live-stream refactor.
+  Single-device only — cross-device sync not verifiable on one local emulator.
+
+---
+
+# Project Status - D7 "Admin Hub"
+
+- Branch: `d7-admin-hub` (based on `d6-family-at-camp`, so it also carries
+  D2–D6 + the family-RBAC parity fix)
+- Completed phase: D7 Admin Hub (user management / role assignment +
+  admin onboarding checklist; moderation queue reused from C9)
+- Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew :app:assembleDebug` SUCCESSFUL
-  - `./gradlew :app:testDebugUnitTest` SUCCESSFUL — new: 8 `VenueMapViewModelTest`
-    (load/manager gate, pin add/edit/move/delete, coordinate set+clear, image
-    upload/remove); D4 + prior suites untouched + green
-  - `./gradlew :app:lintDebug` SUCCESSFUL (no MissingTranslation/MissingQuantity)
+  - `./gradlew :app:testDebugUnitTest` SUCCESSFUL — new: 7 `RoleManagementViewModelTest`
+    (group/sort by church / church-filter forwarding / search filter /
+    update mutates state + message / writeIdField forwarding / no-op when
+    unchanged / load error). Prior suites untouched + green
+  - `./gradlew :app:lintDebug` SUCCESSFUL (no MissingTranslation/MissingQuantity;
+    EN/FR/PT all complete)
+  - Not re-verified on the emulator this session — build-bar only.
 
-## In-app map (osmdroid / OpenStreetMap)
+## D7 "Admin Hub"
 
-User-requested, key-free in-app map (no Google Maps SDK / API key):
+iOS is the source of truth — ported `Features/Admin` (AdminToolsView,
+RoleManagementView + ManagedUser/RoleAssignmentService/observer,
+AdminOnboardingView + AdminOnboardingStep). Content moderation (C9) and the
+report model were already shipped; D7 reuses them.
 
-- Added `org.osmdroid:osmdroid-android` (catalog + app build). Only INTERNET is
-  needed (already present); the tile cache is app-internal and the OSM
-  user-agent is set to the package id.
-- `ui/venuemap/VenueOsmMap.kt`: a lifecycle-managed `MapView` wrapped in
-  `AndroidView` — `VenueOsmMap` (read-only camp + category-tinted pin markers,
-  tap → select) and `VenueOsmPicker` (interactive, reports its centre as the
-  user pans, for the editor crosshair).
-- Viewer: an **Illustration / Map** `SingleChoiceSegmentedButtonRow` (mirrors iOS
-  `VenueMapMode`). Map mode shows the embedded OSM map centred on the camp /
-  selected pin; empty-state when nothing has a coordinate. The content sits in a
-  `weight(1f)` region so the full-bleed map never overlaps the segmented control.
-- Editor: the "Set map location" sheet is now an interactive osmdroid map with a
-  fixed centre crosshair (pan so the marker sits on the spot → "Use this
-  location"), replacing the manual lat/lon fields. Removed the now-unused
-  lat/lon/use-camp strings.
+- **Model** (`data/admin/ManagedUser.kt`): compact directory row (id,
+  displayName, email, church, role, photoUrl, updatedAt) decoded **manually**
+  from the raw Firestore map (no POJO auto-mapping). `id` falls back
+  `id`→`uid`→documentId so docs written before the `id` field still decode.
+- **Service** (`data/admin/RoleAssignmentService.kt`): interface + Firestore +
+  fake + Hilt binding. `loadUsers(churchFilter)` reads `users` (admins
+  unfiltered; non-admin assigners pass their church → `whereEqualTo("church", …)`
+  to satisfy the RBAC read rule). `updateRole(uid, role, writeIdField)` writes
+  `{role, updatedAt}` via merge-set; **admins** additionally stamp `id == uid`
+  (`writeIdField`) for iOS admin-list decoder compatibility — the only
+  RBAC-legal place to write `id` (self-profile allowlist + `validChurchRole
+  Assignment`'s affectedOnly(role,updatedAt) forbid it everywhere else).
+- **Role VM** (`ui/admin/role/RoleManagementViewModel.kt`): sealed
+  `RoleManagementUiState` (Loading/Error/Loaded), search + group-by-church
+  (alphabetical), local mutation on success, operationMessage/Error. Owns no
+  permission logic — the screen passes churchFilter/assignableRoles/writeIdField.
+- **Role screen** (`RoleManagementScreen.kt`): Restricted state, scoped-church
+  chip, search field, expandable per-church sections, avatar + name/email rows
+  with a role `DropdownMenu` (current role checked) gated by
+  `canAssignRole(forTargetChurch)`; static role label when not editable.
+- **Onboarding VM** (`ui/admin/onboarding/AdminOnboardingViewModel.kt`):
+  SharedPreferences-backed completion set (keys mirror the iOS `@AppStorage`
+  flags); markComplete / toggle / reset.
+- **Onboarding screen** (`AdminOnboardingScreen.kt`): progress ring (Canvas
+  arc) + gradient bar, 5 step cards. Camping/announcement steps mark-complete
+  then navigate (CampingCreate / AnnouncementComposer); roles/rules/
+  notifications are manual toggles (mirrors iOS — those are console/infra
+  tasks). Reset button.
+- **Hub** (`ui/admin/AdminToolsScreen.kt`): expanded from the C9 stub into
+  Operations (Setup Guide if admin-tools · Registration Review · Role
+  Assignment if any-role-assigner) + Moderation (Content Reports + pending
+  badge) + Infrastructure (Security Rules / Firestore Backup / Notification
+  Dispatch info rows + footer). Restricted unless moderator OR admin-tools OR
+  any-role-assigner.
+- **Navigation**: typed routes `AppRoute.RoleManagement`
+  (`profile/admin/roles`) + `AppRoute.AdminOnboarding`
+  (`profile/admin/onboarding`); hub callbacks thread to RoleManagement /
+  AdminOnboarding / RegistrationReview.
+- **i18n**: admin-hub, role-management, and onboarding strings added to EN, FR,
+  PT-BR.
 
-## D5 Venue Map
+## Notes / deviations
 
-iOS is the source of truth — ported `VenueMapModels`, `VenueMapService`,
-`VenueMapObserver`, `VenueMapView`, `VenueMapEditorView`, the pin
-sheets/components, and the `CampingDetailView` entry points.
+- **`id` field**: neither shipped iOS nor the existing Android profile-save
+  writes `id`; the field is supplied in production by the web app / seed. The
+  iOS `ManagedUser` decoder decodes a non-optional `id` (no `@DocumentID`), so
+  Android stamps `id` on the admin role-update — the maximum the RBAC allows —
+  to avoid regressing the shared admin list. Android's own list never needs it
+  (it falls back to the document id).
+- **Role assignment in-app**: unlike iOS (which defers leadership grants to the
+  Firebase console), the Android hub assigns roles in-app — admins can grant any
+  role, church-scoped youth_director/pastor only guest/user/adult, exactly per
+  the deployed `validChurchRoleAssignment` rule. The onboarding "Assign
+  leadership roles" step is still a manual toggle to mirror the iOS checklist.
+- Implemented under `ui/admin/role/` + `ui/admin/onboarding/` + `data/admin/`.
 
-- **Model**: `VenueMap` + `VenuePoint` + `VenueMapPayload`/`toVenueMap` already
-  existed (A10). Extended in place with derived helpers (`hasImage`,
-  `hasContent`, `pointsOnIllustration`, `pointsWithCoordinate`,
-  `VenuePoint.hasImagePosition`/`hasCoordinate`). No duplication.
-- **Service** (`data/venuemap/VenueMapService.kt`): interface + Firestore (live
-  `config` listener via `callbackFlow`, `VenueMapPayload` write with
-  `imageURL`/`imagePublicID` delete-when-empty + `updatedAt` serverTimestamp) +
-  in-memory `FakeVenueMapService` + Hilt binding. Path
-  `campings/{id}/venueMap/config`.
-- **ViewModel** (`ui/venuemap/VenueMapViewModel.kt`): one VM for both screens,
-  sealed `VenueMapUiState` (Loading/Error/Ready). A single owned listener keeps
-  the embedded pin set live; every pin/image mutation rewrites the full config
-  doc. `canManage = canManageTeams || canManageSchedule`. Site image uploaded via
-  the shared backend-signed `ImageUploader` (Cloudinary).
-- **Viewer** (`VenueMapScreen.kt`): 4:3 Coil site image with pins positioned at
-  `imageX`/`imageY`, tappable detail card, "Locations" legend, empty state
-  (managers get "Build the map"). Coordinate pins offer **Open in Maps** (a
-  `geo:` intent) — the Android-native stand-in for the iOS MapKit overlay +
-  directions.
-- **Editor** (`VenueMapEditorScreen.kt`, gated `canManage` else Restricted):
-  upload/replace/remove the site illustration (photo picker → Cloudinary),
-  tap-to-place / reposition pins on the canvas, per-pin overflow
-  (edit/reposition/set map location/delete), pin editor `ModalBottomSheet`
-  (name + category chips + note) and a coordinate sheet (lat/lon entry, "use camp
-  location", clear).
-- **Camp detail** (`CampingDetailScreen.kt`): the header location chip
-  (pin + place name) deep-links to the venue map (mirrors iOS `headerSection`),
-  and a self-silencing `VenueMapEntryCard` appears in the body when the map has
-  content (the detail VM now loads the map one-shot to drive it). `VenuePointDetailCard`
-  composites the translucent `surface` token over `background` so the floating
-  card is opaque.
-- **Program↔venue link** (`ui/schedule/`): the program editor offers the camp's
-  pins as FilterChips; picking one sets `venuePointID` + fills `location` with
-  the pin name, typing a custom location clears `venuePointID`. The schedule
-  service already wrote `venuePointID` delete-when-empty.
-- **Navigation**: typed routes `AppRoute.CampingVenueMap` /
-  `CampingVenueMapEditor`, two `composable` destinations (viewer ↔ editor).
-- **i18n**: venue strings added to EN, FR, PT-BR (incl. a `venue_card_subtitle`
-  plural with `one`/`many`/`other`).
+---
 
-## Data contract
+# Project Status - Badge Catalog + Runtime Localization Corrective Pass
 
-- Single doc `venueMap/config`; `imageURL`/`imagePublicID` delete-when-empty;
-  `points[]` element `id`/`name` (req; dropped if missing)/`category` (raw)
-  /`note` (`""`)/`imageX`/`imageY` (0…1, omit-when-nil)/`latitude`/`longitude`
-  (omit-when-nil); `updatedAt` serverTimestamp on every write. `program.venuePointID`
-  delete-when-empty, pin `name` kept in `program.location`.
-
-## In-app directions + user location (osmdroid)
-
-- Map tab now shows the **live user-location dot** (`MyLocationNewOverlay`,
-  runtime `ACCESS_FINE_LOCATION`, graceful "enable location" pill when denied),
-  a **recenter FAB**, and a **"Directions to <pin/camp>"** control that draws the
-  road `Polyline` + an ETA pill (min · distance). Route geometry comes from the
-  key-free public **OSRM** endpoint (`fetchOsrmRoute`, parsed with `org.json`).
-  Mirrors the iOS `VenueMapKitCanvas`.
-- `VenueMapController` exposes the user location + recenter without leaking the
-  `MapView`; the initial camera is set once (no pan/zoom reset on recompose) and
-  the only auto camera move is fitting a freshly computed route.
-- Production note: `router.project-osrm.org` is OSRM's demo server — self-host
-  OSRM (or another provider) for production.
-
-## Notes / deviations (iOS authoritative)
-
-- The map, crosshair coordinate picker, user-location dot and directions are all
-  ported via **osmdroid / OpenStreetMap + OSRM** (key-free) instead of
-  Apple/Google Maps. The data contract (real coordinates per pin) is unchanged,
-  so iOS/web keep their native map behaviour.
+- Branch/worktree: continued on existing dirty `camping-registration-due-date`
+  checkout; unrelated local changes were preserved.
+- Scope: announcement composer strings, badge catalog/badge UI strings, and
+  camping duration-day labels.
+- Badge catalog: Android now loads badge definitions from the top-level
+  Firestore `badges` collection, with localized `title`/`summary`/`detail`
+  map support and fallback icon/tint/rarity handling. Earned badge reads and
+  manual awards still use the documented `users/{uid}/badges/{achievementId}`
+  path and explicit-null payload semantics.
+- Localization: moved remaining announcement composer and badge UI copy to
+  string resources; added EN/FR/PT/PT-BR entries, pluralized camping duration
+  days, and translated the obvious late-added runtime payment/admin/
+  registration/games messages that were still English in FR/PT/PT-BR.
+- Verification (JAVA_HOME = Android Studio JBR):
+  - `./gradlew testDebugUnitTest --tests fr.ziyon.campzone.data.model.AchievementPayloadTest --tests fr.ziyon.campzone.ui.profile.badges.AchievementViewModelTest` SUCCESSFUL
+  - `./gradlew assembleDebug` SUCCESSFUL

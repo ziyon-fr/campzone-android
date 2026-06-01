@@ -15,6 +15,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 
 data class PaymentRequest(
@@ -23,9 +24,64 @@ data class PaymentRequest(
     val referenceId: String,
     val amountCents: Int,
     val currency: String = "eur",
+    /** Human label shown on the receipt and PaymentSheet line. */
+    val summary: String = "",
+    /**
+     * Receipt rows. Empty → a single row mirroring [summary]/[referenceId]. A
+     * bundle (e.g. registration + transport in one charge) carries one row per
+     * kind, each with its own [PaymentLineItem.kind].
+     */
+    val lineItems: List<PaymentLineItem> = emptyList(),
 ) {
     val normalizedCurrency: String
         get() = currency.trim().lowercase(Locale.US).ifBlank { "eur" }
+
+    /** Positive-amount rows, defaulting to a single row when none were given. */
+    val resolvedLineItems: List<PaymentLineItem>
+        get() = lineItems.filter { it.amountCents > 0 }.ifEmpty {
+            listOf(
+                PaymentLineItem(
+                    referenceId = referenceId,
+                    title = summary.ifBlank { referenceId },
+                    amountCents = amountCents,
+                ),
+            )
+        }
+
+    val referenceIds: List<String>
+        get() = resolvedLineItems.map { it.referenceId }.toSortedSet().toList()
+
+    /** Distinct kinds carried by the line items, primary kind first. */
+    val kindsInLineItems: List<PaymentKind>
+        get() = buildList {
+            add(kind)
+            resolvedLineItems.forEach { item ->
+                val resolved = item.kind ?: kind
+                if (resolved !in this) add(resolved)
+            }
+        }
+
+    /**
+     * A copy restricted to the line items whose effective kind is [forKind] —
+     * used to build the follow-up `confirm()` that flips a single Firestore
+     * sub-collection (registrations OR transportationBookings, never both).
+     */
+    fun subrequest(forKind: PaymentKind): PaymentRequest? {
+        val filtered = resolvedLineItems.filter { (it.kind ?: kind) == forKind }
+        if (filtered.isEmpty()) return null
+        val subtotal = filtered.sumOf { it.amountCents }
+        val reference = if (filtered.size == 1) {
+            filtered.first().referenceId
+        } else {
+            "bundle-" + filtered.joinToString("|") { it.referenceId }
+        }
+        return copy(
+            kind = forKind,
+            referenceId = reference,
+            amountCents = subtotal,
+            lineItems = filtered,
+        )
+    }
 }
 
 data class PaymentSheetIntent(
@@ -55,6 +111,17 @@ interface PaymentService {
         campingId: String?,
         referenceId: String,
     ): PaymentConfirmation
+
+    /**
+     * Confirms a charge carrying the full request (referenceIDs/summary/line
+     * items) so bundled, multi-kind charges flip the right Firestore records.
+     * Defaults to the field-based [confirmPayment] for fakes that don't override.
+     */
+    suspend fun confirmPayment(
+        paymentIntentId: String,
+        request: PaymentRequest,
+    ): PaymentConfirmation =
+        confirmPayment(paymentIntentId, request.kind, request.campingId, request.referenceId)
 }
 
 @Singleton
@@ -92,6 +159,22 @@ class BackendPaymentService @Inject constructor(
                     campingId = campingId,
                     referenceId = referenceId,
                 ),
+                failureMessage = "Payment could not be confirmed.",
+            )
+            PaymentPayload.parseConfirmationResponse(response)
+        }
+    }
+
+    override suspend fun confirmPayment(
+        paymentIntentId: String,
+        request: PaymentRequest,
+    ): PaymentConfirmation {
+        val token = auth.idTokenOrThrow()
+        return withContext(Dispatchers.IO) {
+            val response = postJson(
+                url = "${BuildConfig.BACKEND_BASE_URL}/payments/confirm",
+                bearerToken = token,
+                body = PaymentPayload.confirmPayload(request, paymentIntentId),
                 failureMessage = "Payment could not be confirmed.",
             )
             PaymentPayload.parseConfirmationResponse(response)
@@ -147,6 +230,9 @@ internal object PaymentPayload {
             .put("currency", request.normalizedCurrency)
             .put("kind", request.kind.wireValue)
             .put("referenceID", request.referenceId)
+            .put("referenceIDs", JSONArray(request.referenceIds))
+            .put("summary", request.summary)
+            .put("lineItems", lineItemsArray(request.resolvedLineItems))
             .put("stripeVersion", StripeVersion)
             .apply {
                 request.campingId?.trim()?.takeUnless { it.isBlank() }
@@ -171,6 +257,37 @@ internal object PaymentPayload {
                 campingId?.trim()?.takeUnless { it.isBlank() }
                     ?.let { put("campingID", it) }
             }
+    }
+
+    fun confirmPayload(request: PaymentRequest, paymentIntentId: String): JSONObject {
+        require(paymentIntentId.isNotBlank()) { "Payment intent id is required." }
+        require(request.referenceId.isNotBlank()) { "Payment reference is required." }
+
+        return JSONObject()
+            .put("paymentIntentId", paymentIntentId)
+            .put("kind", request.kind.wireValue)
+            .put("referenceID", request.referenceId)
+            .put("referenceIDs", JSONArray(request.referenceIds))
+            .put("summary", request.summary)
+            .put("lineItems", lineItemsArray(request.resolvedLineItems))
+            .apply {
+                request.campingId?.trim()?.takeUnless { it.isBlank() }
+                    ?.let { put("campingID", it) }
+            }
+    }
+
+    private fun lineItemsArray(items: List<PaymentLineItem>): JSONArray {
+        val array = JSONArray()
+        items.forEach { item ->
+            val obj = JSONObject()
+                .put("id", item.id)
+                .put("referenceID", item.referenceId)
+                .put("title", item.title)
+                .put("amountCents", item.amountCents)
+            item.kind?.let { obj.put("kind", it.wireValue) }
+            array.put(obj)
+        }
+        return array
     }
 
     fun parseIntentResponse(response: String): PaymentSheetIntent {

@@ -263,7 +263,7 @@ fun ProfileSettingsScreen(
         ) {
             ProfileSettingsInfoRow(
                 icon = Icons.Rounded.Info,
-                title = "Profile",
+                title = stringResource(R.string.profile_title),
                 note = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
             )
             ProfileSettingsInfoRow(

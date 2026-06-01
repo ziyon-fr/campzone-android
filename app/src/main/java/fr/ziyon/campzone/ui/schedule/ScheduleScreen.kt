@@ -43,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
@@ -53,6 +54,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
@@ -107,6 +109,7 @@ fun ScheduleScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
+    val editScheduleDescription = stringResource(R.string.schedule_edit_cd)
 
     Scaffold(
         modifier = modifier,
@@ -115,7 +118,7 @@ fun ScheduleScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "Schedule",
+                        text = stringResource(R.string.schedule_title),
                         style = CzTypeScale.headline,
                         color = colors.textPrimary,
                     )
@@ -124,7 +127,7 @@ fun ScheduleScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.common_back),
                             tint = colors.textPrimary,
                         )
                     }
@@ -133,7 +136,7 @@ fun ScheduleScreen(
                     if (canManageSchedule) {
                         IconButton(
                             onClick = onOpenEditor,
-                            modifier = Modifier.semantics { contentDescription = "Edit schedule" },
+                            modifier = Modifier.semantics { contentDescription = editScheduleDescription },
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Edit,
@@ -159,19 +162,19 @@ fun ScheduleScreen(
             when (uiState) {
                 is ScheduleUiState.Loading -> CzLoadingView(
                     modifier = Modifier.fillMaxSize(),
-                    message = "Loading schedule…",
+                    message = stringResource(R.string.schedule_loading),
                 )
 
                 is ScheduleUiState.Empty -> CzEmptyState(
-                    title = "No schedule yet",
-                    message = "This camping doesn't have a schedule yet. Check back later.",
+                    title = stringResource(R.string.schedule_empty_title),
+                    message = stringResource(R.string.schedule_empty_message),
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(CzSpacing.xl),
                 )
 
                 is ScheduleUiState.Error -> CzErrorState(
-                    title = "Couldn't load schedule",
+                    title = stringResource(R.string.schedule_error_title),
                     message = uiState.message,
                     onRetry = onRetry,
                     modifier = Modifier
@@ -215,7 +218,7 @@ private fun ScheduleLoadedContent(
     ) {
         if (canManageSchedule) {
             item {
-                ReminderBadge(reminderText = schedule.reminderTiming.displayName)
+                ReminderBadge(reminderText = stringResource(schedule.reminderTiming.displayNameRes))
             }
         }
         item {
@@ -247,7 +250,7 @@ private fun ScheduleLoadedContent(
                             modifier = Modifier.size(14.dp),
                         )
                         Text(
-                            text = "No programs scheduled for this day.",
+                            text = stringResource(R.string.schedule_no_programs_for_day),
                             style = CzTypeScale.caption,
                             color = colors.textSecondary,
                         )
@@ -284,7 +287,7 @@ private fun ReminderBadge(reminderText: String) {
             modifier = Modifier.size(14.dp),
         )
         Text(
-            text = "Reminders:",
+            text = stringResource(R.string.schedule_reminders_label),
             style = CzTypeScale.caption,
             color = colors.textSecondary,
         )
@@ -326,6 +329,7 @@ private fun DayChip(
     val bgColor = if (isSelected) colors.ember else colors.surface
     val fgColor = if (isSelected) androidx.compose.ui.graphics.Color.White else colors.textPrimary
     val secondaryFg = if (isSelected) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.8f) else colors.textSecondary
+    val dayDescription = "${day.weekdayText()}, ${day.dayNumberText()}, ${day.title}"
 
     Column(
         modifier = Modifier
@@ -334,7 +338,7 @@ private fun DayChip(
             .background(bgColor)
             .clickable(onClick = onClick)
             .padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm)
-            .semantics { contentDescription = "${day.weekdayText()}, ${day.dayNumberText()}, ${day.title}" },
+            .semantics { contentDescription = dayDescription },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {

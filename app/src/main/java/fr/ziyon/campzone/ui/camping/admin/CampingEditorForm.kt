@@ -30,6 +30,8 @@ data class CampingEditorForm(
     val priceItems: List<CampingPriceItem> = emptyList(),
     val agePrices: List<CampingAgePrice> = emptyList(),
     val transportationOptions: List<CampingTransportationOption> = emptyList(),
+    /** Optional registration deadline. `null` = no deadline (open until manually closed). */
+    val registrationDueDate: Date? = null,
 ) {
     val organizerLevel: OrganizerLevel
         get() = OrganizerLevel(type = organizerType, value = organizerName.trim())
@@ -54,6 +56,7 @@ data class CampingEditorForm(
             priceItems = camping.priceItems,
             agePrices = camping.agePrices,
             transportationOptions = camping.transportationOptions,
+            registrationDueDate = camping.registrationDeadline,
         )
 
         /** Parses a major-unit fee string (e.g. "25" or "25.50") → integer cents. */

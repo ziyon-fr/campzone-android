@@ -56,6 +56,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -67,6 +68,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzErrorState
@@ -135,6 +137,7 @@ fun FoodMenuScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
+    val addMenuDescription = stringResource(R.string.schedule_add_menu_cd)
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(operationMessage) {
@@ -168,7 +171,7 @@ fun FoodMenuScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.common_back),
                             tint = colors.textPrimary,
                         )
                     }
@@ -177,7 +180,7 @@ fun FoodMenuScreen(
                     if (canManageFoodMenu) {
                         IconButton(
                             onClick = onAddEntry,
-                            modifier = Modifier.semantics { contentDescription = "Add menu entry" },
+                            modifier = Modifier.semantics { contentDescription = addMenuDescription },
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Add,
@@ -203,11 +206,11 @@ fun FoodMenuScreen(
             when (uiState) {
                 is FoodMenuUiState.Loading -> CzLoadingView(
                     modifier = Modifier.fillMaxSize(),
-                    message = "Loading menus…",
+                    message = stringResource(R.string.schedule_menu_loading),
                 )
 
                 is FoodMenuUiState.Error -> CzErrorState(
-                    title = "Couldn't load menu",
+                    title = stringResource(R.string.schedule_menu_error_title),
                     message = uiState.message,
                     onRetry = onRetry,
                     modifier = Modifier
@@ -216,7 +219,7 @@ fun FoodMenuScreen(
                 )
 
                 is FoodMenuUiState.Empty -> CzEmptyState(
-                    title = "No menus published yet",
+                    title = stringResource(R.string.schedule_menu_empty_title),
                     message = if (canManageFoodMenu)
                         "Tap + to create the first meal entry."
                     else
@@ -249,8 +252,8 @@ private fun FoodMenuContent(
     if (deletingEntry != null) {
         AlertDialog(
             onDismissRequest = { deletingEntry = null },
-            title = { Text("Delete this menu entry?") },
-            text = { Text("This will also remove the matching program from the schedule.") },
+            title = { Text(stringResource(R.string.schedule_delete_menu_title)) },
+            text = { Text(stringResource(R.string.schedule_delete_menu_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -259,11 +262,11 @@ private fun FoodMenuContent(
                         onDeleteEntry(e.id)
                     },
                 ) {
-                    Text("Delete", color = MaterialTheme.czColors.error)
+                    Text(stringResource(R.string.common_delete), color = MaterialTheme.czColors.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deletingEntry = null }) { Text("Cancel") }
+                TextButton(onClick = { deletingEntry = null }) { Text(stringResource(R.string.common_cancel)) }
             },
         )
     }
@@ -333,6 +336,13 @@ fun MealMenuCard(
 ) {
     val colors = MaterialTheme.czColors
     var menuExpanded by remember { mutableStateOf(false) }
+    val mealName = stringResource(entry.meal.displayNameRes)
+    val menuOptionsDescription = stringResource(R.string.schedule_menu_options_cd, mealName)
+    val itemCount = if (entry.dishes.size == 1) {
+        stringResource(R.string.food_menu_item_count, entry.dishes.size)
+    } else {
+        stringResource(R.string.food_menu_item_count_plural, entry.dishes.size)
+    }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -368,7 +378,7 @@ fun MealMenuCard(
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = entry.meal.displayName,
+                            text = mealName,
                             style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
                             color = colors.textPrimary,
                         )
@@ -378,9 +388,8 @@ fun MealMenuCard(
                             color = colors.textSecondary,
                         )
                     }
-                    val count = entry.dishes.size
                     Text(
-                        text = "$count item${if (count != 1) "s" else ""}",
+                        text = itemCount,
                         style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
                         color = colors.textSecondary,
                     )
@@ -390,7 +399,7 @@ fun MealMenuCard(
                                 onClick = { menuExpanded = true },
                                 modifier = Modifier
                                     .size(32.dp)
-                                    .semantics { contentDescription = "Menu options for ${entry.meal.displayName}" },
+                                    .semantics { contentDescription = menuOptionsDescription },
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Edit,
@@ -404,7 +413,7 @@ fun MealMenuCard(
                                 onDismissRequest = { menuExpanded = false },
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Edit") },
+                                    text = { Text(stringResource(R.string.common_edit)) },
                                     leadingIcon = {
                                         Icon(Icons.Rounded.Edit, contentDescription = null)
                                     },
@@ -414,7 +423,7 @@ fun MealMenuCard(
                                     },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Delete", color = colors.error) },
+                                    text = { Text(stringResource(R.string.common_delete), color = colors.error) },
                                     leadingIcon = {
                                         Icon(
                                             Icons.Rounded.Delete,
@@ -512,12 +521,12 @@ private fun FoodMenuEntry.dateText(): String = entryDateFormatter.format(date)
 
 // ── Meal kind display extensions ──────────────────────────────────────────────
 
-val FoodMealKind.displayName: String
+val FoodMealKind.displayNameRes: Int
     get() = when (this) {
-        FoodMealKind.Breakfast -> "Breakfast"
-        FoodMealKind.Lunch -> "Lunch"
-        FoodMealKind.Dinner -> "Dinner"
-        FoodMealKind.Snack -> "Snack"
+        FoodMealKind.Breakfast -> R.string.food_meal_breakfast
+        FoodMealKind.Lunch -> R.string.food_meal_lunch
+        FoodMealKind.Dinner -> R.string.food_meal_dinner
+        FoodMealKind.Snack -> R.string.food_meal_snack
     }
 
 val FoodMealKind.icon: androidx.compose.ui.graphics.vector.ImageVector

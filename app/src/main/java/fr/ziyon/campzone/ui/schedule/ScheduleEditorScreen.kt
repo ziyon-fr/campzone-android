@@ -50,6 +50,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -58,6 +59,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzButton
 import fr.ziyon.campzone.core.designsystem.CzButtonVariant
@@ -96,8 +98,8 @@ fun ScheduleEditorScreen(
     if (deletingProgram != null) {
         AlertDialog(
             onDismissRequest = { deletingProgram = null },
-            title = { Text("Delete this program?") },
-            text = { Text("This action cannot be undone.") },
+            title = { Text(stringResource(R.string.schedule_delete_program_title)) },
+            text = { Text(stringResource(R.string.schedule_delete_program_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -106,12 +108,12 @@ fun ScheduleEditorScreen(
                         viewModel.deleteProgram(p.id, campingId)
                     },
                 ) {
-                    Text("Delete", color = MaterialTheme.czColors.error)
+                    Text(stringResource(R.string.common_delete), color = MaterialTheme.czColors.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { deletingProgram = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.common_cancel))
                 }
             },
         )
@@ -175,7 +177,7 @@ private fun ScheduleEditorContent(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "Edit Schedule",
+                        text = stringResource(R.string.schedule_edit_title),
                         style = CzTypeScale.headline,
                         color = colors.textPrimary,
                     )
@@ -184,7 +186,7 @@ private fun ScheduleEditorContent(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.common_back),
                             tint = colors.textPrimary,
                         )
                     }
@@ -205,7 +207,7 @@ private fun ScheduleEditorContent(
             when (uiState) {
                 is ScheduleUiState.Loading -> CzLoadingView(
                     modifier = Modifier.fillMaxSize(),
-                    message = "Loading schedule…",
+                    message = stringResource(R.string.schedule_loading),
                 )
 
                 is ScheduleUiState.Empty -> EmptyEditorBody(
@@ -214,7 +216,7 @@ private fun ScheduleEditorContent(
                 )
 
                 is ScheduleUiState.Error -> CzErrorState(
-                    title = "Couldn't load schedule",
+                    title = stringResource(R.string.schedule_error_title),
                     message = uiState.message,
                     onRetry = onRetry,
                     modifier = Modifier
@@ -252,8 +254,8 @@ private fun EmptyEditorBody(
         verticalArrangement = Arrangement.Center,
     ) {
         CzEmptyState(
-            title = "No days available",
-            message = "Add camping dates before creating schedule programs.",
+            title = stringResource(R.string.schedule_no_days_title),
+            message = stringResource(R.string.schedule_no_days_message),
         )
         Spacer(modifier = Modifier.height(CzSpacing.lg))
         CzButton(
@@ -370,7 +372,7 @@ private fun EditorDayPickerSection(
 ) {
     val colors = MaterialTheme.czColors
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        EditorSectionLabel(text = "Schedule Days", icon = Icons.Rounded.CalendarMonth)
+        EditorSectionLabel(text = stringResource(R.string.schedule_days), icon = Icons.Rounded.CalendarMonth)
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
             contentPadding = PaddingValues(horizontal = CzSpacing.xs),
@@ -400,6 +402,12 @@ private fun EditorDayChip(
     val titleColor = if (isSelected) Color.White else colors.textPrimary
     val dateColor = if (isSelected) Color.White.copy(alpha = 0.86f) else colors.textSecondary
     val countColor = if (isSelected) Color.White else colors.ember
+    val chipDescription = stringResource(
+        R.string.schedule_day_program_count_cd,
+        day.title,
+        day.dateTitle(),
+        programCount,
+    )
 
     Column(
         modifier = Modifier
@@ -408,7 +416,7 @@ private fun EditorDayChip(
             .clickable(onClick = onClick)
             .padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm)
             .semantics {
-                contentDescription = "${day.title}, ${day.dateTitle()}, $programCount programs"
+                contentDescription = chipDescription
             },
         verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
     ) {
@@ -440,7 +448,7 @@ private fun EditorProgramsSection(
 ) {
     val colors = MaterialTheme.czColors
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        EditorSectionLabel(text = "Programs", icon = Icons.Rounded.CalendarMonth)
+        EditorSectionLabel(text = stringResource(R.string.schedule_programs), icon = Icons.Rounded.CalendarMonth)
 
         if (selectedDay == null) {
             Surface(
@@ -449,8 +457,8 @@ private fun EditorProgramsSection(
                 shape = RoundedCornerShape(CzRadius.lg),
             ) {
                 CzEmptyState(
-                    title = "No days available",
-                    message = "Add camping dates before creating schedule programs.",
+                    title = stringResource(R.string.schedule_no_days_title),
+                    message = stringResource(R.string.schedule_no_days_message),
                     modifier = Modifier.padding(CzSpacing.base),
                 )
             }
@@ -483,7 +491,7 @@ private fun EditorProgramsSection(
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = onClearError) {
-                        Text("Dismiss", style = CzTypeScale.caption, color = colors.error)
+                        Text(stringResource(R.string.common_dismiss), style = CzTypeScale.caption, color = colors.error)
                     }
                 }
             }
@@ -703,7 +711,7 @@ private fun ReminderSection(
                     Box {
                         TextButton(onClick = { showMenu = true }) {
                             Text(
-                                text = reminderTiming.displayName,
+                                text = stringResource(reminderTiming.displayNameRes),
                                 style = CzTypeScale.body,
                                 color = colors.ember,
                             )
@@ -716,7 +724,7 @@ private fun ReminderSection(
                                 DropdownMenuItem(
                                     text = {
                                         Text(
-                                            text = timing.displayName,
+                                            text = stringResource(timing.displayNameRes),
                                             style = CzTypeScale.body,
                                             color = if (timing == reminderTiming) colors.ember else colors.textPrimary,
                                         )

@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -472,7 +473,7 @@ private fun CampingCard(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = "${camping.participantCount} / $capacity registered",
+                                text = stringResource(R.string.camping_capacity_value, camping.participantCount, capacity),
                                 color = MaterialTheme.czColors.textSecondary,
                                 style = MaterialTheme.typography.labelSmall,
                             )
@@ -498,7 +499,7 @@ private fun CampingCard(
                                 tint = MaterialTheme.czColors.textSecondary,
                             )
                             Text(
-                                text = "${camping.participantCount} registered",
+                                text = stringResource(R.string.camping_registered_count, camping.participantCount),
                                 color = MaterialTheme.czColors.textSecondary,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -595,7 +596,7 @@ private fun PendingBadge(count: Int) {
             tint = MaterialTheme.czColors.amber,
         )
         Text(
-            text = "$count pending",
+            text = stringResource(R.string.camping_pending_registration_count, count),
             color = MaterialTheme.czColors.amber,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
@@ -619,12 +620,13 @@ private fun OrganizerType.icon(): ImageVector = when (this) {
     OrganizerType.Custom -> Icons.Filled.Person
 }
 
+@Composable
 private fun campingDurationText(start: Date, end: Date): String {
     val days = max(
         1,
         java.util.concurrent.TimeUnit.MILLISECONDS.toDays(end.time - start.time).toInt(),
     )
-    return "$days day${if (days > 1) "s" else ""}"
+    return pluralStringResource(R.plurals.camping_duration_days, days, days)
 }
 
 // MARK: - Preview

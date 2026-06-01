@@ -619,15 +619,16 @@ internal fun TransportationLegProgressRow(
 @Composable
 internal fun QrCodeImage(value: String, modifier: Modifier = Modifier) {
     val bitmap = remember(value) { generateQrCode(value) }
+    val qrDescription = stringResource(R.string.transportation_qr_code_cd)
     Surface(
-        modifier = modifier.semantics { contentDescription = "Transportation QR code" },
+        modifier = modifier.semantics { contentDescription = qrDescription },
         color = Color.White,
         shape = RoundedCornerShape(CzRadius.lg),
     ) {
         if (bitmap != null) {
             Image(
                 bitmap = bitmap,
-                contentDescription = stringResource(R.string.transportation_qr_code_cd),
+                contentDescription = qrDescription,
                 modifier = Modifier.fillMaxSize().padding(CzSpacing.sm),
             )
         } else {

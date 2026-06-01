@@ -15,9 +15,12 @@ import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.TransportationPaymentStatus
 import fr.ziyon.campzone.data.payments.PaymentConfirmation
+import fr.ziyon.campzone.data.payments.FakePaymentProofService
 import fr.ziyon.campzone.data.payments.PaymentRequest
 import fr.ziyon.campzone.data.payments.PaymentService
 import fr.ziyon.campzone.data.payments.PaymentSheetIntent
+import fr.ziyon.campzone.data.transportation.FakeTransportationService
+import fr.ziyon.campzone.testing.FakeStringProvider
 import fr.ziyon.campzone.testing.MainDispatcherRule
 import java.util.Date
 import org.junit.Assert.assertEquals
@@ -119,7 +122,13 @@ class RegistrationPaymentViewModelTest {
             attendeesByCamping = mapOf("camp-1" to listOf(attendee())),
         ),
         paymentService: FakePaymentService = FakePaymentService(),
-    ) = RegistrationPaymentViewModel(service, paymentService)
+    ) = RegistrationPaymentViewModel(
+        campingService = service,
+        paymentService = paymentService,
+        transportationService = FakeTransportationService(),
+        proofService = FakePaymentProofService(),
+        stringProvider = FakeStringProvider(),
+    )
 
     private class FakePaymentService : PaymentService {
         val created = mutableListOf<PaymentRequest>()

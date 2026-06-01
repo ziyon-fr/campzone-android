@@ -41,6 +41,13 @@ class FakeCampingService(
     override suspend fun fetchCamping(id: String): Camping =
         campings.value.firstOrNull { it.id == id }?.let(::withAttendees) ?: error("Camping not found")
 
+    override fun observeCamping(id: String): Flow<Camping> =
+        if (shouldFail) {
+            flow { throw RuntimeException("Stream failed") }
+        } else {
+            campings.map { list -> list.firstOrNull { it.id == id } ?: error("Camping not found") }
+        }
+
     override suspend fun loadAttendees(campingId: String): List<CampingAttendee> {
         if (attendeesFail) throw RuntimeException("Attendees denied")
         return attendeeStore[campingId].orEmpty()
@@ -59,6 +66,7 @@ class FakeCampingService(
     }
 
     override suspend fun deleteCamping(id: String) {
+        if (shouldFail) throw RuntimeException("Delete failed")
         deleted += id
         campings.value = campings.value.filterNot { it.id == id }
     }

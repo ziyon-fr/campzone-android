@@ -13,6 +13,7 @@ import fr.ziyon.campzone.data.model.Program
 import fr.ziyon.campzone.data.model.ProgramType
 import fr.ziyon.campzone.data.schedule.FakeFoodMenuService
 import fr.ziyon.campzone.data.schedule.FakeScheduleService
+import fr.ziyon.campzone.testing.FakeStringProvider
 import fr.ziyon.campzone.testing.MainDispatcherRule
 import java.util.Date
 import java.util.GregorianCalendar
@@ -46,6 +47,7 @@ class ScheduleViewModelFoodMenuSyncTest {
             ),
             campingService = FakeCampingService(listOf(camping(campingId, dayDate))),
             foodMenuService = foodMenuService,
+            stringProvider = FakeStringProvider(),
         )
 
         viewModel.load(campingId)

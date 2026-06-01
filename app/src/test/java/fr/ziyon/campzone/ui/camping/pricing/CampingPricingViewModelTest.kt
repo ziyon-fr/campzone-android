@@ -13,6 +13,7 @@ import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.TransportationPaymentStatus
+import fr.ziyon.campzone.data.payments.FakePaymentProofService
 import fr.ziyon.campzone.testing.MainDispatcherRule
 import java.util.Date
 import org.junit.Assert.assertEquals
@@ -57,6 +58,7 @@ class CampingPricingViewModelTest {
                     ),
                 ),
             ),
+            FakePaymentProofService(),
         )
 
         viewModel.load("camp-1", user)
@@ -79,6 +81,7 @@ class CampingPricingViewModelTest {
                     "camp-1" to listOf(attendee(id = "guardian-1", userId = "guardian-1")),
                 ),
             ),
+            FakePaymentProofService(),
         )
 
         viewModel.load("camp-1", user)

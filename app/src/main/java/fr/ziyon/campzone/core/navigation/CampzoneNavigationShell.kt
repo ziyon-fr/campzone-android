@@ -59,6 +59,7 @@ import fr.ziyon.campzone.ui.checkin.CheckInScannerRoute
 import fr.ziyon.campzone.ui.family.FamilyParticipantsScreen
 import fr.ziyon.campzone.ui.feedback.CampFeedbackResultsRoute
 import fr.ziyon.campzone.ui.feedback.CampFeedbackSurveyRoute
+import fr.ziyon.campzone.ui.guardian.GuardianUpdatesRoute
 import fr.ziyon.campzone.ui.home.HomeRoute
 import fr.ziyon.campzone.ui.venuemap.VenueMapEditorRoute
 import fr.ziyon.campzone.ui.venuemap.VenueMapRoute
@@ -107,6 +108,8 @@ import fr.ziyon.campzone.ui.announcements.AnnouncementsRoute
 import fr.ziyon.campzone.ui.album.CampingAlbumRoute
 import fr.ziyon.campzone.ui.admin.AdminToolsRoute
 import fr.ziyon.campzone.ui.admin.moderation.ModerationQueueRoute
+import fr.ziyon.campzone.ui.admin.onboarding.AdminOnboardingRoute
+import fr.ziyon.campzone.ui.admin.role.RoleManagementRoute
 import fr.ziyon.campzone.ui.notifications.AppNotificationFeedRoute
 import fr.ziyon.campzone.ui.notifications.NotificationCampingChannelsScreen
 import fr.ziyon.campzone.ui.notifications.NotificationSettingsRoute
@@ -342,12 +345,38 @@ fun CampzoneNavigationShell(
                     onOpenModerationQueue = {
                         navController.navigate(AppRoute.ModerationQueue.route)
                     },
+                    onOpenAdminOnboarding = {
+                        navController.navigate(AppRoute.AdminOnboarding.route)
+                    },
+                    onOpenRoleManagement = {
+                        navController.navigate(AppRoute.RoleManagement.route)
+                    },
+                    onOpenRegistrationReview = {
+                        navController.navigate(AppRoute.RegistrationReview.route)
+                    },
                 )
             }
             composable(AppRoute.ModerationQueue.route) {
                 ModerationQueueRoute(
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
+                )
+            }
+            composable(AppRoute.RoleManagement.route) {
+                RoleManagementRoute(
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(AppRoute.AdminOnboarding.route) {
+                AdminOnboardingRoute(
+                    onBack = { navController.popBackStack() },
+                    onCreateCamping = {
+                        navController.navigate(AppRoute.CampingCreate.route)
+                    },
+                    onComposeAnnouncement = {
+                        navController.navigate(AppRoute.AnnouncementComposer.route)
+                    },
                 )
             }
             composable(AppRoute.UserDataExport.route) {
@@ -426,6 +455,9 @@ fun CampzoneNavigationShell(
                     },
                     onOpenVenueMap = { campingId ->
                         navController.navigate(AppRoute.CampingVenueMap(campingId).route)
+                    },
+                    onOpenFamilyAtCamp = { campingId ->
+                        navController.navigate(AppRoute.CampingGuardianUpdates(campingId).route)
                     },
                     onOpenCheckInScanner = { campingId ->
                         navController.navigate(AppRoute.CheckInScanner(campingId).route)
@@ -687,6 +719,16 @@ fun CampzoneNavigationShell(
                 )
             }
             composable(
+                route = AppRoutePattern.CampingGuardianUpdates,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                GuardianUpdatesRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
                 route = AppRoutePattern.CampingAttendees,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
             ) { backStackEntry ->
@@ -724,10 +766,22 @@ fun CampzoneNavigationShell(
                 route = AppRoutePattern.CampingEdit,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
             ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
                 CampingEditorRoute(
-                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    campingId = campingId,
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
+                    onDeleted = {
+                        val dismissedDetail = navController.popBackStack(
+                            AppRoute.CampingDetail(campingId).route,
+                            inclusive = true,
+                        )
+                        if (!dismissedDetail) {
+                            navController.navigate(AppRoute.Campings.route) {
+                                launchSingleTop = true
+                            }
+                        }
+                    },
                 )
             }
             // AnnouncementDetail is registered earlier in the Announcements section above.

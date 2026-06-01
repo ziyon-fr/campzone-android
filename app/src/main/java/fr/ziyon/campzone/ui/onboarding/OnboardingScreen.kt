@@ -51,6 +51,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -62,6 +63,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
@@ -297,12 +299,12 @@ private fun AboutYouStep(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
     ) {
-        OnboardingField(title = "Idade") {
+        OnboardingField(title = stringResource(R.string.onboarding_age)) {
             OutlinedTextField(
                 value = ageText,
                 onValueChange = onAgeChange,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Sua idade") },
+                placeholder = { Text(stringResource(R.string.onboarding_age_placeholder)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
@@ -312,7 +314,7 @@ private fun AboutYouStep(
                 leadingIcon = { Text("#", color = OnboardingAmber) },
                 trailingIcon = {
                     if (ageGroup != null) {
-                        Text("OK", color = OnboardingAmber, style = MaterialTheme.typography.labelMedium)
+                        Text(stringResource(R.string.common_ok), color = OnboardingAmber, style = MaterialTheme.typography.labelMedium)
                     }
                 },
                 shape = RoundedCornerShape(CzRadius.md),
@@ -322,7 +324,7 @@ private fun AboutYouStep(
 
         AgeGroupRow(ageGroup = ageGroup)
 
-        OnboardingField(title = "Gênero") {
+        OnboardingField(title = stringResource(R.string.onboarding_gender)) {
             GenderSegmentedControl(
                 selectedGender = selectedGender,
                 onGenderChange = onGenderChange,
@@ -340,7 +342,7 @@ private fun AgeGroupRow(ageGroup: CampingAgeGroup?, modifier: Modifier = Modifie
     ) {
         Text("⚙", color = OnboardingAmber, style = MaterialTheme.typography.bodyMedium)
         Text(
-            text = "Grupo etário",
+            text = stringResource(R.string.onboarding_age_group),
             color = OnboardingAmber,
             style = MaterialTheme.typography.labelMedium,
         )
@@ -418,17 +420,17 @@ private fun CommunityStep(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
     ) {
-        OnboardingField(title = "Igreja") {
+        OnboardingField(title = stringResource(R.string.onboarding_church)) {
             OutlinedTextField(
                 value = church,
                 onValueChange = onChurchChange,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Selecione ou digite sua igreja...") },
+                placeholder = { Text(stringResource(R.string.onboarding_church_placeholder)) },
                 singleLine = true,
                 leadingIcon = { Text("⌂", color = OnboardingEmber) },
                 trailingIcon = {
                     if (church.trim().isNotEmpty()) {
-                        Text("OK", color = OnboardingEmber, style = MaterialTheme.typography.labelMedium)
+                        Text(stringResource(R.string.common_ok), color = OnboardingEmber, style = MaterialTheme.typography.labelMedium)
                     }
                 },
                 shape = RoundedCornerShape(CzRadius.md),
@@ -436,7 +438,7 @@ private fun CommunityStep(
             )
         }
 
-        OnboardingField(title = "Idioma preferido") {
+        OnboardingField(title = stringResource(R.string.onboarding_preferred_language)) {
             LanguageMenu(
                 selectedLanguage = selectedLanguage,
                 onLanguageChange = onLanguageChange,
@@ -582,7 +584,7 @@ private fun BottomBar(
                     disabledContentColor = OnboardingAmber.copy(alpha = 0.35f),
                 ),
             ) {
-                Text("‹ Voltar", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.onboarding_back), style = MaterialTheme.typography.bodyMedium)
             }
         }
 
@@ -595,7 +597,7 @@ private fun BottomBar(
                     disabledContentColor = MaterialTheme.czColors.error.copy(alpha = 0.35f),
                 ),
             ) {
-                Text("Sair desta conta", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.onboarding_sign_out), style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -627,7 +629,7 @@ private fun OnboardingErrorBanner(
             onClick = onDismiss,
             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.czColors.error),
         ) {
-            Text("OK", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.common_ok), style = MaterialTheme.typography.labelMedium)
         }
     }
 }

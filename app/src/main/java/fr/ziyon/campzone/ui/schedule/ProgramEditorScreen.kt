@@ -52,6 +52,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -60,6 +61,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzButton
 import fr.ziyon.campzone.core.designsystem.CzButtonVariant
@@ -163,7 +165,7 @@ private fun ProgramEditorContent(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = if (isEditing) "Edit Program" else "New Program",
+                        text = if (isEditing) stringResource(R.string.program_edit_title) else stringResource(R.string.program_new_title),
                         style = CzTypeScale.headline,
                         color = colors.textPrimary,
                     )
@@ -172,7 +174,7 @@ private fun ProgramEditorContent(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Cancel",
+                            contentDescription = stringResource(R.string.common_cancel_cd),
                             tint = colors.textPrimary,
                         )
                     }
@@ -180,7 +182,7 @@ private fun ProgramEditorContent(
                 actions = {
                     TextButton(onClick = onSave, enabled = !isSaving) {
                         Text(
-                            text = if (isSaving) "Saving…" else "Save",
+                            text = if (isSaving) stringResource(R.string.program_saving) else stringResource(R.string.common_save),
                             style = CzTypeScale.headline,
                             color = if (isSaving) colors.textSecondary else colors.ember,
                         )
@@ -279,14 +281,14 @@ private fun ValidationBanner(errors: List<ProgramValidationError>) {
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
-                    text = "Please fix the following:",
+                    text = stringResource(R.string.program_fix_errors),
                     style = CzTypeScale.subhead,
                     color = colors.error,
                 )
             }
             errors.forEach { error ->
                 Text(
-                    text = "• ${error.message}",
+                    text = stringResource(R.string.schedule_validation_bullet, stringResource(error.messageRes)),
                     style = CzTypeScale.caption,
                     color = colors.error,
                 )
@@ -315,7 +317,7 @@ private fun OperationErrorBanner(error: String, onDismiss: () -> Unit) {
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = onDismiss) {
-                Text("Dismiss", style = CzTypeScale.caption, color = colors.error)
+                Text(stringResource(R.string.program_dismiss), style = CzTypeScale.caption, color = colors.error)
             }
         }
     }
@@ -346,7 +348,7 @@ private fun BasicInfoSection(
 ) {
     val colors = MaterialTheme.czColors
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        FormSectionHeader("Details", icon = Icons.Rounded.TextFields)
+        FormSectionHeader(stringResource(R.string.program_details), icon = Icons.Rounded.TextFields)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = colors.surface,
@@ -359,7 +361,7 @@ private fun BasicInfoSection(
                 CzTextField(
                     value = title,
                     onValueChange = onTitleChanged,
-                    label = "Title",
+                    label = stringResource(R.string.program_title_label),
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         capitalization = KeyboardCapitalization.Words,
@@ -375,7 +377,7 @@ private fun BasicInfoSection(
                 CzTextField(
                     value = location,
                     onValueChange = onLocationChanged,
-                    label = "Location",
+                    label = stringResource(R.string.program_location_label),
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         capitalization = KeyboardCapitalization.Words,
@@ -407,7 +409,7 @@ private fun BasicInfoSection(
                     }
                 }
                 Text(
-                    text = "Pick a spot from the venue map or type a custom location.",
+                    text = stringResource(R.string.program_location_helper),
                     style = CzTypeScale.caption,
                     color = colors.textSecondary,
                 )
@@ -423,16 +425,16 @@ private fun DescriptionSection(
 ) {
     val colors = MaterialTheme.czColors
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        FormSectionHeader("Description", icon = Icons.Rounded.TextFields)
+        FormSectionHeader(stringResource(R.string.program_description), icon = Icons.Rounded.TextFields)
         CzTextField(
             value = description,
             onValueChange = onDescriptionChanged,
-            label = "Add a description…",
+            label = stringResource(R.string.program_description_hint),
             modifier = Modifier.fillMaxWidth(),
             singleLine = false,
         )
         Text(
-            text = "Optional. Visible to all registered participants.",
+            text = stringResource(R.string.program_description_helper),
             style = CzTypeScale.caption,
             color = colors.textSecondary,
         )
@@ -447,7 +449,7 @@ private fun DateContextSection(
 ) {
     val colors = MaterialTheme.czColors
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        FormSectionHeader("Program Date", icon = Icons.Rounded.CalendarMonth)
+        FormSectionHeader(stringResource(R.string.program_date), icon = Icons.Rounded.CalendarMonth)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = colors.surface,
@@ -485,7 +487,7 @@ private fun DateContextSection(
                 if (scheduleDays.size > 1) {
                     HorizontalDivider(color = colors.divider)
                     Text(
-                        text = "Change day:",
+                        text = stringResource(R.string.program_change_day),
                         style = CzTypeScale.caption,
                         color = colors.textSecondary,
                     )
@@ -578,7 +580,7 @@ private fun TimeSection(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        FormSectionHeader("Time", icon = Icons.Rounded.CalendarMonth)
+        FormSectionHeader(stringResource(R.string.program_time), icon = Icons.Rounded.CalendarMonth)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = colors.surface,
@@ -586,13 +588,13 @@ private fun TimeSection(
         ) {
             Column(modifier = Modifier.padding(CzSpacing.md)) {
                 TimeRow(
-                    label = "Start",
+                    label = stringResource(R.string.program_time),
                     time = timeDisplayFormatter.format(startDate),
                     onClick = { showStartPicker = true },
                 )
                 HorizontalDivider(color = colors.divider)
                 TimeRow(
-                    label = "End",
+                    label = stringResource(R.string.camping_editor_date_end),
                     time = timeDisplayFormatter.format(endDate),
                     onClick = { showEndPicker = true },
                 )
@@ -670,11 +672,11 @@ private fun TimePickerDialog(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = colors.textSecondary)
+                        Text(stringResource(R.string.common_cancel), color = colors.textSecondary)
                     }
                     Spacer(modifier = Modifier.size(CzSpacing.sm))
                     CzButton(
-                        text = "OK",
+                        text = stringResource(R.string.common_ok),
                         onClick = { onConfirm(state.hour, state.minute) },
                         variant = CzButtonVariant.Primary,
                     )
@@ -691,7 +693,7 @@ private fun TypeSelectorSection(
 ) {
     val colors = MaterialTheme.czColors
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        FormSectionHeader("Program Type", icon = Icons.Rounded.CheckCircle)
+        FormSectionHeader(stringResource(R.string.program_type), icon = Icons.Rounded.CheckCircle)
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
@@ -721,6 +723,7 @@ private fun ProgramTypeChip(
     val bgColor = if (isSelected) accent else colors.background
     val iconColor = if (isSelected) Color.White else accent
     val textColor = if (isSelected) Color.White else colors.textPrimary
+    val typeName = stringResource(type.displayNameRes)
 
     Box(
         modifier = Modifier
@@ -733,7 +736,7 @@ private fun ProgramTypeChip(
             )
             .clickable(
                 onClick = onClick,
-                onClickLabel = type.displayName,
+                onClickLabel = typeName,
             )
             .padding(vertical = CzSpacing.sm),
         contentAlignment = Alignment.Center,
@@ -749,7 +752,7 @@ private fun ProgramTypeChip(
                 modifier = Modifier.size(22.dp),
             )
             Text(
-                text = type.displayName,
+                text = typeName,
                 style = CzTypeScale.caption,
                 color = textColor,
                 maxLines = 1,

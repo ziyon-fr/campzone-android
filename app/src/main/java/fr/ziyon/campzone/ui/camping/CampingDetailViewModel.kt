@@ -23,6 +23,8 @@ import fr.ziyon.campzone.data.model.hasContent
 import fr.ziyon.campzone.data.venuemap.FakeVenueMapService
 import fr.ziyon.campzone.data.venuemap.VenueMapService
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -65,6 +67,9 @@ data class CampingDetailUiState(
     val hasPayablePriceItems: Boolean = false,
     /** Loaded venue map; the entry card self-silences when this has no content. */
     val venueMap: VenueMap? = null,
+    /** Attendee ids of the viewer's own children registered here; drives the
+     *  self-silencing "Family at Camp" guardian card. */
+    val guardianChildAttendeeIds: List<String> = emptyList(),
     val attendeeSearch: String = "",
     val filters: CampingAttendeeFilters = CampingAttendeeFilters(),
     val errorMessage: String? = null,
@@ -160,6 +165,7 @@ class CampingDetailViewModel @Inject constructor(
     )
 
     private var loadedKey: LoadedRequestKey? = null
+    private var observeJob: Job? = null
 
     fun load(campingId: String, user: AuthenticatedUser) {
         val requestKey = LoadedRequestKey(
@@ -168,19 +174,38 @@ class CampingDetailViewModel @Inject constructor(
             role = user.role,
             church = user.church?.trim()?.takeUnless { it.isBlank() },
         )
-        if (loadedKey == requestKey && !_uiState.value.isLoading) return
+        if (loadedKey == requestKey && !_uiState.value.isLoading && observeJob?.isActive == true) return
         loadedKey = requestKey
+        observeJob?.cancel()
 
-        viewModelScope.launch {
-            _uiState.value = CampingDetailUiState(isLoading = true)
-            runCatching { service.fetchCamping(campingId) }
-                .onSuccess { camping ->
-                    analyticsService.viewCamping(camping.id, camping.title)
-                    val attendees = runCatching { service.loadAttendees(campingId) }
-                        .getOrDefault(emptyList())
-                    val venueMap = runCatching { venueMapService.loadMap(campingId) }
-                        .getOrNull()
-                        ?.takeIf { it.hasContent }
+        _uiState.value = CampingDetailUiState(isLoading = true)
+        // Stream the camping doc live so winnerRevealPolicy / score-visibility /
+        // capacity changes reach the detail, teams, and games screens in real
+        // time. Attendees + venue map stay one-shot (loaded on the first
+        // emission); analytics fires once.
+        observeJob = viewModelScope.launch {
+            var attendees: List<CampingAttendee> = emptyList()
+            var venueMap: VenueMap? = null
+            var loadedExtras = false
+            var trackedView = false
+            try {
+                service.observeCamping(campingId).collect { camping ->
+                    if (!loadedExtras) {
+                        attendees = runCatching { service.loadAttendees(campingId) }
+                            .getOrDefault(emptyList())
+                        venueMap = runCatching { venueMapService.loadMap(campingId) }
+                            .getOrNull()
+                            ?.takeIf { it.hasContent }
+                        loadedExtras = true
+                    }
+                    if (!trackedView) {
+                        analyticsService.viewCamping(camping.id, camping.title)
+                        trackedView = true
+                    }
+                    val guardianChildIds = attendees.filter {
+                        it.participantKind == RegistrationParticipantKind.Child &&
+                            it.guardianId == user.uid
+                    }.map { it.id }
                     val context = CampingPermissionContext(
                         organizerLevelType = camping.organizerLevel.type.wireValue,
                         organizerLevelValue = camping.organizerLevel.value,
@@ -215,7 +240,7 @@ class CampingDetailViewModel @Inject constructor(
                     }
                     _uiState.value = CampingDetailUiState(
                         isLoading = false,
-                        camping = camping,
+                        camping = camping.copy(attendees = attendees),
                         attendees = attendees,
                         userRegistration = userRegistration,
                         canViewParticipantProfiles = canViewProfiles,
@@ -252,16 +277,24 @@ class CampingDetailViewModel @Inject constructor(
                         },
                         hasPayablePriceItems = camping.priceItems.any { it.amountCents > 0 },
                         venueMap = venueMap,
+                        guardianChildAttendeeIds = guardianChildIds,
                     )
                 }
-                .onFailure { error ->
-                    loadedKey = null
-                    _uiState.value = CampingDetailUiState(
-                        isLoading = false,
-                        errorMessage = error.message,
-                    )
-                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                loadedKey = null
+                _uiState.value = CampingDetailUiState(
+                    isLoading = false,
+                    errorMessage = error.message,
+                )
+            }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        observeJob?.cancel()
     }
 
     fun updateAttendeeSearch(value: String) = _uiState.update { it.copy(attendeeSearch = value) }

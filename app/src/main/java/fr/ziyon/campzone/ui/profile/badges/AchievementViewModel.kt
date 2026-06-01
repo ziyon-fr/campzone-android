@@ -3,13 +3,15 @@ package fr.ziyon.campzone.ui.profile.badges
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.R
+import fr.ziyon.campzone.core.i18n.StringProvider
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.badges.AchievementService
 import fr.ziyon.campzone.data.camping.CampingService
-import fr.ziyon.campzone.data.model.AchievementCatalog
+import fr.ziyon.campzone.data.model.Achievement
 import fr.ziyon.campzone.data.model.BadgeViewModel
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.EarnedBadge
@@ -25,7 +27,11 @@ import kotlinx.coroutines.launch
 
 sealed interface AchievementUiState {
     data object Loading : AchievementUiState
-    data class Loaded(val targetUserId: String, val earned: List<EarnedBadge>) : AchievementUiState
+    data class Loaded(
+        val targetUserId: String,
+        val earned: List<EarnedBadge>,
+        val catalog: List<Achievement>,
+    ) : AchievementUiState
     data class Error(val message: String) : AchievementUiState
 }
 
@@ -35,6 +41,7 @@ sealed interface BadgeAwardUiState {
     data class Loaded(
         val camping: Camping,
         val teams: List<Team>,
+        val catalog: List<Achievement>,
         val selectedAchievementId: String,
         val selectedTargetMode: BadgeAwardTargetMode,
         val selectedTeamId: String?,
@@ -54,6 +61,7 @@ class AchievementViewModel @Inject constructor(
     private val achievementService: AchievementService,
     private val campingService: CampingService,
     private val teamService: TeamService,
+    private val strings: StringProvider,
 ) : ViewModel() {
     private val permissions = AppPermissionEvaluator()
 
@@ -72,9 +80,15 @@ class AchievementViewModel @Inject constructor(
     fun loadProfileBadges(userId: String) {
         _uiState.value = AchievementUiState.Loading
         viewModelScope.launch {
-            runCatching { achievementService.loadEarned(userId) }
-                .onSuccess { _uiState.value = AchievementUiState.Loaded(userId, it) }
-                .onFailure { _uiState.value = AchievementUiState.Error(it.message ?: "Badges could not be loaded.") }
+            runCatching {
+                val catalog = achievementService.loadCatalog()
+                val catalogIds = catalog.map { it.id }.toSet()
+                val earned = achievementService.loadEarned(userId)
+                    .filter { it.id in catalogIds }
+                AchievementUiState.Loaded(userId, earned, catalog)
+            }
+                .onSuccess { _uiState.value = it }
+                .onFailure { _uiState.value = AchievementUiState.Error(it.message ?: strings.get(R.string.badges_load_error)) }
         }
     }
 
@@ -87,8 +101,9 @@ class AchievementViewModel @Inject constructor(
                 if (!permissions.canAwardAchievements(permissionUser, camping.permissionContext())) {
                     return@runCatching null
                 }
+                val catalog = achievementService.loadCatalog()
                 val teams = teamService.loadTeams(campingId)
-                AwardData(camping, teams)
+                AwardData(camping, teams, catalog)
             }.onSuccess { data ->
                 if (data == null) {
                     _awardState.value = BadgeAwardUiState.Restricted
@@ -96,7 +111,7 @@ class AchievementViewModel @Inject constructor(
                     _awardState.value = data.toLoaded()
                 }
             }.onFailure {
-                _awardState.value = BadgeAwardUiState.Error(it.message ?: "Award badges could not be loaded.")
+                _awardState.value = BadgeAwardUiState.Error(it.message ?: strings.get(R.string.badges_award_load_error))
             }
         }
     }
@@ -128,12 +143,17 @@ class AchievementViewModel @Inject constructor(
     fun awardSelected(currentUserId: String) {
         val state = _awardState.value as? BadgeAwardUiState.Loaded ?: return
         val recipients = state.recipientUserIds()
+        val achievement = state.catalog.firstOrNull { it.id == state.selectedAchievementId }
+        if (achievement?.canBeAwardedManually != true) {
+            _operationMessage.value = strings.get(R.string.badges_automatic_award_error)
+            return
+        }
         if (currentUserId in recipients) {
-            _operationMessage.value = "Ask another leader to award badges that include you."
+            _operationMessage.value = strings.get(R.string.badges_self_award_error)
             return
         }
         if (recipients.isEmpty()) {
-            _operationMessage.value = "Select at least one participant."
+            _operationMessage.value = strings.get(R.string.badges_select_participant_error)
             return
         }
         _isSaving.value = true
@@ -147,16 +167,20 @@ class AchievementViewModel @Inject constructor(
                 )
             }.onSuccess {
                 _operationMessage.value =
-                    if (it.size == 1) "Achievement awarded." else "Achievement awarded to ${it.size} participants."
+                    if (it.size == 1) {
+                        strings.get(R.string.badges_awarded)
+                    } else {
+                        strings.get(R.string.badges_awarded_many, it.size)
+                    }
             }.onFailure {
-                _operationMessage.value = it.message ?: "Achievement could not be awarded."
+                _operationMessage.value = it.message ?: strings.get(R.string.badges_award_error)
             }
             _isSaving.value = false
         }
     }
 
-    fun badgesFor(earned: List<EarnedBadge>): List<BadgeViewModel> =
-        AchievementCatalog.all.map { achievement ->
+    fun badgesFor(earned: List<EarnedBadge>, catalog: List<Achievement>): List<BadgeViewModel> =
+        catalog.map { achievement ->
             BadgeViewModel(achievement, earned.firstOrNull { it.id == achievement.id })
         }.sortedWith(
             compareByDescending<BadgeViewModel> { it.isEarned }
@@ -176,7 +200,8 @@ class AchievementViewModel @Inject constructor(
         return BadgeAwardUiState.Loaded(
             camping = camping,
             teams = teams,
-            selectedAchievementId = AchievementCatalog.manual.firstOrNull()?.id.orEmpty(),
+            catalog = catalog,
+            selectedAchievementId = catalog.firstOrNull { it.canBeAwardedManually }?.id.orEmpty(),
             selectedTargetMode = BadgeAwardTargetMode.Team,
             selectedTeamId = teams.firstOrNull()?.id,
             selectedAttendeeId = approved.firstOrNull()?.id,
@@ -184,7 +209,11 @@ class AchievementViewModel @Inject constructor(
         )
     }
 
-    private data class AwardData(val camping: Camping, val teams: List<Team>)
+    private data class AwardData(
+        val camping: Camping,
+        val teams: List<Team>,
+        val catalog: List<Achievement>,
+    )
 }
 
 private fun BadgeAwardUiState.Loaded.recipientUserIds(): List<String> =

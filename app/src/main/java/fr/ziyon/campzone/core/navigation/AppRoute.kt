@@ -12,37 +12,27 @@ sealed interface AppRoute {
     val route: String
 
     sealed interface Tab : AppRoute {
-        val label: String
         val iconLabel: ImageVector
-        val contentDescription: String
     }
 
     data object Home : Tab {
         override val route = AppRoutePath.Home
-        override val label = "Home"
         override val iconLabel = Icons.Outlined.Home
-        override val contentDescription = "Home tab"
     }
 
     data object Campings : Tab {
         override val route = AppRoutePath.Campings
-        override val label = "Campings"
         override val iconLabel = Icons.Outlined.Cabin
-        override val contentDescription = "Campings tab"
     }
 
     data object Announcements : Tab {
         override val route = AppRoutePath.Announcements
-        override val label = "Announcements"
         override val iconLabel = Icons.Outlined.Campaign
-        override val contentDescription = "Announcements tab"
     }
 
     data object Profile : Tab {
         override val route = AppRoutePath.Profile
-        override val label = "Profile"
         override val iconLabel = Icons.Outlined.AccountCircle
-        override val contentDescription = "Profile tab"
     }
 
     data object ProfileEdit : AppRoute {
@@ -79,6 +69,14 @@ sealed interface AppRoute {
 
     data object ModerationQueue : AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.ModerationQueue}"
+    }
+
+    data object RoleManagement : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.RoleManagement}"
+    }
+
+    data object AdminOnboarding : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.AdminOnboarding}"
     }
 
     data object UserDataExport : AppRoute {
@@ -263,6 +261,11 @@ sealed interface AppRoute {
             "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.VenueMapEditor}"
     }
 
+    data class CampingGuardianUpdates(val campingId: String) : AppRoute {
+        override val route =
+            "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.GuardianUpdates}"
+    }
+
     data object RegistrationReview : AppRoute {
         override val route = AppRoutePath.RegistrationReview
     }
@@ -418,6 +421,8 @@ internal object AppRoutePath {
     const val FamilyParticipants = "family"
     const val AdminTools = "admin"
     const val ModerationQueue = "moderation"
+    const val RoleManagement = "roles"
+    const val AdminOnboarding = "onboarding"
     const val UserDataExport = "export"
     const val AppSupport = "support"
     const val Chat = "chat"
@@ -442,6 +447,7 @@ internal object AppRoutePath {
     const val FeedbackResults = "feedback"
     const val VenueMap = "venue-map"
     const val VenueMapEditor = "venue-map-editor"
+    const val GuardianUpdates = "family-at-camp"
     const val RegistrationReview = "registration-review"
     const val Attendees = "attendees"
     const val CampingCreate = "create"
@@ -492,6 +498,7 @@ internal object AppRoutePattern {
     const val CampFeedbackResults = "$CampingDetail/${AppRoutePath.FeedbackResults}"
     const val CampingVenueMap = "$CampingDetail/${AppRoutePath.VenueMap}"
     const val CampingVenueMapEditor = "$CampingDetail/${AppRoutePath.VenueMapEditor}"
+    const val CampingGuardianUpdates = "$CampingDetail/${AppRoutePath.GuardianUpdates}"
     const val RegistrationReview = AppRoutePath.RegistrationReview
     const val CampingAttendees = "$CampingDetail/${AppRoutePath.Attendees}"
     const val AttendeeProfile = "$CampingAttendees/{${AppRouteArgs.AttendeeId}}"

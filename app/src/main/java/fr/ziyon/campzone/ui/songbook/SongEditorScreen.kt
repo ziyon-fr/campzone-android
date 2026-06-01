@@ -62,12 +62,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CzButton
 import fr.ziyon.campzone.core.designsystem.CzButtonVariant
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
@@ -157,11 +159,12 @@ fun SongEditorScreen(
 ) {
     val colors = MaterialTheme.czColors
     val context = LocalContext.current
+    val defaultAudioName = stringResource(R.string.songbook_default_audio_name)
     val audioPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetMultipleContents(),
     ) { uris ->
         uris.forEach { uri ->
-            val name = context.displayNameFor(uri) ?: uri.lastPathSegment ?: "Song audio.mp3"
+            val name = context.displayNameFor(uri) ?: uri.lastPathSegment ?: defaultAudioName
             val type = context.contentResolver.getType(uri) ?: contentTypeForName(name)
             val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             if (bytes != null) onAddAudio(name, type, bytes)
@@ -176,14 +179,14 @@ fun SongEditorScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        if (isEditing) "Edit Song" else "New Song",
+                        stringResource(if (isEditing) R.string.songbook_edit_song else R.string.songbook_new_song),
                         style = CzTypeScale.headline,
                         color = colors.textPrimary,
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Close", tint = colors.error)
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_close), tint = colors.error)
                     }
                 },
                 actions = {
@@ -191,7 +194,7 @@ fun SongEditorScreen(
                         if (isSaving) {
                             CircularProgressIndicator(color = colors.ember, strokeWidth = 2.dp, modifier = Modifier.padding(end = CzSpacing.xs))
                         }
-                        Text("Save", color = if (!isSaving && form.title.isNotBlank()) colors.ember else colors.textSecondary)
+                        Text(stringResource(R.string.common_save), color = if (!isSaving && form.title.isNotBlank()) colors.ember else colors.textSecondary)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -204,8 +207,8 @@ fun SongEditorScreen(
     ) { innerPadding ->
         if (!canManage) {
             CzEmptyState(
-                title = "Restricted",
-                message = "Only admins can manage the songbook.",
+                title = stringResource(R.string.songbook_restricted_title),
+                message = stringResource(R.string.songbook_restricted_message),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
@@ -220,26 +223,26 @@ fun SongEditorScreen(
                     .padding(horizontal = CzSpacing.base, vertical = CzSpacing.md),
                 verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
             ) {
-                EditorSectionHeader("Song Info", Icons.Rounded.MusicNote)
+                EditorSectionHeader(stringResource(R.string.songbook_song_info), Icons.Rounded.MusicNote)
                 EditorCard {
                     SongTextField(
                         value = form.title,
                         onValueChange = { value -> onUpdateForm { it.copy(title = value) } },
-                        placeholder = "Title",
+                        placeholder = stringResource(R.string.common_title),
                         capitalization = KeyboardCapitalization.Words,
                     )
                     DividerInset()
                     SongTextField(
                         value = form.artist,
                         onValueChange = { value -> onUpdateForm { it.copy(artist = value) } },
-                        placeholder = "Artist",
+                        placeholder = stringResource(R.string.songbook_artist),
                         capitalization = KeyboardCapitalization.Words,
                     )
                     DividerInset()
                     SongTextField(
                         value = form.composer,
                         onValueChange = { value -> onUpdateForm { it.copy(composer = value) } },
-                        placeholder = "Composer",
+                        placeholder = stringResource(R.string.songbook_composer),
                         capitalization = KeyboardCapitalization.Words,
                     )
                     DividerInset()
@@ -252,8 +255,8 @@ fun SongEditorScreen(
                     ) {
                         Icon(Icons.Rounded.Mic, contentDescription = null, tint = colors.amber)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("Theme Song", style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary)
-                            Text("Pin as the camp's featured song", style = CzTypeScale.caption, color = colors.textSecondary)
+                            Text(stringResource(R.string.songbook_theme_song_toggle), style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary)
+                            Text(stringResource(R.string.songbook_theme_song_desc), style = CzTypeScale.caption, color = colors.textSecondary)
                         }
                         Switch(
                             checked = form.isPinnedTheme,
@@ -262,7 +265,7 @@ fun SongEditorScreen(
                     }
                 }
 
-                EditorSectionHeader("Audio", Icons.Rounded.Headphones)
+                EditorSectionHeader(stringResource(R.string.songbook_audio), Icons.Rounded.Headphones)
                 EditorCard {
                     Row(
                         modifier = Modifier
@@ -273,31 +276,31 @@ fun SongEditorScreen(
                     ) {
                         Icon(Icons.Rounded.UploadFile, contentDescription = null, tint = colors.ember)
                         Column(Modifier.weight(1f)) {
-                            Text("Local File", style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary)
-                            Text("MP3, M4A, AAC, or WAV", style = CzTypeScale.caption, color = colors.textSecondary)
+                            Text(stringResource(R.string.songbook_local_file), style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary)
+                            Text(stringResource(R.string.songbook_audio_types), style = CzTypeScale.caption, color = colors.textSecondary)
                         }
                         TextButton(onClick = { audioPicker.launch("audio/*") }) {
-                            Text("Choose", color = colors.ember)
+                            Text(stringResource(R.string.songbook_choose), color = colors.ember)
                         }
                     }
                 }
 
                 if (form.existingAudioFiles.isNotEmpty() || form.pendingAudioFiles.isNotEmpty()) {
-                    EditorSectionHeader("Attached Audio", Icons.Rounded.Headphones)
+                    EditorSectionHeader(stringResource(R.string.songbook_attached_audio), Icons.Rounded.Headphones)
                     EditorCard {
                         form.existingAudioFiles.forEachIndexed { index, audio ->
                             AudioRow(title = audio.fileName, subtitle = audio.kind.wireValue.uppercase(), onDelete = { onRemoveAudio(audio.id) })
                             if (index != form.existingAudioFiles.lastIndex || form.pendingAudioFiles.isNotEmpty()) DividerInset()
                         }
                         form.pendingAudioFiles.forEachIndexed { index, audio ->
-                            AudioRow(title = audio.fileName, subtitle = "Ready to upload", onDelete = { onRemoveAudio(audio.id) })
+                            AudioRow(title = audio.fileName, subtitle = stringResource(R.string.songbook_ready_upload), onDelete = { onRemoveAudio(audio.id) })
                             if (index != form.pendingAudioFiles.lastIndex) DividerInset()
                         }
                     }
                 }
 
                 EditorSectionHeader(
-                    if (form.isEditingLyricsPart) "Edit Lyrics" else "Add Lyrics",
+                    stringResource(if (form.isEditingLyricsPart) R.string.songbook_edit_lyrics_title else R.string.songbook_add_lyrics),
                     Icons.Rounded.TextFields,
                 )
                 LyricsPartEditorCard(
@@ -311,7 +314,7 @@ fun SongEditorScreen(
                 )
 
                 if (form.lyricsParts.isNotEmpty()) {
-                    EditorSectionHeader("Lyrics Structure", Icons.Rounded.TextFields)
+                    EditorSectionHeader(stringResource(R.string.songbook_lyrics_structure), Icons.Rounded.TextFields)
                     EditorCard {
                         form.lyricsParts.forEachIndexed { index, part ->
                             LyricsPreviewRow(
@@ -330,32 +333,32 @@ fun SongEditorScreen(
                     }
                 }
 
-                EditorSectionHeader("Chord Sheet", Icons.Rounded.MusicNote)
+                EditorSectionHeader(stringResource(R.string.songbook_chord_sheet), Icons.Rounded.MusicNote)
                 EditorCard {
                     TextField(
                         value = form.chordSheetText,
                         onValueChange = { value -> onUpdateForm { it.copy(chordSheetText = value) } },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 6,
-                        placeholder = { Text("[G] Let every voice rise [D] together", color = colors.textSecondary) },
+                        placeholder = { Text(stringResource(R.string.songbook_chord_placeholder), color = colors.textSecondary) },
                         textStyle = CzTypeScale.body.copy(color = colors.textPrimary, fontFamily = FontFamily.Monospace),
                         colors = transparentTextFieldColors(),
                     )
                 }
 
-                EditorSectionHeader("Links", Icons.Rounded.Link)
+                EditorSectionHeader(stringResource(R.string.songbook_links), Icons.Rounded.Link)
                 EditorCard {
                     SongTextField(
                         value = form.pdfLink,
                         onValueChange = { value -> onUpdateForm { it.copy(pdfLink = value) } },
-                        placeholder = "PDF URL",
+                        placeholder = stringResource(R.string.songbook_pdf_url),
                         keyboardType = KeyboardType.Uri,
                     )
                     DividerInset()
                     SongTextField(
                         value = form.youtubeLink,
                         onValueChange = { value -> onUpdateForm { it.copy(youtubeLink = value) } },
-                        placeholder = "YouTube Link",
+                        placeholder = stringResource(R.string.songbook_youtube_link),
                         keyboardType = KeyboardType.Uri,
                     )
                 }
@@ -372,7 +375,7 @@ fun SongEditorScreen(
                 }
 
                 CzButton(
-                    text = if (isEditing) "Save changes" else "Add song",
+                    text = stringResource(if (isEditing) R.string.songbook_save_changes else R.string.songbook_add_song_action),
                     onClick = onSave,
                     variant = CzButtonVariant.Primary,
                     loading = isSaving,
@@ -445,7 +448,7 @@ private fun AudioRow(title: String, subtitle: String, onDelete: () -> Unit) {
             Text(subtitle, style = CzTypeScale.caption, color = colors.textSecondary)
         }
         IconButton(onClick = onDelete) {
-            Icon(Icons.Rounded.Delete, contentDescription = "Remove audio", tint = colors.error)
+            Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.songbook_remove_audio), tint = colors.error)
         }
     }
 }
@@ -476,7 +479,7 @@ private fun LyricsPartEditorCard(
             SongTextField(
                 value = form.selectedLyricsPartTitle,
                 onValueChange = onTitleChange,
-                placeholder = "Custom title",
+                placeholder = stringResource(R.string.songbook_custom_title),
                 capitalization = KeyboardCapitalization.Words,
             )
         }
@@ -486,7 +489,7 @@ private fun LyricsPartEditorCard(
             onValueChange = onTextChange,
             modifier = Modifier.fillMaxWidth(),
             minLines = 5,
-            placeholder = { Text("Write this lyrics part here...", color = colors.textSecondary) },
+            placeholder = { Text(stringResource(R.string.songbook_lyrics_placeholder), color = colors.textSecondary) },
             textStyle = CzTypeScale.body.copy(color = colors.textPrimary),
             colors = transparentTextFieldColors(),
         )
@@ -498,7 +501,7 @@ private fun LyricsPartEditorCard(
         ) {
             if (form.isEditingLyricsPart) {
                 TextButton(onClick = onCancel) {
-                    Text("Cancel", color = colors.textSecondary, style = CzTypeScale.caption)
+                    Text(stringResource(R.string.common_cancel), color = colors.textSecondary, style = CzTypeScale.caption)
                 }
             }
             Spacer(Modifier.weight(1f))
@@ -512,7 +515,7 @@ private fun LyricsPartEditorCard(
                     tint = if (form.lyricsPartText.trim().isNotEmpty()) colors.ember else colors.textSecondary,
                 )
                 Text(
-                    if (form.isEditingLyricsPart) "Update Lyrics" else "Add Lyrics",
+                    stringResource(if (form.isEditingLyricsPart) R.string.songbook_update_lyrics else R.string.songbook_add_lyrics),
                     color = if (form.lyricsPartText.trim().isNotEmpty()) colors.ember else colors.textSecondary,
                     style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
                 )
@@ -536,7 +539,7 @@ private fun LyricsPartKindPicker(
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Type", style = CzTypeScale.caption, color = colors.textSecondary)
+            Text(stringResource(R.string.songbook_type), style = CzTypeScale.caption, color = colors.textSecondary)
             Text(
                 selectedKind.displayName,
                 style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
@@ -545,7 +548,7 @@ private fun LyricsPartKindPicker(
         }
         Box {
             TextButton(onClick = { expanded = true }) {
-                Text("Change", color = colors.ember)
+                Text(stringResource(R.string.songbook_change), color = colors.ember)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 SongLyricsPartKind.entries.forEach { kind ->
@@ -576,7 +579,7 @@ private fun PartNumberStepper(
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Part", style = CzTypeScale.caption, color = colors.textSecondary)
+            Text(stringResource(R.string.songbook_part), style = CzTypeScale.caption, color = colors.textSecondary)
             Text(
                 value.toString(),
                 style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
@@ -626,16 +629,16 @@ private fun LyricsPreviewRow(
             )
             Text("#${index + 1}", style = CzTypeScale.caption, color = colors.textSecondary)
             IconButton(onClick = onMoveUp, enabled = canMoveUp) {
-                Icon(Icons.Rounded.ArrowUpward, contentDescription = "Move lyrics up", tint = if (canMoveUp) colors.textSecondary else colors.divider)
+                Icon(Icons.Rounded.ArrowUpward, contentDescription = stringResource(R.string.songbook_move_lyrics_up), tint = if (canMoveUp) colors.textSecondary else colors.divider)
             }
             IconButton(onClick = onMoveDown, enabled = canMoveDown) {
-                Icon(Icons.Rounded.ArrowDownward, contentDescription = "Move lyrics down", tint = if (canMoveDown) colors.textSecondary else colors.divider)
+                Icon(Icons.Rounded.ArrowDownward, contentDescription = stringResource(R.string.songbook_move_lyrics_down), tint = if (canMoveDown) colors.textSecondary else colors.divider)
             }
             IconButton(onClick = onEdit) {
-                Icon(Icons.Rounded.Edit, contentDescription = "Edit lyrics", tint = colors.ember)
+                Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.songbook_edit_lyrics), tint = colors.ember)
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Rounded.Delete, contentDescription = "Delete lyrics", tint = colors.error)
+                Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.songbook_delete_lyrics), tint = colors.error)
             }
         }
         Text(

@@ -240,12 +240,17 @@ class CampingRegistrationViewModel @Inject constructor(
     ) {
         val participantName = submissions.firstOrNull()?.participant?.displayName
             ?: requestedBy.preferredDisplayName
+        // Self-only registration shouldn't echo the user's own name as the
+        // participant; family registrations still name the participant(s).
+        val isSelfOnly = submissions.size == 1 &&
+            submissions.first().participant.kind == RegistrationParticipantKind.SelfParticipant
         val request = RegistrationNotificationRequest(
             campingId = camping.id,
             campingTitle = camping.title,
             participantName = participantName,
             requestedByName = requestedBy.preferredDisplayName,
             participantCount = submissions.size,
+            selfRegistration = isSelfOnly,
         )
         viewModelScope.launch {
             runCatching { notificationDispatcher.dispatchRegistrationRequest(request) }

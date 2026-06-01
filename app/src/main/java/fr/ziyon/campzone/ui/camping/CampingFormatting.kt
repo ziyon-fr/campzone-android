@@ -11,6 +11,10 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+/** Single calendar date, e.g. "31 May 2026" (registration deadline display). */
+internal fun campingDate(date: Date): String =
+    SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(date)
+
 /** Human date range for a camping, e.g. "18–24 Jul 2026" or "9 Oct 2026". */
 internal fun campingDateRange(start: Date, end: Date): String {
     val locale = Locale.getDefault()

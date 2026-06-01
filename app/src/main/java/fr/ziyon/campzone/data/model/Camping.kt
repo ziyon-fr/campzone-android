@@ -34,6 +34,14 @@ data class Camping(
     val createdByName: String? = null,
     val createdAt: Date? = null,
     val updatedAt: Date? = null,
+    /**
+     * Optional registration deadline. When set, registration closes
+     * automatically once this moment passes; an admin or the camp creator
+     * "extends" the window by editing this date (or clearing it). `null` means
+     * no deadline (open until manually closed). Stored as a `delete-when-nil`
+     * timestamp on the wire (`02-firestore-schema.md` §3).
+     */
+    val registrationDeadline: Date? = null,
     val attendees: List<CampingAttendee> = emptyList(),
 ) {
     val isPaid: Boolean
@@ -44,8 +52,27 @@ data class Camping(
     val usesTransportationOptions: Boolean
         get() = transportationOptions.isNotEmpty()
 
+    val hasRegistrationDeadline: Boolean
+        get() = registrationDeadline != null
+
+    /** True once a set deadline has elapsed (`now >= deadline`). */
+    val isRegistrationDeadlinePassed: Boolean
+        get() = registrationDeadline?.let { !Date().before(it) } ?: false
+
+    /**
+     * Registration status as it should be presented and gated. An `Open` camp
+     * whose deadline has passed reads as `Closed` (auto-close) without mutating
+     * the stored field; `Closed`/`Cancelled` pass through unchanged.
+     */
+    val effectiveRegistrationStatus: CampingRegistrationStatus
+        get() = if (registrationStatus == CampingRegistrationStatus.Open && isRegistrationDeadlinePassed) {
+            CampingRegistrationStatus.Closed
+        } else {
+            registrationStatus
+        }
+
     val acceptsRegistrations: Boolean
-        get() = registrationStatus == CampingRegistrationStatus.Open
+        get() = effectiveRegistrationStatus == CampingRegistrationStatus.Open
 
     val approvedAttendees: List<CampingAttendee>
         get() = attendees.filter { it.registrationStatus == RegistrationApprovalStatus.Approved }
@@ -190,6 +217,7 @@ internal fun Map<String, Any?>.toCampingOrNull(documentId: String): Camping? {
         createdByName = stringValue("createdByName"),
         createdAt = dateValue("createdAt"),
         updatedAt = dateValue("updatedAt"),
+        registrationDeadline = dateValue("registrationDeadline"),
     )
 }
 
