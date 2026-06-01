@@ -1,3 +1,67 @@
+# Project Status - Camping registration due date
+
+Updated: 2026-06-01
+
+- Branch: `camping-registration-due-date`
+- Change completed (Android + iOS): camp creators/admins can set an optional
+  registration deadline. Registration **auto-closes** once `now >=
+  registrationDeadline`; the only way back open is for an admin or the creator
+  to extend (edit) or clear the date.
+  - Android: `Camping.registrationDeadline` (+ `isRegistrationDeadlinePassed`,
+    `effectiveRegistrationStatus`; `acceptsRegistrations` now deadline-aware so
+    the service-level register guard closes too). Editor gains a "Set a
+    registration deadline" toggle + date picker (Timing section); detail screen
+    shows a "Registration closes" row and the status pill reflects the
+    effective status. Wire field is **delete-when-nil**.
+  - iOS (completed the in-progress pass): persisted `registrationDeadline` in
+    the manual `payload(for:)` (delete-when-nil), added
+    `isRegistrationDeadlinePassed`/`effectiveRegistrationStatus`, and gated the
+    register CTA + both register guards + status pill on the effective status.
+  - Contract: added `registrationDeadline` to `docs/02` §3 (propagate to web
+    repo; iOS schema remains authoritative).
+- Verification (JBR): `:app:assembleDebug` green; new
+  `CampingRegistrationDeadlineTest` (4) and `CampingPayloadTest` deadline cases
+  (7) pass. Full `:app:testDebugUnitTest`/lint is blocked by an unrelated
+  concurrent-WIP duplicate string (`fees_receipts_section` in `values-pt-rBR`)
+  and the known `proofService`/`transportationService` test-constructor drift —
+  both outside this task's files.
+
+---
+
+# Project Status - Localization resources sweep
+
+Updated: 2026-06-01
+
+- Branch: `camping-registration-due-date`
+- Change completed: moved the active runtime strings touched by the sweep into
+  Android resources, added general Portuguese `values-pt` alongside
+  `values-pt-rBR` and `values-fr`, and wired non-Compose fallbacks through a
+  small `StringProvider` where ViewModels need resource text.
+- Scope notes: remaining grep hits are preview/sample records, decorative
+  separators/icons, or user/data-derived strings rather than fixed UI copy.
+- Verification (JBR): `:app:assembleDebug`, `:app:lintDebug`, and
+  `:app:testDebugUnitTest` are green.
+
+---
+
+# Project Status - Camping delete dismissal
+
+Updated: 2026-06-01
+
+- Branch: `camping-registration-due-date`
+- Change in progress: deleting a camping from the Android editor now has a
+  dedicated deletion navigation callback. The nav host removes the matching
+  `CampingDetail` back-stack entry inclusively, matching iOS
+  `CampingDetailView` (`deleteCamping` then `routeSystem.pop()`), so the active
+  deleted camping screen is dismissed instead of resurfacing underneath the
+  editor.
+- Verification: `:app:assembleDebug` green. Focused
+  `CampingAdminViewModelTest` could not run because debug unit-test compilation
+  is currently blocked by existing payment/pricing test constructor drift
+  (`proofService`, `transportationService`).
+
+---
+
 # Project Status - Real-time pass (camp/games/reveal) + self-reg notification
 
 Updated: 2026-06-01
@@ -124,3 +188,24 @@ report model were already shipped; D7 reuses them.
   the deployed `validChurchRoleAssignment` rule. The onboarding "Assign
   leadership roles" step is still a manual toggle to mirror the iOS checklist.
 - Implemented under `ui/admin/role/` + `ui/admin/onboarding/` + `data/admin/`.
+
+---
+
+# Project Status - Badge Catalog + Runtime Localization Corrective Pass
+
+- Branch/worktree: continued on existing dirty `camping-registration-due-date`
+  checkout; unrelated local changes were preserved.
+- Scope: announcement composer strings, badge catalog/badge UI strings, and
+  camping duration-day labels.
+- Badge catalog: Android now loads badge definitions from the top-level
+  Firestore `badges` collection, with localized `title`/`summary`/`detail`
+  map support and fallback icon/tint/rarity handling. Earned badge reads and
+  manual awards still use the documented `users/{uid}/badges/{achievementId}`
+  path and explicit-null payload semantics.
+- Localization: moved remaining announcement composer and badge UI copy to
+  string resources; added EN/FR/PT/PT-BR entries, pluralized camping duration
+  days, and translated the obvious late-added runtime payment/admin/
+  registration/games messages that were still English in FR/PT/PT-BR.
+- Verification (JAVA_HOME = Android Studio JBR):
+  - `./gradlew testDebugUnitTest --tests fr.ziyon.campzone.data.model.AchievementPayloadTest --tests fr.ziyon.campzone.ui.profile.badges.AchievementViewModelTest` SUCCESSFUL
+  - `./gradlew assembleDebug` SUCCESSFUL

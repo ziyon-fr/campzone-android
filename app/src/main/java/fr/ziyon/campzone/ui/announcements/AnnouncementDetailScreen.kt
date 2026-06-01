@@ -55,6 +55,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -68,6 +69,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
@@ -147,13 +149,13 @@ fun AnnouncementDetailScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text("Announcement", style = CzTypeScale.headline, color = colors.textPrimary)
+                    Text(stringResource(R.string.announcements_title), style = CzTypeScale.headline, color = colors.textPrimary)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.common_back),
                             tint = colors.textPrimary,
                         )
                     }
@@ -163,7 +165,7 @@ fun AnnouncementDetailScreen(
                         IconButton(onClick = { showOptions = true }) {
                             Icon(
                                 Icons.Rounded.MoreVert,
-                                contentDescription = "Announcement options",
+                                contentDescription = stringResource(R.string.announcements_options_cd),
                                 tint = colors.textPrimary,
                             )
                         }
@@ -172,7 +174,7 @@ fun AnnouncementDetailScreen(
                             onDismissRequest = { showOptions = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Edit", style = CzTypeScale.body) },
+                                text = { Text(stringResource(R.string.common_edit), style = CzTypeScale.body) },
                                 leadingIcon = {
                                     Icon(Icons.Rounded.Edit, contentDescription = null)
                                 },
@@ -183,7 +185,7 @@ fun AnnouncementDetailScreen(
                             )
                             DropdownMenuItem(
                                 text = {
-                                    Text("Delete", style = CzTypeScale.body, color = colors.error)
+                                    Text(stringResource(R.string.common_delete), style = CzTypeScale.body, color = colors.error)
                                 },
                                 leadingIcon = {
                                     Icon(
@@ -237,10 +239,10 @@ fun AnnouncementDetailScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
                     ) {
-                        Text("Failed to load", style = CzTypeScale.body, color = colors.error)
+                        Text(stringResource(R.string.common_failed_to_load), style = CzTypeScale.body, color = colors.error)
                         Text(uiState.message, style = CzTypeScale.caption, color = colors.textSecondary)
                         TextButton(onClick = onRetry) {
-                            Text("Try Again", color = colors.ember)
+                            Text(stringResource(R.string.common_retry), color = colors.ember)
                         }
                     }
                     else -> Column(
@@ -272,10 +274,10 @@ fun AnnouncementDetailScreen(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete Announcement?") },
+            title = { Text(stringResource(R.string.announcements_delete_title)) },
             text = {
                 Text(
-                    "This will permanently remove the announcement and all its attachments. This cannot be undone.",
+                    stringResource(R.string.announcements_delete_message),
                     style = CzTypeScale.body,
                 )
             },
@@ -286,12 +288,12 @@ fun AnnouncementDetailScreen(
                         onDelete()
                     },
                 ) {
-                    Text("Delete", color = colors.error)
+                    Text(stringResource(R.string.common_delete), color = colors.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.common_cancel))
                 }
             },
         )
@@ -503,7 +505,7 @@ private fun FullScreenImageViewer(
             ) {
                 Icon(
                     Icons.Rounded.Close,
-                    contentDescription = "Close image",
+                    contentDescription = stringResource(R.string.common_close_image),
                     tint = Color.White,
                     modifier = Modifier.size(24.dp),
                 )
@@ -641,7 +643,7 @@ private fun AttachmentRow(
                     Spacer(Modifier.width(CzSpacing.xs))
                     Icon(
                         Icons.Rounded.OpenInNew,
-                        contentDescription = "Open PDF",
+                        contentDescription = stringResource(R.string.common_open_pdf),
                         tint = colors.ember,
                         modifier = Modifier.size(18.dp),
                     )

@@ -23,6 +23,27 @@ class AchievementPayloadTest {
     }
 
     @Test
+    fun firebaseCatalogEntryDecodesDisplayFieldsAndMetadata() {
+        val entry = mapOf(
+            "title" to "Remote Badge",
+            "summary" to "Loaded from Firestore",
+            "detail" to "Rendered from the top-level badges collection.",
+            "rarity" to "rare",
+            "tint" to "gold",
+            "awardKind" to "manual",
+            "icon" to "trophy.fill",
+            "sortOrder" to 7,
+        ).toAchievementCatalogEntryOrNull("remote-badge")
+
+        assertEquals("remote-badge", entry?.achievement?.id)
+        assertEquals("Remote Badge", entry?.achievement?.title)
+        assertEquals(AchievementRarity.Rare, entry?.achievement?.rarity)
+        assertEquals(BadgeTint.Gold, entry?.achievement?.tint)
+        assertEquals(AchievementAwardKind.Manual, entry?.achievement?.awardKind)
+        assertEquals(7, entry?.sortOrder)
+    }
+
+    @Test
     fun manualAwardPayloadKeepsExplicitNullKeys() {
         val payload = EarnedBadgePayload.awardPayload(
             badge = EarnedBadge(

@@ -24,7 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import fr.ziyon.campzone.data.model.Achievement
 import fr.ziyon.campzone.data.model.AchievementCatalog
-import fr.ziyon.campzone.data.model.displayName
 
 @Composable
 fun BadgeCard(
@@ -71,7 +70,7 @@ fun BadgeCard(
             )
 
             Text(
-                text = if (isEarned)  { rarity.materialName } else  {rarity.displayName },
+                text = if (isEarned) rarity.localizedMaterialName() else rarity.localizedDisplayName(),
                 fontStyle = MaterialTheme.typography.bodyMedium.fontStyle,
                 color = if (isEarned) {rarity.glowColor} else {achievement.tint.color},
                 textAlign = TextAlign.Center,

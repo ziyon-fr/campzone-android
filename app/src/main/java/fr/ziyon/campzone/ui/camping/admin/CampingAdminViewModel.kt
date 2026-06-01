@@ -210,6 +210,7 @@ class CampingAdminViewModel @Inject constructor(
             createdByUid = existing?.createdByUid,
             createdByName = existing?.createdByName,
             createdAt = existing?.createdAt,
+            registrationDeadline = form.registrationDueDate,
         )
     }
 }

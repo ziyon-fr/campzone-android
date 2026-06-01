@@ -103,7 +103,10 @@ internal fun Map<String, Any?>.toProgramOrNull(documentId: String): Program? {
  * row, blank-titled days get a positional "Day N" label for display only (never
  * stored), and days outside the date range (with orphan programs) are appended.
  */
-fun CampingSchedule.normalizedForCamping(camping: Camping): CampingSchedule {
+fun CampingSchedule.normalizedForCamping(
+    camping: Camping,
+    defaultDayTitle: (Int) -> String,
+): CampingSchedule {
     val existingById = days.associateBy { it.id }
     val calendarDays = camping.scheduleDates.map { date ->
         val key = DateKeys.campDayId(campingId, date)
@@ -112,7 +115,7 @@ fun CampingSchedule.normalizedForCamping(camping: Camping): CampingSchedule {
     var dayNumber = 0
     val titled = calendarDays.map { day ->
         dayNumber++
-        if (day.title.isBlank()) day.copy(title = "Day $dayNumber") else day
+        if (day.title.isBlank()) day.copy(title = defaultDayTitle(dayNumber)) else day
     }
     val rangeDayIds = titled.map { it.id }.toSet()
     val orphanDays = existingById.values.filter { it.id !in rangeDayIds }

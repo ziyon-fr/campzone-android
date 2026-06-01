@@ -55,6 +55,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -66,6 +67,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzErrorState
@@ -157,16 +159,16 @@ fun CampingAlbumScreen(
         contentWindowInsets = WindowInsets(),
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Album", color = colors.textPrimary) },
+                title = { Text(stringResource(R.string.album_title), color = colors.textPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 actions = {
                     if (canManageAlbum) {
                         IconButton(onClick = { showSettings = true }) {
-                            Icon(Icons.Rounded.Settings, contentDescription = "Album permissions")
+                            Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.album_permissions))
                         }
                     }
                 },
@@ -184,7 +186,7 @@ fun CampingAlbumScreen(
                     containerColor = colors.ember,
                     contentColor = Color.White,
                 ) {
-                    Icon(Icons.Rounded.Add, contentDescription = "Add media")
+                    Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.album_add_media))
                 }
             }
         },
@@ -209,7 +211,7 @@ fun CampingAlbumScreen(
                 OutlinedTextField(
                     value = uploadCaption,
                     onValueChange = { uploadCaption = it },
-                    label = { Text("Caption for next upload") },
+                    label = { Text(stringResource(R.string.album_caption_next)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
@@ -265,8 +267,8 @@ private fun AlbumContent(
 ) {
     if (!canViewAlbum) {
         CzEmptyState(
-            title = "Approved participants only",
-            message = "Once your registration is approved you can view the camp album.",
+            title = stringResource(R.string.album_participants_only_title),
+            message = stringResource(R.string.album_participants_only_message),
             icon = { Icon(Icons.Rounded.Lock, contentDescription = null, modifier = Modifier.size(36.dp)) },
             modifier = modifier.fillMaxSize(),
         )
@@ -275,25 +277,25 @@ private fun AlbumContent(
     when (uiState) {
         AlbumUiState.Loading -> CzLoadingView(
             modifier = modifier.fillMaxSize(),
-            message = "Loading album...",
+            message = stringResource(R.string.album_loading),
         )
 
         is AlbumUiState.Error -> CzErrorState(
-            title = "Could not load album",
+            title = stringResource(R.string.album_error_title),
             message = uiState.message,
             onRetry = onRetry,
-            retryLabel = "Try Again",
+            retryLabel = stringResource(R.string.common_retry),
             modifier = modifier.fillMaxSize(),
         )
 
         is AlbumUiState.Loaded -> {
             if (uiState.media.isEmpty()) {
                 CzEmptyState(
-                    title = "No memories yet",
+                    title = stringResource(R.string.album_empty_title),
                     message = if (canUpload) {
-                        "Tap the add button to share photos or short clips."
+                        stringResource(R.string.album_empty_upload_message)
                     } else {
-                        "Once camp leaders upload media, it will appear here."
+                        stringResource(R.string.album_empty_view_message)
                     },
                     icon = {
                         Icon(
@@ -332,7 +334,7 @@ private fun MediaTile(item: MediaItem, onClick: () -> Unit) {
     ) {
         AsyncImage(
             model = item.thumbnailUrl ?: item.secureUrl,
-            contentDescription = item.caption.ifBlank { "Album media" },
+            contentDescription = item.caption.ifBlank { stringResource(R.string.album_media_cd) },
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
         )
@@ -376,24 +378,24 @@ private fun MediaDetailDialog(
     var caption by remember(item.id) { mutableStateOf(item.caption) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (item.kind == MediaKind.Video) "Video" else "Photo") },
+        title = { Text(if (item.kind == MediaKind.Video) stringResource(R.string.album_video) else stringResource(R.string.album_photo)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
                 AsyncImage(
                     model = item.thumbnailUrl ?: item.secureUrl,
-                    contentDescription = item.caption.ifBlank { "Album media" },
+                    contentDescription = item.caption.ifBlank { stringResource(R.string.album_media_cd) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(220.dp)
                         .clip(RoundedCornerShape(CzRadius.md)),
                     contentScale = ContentScale.Crop,
                 )
-                Text("Uploaded by ${item.uploaderName}", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.album_uploaded_by, item.uploaderName), style = MaterialTheme.typography.bodySmall)
                 if (canEdit) {
                     OutlinedTextField(
                         value = caption,
                         onValueChange = { caption = it },
-                        label = { Text("Caption") },
+                        label = { Text(stringResource(R.string.album_caption)) },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 } else if (item.caption.isNotBlank()) {
@@ -403,12 +405,12 @@ private fun MediaDetailDialog(
         },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
-                TextButton(onClick = onOpenExternal) { Text("Open") }
+                TextButton(onClick = onOpenExternal) { Text(stringResource(R.string.common_open)) }
                 if (canEdit) {
                     TextButton(onClick = { onUpdateCaption(caption) }) {
                         Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.size(4.dp))
-                        Text("Save")
+                        Text(stringResource(R.string.common_save))
                     }
                 }
             }
@@ -419,10 +421,10 @@ private fun MediaDetailDialog(
                     TextButton(onClick = onDelete) {
                         Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.size(4.dp))
-                        Text("Delete", color = MaterialTheme.czColors.error)
+                        Text(stringResource(R.string.common_delete), color = MaterialTheme.czColors.error)
                     }
                 }
-                TextButton(onClick = onDismiss) { Text("Close") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) }
             }
         },
     )
@@ -436,11 +438,11 @@ private fun AlbumSettingsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Album permissions") },
+        title = { Text(stringResource(R.string.album_permissions)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
                 Text(
-                    "Selected roles can upload media to this camp album.",
+                    stringResource(R.string.album_permissions_message),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.czColors.textSecondary,
                 )
@@ -458,7 +460,7 @@ private fun AlbumSettingsDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_done)) } },
     )
 }
 

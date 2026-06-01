@@ -66,6 +66,7 @@ class FakeCampingService(
     }
 
     override suspend fun deleteCamping(id: String) {
+        if (shouldFail) throw RuntimeException("Delete failed")
         deleted += id
         campings.value = campings.value.filterNot { it.id == id }
     }

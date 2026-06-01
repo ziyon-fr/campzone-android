@@ -150,6 +150,7 @@ private fun GamesScreen(
     onOpenRevealSettings: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
+    val newGameDescription = stringResource(R.string.games_new_title)
     Scaffold(
         containerColor = colors.background,
         topBar = {
@@ -174,7 +175,7 @@ private fun GamesScreen(
                     if (canManage) {
                         IconButton(
                             onClick = { onOpenGameEditor(null) },
-                            modifier = Modifier.semantics { contentDescription = "New game" },
+                            modifier = Modifier.semantics { contentDescription = newGameDescription },
                         ) {
                             Icon(Icons.Outlined.Add, contentDescription = null, tint = colors.ember)
                         }

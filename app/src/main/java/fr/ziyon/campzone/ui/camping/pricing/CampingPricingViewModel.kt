@@ -11,6 +11,8 @@ import fr.ziyon.campzone.data.model.CampingPriceItem
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.TransportationPaymentStatus
+import fr.ziyon.campzone.data.payments.PaymentProof
+import fr.ziyon.campzone.data.payments.PaymentProofService
 import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,9 +39,10 @@ sealed interface CampingPricingUiState {
         val campingTitle: String,
         val registrationFees: List<FeesRegistrationRow>,
         val priceItems: List<CampingPriceItem>,
+        val proofs: List<PaymentProof> = emptyList(),
     ) : CampingPricingUiState {
         val isEmpty: Boolean
-            get() = registrationFees.isEmpty() && priceItems.isEmpty()
+            get() = registrationFees.isEmpty() && priceItems.isEmpty() && proofs.isEmpty()
     }
 }
 
@@ -54,6 +57,7 @@ sealed interface CampingPricingUiState {
 @HiltViewModel
 class CampingPricingViewModel @Inject constructor(
     private val campingService: CampingService,
+    private val proofService: PaymentProofService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<CampingPricingUiState>(CampingPricingUiState.Loading)
@@ -86,8 +90,13 @@ class CampingPricingViewModel @Inject constructor(
     private fun fetch(campingId: String, user: AuthenticatedUser, showLoading: Boolean) {
         if (showLoading) _uiState.value = CampingPricingUiState.Loading
         viewModelScope.launch {
-            runCatching { campingService.fetchCamping(campingId) }
-                .onSuccess { camping -> _uiState.value = build(camping, user) }
+            runCatching {
+                val camping = campingService.fetchCamping(campingId)
+                val proofs = runCatching { proofService.loadProofs(campingId, user.uid) }
+                    .getOrDefault(emptyList())
+                camping to proofs
+            }
+                .onSuccess { (camping, proofs) -> _uiState.value = build(camping, user, proofs) }
                 .onFailure { error ->
                     loadedKey = null
                     _uiState.value = CampingPricingUiState.Error(
@@ -97,7 +106,11 @@ class CampingPricingViewModel @Inject constructor(
         }
     }
 
-    private fun build(camping: Camping, user: AuthenticatedUser): CampingPricingUiState.Loaded {
+    private fun build(
+        camping: Camping,
+        user: AuthenticatedUser,
+        proofs: List<PaymentProof>,
+    ): CampingPricingUiState.Loaded {
         val currency = camping.feeCurrency
             ?.trim()
             ?.lowercase(Locale.US)
@@ -127,6 +140,7 @@ class CampingPricingViewModel @Inject constructor(
             campingTitle = camping.title,
             registrationFees = fees,
             priceItems = camping.priceItems,
+            proofs = proofs,
         )
     }
 

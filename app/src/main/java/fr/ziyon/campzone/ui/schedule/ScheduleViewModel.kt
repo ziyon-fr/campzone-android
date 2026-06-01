@@ -3,6 +3,8 @@ package fr.ziyon.campzone.ui.schedule
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.R
+import fr.ziyon.campzone.core.i18n.StringProvider
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
@@ -51,10 +53,10 @@ data class ProgramForm(
     val endsNextDay: Boolean = false,
 )
 
-enum class ProgramValidationError(val message: String) {
-    TitleRequired("Program title is required."),
-    LocationRequired("Program location is required."),
-    EndBeforeStart("End time must be after the start time."),
+enum class ProgramValidationError(val messageRes: Int) {
+    TitleRequired(R.string.schedule_validation_title_required),
+    LocationRequired(R.string.schedule_validation_location_required),
+    EndBeforeStart(R.string.schedule_validation_end_after_start),
 }
 
 @HiltViewModel
@@ -62,6 +64,7 @@ class ScheduleViewModel @Inject constructor(
     private val scheduleService: ScheduleService,
     private val campingService: CampingService,
     private val foodMenuService: FoodMenuService,
+    private val stringProvider: StringProvider,
     private val venueMapService: VenueMapService = FakeVenueMapService(),
 ) : ViewModel() {
 
@@ -114,7 +117,7 @@ class ScheduleViewModel @Inject constructor(
             runCatching {
                 val schedule = scheduleService.loadSchedule(campingId)
                 val camping = runCatching { campingService.fetchCamping(campingId) }.getOrNull()
-                val normalized = if (camping != null) schedule.normalizedForCamping(camping) else schedule
+                val normalized = if (camping != null) schedule.normalizedForCamping(camping, ::defaultDayTitle) else schedule
                 schedules[campingId] = normalized
                 updateCanManage(lastUser, camping)
                 _venuePoints.value = runCatching { venueMapService.loadMap(campingId).points }
@@ -122,7 +125,7 @@ class ScheduleViewModel @Inject constructor(
                 publishSchedule(campingId)
             }.onFailure { e ->
                 _uiState.value = ScheduleUiState.Error(
-                    e.message ?: "Failed to load schedule."
+                    e.message ?: stringProvider.get(R.string.schedule_load_error)
                 )
             }
         }
@@ -148,7 +151,7 @@ class ScheduleViewModel @Inject constructor(
             runCatching {
                 val camping = runCatching { campingService.fetchCamping(campingId) }.getOrNull()
                 val schedule = scheduleService.normalizeDays(campingId)
-                val normalized = if (camping != null) schedule.normalizedForCamping(camping) else schedule
+                val normalized = if (camping != null) schedule.normalizedForCamping(camping, ::defaultDayTitle) else schedule
                 normalizedIds.add(campingId)
                 schedules[campingId] = normalized
                 updateCanManage(lastUser, camping)
@@ -173,10 +176,10 @@ class ScheduleViewModel @Inject constructor(
             runCatching {
                 val schedule = scheduleService.saveReminderTiming(_reminderTiming.value, campingId)
                 schedules[campingId] = schedule
-                _operationMessage.value = "Reminder timing saved."
+                _operationMessage.value = stringProvider.get(R.string.schedule_reminder_saved)
                 publishSchedule(campingId)
             }.onFailure { e ->
-                _operationError.value = e.message ?: "Could not save reminder timing."
+                _operationError.value = e.message ?: stringProvider.get(R.string.schedule_reminder_save_error)
             }
             _isSaving.value = false
         }
@@ -251,11 +254,11 @@ class ScheduleViewModel @Inject constructor(
                 schedules[campingId] = schedule
                 _selectedDayId.value = program.campDayId
                 _editingProgramId.value = program.id
-                _operationMessage.value = "Program saved."
+                _operationMessage.value = stringProvider.get(R.string.schedule_program_saved)
                 publishSchedule(campingId)
                 onSuccess(program)
             }.onFailure { e ->
-                _operationError.value = e.message ?: "Could not save program."
+                _operationError.value = e.message ?: stringProvider.get(R.string.schedule_program_save_error)
             }
             _isSaving.value = false
         }
@@ -268,10 +271,10 @@ class ScheduleViewModel @Inject constructor(
                 val schedule = scheduleService.deleteProgram(programId, campingId)
                 syncMenuAfterDeleting(removedProgram)
                 schedules[campingId] = schedule
-                _operationMessage.value = "Program deleted."
+                _operationMessage.value = stringProvider.get(R.string.schedule_program_deleted)
                 publishSchedule(campingId)
             }.onFailure { e ->
-                _operationError.value = e.message ?: "Could not delete program."
+                _operationError.value = e.message ?: stringProvider.get(R.string.schedule_program_delete_error)
             }
         }
     }
@@ -334,7 +337,7 @@ class ScheduleViewModel @Inject constructor(
                 foodMenuService.saveEntry(entry, syncProgram = false)
             }
         }.onFailure {
-            _operationError.value = "Program saved, but the food menu could not be synced."
+            _operationError.value = stringProvider.get(R.string.schedule_program_saved_menu_sync_error)
         }
     }
 
@@ -348,7 +351,7 @@ class ScheduleViewModel @Inject constructor(
                 syncProgram = false,
             )
         }.onFailure {
-            _operationError.value = "Program deleted, but the food menu could not be synced."
+            _operationError.value = stringProvider.get(R.string.schedule_program_deleted_menu_sync_error)
         }
     }
 
@@ -360,6 +363,9 @@ class ScheduleViewModel @Inject constructor(
         if (form.endDate <= form.startDate) errors.add(ProgramValidationError.EndBeforeStart)
         return errors
     }
+
+    private fun defaultDayTitle(dayNumber: Int): String =
+        stringProvider.get(R.string.schedule_day_title, dayNumber)
 
     private fun buildProgram(campingId: String): Program {
         val form = _editorForm.value

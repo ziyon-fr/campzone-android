@@ -8,12 +8,14 @@ import fr.ziyon.campzone.data.camping.FakeCampingService
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
+import fr.ziyon.campzone.data.model.AchievementCatalog
 import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.teams.FakeTeamService
+import fr.ziyon.campzone.testing.FakeStringProvider
 import fr.ziyon.campzone.testing.MainDispatcherRule
 import java.util.Date
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,6 +42,7 @@ class AchievementViewModelTest {
             ),
             campingService = campingService(emptyList()),
             teamService = FakeTeamService(mutableListOf()),
+            strings = FakeStringProvider(),
         )
 
         viewModel.loadProfileBadges("user-1")
@@ -47,6 +50,33 @@ class AchievementViewModelTest {
 
         val state = viewModel.uiState.value as AchievementUiState.Loaded
         assertEquals(listOf("tent-ready"), state.earned.map { it.id })
+    }
+
+    @Test
+    fun profileLoadUsesServiceCatalogInsteadOfStaticCatalogOnly() = runTest {
+        val remoteAchievement = AchievementCatalog.all.first().copy(
+            id = "remote-firestore-badge",
+            title = "Remote Firestore Badge",
+        )
+        val viewModel = AchievementViewModel(
+            achievementService = FakeAchievementService(
+                initialBadges = listOf(
+                    fr.ziyon.campzone.data.model.EarnedBadge("remote-firestore-badge", "user-1", Date()),
+                    fr.ziyon.campzone.data.model.EarnedBadge("tent-ready", "user-1", Date()),
+                ),
+                initialCatalog = listOf(remoteAchievement),
+            ),
+            campingService = campingService(emptyList()),
+            teamService = FakeTeamService(mutableListOf()),
+            strings = FakeStringProvider(),
+        )
+
+        viewModel.loadProfileBadges("user-1")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value as AchievementUiState.Loaded
+        assertEquals(listOf("remote-firestore-badge"), state.catalog.map { it.id })
+        assertEquals(listOf("remote-firestore-badge"), state.earned.map { it.id })
     }
 
     @Test
@@ -68,6 +98,7 @@ class AchievementViewModelTest {
                     ),
                 ),
             ),
+            strings = FakeStringProvider(),
         )
 
         viewModel.loadAwardSurface("camp-1", admin(uid = "admin-1"))
@@ -90,6 +121,7 @@ class AchievementViewModelTest {
             achievementService = FakeAchievementService(),
             campingService = campingService(emptyList()),
             teamService = FakeTeamService(mutableListOf()),
+            strings = FakeStringProvider(),
         )
 
         viewModel.loadAwardSurface("camp-1", admin(role = UserRole.Leader, church = "Other Church"))

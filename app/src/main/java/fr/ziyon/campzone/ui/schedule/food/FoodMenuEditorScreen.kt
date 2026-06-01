@@ -41,6 +41,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -51,6 +52,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzButton
 import fr.ziyon.campzone.core.designsystem.CzButtonVariant
@@ -80,6 +82,7 @@ fun FoodMenuEditorScreen(
 
     val colors = MaterialTheme.czColors
     val context = LocalContext.current
+    val dishesDescription = stringResource(R.string.food_menu_dishes_cd)
 
     val datePickerDialog = remember(form.date, dateRange) {
         val cal = Calendar.getInstance().apply { time = form.date }
@@ -134,7 +137,7 @@ fun FoodMenuEditorScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = if (isEditing) "Edit Menu" else "New Menu",
+                        text = stringResource(if (isEditing) R.string.food_menu_edit_title else R.string.food_menu_new_title),
                         style = CzTypeScale.headline,
                         color = colors.textPrimary,
                     )
@@ -143,7 +146,7 @@ fun FoodMenuEditorScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.common_back),
                             tint = colors.textPrimary,
                         )
                     }
@@ -165,7 +168,7 @@ fun FoodMenuEditorScreen(
             verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
         ) {
             // ── Section: When ─────────────────────────────────────────────────
-            FormSectionHeader(title = "When", icon = Icons.Rounded.CalendarMonth)
+            FormSectionHeader(title = stringResource(R.string.food_menu_when), icon = Icons.Rounded.CalendarMonth)
 
             Column(
                 modifier = Modifier
@@ -182,7 +185,7 @@ fun FoodMenuEditorScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Date", style = CzTypeScale.body, color = colors.textPrimary)
+                    Text(stringResource(R.string.food_menu_date), style = CzTypeScale.body, color = colors.textPrimary)
                     Text(
                         text = form.date.formattedDate(),
                         style = CzTypeScale.body,
@@ -203,7 +206,7 @@ fun FoodMenuEditorScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Time", style = CzTypeScale.body, color = colors.textPrimary)
+                    Text(stringResource(R.string.food_menu_time), style = CzTypeScale.body, color = colors.textPrimary)
                     Text(
                         text = form.date.formattedTime(),
                         style = CzTypeScale.body,
@@ -224,7 +227,7 @@ fun FoodMenuEditorScreen(
                     verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
                 ) {
                     Text(
-                        text = "Meal",
+                        text = stringResource(R.string.food_menu_meal),
                         style = CzTypeScale.caption,
                         color = colors.textSecondary,
                     )
@@ -245,7 +248,7 @@ fun FoodMenuEditorScreen(
             }
 
             // ── Section: Dishes ───────────────────────────────────────────────
-            FormSectionHeader(title = "Dishes", icon = Icons.Rounded.Restaurant)
+            FormSectionHeader(title = stringResource(R.string.food_menu_dishes), icon = Icons.Rounded.Restaurant)
 
             Column(
                 modifier = Modifier
@@ -258,14 +261,14 @@ fun FoodMenuEditorScreen(
                     onValueChange = { viewModel.updateForm { f -> f.copy(dishesText = it) } },
                     placeholder = {
                         Text(
-                            "One dish per line, e.g.\nGranola bowl\nFresh fruit",
+                            stringResource(R.string.food_menu_dishes_placeholder),
                             style = CzTypeScale.body,
                             color = colors.textSecondary,
                         )
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .semantics { contentDescription = "Dishes for this meal, one per line" },
+                        .semantics { contentDescription = dishesDescription },
                     minLines = 4,
                     maxLines = 10,
                     textStyle = CzTypeScale.body.copy(color = colors.textPrimary),
@@ -278,7 +281,7 @@ fun FoodMenuEditorScreen(
                     ),
                 )
                 Text(
-                    text = "Add one dish per line, or separate with commas.",
+                    text = stringResource(R.string.food_menu_dishes_helper),
                     style = CzTypeScale.caption,
                     color = colors.textSecondary,
                     modifier = Modifier.padding(
@@ -290,7 +293,7 @@ fun FoodMenuEditorScreen(
             }
 
             // ── Section: Notes ────────────────────────────────────────────────
-            FormSectionHeader(title = "Notes", icon = Icons.Rounded.LocalCafe)
+            FormSectionHeader(title = stringResource(R.string.food_menu_notes), icon = Icons.Rounded.LocalCafe)
 
             Column(
                 modifier = Modifier
@@ -303,7 +306,7 @@ fun FoodMenuEditorScreen(
                     onValueChange = { viewModel.updateForm { f -> f.copy(notes = it) } },
                     placeholder = {
                         Text(
-                            "Allergens, vegan station…",
+                            stringResource(R.string.food_menu_notes_placeholder),
                             style = CzTypeScale.body,
                             color = colors.textSecondary,
                         )
@@ -343,7 +346,7 @@ fun FoodMenuEditorScreen(
             // ── Save button ───────────────────────────────────────────────────
             Spacer(Modifier.height(CzSpacing.xs))
             CzButton(
-                text = if (isEditing) "Save changes" else "Add menu",
+                text = stringResource(if (isEditing) R.string.food_menu_save_changes else R.string.food_menu_add_menu),
                 onClick = { viewModel.saveEntry(campingId, onSaved) },
                 variant = CzButtonVariant.Primary,
                 loading = isSaving,
@@ -368,6 +371,12 @@ private fun MealChip(
     val colors = MaterialTheme.czColors
     val bg = if (selected) colors.ember else colors.background
     val fg = if (selected) Color.White else colors.textSecondary
+    val mealName = stringResource(meal.displayNameRes)
+    val mealDescription = if (selected) {
+        stringResource(R.string.food_menu_meal_selected_cd, mealName)
+    } else {
+        mealName
+    }
 
     Column(
         modifier = modifier
@@ -375,7 +384,7 @@ private fun MealChip(
             .background(bg)
             .clickable(onClick = onClick)
             .padding(vertical = CzSpacing.sm)
-            .semantics { contentDescription = meal.displayName + if (selected) ", selected" else "" },
+            .semantics { contentDescription = mealDescription },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -386,7 +395,7 @@ private fun MealChip(
             modifier = Modifier.size(16.dp),
         )
         Text(
-            text = meal.displayName,
+            text = mealName,
             style = CzTypeScale.caption.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
             color = fg,
         )

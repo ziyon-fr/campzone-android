@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzRadius
@@ -129,7 +131,7 @@ private fun ProgramDetailContent(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.common_back),
                             tint = colors.textPrimary,
                         )
                     }
@@ -144,8 +146,8 @@ private fun ProgramDetailContent(
     ) { innerPadding ->
         if (program == null) {
             CzEmptyState(
-                title = "Program not found",
-                message = "The selected schedule program could not be loaded.",
+                title = stringResource(R.string.program_not_found_title),
+                message = stringResource(R.string.program_not_found_message),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(CzSpacing.xl),
@@ -209,7 +211,7 @@ private fun ProgramHeader(program: Program) {
             shape = RoundedCornerShape(CzRadius.full),
         ) {
             Text(
-                text = program.type.displayName,
+                text = stringResource(program.type.displayNameRes),
                 style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
                 color = accent,
                 modifier = Modifier.padding(horizontal = CzSpacing.sm, vertical = 3.dp),
@@ -223,7 +225,7 @@ private fun ProgramHeader(program: Program) {
 private fun DetailsSection(program: Program) {
     val colors = MaterialTheme.czColors
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        ProgramSectionHeader(title = "Details", icon = Icons.Rounded.Schedule)
+        ProgramSectionHeader(title = stringResource(R.string.program_details), icon = Icons.Rounded.Schedule)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = colors.surface,
@@ -290,7 +292,7 @@ private fun ProgramInfoRow(label: String, value: String, icon: ImageVector) {
 private fun AboutSection(description: String) {
     val colors = MaterialTheme.czColors
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        ProgramSectionHeader(title = "About", icon = Icons.Rounded.Schedule)
+        ProgramSectionHeader(title = stringResource(R.string.program_about), icon = Icons.Rounded.Schedule)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = colors.surface,
@@ -314,7 +316,7 @@ private fun FoodSection(
 ) {
     val colors = MaterialTheme.czColors
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        ProgramSectionHeader(title = "Today's menu", icon = Icons.Rounded.Restaurant)
+        ProgramSectionHeader(title = stringResource(R.string.program_todays_menu), icon = Icons.Rounded.Restaurant)
         if (entry != null) {
             MealMenuCard(
                 entry = entry,
@@ -347,7 +349,7 @@ private fun FoodSection(
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = onOpenFoodMenu) {
-                        Text("See all", color = colors.ember)
+                        Text(stringResource(R.string.program_see_all), color = colors.ember)
                     }
                 }
             }

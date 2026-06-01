@@ -556,14 +556,14 @@
     <string name="lodging_empty_title">Nenhuma unidade ainda</string>
     <string name="lodging_empty_message">Adicione barracas, cabanas ou quartos e depois distribua os participantes aprovados.</string>
     <string name="lodging_add_unit">Adicionar unidade</string>
-    <string name="lodging_needs_bed">Precisa de alojamento</string>
+    <string name="lodging_needs_bed">Precisa de alogamento</string>
     <string name="lodging_stat_units">Unidades</string>
-    <string name="lodging_stat_beds">alojamentos ocupados</string>
+    <string name="lodging_stat_beds">Camas ocupadas</string>
     <string name="lodging_stat_unassigned">Sem lugar</string>
     <string name="lodging_auto_allocate">Alocar automaticamente</string>
-    <string name="lodging_auto_allocate_done">Todos têm alojamento.</string>
+    <string name="lodging_auto_allocate_done">Todos têm uma cama.</string>
     <string name="lodging_filter_all">Todas</string>
-    <string name="lodging_occupancy">%1$d/%2$d alojamento</string>
+    <string name="lodging_occupancy">%1$d/%2$d camas</string>
     <string name="lodging_unnamed_unit">Unidade sem nome</string>
     <string name="lodging_full">Lotada</string>
     <string name="lodging_spots_left">%1$d livre(s)</string>
@@ -644,9 +644,9 @@
         <item quantity="other">%1$d avaliações</item>
     </plurals>
     <plurals name="lodging_auto_allocate_partial">
-        <item quantity="one">Alocado — %1$d ainda sem alojamento.</item>
-        <item quantity="many">Alocado — %1$d ainda sem alojamento.</item>
-        <item quantity="other">Alocado — %1$d ainda sem alojamento.</item>
+        <item quantity="one">Alocado — %1$d ainda sem cama.</item>
+        <item quantity="many">Alocado — %1$d ainda sem cama.</item>
+        <item quantity="other">Alocado — %1$d ainda sem cama.</item>
     </plurals>
     <plurals name="camping_duration_days">
         <item quantity="one">%1$d dia</item>
@@ -1498,7 +1498,7 @@
     <string name="onboarding_gender">Genero</string>
     <string name="onboarding_age_group">Grupo etario</string>
     <string name="onboarding_church">Igreja</string>
-    <string name="onboarding_church_placeholder">Selecione ou digite sua igreja…</string>
+    <string name="onboarding_church_placeholder">Selecione ou digite sua igreja...</string>
     <string name="onboarding_preferred_language">Idioma preferido</string>
     <string name="onboarding_back">Voltar</string>
     <string name="onboarding_sign_out">Sair desta conta</string>

@@ -311,7 +311,9 @@
 - [x] Amount in integer cents; currency lowercase (e.g. `"eur"`) — `PaymentRequest.normalizedCurrency`
 - [x] Never embed `STRIPE_SECRET_KEY`; payment audit doc is backend-only
 - [x] iOS parity: reusable inline pay button (`CzPaymentButton`, mirrors iOS `PaymentButton`); "Fees & Payments" hub (`CampingPricingScreen`) folds price items (mirrors iOS `CampingPricingView`) + pending registration fees; camp-detail entry gated on `hasPendingRegistrationPayment || hasPayablePriceItems`
-- [ ] Deferred (iOS-richer, not in Android contract): PDF invoice receipts, payment-proof/history list, mixed registration+transport single-charge bundling with per-kind follow-up confirms — each Stripe kind currently settles as its own charge
+- [x] PDF invoice receipts: `PaymentReceiptPdf` renders a one-page A4 receipt (invoice number, camp, date, line items, total) to cache and shares it via the existing `${applicationId}.fileprovider`
+- [x] Payment-proof/history list: `PaymentProofService` (interface + Firestore + fake + bindings) reads `campings/{id}/payments` (backend audit) + `campings/{id}/invoices` (client receipt), merged into `PaymentProof`; surfaced as a "Receipts" section in the Fees hub (`CampingPricingScreen`) with per-row PDF share. Invoice write gated by the deployed `isOwnPaidPayment` + `invoiceMatchesPaidPayment` rules (`amount`/`currency`/`paymentID` must match the paid payment doc)
+- [x] Mixed registration+transport single-charge bundling: `PaymentRequest` carries `lineItems` (per-kind) + `summary` + `referenceIDs`; the registration payment step folds an unpaid bus fare into the registration charge. After the primary confirm, `PaymentButtonViewModel`/`RegistrationPaymentViewModel` run a follow-up `confirm()` per extra kind (`subrequest(kind)`) so each Firestore sub-collection flips off the same charge, then `recordInvoice` persists the full line-item set
 
 ### D3. Lodging (`ui/lodging/`) ✅
 
@@ -320,7 +322,7 @@
 - [x] Occupancy denormalized into `occupantIDs[]` on the unit doc (no separate assignment collection) — `setOccupants` (merge `occupantIDs` + `updatedAt`), assign/remove via the unit's list
 - [x] Gender policy filter: `any`/`male`/`female`/`family` (filter chips); assignment also enforces `genderPolicy.accepts(gender)` + capacity
 - [x] iOS parity: reused the existing `LodgingUnit` model + `LodgingPayload`/`toLodgingUnitOrNull` (added `accepts`, `occupancy`/`availableSpots`/`occupancyText`/`contains`); admin summary + units + "Needs a bed" sections, editor + assignment `ModalBottomSheet`s; **My Lodging** card embedded in My QR Passes (mirrors iOS `CheckInQRView` → `MyLodgingCard`)
-- [ ] Deferred (iOS extra, not in the Android contract): one-tap **auto-allocate** (capacity + gender + family rules) — units are placed by hand for now
+- [x] One-tap **auto-allocate** (capacity + gender + family rules): `LodgingAllocator` (port of iOS, deterministic constrained bin-pack; never exceeds capacity, honours male/female policy, keeps a guardian + their children together, soft tight-pack + age coherence) → `LodgingViewModel.autoAllocate()` persists via `LodgingService.applyAllocation` (one batched write); "Auto-allocate beds" button + result snackbar (`LodgingAllocatorTest`)
 
 ### D4. Post-Camp Feedback (`ui/feedback/`) ✅
 
@@ -360,46 +362,46 @@
 
 ### Data Contract Enforcement
 
-- [ ] Every write path passes the `07` pre-write checklist (doc ID, required fields, enum case, null/delete/omit encoding, timestamps, integer cents, RBAC fields, denormalization, dual notification stores)
-- [ ] `FieldValue.delete()` for delete-when-nil fields; explicit Firestore `null` for null-when-absent fields; omit for omit-when-nil fields
-- [ ] `createdAt: serverTimestamp()` on first create only; `updatedAt: serverTimestamp()` on every write
-- [ ] Money always integer cents; `priceItems[].currency` uppercase; payments API currency lowercase
-- [ ] Deterministic doc IDs used exactly: `registrations/{attendeeId}`, `checkIns/{attendeeId}`, `feedback/{uid}`, `votes/{voterId}`, `schedule/config`, `venueMap/config`, `albumSettings/default`, `notificationSettings/default`
+- [x] Every write path passes the `07` pre-write checklist (doc ID, required fields, enum case, null/delete/omit encoding, timestamps, integer cents, RBAC fields, denormalization, dual notification stores)
+- [x] `FieldValue.delete()` for delete-when-nil fields; explicit Firestore `null` for null-when-absent fields; omit for omit-when-nil fields
+- [x] `createdAt: serverTimestamp()` on first create only; `updatedAt: serverTimestamp()` on every write
+- [x] Money always integer cents; `priceItems[].currency` uppercase; payments API currency lowercase
+- [x] Deterministic doc IDs used exactly: `registrations/{attendeeId}`, `checkIns/{attendeeId}`, `feedback/{uid}`, `votes/{voterId}`, `schedule/config`, `venueMap/config`, `albumSettings/default`, `notificationSettings/default`
 
 ### Architecture
 
-- [ ] Each feature: `*Screen.kt` (Composable, no business logic) + `*ViewModel.kt` (`StateFlow<UiState>` sealed: Loading/Loaded/Empty/Error) + service interface + real impl + fake impl
-- [ ] Constructor DI via Hilt; no global mutable state
-- [ ] Firestore listeners registered in ViewModel init/`onStart`, removed in `onCleared()`; no stacking on recomposition
-- [ ] `callbackFlow` to bridge Firestore listeners to `Flow`
-- [ ] `@Preview` on every screen using fake service
+- [x] Each feature: `*Screen.kt` (Composable, no business logic) + `*ViewModel.kt` (`StateFlow<UiState>` sealed: Loading/Loaded/Empty/Error) + service interface + real impl + fake impl
+- [x] Constructor DI via Hilt; no global mutable state
+- [x] Firestore listeners registered in ViewModel init/`onStart`, removed in `onCleared()`; no stacking on recomposition
+- [x] `callbackFlow` to bridge Firestore listeners to `Flow`
+- [x] `@Preview` on every screen using fake service
 
 ### Localization
 
-- [ ] String resources in English keys; add `values-pt` (Portuguese) and `values-fr` (French) qualifiers
-- [ ] No hardcoded user-facing strings in Kotlin/Composable code
+- [x] String resources in English keys; add `values-pt` (Portuguese) and `values-fr` (French) qualifiers
+- [x] No hardcoded user-facing strings in Kotlin/Composable code
 
 ### Accessibility
 
-- [ ] `contentDescription` on all images and icon buttons
-- [ ] Touch targets ≥48dp; dynamic font scale (`sp` only)
-- [ ] TalkBack traversal order; contrast ratios per WCAG AA
-- [ ] `LocalReducedMotion` check before animations
+- [x] `contentDescription` on all images and icon buttons (enforced via the `Cz*` components + `czContentDescription`)
+- [x] Touch targets ≥48dp; dynamic font scale (`sp` only) (`CzSpacing.minTouchTarget` + `sp` typography)
+- [ ] TalkBack traversal order; contrast ratios per WCAG AA — not formally audited
+- [ ] `LocalReducedMotion` check before animations — not implemented (animations always run)
 
 ### Offline
 
-- [ ] Firestore disk persistence enabled (Phase A2)
-- [ ] Songbook, schedule, and camp program data prioritized for local cache
-- [ ] UI handles offline gracefully (show cached data; surface offline indicator on write failure)
+- [x] Firestore disk persistence enabled (Phase A2)
+- [x] Songbook, schedule, and camp program data prioritized for local cache (covered by the persistent disk cache)
+- [ ] UI handles offline gracefully — cached reads work via persistence and write failures surface as errors, but there is no dedicated offline indicator yet
 
 ### Testing
 
-- [ ] Model round-trip unit tests (serialize → deserialize against fixtures) for every entity in `02`
-- [ ] ViewModel state-transition tests (coroutine test + fake service)
-- [ ] Permission evaluator unit tests (all 9 roles × all permissions)
-- [ ] Firestore emulator rule tests for RBAC-sensitive write paths
-- [ ] Compose UI tests for navigation, onboarding, and registration happy paths
-- [ ] `./gradlew assembleDebug && ./gradlew testDebugUnitTest && ./gradlew lint` must be green before any PR
+- [x] Model round-trip unit tests (serialize → deserialize against fixtures) for every entity in `02`
+- [x] ViewModel state-transition tests (coroutine test + fake service)
+- [x] Permission evaluator unit tests (all 9 roles × all permissions) (`AppPermissionEvaluatorTest`)
+- [ ] Firestore emulator rule tests for RBAC-sensitive write paths — only partial (`NotificationSettingsRulesTest`); not every write path is covered
+- [ ] Compose UI tests for navigation, onboarding, and registration happy paths — not written (only the boilerplate `ExampleInstrumentedTest`)
+- [x] `./gradlew assembleDebug && ./gradlew testDebugUnitTest && ./gradlew lint` must be green before any PR (standing done-bar, met)
 
 ---
 

@@ -766,10 +766,22 @@ fun CampzoneNavigationShell(
                 route = AppRoutePattern.CampingEdit,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
             ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
                 CampingEditorRoute(
-                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    campingId = campingId,
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
+                    onDeleted = {
+                        val dismissedDetail = navController.popBackStack(
+                            AppRoute.CampingDetail(campingId).route,
+                            inclusive = true,
+                        )
+                        if (!dismissedDetail) {
+                            navController.navigate(AppRoute.Campings.route) {
+                                launchSingleTop = true
+                            }
+                        }
+                    },
                 )
             }
             // AnnouncementDetail is registered earlier in the Announcements section above.

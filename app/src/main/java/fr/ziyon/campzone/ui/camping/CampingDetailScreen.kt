@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Info
@@ -721,7 +722,7 @@ private fun HeaderSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
             ) {
-                StatusPill(camping.registrationStatus)
+                StatusPill(camping.effectiveRegistrationStatus)
                 Row(
                     modifier = Modifier
                         .weight(1f, fill = false)
@@ -915,6 +916,14 @@ private fun EventInfoSection(camping: Camping) {
                     value = campingDateRange(camping.startDate, camping.endDate),
                     icon = Icons.Filled.CalendarMonth,
                 )
+                camping.registrationDeadline?.let { deadline ->
+                    DetailDivider()
+                    DetailInfoRow(
+                        label = stringResource(R.string.camping_registration_closes),
+                        value = campingDate(deadline),
+                        icon = Icons.Filled.EventBusy,
+                    )
+                }
                 DetailDivider()
                 DetailInfoRow(
                     label = stringResource(R.string.camping_location),

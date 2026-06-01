@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +55,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -62,6 +64,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
@@ -69,6 +72,7 @@ import fr.ziyon.campzone.core.designsystem.CzTypeScale
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.PermissionUser
+import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.AnnouncementAttachment
 import fr.ziyon.campzone.data.model.AnnouncementAttachmentKind
@@ -137,12 +141,14 @@ fun AnnouncementComposerScreen(
 ) {
     val colors = MaterialTheme.czColors
     var bodyPreviewMode by remember { mutableStateOf(false) }
+    val defaultImageName = stringResource(R.string.announcements_default_image_name)
+    val defaultPdfName = stringResource(R.string.announcements_default_pdf_name)
 
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            val name = uri.lastPathSegment ?: "Announcement image.jpg"
+            val name = uri.lastPathSegment ?: defaultImageName
             onAddAttachment(uri, AnnouncementAttachmentKind.Image, name)
         }
     }
@@ -150,7 +156,7 @@ fun AnnouncementComposerScreen(
         ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            val name = uri.lastPathSegment ?: "Attachment.pdf"
+            val name = uri.lastPathSegment ?: defaultPdfName
             onAddAttachment(uri, AnnouncementAttachmentKind.Pdf, name)
         }
     }
@@ -162,7 +168,9 @@ fun AnnouncementComposerScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = if (isEditing) "Edit Announcement" else "Compose",
+                        text = stringResource(
+                            if (isEditing) R.string.announcements_edit_title else R.string.announcements_compose_title,
+                        ),
                         style = CzTypeScale.headline,
                         color = colors.textPrimary,
                     )
@@ -171,7 +179,7 @@ fun AnnouncementComposerScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Cancel",
+                            contentDescription = stringResource(R.string.common_cancel_cd),
                             tint = colors.textPrimary,
                         )
                     }
@@ -182,7 +190,7 @@ fun AnnouncementComposerScreen(
                         enabled = form.isValid && !isSaving,
                     ) {
                         Text(
-                            "Publish",
+                            stringResource(R.string.common_publish),
                             style = CzTypeScale.headline,
                             color = if (form.isValid && !isSaving) colors.ember else colors.textSecondary,
                         )
@@ -214,13 +222,13 @@ fun AnnouncementComposerScreen(
                     verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
                 ) {
                     Text(
-                        "Please fix the following:",
+                        stringResource(R.string.announcements_validation_header),
                         style = CzTypeScale.subhead,
                         color = colors.error,
                     )
                     form.validationErrors.forEach { error ->
                         Text(
-                            "• $error",
+                            "• ${stringResource(error.messageRes)}",
                             style = CzTypeScale.caption,
                             color = colors.error,
                         )
@@ -229,7 +237,7 @@ fun AnnouncementComposerScreen(
             }
 
             // ── Content section ───────────────────────────────────────────────
-            ComposerSectionHeader(title = "Content", icon = Icons.Rounded.TextFields)
+            ComposerSectionHeader(title = stringResource(R.string.common_content), icon = Icons.Rounded.TextFields)
 
             Column(
                 modifier = Modifier
@@ -242,7 +250,7 @@ fun AnnouncementComposerScreen(
                     value = form.title,
                     onValueChange = { onUpdateForm { f -> f.copy(title = it) } },
                     placeholder = {
-                        Text("Title", style = CzTypeScale.body, color = colors.textSecondary)
+                        Text(stringResource(R.string.common_title), style = CzTypeScale.body, color = colors.textSecondary)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -271,13 +279,13 @@ fun AnnouncementComposerScreen(
                         selected = !bodyPreviewMode,
                         onClick = { bodyPreviewMode = false },
                         shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                        label = { Text("Write", style = CzTypeScale.caption) },
+                        label = { Text(stringResource(R.string.common_write), style = CzTypeScale.caption) },
                     )
                     SegmentedButton(
                         selected = bodyPreviewMode,
                         onClick = { bodyPreviewMode = true },
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                        label = { Text("Preview", style = CzTypeScale.caption) },
+                        label = { Text(stringResource(R.string.common_preview), style = CzTypeScale.caption) },
                     )
                 }
 
@@ -295,7 +303,7 @@ fun AnnouncementComposerScreen(
                     ) {
                         if (form.body.isBlank()) {
                             Text(
-                                "Nothing to preview yet.",
+                                stringResource(R.string.announcements_preview_empty),
                                 style = CzTypeScale.body,
                                 color = colors.textSecondary,
                             )
@@ -313,7 +321,7 @@ fun AnnouncementComposerScreen(
                         onValueChange = { onUpdateForm { f -> f.copy(body = it) } },
                         placeholder = {
                             Text(
-                                "Write your announcement using Markdown…",
+                                stringResource(R.string.announcements_body_placeholder),
                                 style = CzTypeScale.body,
                                 color = colors.textSecondary,
                             )
@@ -334,7 +342,7 @@ fun AnnouncementComposerScreen(
             }
 
             // ── Audience section ──────────────────────────────────────────────
-            ComposerSectionHeader(title = "Audience", icon = Icons.Rounded.People)
+            ComposerSectionHeader(title = stringResource(R.string.common_audience), icon = Icons.Rounded.People)
 
             Column(
                 modifier = Modifier
@@ -364,7 +372,7 @@ fun AnnouncementComposerScreen(
                 if (form.audienceScope == AnnouncementAudienceScope.Camping) {
                     if (availableCampings.isEmpty()) {
                         Text(
-                            "No campings available for announcements.",
+                            stringResource(R.string.announcements_no_campings_available),
                             style = CzTypeScale.caption,
                             color = colors.textSecondary,
                             modifier = Modifier.padding(vertical = CzSpacing.xs),
@@ -394,7 +402,7 @@ fun AnnouncementComposerScreen(
             }
 
             // ── Attachments section ───────────────────────────────────────────
-            ComposerSectionHeader(title = "Attachments", icon = Icons.Rounded.AttachFile)
+            ComposerSectionHeader(title = stringResource(R.string.common_attachments), icon = Icons.Rounded.AttachFile)
 
             Column(
                 modifier = Modifier
@@ -415,7 +423,7 @@ fun AnnouncementComposerScreen(
                             tint = colors.textSecondary,
                         )
                         Text(
-                            "No attachments added yet.",
+                            stringResource(R.string.announcements_no_attachments),
                             style = CzTypeScale.body,
                             color = colors.textSecondary,
                         )
@@ -453,7 +461,7 @@ fun AnnouncementComposerScreen(
                     horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
                 ) {
                     Icon(Icons.Rounded.Photo, contentDescription = null, tint = colors.ember)
-                    Text("Add Image", style = CzTypeScale.body, color = colors.ember)
+                    Text(stringResource(R.string.common_add_image), style = CzTypeScale.body, color = colors.ember)
                 }
                 HorizontalDivider(color = colors.divider)
                 Row(
@@ -465,7 +473,7 @@ fun AnnouncementComposerScreen(
                     horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
                 ) {
                     Icon(Icons.Rounded.Description, contentDescription = null, tint = colors.ember)
-                    Text("Add PDF", style = CzTypeScale.body, color = colors.ember)
+                    Text(stringResource(R.string.common_add_pdf), style = CzTypeScale.body, color = colors.ember)
                 }
             }
 
@@ -509,10 +517,11 @@ private fun AudienceScopePicker(
     val colors = MaterialTheme.czColors
     var expanded by remember { mutableStateOf(false) }
     val options = listOf(
-        AnnouncementAudienceScope.App.rawValue to "All app users",
-        AnnouncementAudienceScope.Camping.rawValue to "Camping",
+        AnnouncementAudienceScope.App.rawValue to stringResource(R.string.announcements_audience_all_app),
+        AnnouncementAudienceScope.Camping.rawValue to stringResource(R.string.common_camping),
     )
-    val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: "All app users"
+    val selectedLabel = options.firstOrNull { it.first == selected }?.second
+        ?: stringResource(R.string.announcements_audience_all_app)
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         TextField(
@@ -522,7 +531,7 @@ private fun AudienceScopePicker(
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-            label = { Text("Audience", style = CzTypeScale.caption, color = colors.textSecondary) },
+            label = { Text(stringResource(R.string.common_audience), style = CzTypeScale.caption, color = colors.textSecondary) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.Transparent,
@@ -556,7 +565,7 @@ private fun CampingPicker(
 ) {
     val colors = MaterialTheme.czColors
     var expanded by remember { mutableStateOf(false) }
-    val selectedLabel = campings.firstOrNull { it.id == selected }?.title ?: "Select camping"
+    val selectedLabel = campings.firstOrNull { it.id == selected }?.title ?: stringResource(R.string.announcements_select_camping)
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         TextField(
@@ -566,7 +575,7 @@ private fun CampingPicker(
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-            label = { Text("Camping", style = CzTypeScale.caption, color = colors.textSecondary) },
+            label = { Text(stringResource(R.string.common_camping), style = CzTypeScale.caption, color = colors.textSecondary) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.Transparent,
@@ -599,10 +608,10 @@ private fun RolePicker(
 ) {
     val colors = MaterialTheme.czColors
     var expanded by remember { mutableStateOf(false) }
-    val roles = fr.ziyon.campzone.core.permissions.UserRole.entries
+    val roles = UserRole.entries
     val selectedLabel = selected?.let {
-        fr.ziyon.campzone.core.permissions.UserRole.fromWire(it).displayName
-    } ?: "Everyone in camping"
+        stringResource(UserRole.fromWire(it).displayNameRes())
+    } ?: stringResource(R.string.common_everyone_in_camping)
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         TextField(
@@ -612,7 +621,7 @@ private fun RolePicker(
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-            label = { Text("Role", style = CzTypeScale.caption, color = colors.textSecondary) },
+            label = { Text(stringResource(R.string.common_role), style = CzTypeScale.caption, color = colors.textSecondary) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.Transparent,
@@ -625,7 +634,7 @@ private fun RolePicker(
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text("Everyone in camping", style = CzTypeScale.body) },
+                text = { Text(stringResource(R.string.common_everyone_in_camping), style = CzTypeScale.body) },
                 onClick = {
                     onSelect(null)
                     expanded = false
@@ -633,7 +642,7 @@ private fun RolePicker(
             )
             roles.forEach { role ->
                 DropdownMenuItem(
-                    text = { Text(role.displayName, style = CzTypeScale.body) },
+                    text = { Text(stringResource(role.displayNameRes()), style = CzTypeScale.body) },
                     onClick = {
                         onSelect(role.rawValue)
                         expanded = false
@@ -676,13 +685,13 @@ private fun ComposerAttachmentRow(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = kind.wireValue.replaceFirstChar { it.uppercase() },
+                    text = stringResource(kind.labelRes()),
                     style = CzTypeScale.caption,
                     color = colors.textSecondary,
                 )
                 if (isPending) {
                     Text(
-                        "· Pending upload",
+                        stringResource(R.string.announcements_pending_upload),
                         style = CzTypeScale.caption,
                         color = colors.amber,
                     )
@@ -692,12 +701,31 @@ private fun ComposerAttachmentRow(
         IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
             Icon(
                 Icons.Rounded.Delete,
-                contentDescription = "Remove attachment",
+                contentDescription = stringResource(R.string.common_remove_attachment),
                 tint = colors.error,
                 modifier = Modifier.size(20.dp),
             )
         }
     }
+}
+
+@StringRes
+private fun AnnouncementAttachmentKind.labelRes(): Int = when (this) {
+    AnnouncementAttachmentKind.Image -> R.string.announcements_attachment_image
+    AnnouncementAttachmentKind.Pdf -> R.string.announcements_attachment_pdf
+}
+
+@StringRes
+private fun UserRole.displayNameRes(): Int = when (this) {
+    UserRole.Guest -> R.string.role_guest
+    UserRole.User -> R.string.role_user
+    UserRole.Adult -> R.string.role_adult
+    UserRole.YouthDirector -> R.string.role_youth_director
+    UserRole.Pastor -> R.string.role_pastor
+    UserRole.GameMaster -> R.string.role_game_master
+    UserRole.Leader -> R.string.role_leader
+    UserRole.Photographer -> R.string.role_photographer
+    UserRole.Admin -> R.string.role_admin
 }
 
 // ── Preview ───────────────────────────────────────────────────────────────────

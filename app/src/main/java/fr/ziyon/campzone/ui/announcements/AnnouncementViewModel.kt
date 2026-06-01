@@ -2,10 +2,12 @@ package fr.ziyon.campzone.ui.announcements
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
@@ -52,13 +54,13 @@ data class AnnouncementComposerForm(
     val audienceScope: AnnouncementAudienceScope
         get() = AnnouncementAudienceScope.fromWire(audienceScopeRawValue)
 
-    val validationErrors: List<String>
+    val validationErrors: List<AnnouncementComposerValidationError>
         get() {
-            val errors = mutableListOf<String>()
-            if (title.isBlank()) errors.add("Title is required.")
-            if (body.isBlank()) errors.add("Body is required.")
+            val errors = mutableListOf<AnnouncementComposerValidationError>()
+            if (title.isBlank()) errors.add(AnnouncementComposerValidationError.TitleRequired)
+            if (body.isBlank()) errors.add(AnnouncementComposerValidationError.BodyRequired)
             if (audienceScope == AnnouncementAudienceScope.Camping && campingId.isNullOrBlank()) {
-                errors.add("Select a camping for this announcement.")
+                errors.add(AnnouncementComposerValidationError.CampingRequired)
             }
             return errors
         }
@@ -66,11 +68,17 @@ data class AnnouncementComposerForm(
     val isValid: Boolean get() = validationErrors.isEmpty()
 }
 
+enum class AnnouncementComposerValidationError(@param:StringRes val messageRes: Int) {
+    TitleRequired(R.string.announcements_title_required),
+    BodyRequired(R.string.announcements_body_required),
+    CampingRequired(R.string.announcements_camping_required),
+}
+
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
 @HiltViewModel
 class AnnouncementViewModel @Inject constructor(
-    @ApplicationContext private val appContext: Context,
+    @param:ApplicationContext private val appContext: Context,
     private val announcementService: AnnouncementService,
     private val campingService: CampingService,
     private val notificationDispatcher: AnnouncementNotificationDispatcher,
@@ -141,7 +149,7 @@ class AnnouncementViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 _uiState.value = AnnouncementsUiState.Error(
-                    e.message ?: "Failed to load announcements."
+                    e.message ?: appContext.getString(R.string.announcements_load_error)
                 )
             }
         }
@@ -158,7 +166,7 @@ class AnnouncementViewModel @Inject constructor(
                 hasLoaded = true
                 publishAnnouncements()
             } catch (e: Exception) {
-                _operationError.value = e.message ?: "Failed to refresh."
+                _operationError.value = e.message ?: appContext.getString(R.string.announcements_refresh_error)
             } finally {
                 _isRefreshing.value = false
             }
@@ -357,13 +365,13 @@ class AnnouncementViewModel @Inject constructor(
                 try {
                     notificationDispatcher.dispatchAnnouncement(saved)
                 } catch (e: Exception) {
-                    _operationError.value = "Announcement published, but notification dispatch failed."
+                    _operationError.value = appContext.getString(R.string.announcements_dispatch_failed)
                 }
                 _form.value = AnnouncementComposerForm()
                 _editingId.value = null
                 onSuccess()
             } catch (e: Exception) {
-                _operationError.value = e.message ?: "Could not save announcement. Please try again."
+                _operationError.value = e.message ?: appContext.getString(R.string.announcements_save_error)
             } finally {
                 _isSaving.value = false
             }
@@ -384,7 +392,7 @@ class AnnouncementViewModel @Inject constructor(
                 publishAnnouncements()
                 onSuccess()
             } catch (e: Exception) {
-                _operationError.value = e.message ?: "Could not delete announcement."
+                _operationError.value = e.message ?: appContext.getString(R.string.announcements_delete_error)
             } finally {
                 _isSaving.value = false
             }

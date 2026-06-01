@@ -53,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
@@ -83,6 +84,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
@@ -312,13 +314,13 @@ private fun AuthGlassPanel(
             AuthMessageBanner(
                 message = uiState.errorMessage,
                 kind = AuthBannerKind.Error,
-                actionLabel = "OK",
+                actionLabel = stringResource(R.string.common_ok),
                 onAction = onDismissError,
             )
         }
 
         AuthProviderButton(
-            title = "Continuar com Apple",
+            title = stringResource(R.string.auth_continue_apple),
             mark = "A",
             onClick = onAppleSignIn,
             isLoading = uiState.isSigningInWithApple,
@@ -329,7 +331,7 @@ private fun AuthGlassPanel(
         )
 
         AuthProviderButton(
-            title = "Continuar com Google",
+            title = stringResource(R.string.auth_continue_google),
             mark = "G",
             onClick = onGoogleSignIn,
             isLoading = uiState.isSigningInWithGoogle,
@@ -499,8 +501,8 @@ private fun EmailAuthForm(
             AuthTextField(
                 value = displayName,
                 onValueChange = { displayName = it },
-                label = "Nome completo",
-                placeholder = "Nome de exibição",
+                label = stringResource(R.string.auth_full_name),
+                placeholder = stringResource(R.string.auth_display_name_placeholder),
                 glyph = FieldGlyph.Person,
                 enabled = fieldsEnabled,
                 keyboardOptions = KeyboardOptions(
@@ -516,8 +518,8 @@ private fun EmailAuthForm(
         AuthTextField(
             value = email,
             onValueChange = { email = it },
-            label = "Email",
-            placeholder = "you@ exemplo.com",
+            label = stringResource(R.string.profile_email),
+            placeholder = stringResource(R.string.auth_email_placeholder),
             glyph = FieldGlyph.Email,
             enabled = fieldsEnabled,
             keyboardOptions = KeyboardOptions(
@@ -532,8 +534,8 @@ private fun EmailAuthForm(
         AuthTextField(
             value = password,
             onValueChange = { password = it },
-            label = "Senha",
-            placeholder = "Sua senha",
+            label = stringResource(R.string.auth_password),
+            placeholder = stringResource(R.string.auth_password_placeholder),
             glyph = FieldGlyph.Lock,
             enabled = fieldsEnabled,
             visualTransformation = if (isPasswordVisible) {

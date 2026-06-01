@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.data.model.CampDay
 import fr.ziyon.campzone.data.model.ProgramType
 import fr.ziyon.campzone.data.model.ScheduleReminderTiming
@@ -22,20 +23,20 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-val ProgramType.displayName: String
+val ProgramType.displayNameRes: Int
     get() = when (this) {
-        ProgramType.Reception -> "Reception"
-        ProgramType.Games -> "Games"
-        ProgramType.Preaching -> "Preaching"
-        ProgramType.Prayer -> "Prayer"
-        ProgramType.Breakfast -> "Breakfast"
-        ProgramType.Lunch -> "Lunch"
-        ProgramType.Dinner -> "Dinner"
-        ProgramType.Snack -> "Snack"
-        ProgramType.Other -> "Other"
-        ProgramType.Rest -> "Rest"
-        ProgramType.Break -> "Break"
-        ProgramType.Custom -> "Custom"
+        ProgramType.Reception -> R.string.program_type_reception
+        ProgramType.Games -> R.string.program_type_games
+        ProgramType.Preaching -> R.string.program_type_preaching
+        ProgramType.Prayer -> R.string.program_type_prayer
+        ProgramType.Breakfast -> R.string.program_type_breakfast
+        ProgramType.Lunch -> R.string.program_type_lunch
+        ProgramType.Dinner -> R.string.program_type_dinner
+        ProgramType.Snack -> R.string.program_type_snack
+        ProgramType.Other -> R.string.program_type_other
+        ProgramType.Rest -> R.string.program_type_rest
+        ProgramType.Break -> R.string.program_type_break
+        ProgramType.Custom -> R.string.program_type_custom
     }
 
 val ProgramType.icon: ImageVector
@@ -70,14 +71,14 @@ val ProgramType.accentColor: Color
         ProgramType.Custom -> Color(0xFFFF6B35)
     }
 
-val ScheduleReminderTiming.displayName: String
+val ScheduleReminderTiming.displayNameRes: Int
     get() = when (this) {
-        ScheduleReminderTiming.None -> "None"
-        ScheduleReminderTiming.AtStart -> "At start"
-        ScheduleReminderTiming.FiveMinutes -> "5 min before"
-        ScheduleReminderTiming.FifteenMinutes -> "15 min before"
-        ScheduleReminderTiming.ThirtyMinutes -> "30 min before"
-        ScheduleReminderTiming.OneHour -> "1 hour before"
+        ScheduleReminderTiming.None -> R.string.schedule_reminder_none
+        ScheduleReminderTiming.AtStart -> R.string.schedule_reminder_at_start
+        ScheduleReminderTiming.FiveMinutes -> R.string.schedule_reminder_five_minutes
+        ScheduleReminderTiming.FifteenMinutes -> R.string.schedule_reminder_fifteen_minutes
+        ScheduleReminderTiming.ThirtyMinutes -> R.string.schedule_reminder_thirty_minutes
+        ScheduleReminderTiming.OneHour -> R.string.schedule_reminder_one_hour
     }
 
 private val timeFormatter = SimpleDateFormat("HH:mm", Locale.getDefault())

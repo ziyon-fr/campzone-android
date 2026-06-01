@@ -3,6 +3,7 @@ package fr.ziyon.campzone.ui.payments
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.data.payments.PaymentProofService
 import fr.ziyon.campzone.data.payments.PaymentRequest
 import fr.ziyon.campzone.data.payments.PaymentService
 import fr.ziyon.campzone.data.payments.PaymentSheetIntent
@@ -50,6 +51,7 @@ data class PaymentButtonUiState(
 @HiltViewModel
 class PaymentButtonViewModel @Inject constructor(
     private val paymentService: PaymentService,
+    private val proofService: PaymentProofService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PaymentButtonUiState())
@@ -89,13 +91,23 @@ class PaymentButtonViewModel @Inject constructor(
             runCatching {
                 val confirmation = paymentService.confirmPayment(
                     paymentIntentId = intent.paymentIntentId,
-                    kind = request.kind,
-                    campingId = request.campingId,
-                    referenceId = request.referenceId,
+                    request = request,
                 )
                 check(confirmation.paid) {
                     "Payment was not completed. Current status: ${confirmation.status}."
                 }
+                // Mixed-kind bundles need a follow-up confirm per extra kind so
+                // the backend flips each Firestore sub-collection off the same
+                // charge (best-effort — never re-charges, never rolls back).
+                request.kindsInLineItems
+                    .filter { it != request.kind }
+                    .forEach { extraKind ->
+                        request.subrequest(extraKind)?.let { sub ->
+                            runCatching { paymentService.confirmPayment(intent.paymentIntentId, sub) }
+                        }
+                    }
+                // Persist the receipt (full line-item set) for the PDF/history.
+                runCatching { proofService.recordInvoice(intent.paymentIntentId, request) }
             }.onSuccess {
                 _uiState.update { it.copy(phase = PaymentButtonPhase.Idle, paid = true) }
             }.onFailure { error ->

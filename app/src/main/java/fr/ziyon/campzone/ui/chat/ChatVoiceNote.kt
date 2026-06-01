@@ -110,10 +110,11 @@ fun ChatVoiceNoteView(
 
     val progress = if (totalDuration > 0) (currentTime / totalDuration).coerceIn(0.0, 1.0) else 0.0
     val displayedSeconds = if (isPlaying || currentTime > 0) currentTime else totalDuration
+    val voiceDescription = stringResource(R.string.chat_voice_message_cd, totalDuration.roundToInt())
 
     Row(
         modifier = modifier.semantics {
-            contentDescription = "Voice message, ${totalDuration.roundToInt()} seconds"
+            contentDescription = voiceDescription
         },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,

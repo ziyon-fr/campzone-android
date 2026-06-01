@@ -250,6 +250,7 @@ the catalog are kept on read.
 | `locationLatitude` | double | opt | `nil` | **delete-when-nil** |
 | `locationLongitude` | double | opt | `nil` | **delete-when-nil** |
 | `registrationStatus` | string | **req** | throws | `open`/`closed`/`cancelled` |
+| `registrationDeadline` | timestamp | opt | `nil` | **delete-when-nil**. Client-side gate: an `open` camp auto-closes once `now >= registrationDeadline` (registration CTA + register guard read the *effective* status). Reopen by editing/clearing this date. Not enforced by Security Rules (like `participantCapacity`) |
 | `participantCapacity` | int | opt | `nil` | **delete-when-nil**. Triggers waitlist when reached |
 | `winnerRevealPolicy` | map | opt | `nil` | § 3.2. Written only by the reveal flow; RBAC-gated separately |
 | `logoURL` | string | opt | `nil` | **delete-when-empty** |

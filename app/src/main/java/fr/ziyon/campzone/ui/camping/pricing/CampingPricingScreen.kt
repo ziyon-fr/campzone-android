@@ -36,11 +36,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -54,6 +57,9 @@ import fr.ziyon.campzone.core.designsystem.CzAvatar
 import fr.ziyon.campzone.core.designsystem.CzAvatarSize
 import fr.ziyon.campzone.core.designsystem.CzBadge
 import fr.ziyon.campzone.core.designsystem.CzBadgeTone
+import fr.ziyon.campzone.core.designsystem.CzButton
+import fr.ziyon.campzone.core.designsystem.CzButtonVariant
+import fr.ziyon.campzone.core.designsystem.CzCard
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzErrorState
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
@@ -68,10 +74,14 @@ import fr.ziyon.campzone.data.model.offersBankTransfer
 import fr.ziyon.campzone.data.model.offersCardOneTime
 import fr.ziyon.campzone.data.model.offersInstallments
 import fr.ziyon.campzone.data.model.resolvedCurrency
+import fr.ziyon.campzone.data.payments.PaymentProof
 import fr.ziyon.campzone.data.payments.PaymentRequest
 import fr.ziyon.campzone.ui.payments.CzPaymentButton
+import fr.ziyon.campzone.ui.payments.PaymentReceiptPdf
 import fr.ziyon.campzone.ui.payments.formatPaymentAmount
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun CampingPricingRoute(
@@ -221,6 +231,72 @@ private fun PricingContent(
                     onCopyIban = onCopyIban,
                 )
             }
+        }
+
+        if (state.proofs.isNotEmpty()) {
+            item("receipts-header") {
+                SectionHeader(stringResource(R.string.fees_receipts_section))
+            }
+            items(state.proofs, key = { "proof-${it.id}" }) { proof ->
+                PaymentProofCard(proof = proof, campingTitle = state.campingTitle)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaymentProofCard(proof: PaymentProof, campingTitle: String) {
+    val colors = MaterialTheme.czColors
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isSharing by remember { mutableStateOf(false) }
+    val title = proof.displayTitle(stringResource(R.string.receipt_default_title))
+
+    CzCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    color = colors.textPrimary,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = listOfNotNull(
+                        formatPaymentAmount(proof.amountCents, proof.currency),
+                        proof.invoiceNumber,
+                    ).joinToString(" · "),
+                    color = colors.textSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            CzBadge(
+                text = stringResource(R.string.fees_receipt_paid),
+                tone = CzBadgeTone.Success,
+            )
+            CzButton(
+                text = stringResource(R.string.fees_receipt_pdf),
+                onClick = {
+                    if (isSharing) return@CzButton
+                    isSharing = true
+                    scope.launch {
+                        runCatching {
+                            val file = withContext(Dispatchers.IO) {
+                                PaymentReceiptPdf.write(context, proof, campingTitle)
+                            }
+                            PaymentReceiptPdf.share(context, file)
+                        }
+                        isSharing = false
+                    }
+                },
+                enabled = !isSharing,
+                variant = CzButtonVariant.Outline,
+            )
         }
     }
 }

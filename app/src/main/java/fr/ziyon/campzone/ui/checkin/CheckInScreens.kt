@@ -659,12 +659,13 @@ private fun CheckInRecordsContent(
             RecordsSummary(checkedIn = records.size, approved = camping.approvedAttendees.size)
         }
         item("search") {
+            val searchDescription = stringResource(R.string.checkin_search_records_cd)
             OutlinedTextField(
                 value = searchText,
                 onValueChange = onSearchChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .semantics { contentDescription = "Search check-in records" },
+                    .semantics { contentDescription = searchDescription },
                 leadingIcon = {
                     Icon(Icons.Filled.Search, contentDescription = null)
                 },
@@ -1167,9 +1168,10 @@ private fun ParticipantBadge(attendee: CampingAttendee) {
 @Composable
 private fun QrCodeImage(value: String, modifier: Modifier = Modifier) {
     val bitmap = remember(value) { generateQrCode(value) }
+    val qrDescription = stringResource(R.string.checkin_qr_code_cd)
     Surface(
         modifier = modifier.semantics {
-            contentDescription = "QR check-in code"
+            contentDescription = qrDescription
         },
         color = Color.White,
         shape = RoundedCornerShape(CzRadius.xl),
@@ -1177,7 +1179,7 @@ private fun QrCodeImage(value: String, modifier: Modifier = Modifier) {
         if (bitmap != null) {
             Image(
                 bitmap = bitmap,
-                contentDescription = stringResource(R.string.checkin_qr_code_cd),
+                contentDescription = qrDescription,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(CzSpacing.sm),

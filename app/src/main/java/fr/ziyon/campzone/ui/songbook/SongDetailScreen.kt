@@ -54,6 +54,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CzButton
 import fr.ziyon.campzone.core.designsystem.CzButtonVariant
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
@@ -153,38 +155,38 @@ fun SongDetailScreen(
         contentWindowInsets = WindowInsets(),
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Song", style = CzTypeScale.headline, color = colors.textPrimary) },
+                title = { Text(stringResource(R.string.songbook_song_title), style = CzTypeScale.headline, color = colors.textPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = colors.textPrimary)
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = colors.textPrimary)
                     }
                 },
                 actions = {
                     if (song != null) {
                         IconButton(onClick = { menuOpen = true }) {
-                            Icon(Icons.Rounded.MoreVert, contentDescription = "Song options", tint = colors.textPrimary)
+                            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.songbook_options_cd), tint = colors.textPrimary)
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(text = { Text("Smaller text") }, leadingIcon = { Icon(Icons.Rounded.Remove, null) }, onClick = {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.songbook_smaller_text)) }, leadingIcon = { Icon(Icons.Rounded.Remove, null) }, onClick = {
                                 textSize = (textSize - 1f).coerceAtLeast(14f)
                                 menuOpen = false
                             })
-                            DropdownMenuItem(text = { Text("Larger text") }, leadingIcon = { Icon(Icons.Rounded.TextIncrease, null) }, onClick = {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.songbook_larger_text)) }, leadingIcon = { Icon(Icons.Rounded.TextIncrease, null) }, onClick = {
                                 textSize = (textSize + 1f).coerceAtMost(30f)
                                 menuOpen = false
                             })
                             if (canManage) {
-                                DropdownMenuItem(text = { Text("Edit") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.common_edit)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = {
                                     menuOpen = false
                                     onEdit()
                                 })
                                 if (!song.isPinnedTheme) {
-                                    DropdownMenuItem(text = { Text("Set as Theme Song") }, leadingIcon = { Icon(Icons.Rounded.Mic, null) }, onClick = {
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.songbook_set_theme)) }, leadingIcon = { Icon(Icons.Rounded.Mic, null) }, onClick = {
                                         menuOpen = false
                                         onPin()
                                     })
                                 }
-                                DropdownMenuItem(text = { Text("Delete", color = colors.error) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = colors.error) }, onClick = {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.common_delete), color = colors.error) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = colors.error) }, onClick = {
                                     menuOpen = false
                                     confirmDelete = true
                                 })
@@ -202,8 +204,8 @@ fun SongDetailScreen(
     ) { innerPadding ->
         if (song == null) {
             CzEmptyState(
-                title = "Song not found",
-                message = "The selected song could not be loaded.",
+                title = stringResource(R.string.songbook_not_found_title),
+                message = stringResource(R.string.songbook_not_found_message),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
@@ -253,18 +255,18 @@ fun SongDetailScreen(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete Song?") },
-            text = { Text("This permanently removes the song from this camping.") },
+            title = { Text(stringResource(R.string.songbook_delete_title)) },
+            text = { Text(stringResource(R.string.songbook_delete_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         confirmDelete = false
                         onDelete()
                     },
-                ) { Text("Delete", color = colors.error) }
+                ) { Text(stringResource(R.string.common_delete), color = colors.error) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.common_cancel)) }
             },
         )
     }
@@ -335,7 +337,7 @@ private fun SongDetailHeader(
             if (song.youtubeLink.isNotBlank()) {
                 TextButton(onClick = onWatch) {
                     Icon(Icons.Rounded.SlowMotionVideo, contentDescription = null, tint = colors.ember, modifier = Modifier.size(18.dp))
-                    Text("Watch on YouTube", color = colors.ember, style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold))
+                    Text(stringResource(R.string.songbook_watch_youtube), color = colors.ember, style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold))
                 }
             }
         }
@@ -363,7 +365,7 @@ private fun LyricsPanel(song: Song, textSize: Float) {
             }
         }
         if (song.composer.isNotBlank()) {
-            Text("Composed by ${song.composer}", style = CzTypeScale.caption, color = colors.textSecondary, modifier = Modifier.fillMaxWidth())
+            Text(stringResource(R.string.songbook_composed_by, song.composer), style = CzTypeScale.caption, color = colors.textSecondary, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -374,8 +376,8 @@ private fun SheetPanel(song: Song, onOpen: () -> Unit) {
         if (song.pdfLink.isBlank()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
                 Icon(Icons.Rounded.Description, contentDescription = null, tint = MaterialTheme.czColors.textSecondary, modifier = Modifier.size(36.dp))
-                Text("No Sheet", style = CzTypeScale.body, color = MaterialTheme.czColors.textPrimary)
-                Text("A PDF sheet can be attached from the song editor.", style = CzTypeScale.caption, color = MaterialTheme.czColors.textSecondary)
+                Text(stringResource(R.string.songbook_no_sheet), style = CzTypeScale.body, color = MaterialTheme.czColors.textPrimary)
+                Text(stringResource(R.string.songbook_no_sheet_message), style = CzTypeScale.caption, color = MaterialTheme.czColors.textSecondary)
             }
         } else {
             CzButton(

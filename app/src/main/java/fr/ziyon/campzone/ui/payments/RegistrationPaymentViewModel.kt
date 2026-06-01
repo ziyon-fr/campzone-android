@@ -3,16 +3,22 @@ package fr.ziyon.campzone.ui.payments
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.R
+import fr.ziyon.campzone.core.i18n.StringProvider
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.PaymentKind
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
+import fr.ziyon.campzone.data.model.TransportationBooking
 import fr.ziyon.campzone.data.model.TransportationPaymentStatus
+import fr.ziyon.campzone.data.payments.PaymentLineItem
+import fr.ziyon.campzone.data.payments.PaymentProofService
 import fr.ziyon.campzone.data.payments.PaymentRequest
 import fr.ziyon.campzone.data.payments.PaymentService
 import fr.ziyon.campzone.data.payments.PaymentSheetIntent
+import fr.ziyon.campzone.data.transportation.TransportationService
 import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,6 +60,9 @@ data class RegistrationPaymentUiState(
 class RegistrationPaymentViewModel @Inject constructor(
     private val campingService: CampingService,
     private val paymentService: PaymentService,
+    private val transportationService: TransportationService,
+    private val proofService: PaymentProofService,
+    private val stringProvider: StringProvider,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RegistrationPaymentUiState())
@@ -70,19 +79,22 @@ class RegistrationPaymentViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.value = RegistrationPaymentUiState(isLoading = true)
-            runCatching { campingService.fetchCamping(campingId) }
-                .onSuccess { camping ->
+            runCatching {
+                val camping = campingService.fetchCamping(campingId)
+                camping to buildItems(camping, user)
+            }
+                .onSuccess { (camping, items) ->
                     _uiState.value = RegistrationPaymentUiState(
                         isLoading = false,
                         campingTitle = camping.title,
-                        items = paymentItems(camping, user),
+                        items = items,
                     )
                 }
                 .onFailure { error ->
                     loadedKey = null
                     _uiState.value = RegistrationPaymentUiState(
                         isLoading = false,
-                        errorMessage = error.message ?: "Payment details could not be loaded.",
+                        errorMessage = error.message ?: stringProvider.get(R.string.payment_details_load_error),
                     )
                 }
         }
@@ -115,7 +127,7 @@ class RegistrationPaymentViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isPreparingPayment = false,
-                            errorMessage = error.message ?: "Payment could not be prepared.",
+                            errorMessage = error.message ?: stringProvider.get(R.string.payment_prepare_error),
                         )
                     }
                 }
@@ -142,20 +154,29 @@ class RegistrationPaymentViewModel @Inject constructor(
             }
             runCatching {
                 val request = prepared.item.request
+                val paymentIntentId = prepared.sheetIntent.paymentIntentId
                 val confirmation = paymentService.confirmPayment(
-                    paymentIntentId = prepared.sheetIntent.paymentIntentId,
-                    kind = request.kind,
-                    campingId = request.campingId,
-                    referenceId = request.referenceId,
+                    paymentIntentId = paymentIntentId,
+                    request = request,
                 )
                 check(confirmation.paid) {
-                    "Payment was not completed. Current status: ${confirmation.status}."
+                    stringProvider.get(R.string.payment_not_completed_status, confirmation.status)
                 }
+                // Bundle: flip the transport booking (and any other extra kind)
+                // off the same charge, then persist the receipt — best-effort.
+                request.kindsInLineItems
+                    .filter { it != request.kind }
+                    .forEach { extraKind ->
+                        request.subrequest(extraKind)?.let { sub ->
+                            runCatching { paymentService.confirmPayment(paymentIntentId, sub) }
+                        }
+                    }
+                runCatching { proofService.recordInvoice(paymentIntentId, request) }
                 request
             }.onSuccess { request ->
                 completedReferenceIds += request.referenceId
                 val camping = campingService.fetchCamping(request.campingId.orEmpty())
-                val remainingItems = paymentItems(camping, user)
+                val remainingItems = buildItems(camping, user)
                 _uiState.update {
                     it.copy(
                         isConfirmingPayment = false,
@@ -163,9 +184,9 @@ class RegistrationPaymentViewModel @Inject constructor(
                         items = remainingItems,
                         preparedPayment = null,
                         successMessage = if (remainingItems.isEmpty()) {
-                            "Payment completed."
+                            stringProvider.get(R.string.payment_completed)
                         } else {
-                            "Payment completed. Continue with the next participant."
+                            stringProvider.get(R.string.payment_completed_next)
                         },
                     )
                 }
@@ -173,7 +194,7 @@ class RegistrationPaymentViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isConfirmingPayment = false,
-                        errorMessage = error.message ?: "Payment could not be confirmed.",
+                        errorMessage = error.message ?: stringProvider.get(R.string.payment_confirm_error),
                     )
                 }
             }
@@ -186,7 +207,7 @@ class RegistrationPaymentViewModel @Inject constructor(
                 preparedPayment = null,
                 isPreparingPayment = false,
                 isConfirmingPayment = false,
-                errorMessage = "Payment was canceled.",
+                errorMessage = stringProvider.get(R.string.payment_canceled),
             )
         }
     }
@@ -197,7 +218,7 @@ class RegistrationPaymentViewModel @Inject constructor(
                 preparedPayment = null,
                 isPreparingPayment = false,
                 isConfirmingPayment = false,
-                errorMessage = message ?: "Payment failed.",
+                errorMessage = message ?: stringProvider.get(R.string.payment_failed),
             )
         }
     }
@@ -206,9 +227,20 @@ class RegistrationPaymentViewModel @Inject constructor(
         _uiState.update { it.copy(errorMessage = null, successMessage = null) }
     }
 
+    private suspend fun buildItems(
+        camping: Camping,
+        user: AuthenticatedUser,
+    ): List<RegistrationPaymentItem> {
+        val bookings = runCatching {
+            transportationService.loadUserBookings(camping.id, user.uid)
+        }.getOrDefault(emptyList())
+        return paymentItems(camping, user, bookings)
+    }
+
     private fun paymentItems(
         camping: Camping,
         user: AuthenticatedUser,
+        bookings: List<TransportationBooking>,
     ): List<RegistrationPaymentItem> {
         val currency = camping.feeCurrency
             ?.trim()
@@ -223,8 +255,38 @@ class RegistrationPaymentViewModel @Inject constructor(
             .filter { it.paymentStatus != TransportationPaymentStatus.Paid }
             .filter { it.id !in completedReferenceIds }
             .mapNotNull { attendee ->
-                val amountCents = camping.resolvedRegistrationFeeCents(attendee.age)
-                if (amountCents <= 0) return@mapNotNull null
+                val registrationFee = camping.resolvedRegistrationFeeCents(attendee.age)
+                if (registrationFee <= 0) return@mapNotNull null
+
+                val lineItems = mutableListOf(
+                    PaymentLineItem(
+                        referenceId = attendee.id,
+                        title = stringProvider.get(R.string.payment_registration_line_item, attendee.displayName),
+                        amountCents = registrationFee,
+                        kind = PaymentKind.Registration,
+                    ),
+                )
+                var total = registrationFee
+
+                // Mixed bundle: fold in an unpaid bus fare for this participant
+                // so registration + transport settle in one Stripe charge.
+                val booking = bookings.firstOrNull {
+                    it.participantId == attendee.id &&
+                        it.paymentStatus == TransportationPaymentStatus.Unpaid
+                }
+                val fareCents = booking
+                    ?.let { camping.transportationOption(it.transportationOptionId)?.feeCents }
+                    ?: 0
+                if (booking != null && fareCents > 0) {
+                    lineItems += PaymentLineItem(
+                        referenceId = booking.id,
+                        title = stringProvider.get(R.string.payment_bus_fare_line_item, attendee.displayName),
+                        amountCents = fareCents,
+                        kind = PaymentKind.Transportation,
+                    )
+                    total += fareCents
+                }
+
                 RegistrationPaymentItem(
                     participantId = attendee.id,
                     participantName = attendee.displayName,
@@ -232,8 +294,10 @@ class RegistrationPaymentViewModel @Inject constructor(
                         kind = PaymentKind.Registration,
                         campingId = camping.id,
                         referenceId = attendee.id,
-                        amountCents = amountCents,
+                        amountCents = total,
                         currency = currency,
+                        summary = "${attendee.displayName} · ${camping.title}",
+                        lineItems = lineItems,
                     ),
                 )
             }
