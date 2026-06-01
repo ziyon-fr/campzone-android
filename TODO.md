@@ -343,12 +343,13 @@
 - [x] iOS parity: `GuardianUpdatesScreen` (per-child detail cards: avatar + age/church, check-in row with method, team row with score/"scores hidden"/"not on a team"; + "Today at camp" schedule card with happening-now / up-next) and a self-silencing pine-gradient `GuardianUpdatesCard` in the camp detail (shown only when the viewer registered a child here; taps → the read-only screen). `GuardianUpdatesViewModel` (sealed `UiState`, single owned team listener), typed route `CampingGuardianUpdates`, EN/FR/PT strings, `GuardianUpdatesViewModelTest`; build + tests + lint green
 - Note: implemented under `ui/guardian/` + `data/guardian/` (matching the iOS `Features/Guardian` naming) rather than `ui/family/camp/`
 
-### D7. Admin Hub (`ui/admin/`)
+### D7. Admin Hub (`ui/admin/`) ✅
 
-- [ ] Admin tools: user management (read/update `users` docs; admin can set any role)
-- [ ] Onboarding checklist UI; moderation queue (reuse C9)
-- [ ] Role assignment: admin → any; own-church `youth_director`/`pastor` → only `guest`/`user`/`adult`
-- [ ] `id` field written on `users` doc for admin list decoder compatibility
+- [x] Admin tools: user management (read/update `users` docs; admin can set any role) — `RoleManagementScreen` + `RoleAssignmentService` (interface + Firestore + fake) + `RoleManagementViewModel`; `ManagedUser` decoded manually from the raw map (no POJO), `id`→`uid`→docId fallback
+- [x] Onboarding checklist UI (`AdminOnboardingScreen`, SharedPreferences-backed `AdminOnboardingViewModel`, 5 steps mirroring iOS — camping/announcement navigate, roles/rules/notifications toggle, progress ring + bar + reset); moderation queue reused (C9)
+- [x] Role assignment: admin → any (`assignableRoles` = all wire roles); own-church `youth_director`/`pastor` → only `guest`/`user`/`adult` (`selfAssignableRoles`); list church-filtered for non-admin assigners to match the RBAC read rule; church-scoped write stays `{role, updatedAt}` only
+- [x] `id` field written on `users` doc for admin list decoder compatibility — stamped on the **admin** role-update only (`writeIdField`); the self-profile allowlist and `validChurchRoleAssignment` (affectedOnly role+updatedAt) forbid `id` on every other write path, so this is the only RBAC-compliant place
+- [x] Hub expanded (`AdminToolsScreen`): Operations (Setup Guide / Registration Review / Role Assignment) + Moderation + Infrastructure; restricted unless moderator OR admin-tools OR any-role-assigner; typed routes `RoleManagement`/`AdminOnboarding`; EN/FR/PT strings; build + unit tests (7 `RoleManagementViewModelTest`) + lint green
 
 ---
 
@@ -444,5 +445,5 @@ D3 Lodging ✅
 D4 Post-camp feedback ✅
 D5 Venue map ✅
 D6 Family at camp ✅
-D7 Admin hub
+D7 Admin hub ✅
 ```

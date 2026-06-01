@@ -1,57 +1,82 @@
-# Project Status - D6 "Family at Camp"
+# Project Status - D7 "Admin Hub"
 
 Updated: 2026-05-31
 
-- Branch: `d6-family-at-camp` (based on `d5-venue-map`, so it also carries
-  D2–D5 + the family-RBAC parity fix)
-- Current completed phase: D6 "Family at Camp" (guardian read-only aggregate)
-- Next phase: D7 Admin Hub
+- Branch: `d7-admin-hub` (based on `d6-family-at-camp`, so it also carries
+  D2–D6 + the family-RBAC parity fix)
+- Current completed phase: D7 Admin Hub (user management / role assignment +
+  admin onboarding checklist; moderation queue reused from C9)
+- Next phase: C8 Album Media (the last remaining unchecked Phase-C task) or any
+  cross-cutting cleanup — Phase D is now fully ✅
 - Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew :app:assembleDebug` SUCCESSFUL
-  - `./gradlew :app:testDebugUnitTest` SUCCESSFUL — new: 6 `GuardianUpdatesViewModelTest`
-    (empty / registered child / check-in reflection / score visible+hidden by
-    reveal policy / load error); prior suites untouched + green
-  - `./gradlew :app:lintDebug` SUCCESSFUL (no MissingTranslation/MissingQuantity)
-  - Not re-verified on the emulator this session (it was closed) — build-bar only.
+  - `./gradlew :app:testDebugUnitTest` SUCCESSFUL — new: 7 `RoleManagementViewModelTest`
+    (group/sort by church / church-filter forwarding / search filter /
+    update mutates state + message / writeIdField forwarding / no-op when
+    unchanged / load error). Prior suites untouched + green
+  - `./gradlew :app:lintDebug` SUCCESSFUL (no MissingTranslation/MissingQuantity;
+    EN/FR/PT all complete)
+  - Not re-verified on the emulator this session — build-bar only.
 
-## D6 "Family at Camp"
+## D7 "Admin Hub"
 
-iOS is the source of truth — ported `Features/Guardian` (model, service,
-observer, full view, embedded card, child/program components).
+iOS is the source of truth — ported `Features/Admin` (AdminToolsView,
+RoleManagementView + ManagedUser/RoleAssignmentService/observer,
+AdminOnboardingView + AdminOnboardingStep). Content moderation (C9) and the
+report model were already shipped; D7 reuses them.
 
-- **Model** (`data/guardian/GuardianUpdate.kt`): `GuardianUpdatesData`
-  (childRegistrations, checkIns, teams, programs) with `checkIn(id)`,
-  `team(userId)`, `currentPrograms(now)`, `upcomingProgram(now)`;
-  `GuardianChildUpdate` (attendee + checkIn + team + teamMember + scoresVisible →
-  `isCheckedIn`, `personalScore`); `snapshots(...)` derivation (dedupe across
-  roster / fetched regs / fallback, sort by name, score gated by
-  `winnerRevealPolicy.areScoresHidden`). `ChildParticipant.toCampAttendee()`.
-- **Service** (`data/guardian/GuardianUpdatesService.kt`): owns no query logic of
-  its own — composes the existing services. Per-child `registrations/{id}` +
-  `checkIns/{id}` single-doc gets (the blanket queries are RBAC-denied for a
-  guardian), `TeamService` (live), `ScheduleService` (public). `observeUpdates`
-  loads the static inputs once, then re-emits on every team-score change.
-  `FakeGuardianUpdatesService` + Hilt binding. No new Firestore collection.
-- **ViewModel** (`ui/guardian/GuardianUpdatesViewModel.kt`): resolves candidate
-  child ids (camp roster ∪ the guardian's family list), streams composed data,
-  derives snapshots; sealed `GuardianUpdatesUiState`
-  (Loading/Error/Empty/Loaded), single owned listener. Read-only.
-- **Screen** (`GuardianUpdatesScreen.kt`): per-child `GuardianChildDetailCard`
-  (avatar + age/church, check-in row with QR/Manual method, team row with score /
-  "Scores hidden" / "Not assigned to a team yet") + "Today at camp" program card
-  (happening-now / up-next from the live schedule). Loading/Empty/Error states.
-- **Card** (`GuardianUpdatesCard.kt`): self-silencing pine-gradient summary
-  embedded in the camp detail — rendered only when the viewer registered a child
-  here (detail VM exposes `guardianChildAttendeeIds`); the card's own VM loads the
-  per-child summary rows; taps open the read-only screen.
-- **Navigation**: typed route `AppRoute.CampingGuardianUpdates`
-  (`campings/{id}/family-at-camp`) + destination; `authenticatedUser` +
-  `onOpenFamilyAtCamp` threaded through `CampingDetailScreen`.
-- **i18n**: guardian strings added to EN, FR, PT-BR.
+- **Model** (`data/admin/ManagedUser.kt`): compact directory row (id,
+  displayName, email, church, role, photoUrl, updatedAt) decoded **manually**
+  from the raw Firestore map (no POJO auto-mapping). `id` falls back
+  `id`→`uid`→documentId so docs written before the `id` field still decode.
+- **Service** (`data/admin/RoleAssignmentService.kt`): interface + Firestore +
+  fake + Hilt binding. `loadUsers(churchFilter)` reads `users` (admins
+  unfiltered; non-admin assigners pass their church → `whereEqualTo("church", …)`
+  to satisfy the RBAC read rule). `updateRole(uid, role, writeIdField)` writes
+  `{role, updatedAt}` via merge-set; **admins** additionally stamp `id == uid`
+  (`writeIdField`) for iOS admin-list decoder compatibility — the only
+  RBAC-legal place to write `id` (self-profile allowlist + `validChurchRole
+  Assignment`'s affectedOnly(role,updatedAt) forbid it everywhere else).
+- **Role VM** (`ui/admin/role/RoleManagementViewModel.kt`): sealed
+  `RoleManagementUiState` (Loading/Error/Loaded), search + group-by-church
+  (alphabetical), local mutation on success, operationMessage/Error. Owns no
+  permission logic — the screen passes churchFilter/assignableRoles/writeIdField.
+- **Role screen** (`RoleManagementScreen.kt`): Restricted state, scoped-church
+  chip, search field, expandable per-church sections, avatar + name/email rows
+  with a role `DropdownMenu` (current role checked) gated by
+  `canAssignRole(forTargetChurch)`; static role label when not editable.
+- **Onboarding VM** (`ui/admin/onboarding/AdminOnboardingViewModel.kt`):
+  SharedPreferences-backed completion set (keys mirror the iOS `@AppStorage`
+  flags); markComplete / toggle / reset.
+- **Onboarding screen** (`AdminOnboardingScreen.kt`): progress ring (Canvas
+  arc) + gradient bar, 5 step cards. Camping/announcement steps mark-complete
+  then navigate (CampingCreate / AnnouncementComposer); roles/rules/
+  notifications are manual toggles (mirrors iOS — those are console/infra
+  tasks). Reset button.
+- **Hub** (`ui/admin/AdminToolsScreen.kt`): expanded from the C9 stub into
+  Operations (Setup Guide if admin-tools · Registration Review · Role
+  Assignment if any-role-assigner) + Moderation (Content Reports + pending
+  badge) + Infrastructure (Security Rules / Firestore Backup / Notification
+  Dispatch info rows + footer). Restricted unless moderator OR admin-tools OR
+  any-role-assigner.
+- **Navigation**: typed routes `AppRoute.RoleManagement`
+  (`profile/admin/roles`) + `AppRoute.AdminOnboarding`
+  (`profile/admin/onboarding`); hub callbacks thread to RoleManagement /
+  AdminOnboarding / RegistrationReview.
+- **i18n**: admin-hub, role-management, and onboarding strings added to EN, FR,
+  PT-BR.
 
 ## Notes / deviations
 
-- Implemented under `ui/guardian/` + `data/guardian/` (matching the iOS
-  `Features/Guardian` naming) instead of the TODO's `ui/family/camp/` path.
-- Per the F2/F3 roadmap (iOS), the program section is honestly the live camp
-  schedule — there is no per-program per-child attendance model.
+- **`id` field**: neither shipped iOS nor the existing Android profile-save
+  writes `id`; the field is supplied in production by the web app / seed. The
+  iOS `ManagedUser` decoder decodes a non-optional `id` (no `@DocumentID`), so
+  Android stamps `id` on the admin role-update — the maximum the RBAC allows —
+  to avoid regressing the shared admin list. Android's own list never needs it
+  (it falls back to the document id).
+- **Role assignment in-app**: unlike iOS (which defers leadership grants to the
+  Firebase console), the Android hub assigns roles in-app — admins can grant any
+  role, church-scoped youth_director/pastor only guest/user/adult, exactly per
+  the deployed `validChurchRoleAssignment` rule. The onboarding "Assign
+  leadership roles" step is still a manual toggle to mirror the iOS checklist.
+- Implemented under `ui/admin/role/` + `ui/admin/onboarding/` + `data/admin/`.
