@@ -569,6 +569,8 @@
     <string name="lodging_stat_units">Units</string>
     <string name="lodging_stat_beds">Beds filled</string>
     <string name="lodging_stat_unassigned">Unassigned</string>
+    <string name="lodging_auto_allocate">Auto-allocate beds</string>
+    <string name="lodging_auto_allocate_done">Everyone has a bed.</string>
     <string name="lodging_filter_all">All</string>
     <string name="lodging_occupancy">%1$d/%2$d beds</string>
     <string name="lodging_unnamed_unit">Untitled unit</string>
@@ -648,6 +650,10 @@
     <plurals name="feedback_results_rating_count">
         <item quantity="one">%1$d rating</item>
         <item quantity="other">%1$d ratings</item>
+    </plurals>
+    <plurals name="lodging_auto_allocate_partial">
+        <item quantity="one">Allocated — %1$d still needs a bed.</item>
+        <item quantity="other">Allocated — %1$d still need a bed.</item>
     </plurals>
 
     <!-- D5 venue map: viewer, editor, pins -->

@@ -559,6 +559,8 @@
     <string name="lodging_stat_units">Unidades</string>
     <string name="lodging_stat_beds">Camas ocupadas</string>
     <string name="lodging_stat_unassigned">Sem lugar</string>
+    <string name="lodging_auto_allocate">Alocar automaticamente</string>
+    <string name="lodging_auto_allocate_done">Todos têm uma cama.</string>
     <string name="lodging_filter_all">Todas</string>
     <string name="lodging_occupancy">%1$d/%2$d camas</string>
     <string name="lodging_unnamed_unit">Unidade sem nome</string>
@@ -639,6 +641,11 @@
         <item quantity="one">%1$d avaliação</item>
         <item quantity="many">%1$d de avaliações</item>
         <item quantity="other">%1$d avaliações</item>
+    </plurals>
+    <plurals name="lodging_auto_allocate_partial">
+        <item quantity="one">Alocado — %1$d ainda sem cama.</item>
+        <item quantity="many">Alocado — %1$d ainda sem cama.</item>
+        <item quantity="other">Alocado — %1$d ainda sem cama.</item>
     </plurals>
 
     <!-- D5 venue map: viewer, editor, pins -->

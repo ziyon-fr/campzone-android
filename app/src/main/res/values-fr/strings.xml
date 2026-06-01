@@ -559,6 +559,8 @@
     <string name="lodging_stat_units">Unités</string>
     <string name="lodging_stat_beds">Lits occupés</string>
     <string name="lodging_stat_unassigned">Non placés</string>
+    <string name="lodging_auto_allocate">Répartir automatiquement</string>
+    <string name="lodging_auto_allocate_done">Tout le monde a un lit.</string>
     <string name="lodging_filter_all">Toutes</string>
     <string name="lodging_occupancy">%1$d/%2$d lits</string>
     <string name="lodging_unnamed_unit">Unité sans nom</string>
@@ -639,6 +641,11 @@
         <item quantity="one">%1$d note</item>
         <item quantity="many">%1$d de notes</item>
         <item quantity="other">%1$d notes</item>
+    </plurals>
+    <plurals name="lodging_auto_allocate_partial">
+        <item quantity="one">Réparti — %1$d sans lit.</item>
+        <item quantity="many">Réparti — %1$d sans lit.</item>
+        <item quantity="other">Réparti — %1$d sans lit.</item>
     </plurals>
 
     <!-- D5 venue map: viewer, editor, pins -->

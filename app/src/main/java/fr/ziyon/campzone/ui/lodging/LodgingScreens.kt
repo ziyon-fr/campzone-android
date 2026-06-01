@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.Cabin
 import androidx.compose.material.icons.filled.Close
@@ -35,6 +36,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -81,19 +85,40 @@ fun LodgingRoute(
     viewModel: LodgingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val autoAllocateResult by viewModel.autoAllocateResult.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     LaunchedEffect(campingId, authenticatedUser.uid) {
         viewModel.load(campingId, authenticatedUser)
     }
 
+    val doneMessage = stringResource(R.string.lodging_auto_allocate_done)
+    LaunchedEffect(autoAllocateResult) {
+        val result = autoAllocateResult ?: return@LaunchedEffect
+        val message = if (result.unplacedCount == 0) {
+            doneMessage
+        } else {
+            context.resources.getQuantityString(
+                R.plurals.lodging_auto_allocate_partial,
+                result.unplacedCount,
+                result.unplacedCount,
+            )
+        }
+        snackbarHostState.showSnackbar(message)
+        viewModel.consumeAutoAllocateResult()
+    }
+
     LodgingScreen(
         state = state,
+        snackbarHostState = snackbarHostState,
         onBack = onBack,
         onRetry = { viewModel.retry(campingId, authenticatedUser) },
         onSave = viewModel::saveUnit,
         onDelete = viewModel::deleteUnit,
         onSetOccupants = viewModel::setOccupants,
         onFilter = viewModel::setFilter,
+        onAutoAllocate = viewModel::autoAllocate,
         modifier = modifier,
     )
 }
@@ -102,12 +127,14 @@ fun LodgingRoute(
 @Composable
 private fun LodgingScreen(
     state: LodgingUiState,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onSave: (LodgingForm) -> Unit,
     onDelete: (LodgingUnit) -> Unit,
     onSetOccupants: (String, List<String>) -> Unit,
     onFilter: (LodgingGenderPolicy?) -> Unit,
+    onAutoAllocate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var sheet by remember { mutableStateOf<LodgingSheet>(LodgingSheet.None) }
@@ -115,6 +142,7 @@ private fun LodgingScreen(
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.czColors.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.lodging_title)) },
@@ -163,6 +191,7 @@ private fun LodgingScreen(
                 is LodgingUiState.Ready -> LodgingReadyContent(
                     state = state,
                     onFilter = onFilter,
+                    onAutoAllocate = onAutoAllocate,
                     onAddUnit = { sheet = LodgingSheet.Editor(LodgingForm()) },
                     onEditUnit = { sheet = LodgingSheet.Editor(LodgingForm.of(it)) },
                     onDeleteUnit = onDelete,
@@ -229,6 +258,7 @@ private fun LodgingScreen(
 private fun LodgingReadyContent(
     state: LodgingUiState.Ready,
     onFilter: (LodgingGenderPolicy?) -> Unit,
+    onAutoAllocate: () -> Unit,
     onAddUnit: () -> Unit,
     onEditUnit: (LodgingUnit) -> Unit,
     onDeleteUnit: (LodgingUnit) -> Unit,
@@ -271,6 +301,24 @@ private fun LodgingReadyContent(
         verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
     ) {
         item("summary") { LodgingSummaryCard(state.units, unassigned.size) }
+        if (unassigned.isNotEmpty()) {
+            item("auto-allocate") {
+                CzButton(
+                    text = stringResource(R.string.lodging_auto_allocate),
+                    onClick = onAutoAllocate,
+                    enabled = !state.isSaving,
+                    variant = CzButtonVariant.Outline,
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    },
+                )
+            }
+        }
         item("filter") { GenderPolicyFilterRow(selected = state.filter, onSelect = onFilter) }
 
         items(state.filteredUnits, key = { it.id }) { unit ->
@@ -568,12 +616,14 @@ private fun LodgingScreenPreview() {
                 ),
                 attendees = emptyList(),
             ),
+            snackbarHostState = remember { SnackbarHostState() },
             onBack = {},
             onRetry = {},
             onSave = {},
             onDelete = {},
             onSetOccupants = { _, _ -> },
             onFilter = {},
+            onAutoAllocate = {},
         )
     }
 }

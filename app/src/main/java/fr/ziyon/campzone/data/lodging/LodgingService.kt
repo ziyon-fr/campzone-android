@@ -34,6 +34,12 @@ interface LodgingService {
     suspend fun saveUnit(unit: LodgingUnit): LodgingUnit
     suspend fun deleteUnit(id: String, campingId: String)
     suspend fun setOccupants(unitId: String, campingId: String, occupantIds: List<String>): List<LodgingUnit>
+
+    /** Batch-writes occupants for every unit in one pass (one-tap auto-allocate). */
+    suspend fun applyAllocation(
+        occupantsByUnitId: Map<String, List<String>>,
+        campingId: String,
+    ): List<LodgingUnit>
 }
 
 class FirestoreLodgingService @Inject constructor(
@@ -96,6 +102,26 @@ class FirestoreLodgingService @Inject constructor(
         return loadUnits(campingId)
     }
 
+    override suspend fun applyAllocation(
+        occupantsByUnitId: Map<String, List<String>>,
+        campingId: String,
+    ): List<LodgingUnit> {
+        if (occupantsByUnitId.isEmpty()) return loadUnits(campingId)
+        val batch = db.batch()
+        occupantsByUnitId.forEach { (unitId, occupantIds) ->
+            batch.set(
+                lodgingCollection(campingId).document(unitId),
+                mapOf(
+                    "occupantIDs" to occupantIds,
+                    "updatedAt" to FieldValue.serverTimestamp(),
+                ),
+                SetOptions.merge(),
+            )
+        }
+        batch.commit().await()
+        return loadUnits(campingId)
+    }
+
     private fun lodgingCollection(campingId: String) =
         db.collection("campings").document(campingId).collection("lodging")
 
@@ -141,6 +167,24 @@ class FakeLodgingService(
             list.map { unit ->
                 if (unit.id == unitId && unit.campingId == campingId) {
                     unit.copy(occupantIds = occupantIds, updatedAt = Date())
+                } else {
+                    unit
+                }
+            }
+        }
+        return sorted(units.value, campingId)
+    }
+
+    override suspend fun applyAllocation(
+        occupantsByUnitId: Map<String, List<String>>,
+        campingId: String,
+    ): List<LodgingUnit> {
+        failIfNeeded()
+        units.update { list ->
+            list.map { unit ->
+                val occupants = occupantsByUnitId[unit.id]
+                if (unit.campingId == campingId && occupants != null) {
+                    unit.copy(occupantIds = occupants, updatedAt = Date())
                 } else {
                     unit
                 }
