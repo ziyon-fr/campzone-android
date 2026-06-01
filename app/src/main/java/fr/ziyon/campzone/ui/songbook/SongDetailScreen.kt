@@ -381,7 +381,7 @@ private fun SheetPanel(song: Song, onOpen: () -> Unit) {
             }
         } else {
             CzButton(
-                text = "Open Sheet",
+                text = stringResource(R.string.songbook_open_sheet),
                 onClick = onOpen,
                 variant = CzButtonVariant.Primary,
             )

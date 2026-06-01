@@ -567,7 +567,7 @@ fun CampingEditorScreen(
                     } else {
                         CzTextField(
                             value = form.organizerName,
-                            label = "label",
+                            label = stringResource(R.string.camping_editor_organizer_custom_hint),
                             modifier = Modifier.fillMaxWidth(),
                             onValueChange = { onFormUpdate(form.copy(organizerName = it)) },
                             placeholder = organizerNamePlaceholder(form.organizerType)
@@ -1177,9 +1177,12 @@ private fun AgePriceSummaryRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(tier.label.ifBlank { "Untitled" }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.czColors.textPrimary)
+            Text(tier.label.ifBlank { stringResource(R.string.common_untitled) }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.czColors.textPrimary)
             Text(
-                text = "${tier.minAge}${tier.maxAge?.let { "–$it" } ?: "+"} yrs",
+                text = stringResource(
+                    R.string.camping_age_range_years,
+                    "${tier.minAge}${tier.maxAge?.let { "–$it" } ?: "+"}",
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.czColors.textSecondary,
             )

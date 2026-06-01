@@ -233,25 +233,25 @@ private fun DetailsSection(program: Program) {
         ) {
             Column(modifier = Modifier.padding(vertical = CzSpacing.sm)) {
                 ProgramInfoRow(
-                    label = "Start",
+                    label = stringResource(R.string.program_start),
                     value = fullDateTimeText(program.startDate),
                     icon = Icons.Rounded.Schedule,
                 )
                 HorizontalDivider(color = colors.divider, modifier = Modifier.padding(horizontal = CzSpacing.base))
                 ProgramInfoRow(
-                    label = "End",
+                    label = stringResource(R.string.program_end),
                     value = fullDateTimeText(program.endDate),
                     icon = Icons.Rounded.Schedule,
                 )
                 HorizontalDivider(color = colors.divider, modifier = Modifier.padding(horizontal = CzSpacing.base))
                 ProgramInfoRow(
-                    label = "Duration",
+                    label = stringResource(R.string.program_duration),
                     value = durationText(program.startDate, program.endDate),
                     icon = Icons.Rounded.Timer,
                 )
                 HorizontalDivider(color = colors.divider, modifier = Modifier.padding(horizontal = CzSpacing.base))
                 ProgramInfoRow(
-                    label = "Location",
+                    label = stringResource(R.string.program_location_label),
                     value = program.location,
                     icon = Icons.Rounded.LocationOn,
                 )
@@ -343,7 +343,7 @@ private fun FoodSection(
                         modifier = Modifier.size(18.dp),
                     )
                     Text(
-                        text = "Menu not published yet.",
+                        text = stringResource(R.string.program_menu_not_published),
                         style = CzTypeScale.caption,
                         color = colors.textSecondary,
                         modifier = Modifier.weight(1f),

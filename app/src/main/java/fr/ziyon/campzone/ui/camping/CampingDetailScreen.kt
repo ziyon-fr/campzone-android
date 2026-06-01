@@ -1437,7 +1437,7 @@ private fun MyTeamShortcut(
             )
         } else {
             Text(
-                text = "${team.totalScore} pts",
+                text = stringResource(R.string.teams_points_format, team.totalScore),
                 color = teamColor,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,

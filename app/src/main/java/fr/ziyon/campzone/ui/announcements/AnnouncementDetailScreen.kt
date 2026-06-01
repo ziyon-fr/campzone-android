@@ -401,7 +401,7 @@ private fun AnnouncementDetailContent(
                         modifier = Modifier.size(12.dp),
                     )
                     Text(
-                        text = "Edited ${announcement.updatedDateText}",
+                        text = stringResource(R.string.announcements_edited, announcement.updatedDateText),
                         style = CzTypeScale.caption2,
                         color = colors.amber,
                     )
@@ -534,7 +534,7 @@ private fun AttachmentsSection(
                 modifier = Modifier.size(14.dp),
             )
             Text(
-                text = "Attachments",
+                text = stringResource(R.string.announcements_attachments_header),
                 style = CzTypeScale.caption,
                 color = colors.textSecondary,
             )

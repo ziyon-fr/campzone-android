@@ -1824,4 +1824,49 @@
     <string name="team_role_captain">Captain</string>
     <string name="team_role_vice_captain">Vice-captain</string>
     <string name="team_role_member">Member</string>
+
+    <!-- Localization sweep: hardcoded-string extraction -->
+    <string name="announcements_screen_title">Announcements</string>
+    <string name="announcements_loading">Loading announcements…</string>
+    <string name="announcements_empty_title">No announcements</string>
+    <string name="announcements_empty_message">Camp-wide updates will appear here as leaders publish them.</string>
+    <string name="announcements_search_placeholder">Search announcements</string>
+    <string name="announcements_compose_action">Compose Announcement</string>
+    <string name="announcements_latest">Latest</string>
+    <string name="announcements_unread_badge">%1$d new</string>
+    <plurals name="announcements_attachment_count">
+        <item quantity="one">%1$d attachment</item>
+        <item quantity="other">%1$d attachments</item>
+    </plurals>
+    <string name="announcements_edited">Edited %1$s</string>
+    <string name="announcements_attachments_header">Attachments</string>
+    <string name="common_no_results">No results</string>
+    <string name="common_no_results_message">Try a different search term.</string>
+    <string name="common_untitled">Untitled</string>
+    <string name="auth_tagline">Welcome! Adventure awaits.</string>
+    <string name="auth_or_use_email">or use email</string>
+    <string name="schedule_add_program">+ Add Program</string>
+    <string name="schedule_overview_summary">%1$d day · %2$d program</string>
+    <string name="schedule_no_programs_date">No programs on this date</string>
+    <string name="schedule_no_programs_hint">Use Add Program to create the first item for %1$s.</string>
+    <plurals name="schedule_program_count">
+        <item quantity="one">%1$d program</item>
+        <item quantity="other">%1$d programs</item>
+    </plurals>
+    <string name="schedule_reminder_timing">Reminder Timing</string>
+    <string name="schedule_selected_date">Selected date: %1$s</string>
+    <string name="program_start">Start</string>
+    <string name="program_end">End</string>
+    <string name="program_duration">Duration</string>
+    <string name="program_menu_not_published">Menu not published yet.</string>
+    <string name="program_times_scheduled_on">Start and end times are scheduled on %1$s.</string>
+    <string name="food_camp_menu">Camp Menu</string>
+    <string name="food_see_all_menus">See all menus</string>
+    <string name="camping_age_range_years">%1$s yrs</string>
+    <string name="songbook_open_sheet">Open Sheet</string>
+    <plurals name="songbook_song_count">
+        <item quantity="one">%1$d song</item>
+        <item quantity="other">%1$d songs</item>
+    </plurals>
+    <string name="teams_points_format">%1$s pts</string>
 </resources>

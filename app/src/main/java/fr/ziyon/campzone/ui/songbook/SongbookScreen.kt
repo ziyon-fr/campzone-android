@@ -63,6 +63,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -247,7 +248,7 @@ fun SongbookScreen(
                     action = if (canManage) {
                         {
                             CzButton(
-                                text = "Add Song",
+                                text = stringResource(R.string.songbook_add_song),
                                 onClick = onAddSong,
                                 variant = CzButtonVariant.Primary,
                             )
@@ -351,7 +352,7 @@ private fun SongbookHeader(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "$songCount ${if (songCount == 1) "song" else "songs"}",
+                    text = pluralStringResource(R.plurals.songbook_song_count, songCount, songCount),
                     style = CzTypeScale.caption,
                     color = colors.textSecondary,
                 )

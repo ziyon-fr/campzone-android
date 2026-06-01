@@ -276,7 +276,7 @@ private fun AuthBrandSection(modifier: Modifier = Modifier) {
             textAlign = TextAlign.Center,
         )
         Text(
-            text = "Bem-vindo(a)! A aventura espera.",
+            text = stringResource(R.string.auth_tagline),
             color = AuthAmber.copy(alpha = 0.72f),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
@@ -439,7 +439,7 @@ private fun AuthEmailDivider(modifier: Modifier = Modifier) {
                 .background(AuthAmber.copy(alpha = 0.7f)),
         )
         Text(
-            text = "ou use e-mail",
+            text = stringResource(R.string.auth_or_use_email),
             color = AuthAmber,
             style = MaterialTheme.typography.labelMedium,
         )

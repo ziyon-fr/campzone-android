@@ -1811,4 +1811,52 @@
     <string name="team_role_captain">Capitaine</string>
     <string name="team_role_vice_captain">Vice-capitaine</string>
     <string name="team_role_member">Membre</string>
+
+    <!-- Localization sweep: hardcoded-string extraction -->
+    <string name="announcements_screen_title">Annonces</string>
+    <string name="announcements_loading">Chargement des annonces…</string>
+    <string name="announcements_empty_title">Aucune annonce</string>
+    <string name="announcements_empty_message">Les mises à jour du camp apparaîtront ici à mesure que les responsables les publieront.</string>
+    <string name="announcements_search_placeholder">Rechercher des annonces</string>
+    <string name="announcements_compose_action">Rédiger une annonce</string>
+    <string name="announcements_latest">Récentes</string>
+    <string name="announcements_unread_badge">%1$d nouvelles</string>
+    <plurals name="announcements_attachment_count">
+        <item quantity="one">%1$d pièce jointe</item>
+        <item quantity="many">%1$d pièces jointes</item>
+        <item quantity="other">%1$d pièces jointes</item>
+    </plurals>
+    <string name="announcements_edited">Modifié %1$s</string>
+    <string name="announcements_attachments_header">Pièces jointes</string>
+    <string name="common_no_results">Aucun résultat</string>
+    <string name="common_no_results_message">Essayez un autre terme de recherche.</string>
+    <string name="common_untitled">Sans titre</string>
+    <string name="auth_tagline">Bienvenue ! L’aventure vous attend.</string>
+    <string name="auth_or_use_email">ou utilisez l’e-mail</string>
+    <string name="schedule_add_program">+ Ajouter un programme</string>
+    <string name="schedule_overview_summary">%1$d jour · %2$d programme</string>
+    <string name="schedule_no_programs_date">Aucun programme à cette date</string>
+    <string name="schedule_no_programs_hint">Utilisez Ajouter un programme pour créer le premier élément du %1$s.</string>
+    <plurals name="schedule_program_count">
+        <item quantity="one">%1$d programme</item>
+        <item quantity="many">%1$d programmes</item>
+        <item quantity="other">%1$d programmes</item>
+    </plurals>
+    <string name="schedule_reminder_timing">Horaire du rappel</string>
+    <string name="schedule_selected_date">Date sélectionnée : %1$s</string>
+    <string name="program_start">Début</string>
+    <string name="program_end">Fin</string>
+    <string name="program_duration">Durée</string>
+    <string name="program_menu_not_published">Menu pas encore publié.</string>
+    <string name="program_times_scheduled_on">Les heures de début et de fin sont programmées le %1$s.</string>
+    <string name="food_camp_menu">Menu du camp</string>
+    <string name="food_see_all_menus">Voir tous les menus</string>
+    <string name="camping_age_range_years">%1$s ans</string>
+    <string name="songbook_open_sheet">Ouvrir la partition</string>
+    <plurals name="songbook_song_count">
+        <item quantity="one">%1$d chant</item>
+        <item quantity="many">%1$d chants</item>
+        <item quantity="other">%1$d chants</item>
+    </plurals>
+    <string name="teams_points_format">%1$s pts</string>
 </resources>

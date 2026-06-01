@@ -601,7 +601,7 @@ private fun TimeSection(
                 if (selectedDay != null) {
                     Spacer(modifier = Modifier.height(CzSpacing.sm))
                     Text(
-                        text = "Start and end times are scheduled on ${selectedDay.dateTitle()}.",
+                        text = stringResource(R.string.program_times_scheduled_on, selectedDay.dateTitle()),
                         style = CzTypeScale.caption,
                         color = colors.textSecondary,
                     )

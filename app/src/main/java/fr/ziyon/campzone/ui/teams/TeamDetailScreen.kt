@@ -470,7 +470,7 @@ private fun MemberRow(
         }
 
         Text(
-            text = "${member.personalScore} pts",
+            text = stringResource(R.string.teams_points_format, member.personalScore),
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
             color = colors.ember,
         )

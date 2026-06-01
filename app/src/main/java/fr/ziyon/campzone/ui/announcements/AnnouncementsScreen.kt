@@ -43,6 +43,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -139,7 +140,7 @@ fun AnnouncementsScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "Announcements",
+                        text = stringResource(R.string.announcements_screen_title),
                         style = CzTypeScale.headline,
                         color = colors.textPrimary,
                     )
@@ -203,7 +204,7 @@ fun AnnouncementsScreen(
                                     modifier = Modifier.size(32.dp),
                                 )
                                 Text(
-                                    "Loading announcements…",
+                                    stringResource(R.string.announcements_loading),
                                     style = CzTypeScale.caption,
                                     color = colors.textSecondary,
                                 )
@@ -229,14 +230,15 @@ fun AnnouncementsScreen(
                                     modifier = Modifier.size(32.dp),
                                 )
                                 Text(
-                                    if (uiState.searchActive) "No results" else "No announcements",
+                                    if (uiState.searchActive) stringResource(R.string.common_no_results)
+                                    else stringResource(R.string.announcements_empty_title),
                                     style = CzTypeScale.body,
                                     color = colors.textPrimary,
                                     fontWeight = FontWeight.SemiBold,
                                 )
                                 Text(
-                                    if (uiState.searchActive) "Try a different search term."
-                                    else "Camp-wide updates will appear here as leaders publish them.",
+                                    if (uiState.searchActive) stringResource(R.string.common_no_results_message)
+                                    else stringResource(R.string.announcements_empty_message),
                                     style = CzTypeScale.caption,
                                     color = colors.textSecondary,
                                 )
@@ -325,7 +327,7 @@ private fun AnnouncementSearchField(
                 Box {
                     if (query.isEmpty()) {
                         Text(
-                            text = "Search announcements",
+                            text = stringResource(R.string.announcements_search_placeholder),
                             style = CzTypeScale.body,
                             color = colors.textSecondary,
                         )
@@ -373,7 +375,7 @@ private fun ComposeActionCard(onClick: () -> Unit) {
             modifier = Modifier.size(20.dp),
         )
         Text(
-            text = "Compose Announcement",
+            text = stringResource(R.string.announcements_compose_action),
             style = CzTypeScale.subhead,
             color = colors.textPrimary,
             modifier = Modifier.weight(1f),
@@ -410,7 +412,7 @@ private fun AnnouncementsSection(
                 modifier = Modifier.size(14.dp),
             )
             Text(
-                text = "Latest",
+                text = stringResource(R.string.announcements_latest),
                 style = CzTypeScale.caption,
                 color = colors.textSecondary,
             )
@@ -423,7 +425,7 @@ private fun AnnouncementsSection(
                         .padding(horizontal = CzSpacing.xs, vertical = 2.dp),
                 ) {
                     Text(
-                        text = "$unreadCount new",
+                        text = stringResource(R.string.announcements_unread_badge, unreadCount),
                         style = CzTypeScale.caption2.copy(fontWeight = FontWeight.SemiBold),
                         color = Color.White,
                     )
@@ -564,7 +566,11 @@ private fun AnnouncementTimelineRow(
                         modifier = Modifier.size(12.dp),
                     )
                     Text(
-                        text = "${announcement.attachments.size} attachment${if (announcement.attachments.size > 1) "s" else ""}",
+                        text = pluralStringResource(
+                            R.plurals.announcements_attachment_count,
+                            announcement.attachments.size,
+                            announcement.attachments.size,
+                        ),
                         style = CzTypeScale.caption2.copy(fontWeight = FontWeight.SemiBold),
                         color = colors.ember,
                     )

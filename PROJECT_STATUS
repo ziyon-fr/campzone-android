@@ -1,3 +1,35 @@
+# Project Status - Hardcoded-string localization sweep
+
+Updated: 2026-06-01
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Audit result: the `values-pt` / `values-pt-rBR` / `values-fr` resource files
+  were already complete (1750 user-facing keys each, genuinely translated; the
+  only base-only key is the non-UI `firebase_google_web_client_id`). The real
+  gap was Compose screens that hardcoded literals and bypassed `stringResource`
+  entirely, so they never localized — incl. `AnnouncementsScreen` (flagged by
+  user) and a **reverse** bug in `AuthGate` (hardcoded Portuguese, so EN/FR
+  users saw PT on the login screen).
+- Fix: extracted the hardcoded copy across ~13 files to resources and wired
+  `stringResource` / `pluralStringResource`. Added 37 strings + 3 plurals
+  (`announcements_attachment_count`, `schedule_program_count`,
+  `songbook_song_count`) to all four locale files with accented PT/FR. Reused
+  existing keys where present (`program_location_label`, `songbook_add_song`,
+  `camping_editor_organizer_custom_hint` for a `label="label"` placeholder bug).
+  Points unit unified on `teams_points_format` (`%1$s pts`, used in
+  Teams/TeamDetail/CampingDetail/ActivityRow).
+- Files: announcements (Screen/Detail), AuthGate, schedule (ScheduleEditor/
+  ProgramDetail/ProgramEditor/FoodMenu), CampingEditor, songbook (Songbook/
+  SongDetail), teams (TeamsScreen/TeamDetail), CampingDetail, games/ActivityRow.
+- Out of scope (deliberately left): `EUR` currency-code placeholders (ISO code,
+  identical across locales) and the dead `ExpeditionCard` demo in
+  `FeaturedMountainBackground.kt` (not wired into HomeScreen — flagged for
+  separate cleanup).
+- Verification (JBR): `:app:compileDebugKotlin` + `:app:processDebugResources`
+  green; format specifiers verified consistent across all four locales.
+
+---
+
 # Project Status - Camping registration due date
 
 Updated: 2026-06-01
@@ -19,12 +51,11 @@ Updated: 2026-06-01
     register CTA + both register guards + status pill on the effective status.
   - Contract: added `registrationDeadline` to `docs/02` §3 (propagate to web
     repo; iOS schema remains authoritative).
-- Verification (JBR): `:app:assembleDebug` green; new
-  `CampingRegistrationDeadlineTest` (4) and `CampingPayloadTest` deadline cases
-  (7) pass. Full `:app:testDebugUnitTest`/lint is blocked by an unrelated
-  concurrent-WIP duplicate string (`fees_receipts_section` in `values-pt-rBR`)
-  and the known `proofService`/`transportationService` test-constructor drift —
-  both outside this task's files.
+- Verification (JBR): `:app:assembleDebug`, `:app:testDebugUnitTest`, and
+  `:app:lintDebug` all green. New `CampingRegistrationDeadlineTest` (4) and
+  `CampingPayloadTest` deadline cases (7) pass. (The earlier concurrent-WIP
+  blockers — `fees_receipts_section` dup string in `values-pt-rBR` + the
+  `proofService` test-constructor drift — have since been resolved.)
 
 ---
 

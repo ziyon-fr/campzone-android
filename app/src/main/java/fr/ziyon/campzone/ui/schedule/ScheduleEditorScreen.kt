@@ -50,6 +50,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -259,7 +260,7 @@ private fun EmptyEditorBody(
         )
         Spacer(modifier = Modifier.height(CzSpacing.lg))
         CzButton(
-            text = "+ Add Program",
+            text = stringResource(R.string.schedule_add_program),
             onClick = onAddProgram,
             variant = CzButtonVariant.Primary,
         )
@@ -355,7 +356,7 @@ private fun ScheduleOverviewCard(schedule: CampingSchedule) {
                 val dayCount = schedule.sortedDays.count { it.programs.isNotEmpty() }
                 val programCount = schedule.allPrograms.count()
                 Text(
-                    text = "${dayCount} day · ${programCount} program",
+                    text = stringResource(R.string.schedule_overview_summary, dayCount, programCount),
                     style = CzTypeScale.caption,
                     color = colors.textSecondary,
                 )
@@ -508,12 +509,12 @@ private fun EditorProgramsSection(
                     verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
                 ) {
                     Text(
-                        text = "No programs on this date",
+                        text = stringResource(R.string.schedule_no_programs_date),
                         style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
                         color = colors.textPrimary,
                     )
                     Text(
-                        text = "Use Add Program to create the first item for ${selectedDay.dateTitle()}.",
+                        text = stringResource(R.string.schedule_no_programs_hint, selectedDay.dateTitle()),
                         style = CzTypeScale.caption,
                         color = colors.textSecondary,
                     )
@@ -577,7 +578,11 @@ private fun SelectedDayHeader(day: CampDay) {
                 shape = RoundedCornerShape(CzRadius.full),
             ) {
                 Text(
-                    text = "${day.programs.size} program",
+                    text = pluralStringResource(
+                        R.plurals.schedule_program_count,
+                        day.programs.size,
+                        day.programs.size,
+                    ),
                     style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
                     color = colors.ember,
                     modifier = Modifier.padding(horizontal = CzSpacing.sm, vertical = CzSpacing.xs),
@@ -690,7 +695,7 @@ private fun ReminderSection(
     var showMenu by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        EditorSectionLabel(text = "Reminder Timing", icon = Icons.Rounded.Notifications)
+        EditorSectionLabel(text = stringResource(R.string.schedule_reminder_timing), icon = Icons.Rounded.Notifications)
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -778,13 +783,13 @@ private fun AddProgramBar(
         ) {
             if (selectedDay != null) {
                 Text(
-                    text = "Selected date: ${selectedDay.dateTitle()}",
+                    text = stringResource(R.string.schedule_selected_date, selectedDay.dateTitle()),
                     style = CzTypeScale.caption,
                     color = colors.textSecondary,
                 )
             }
             CzButton(
-                text = "+ Add Program",
+                text = stringResource(R.string.schedule_add_program),
                 onClick = onAddProgram,
                 enabled = selectedDay != null,
                 variant = CzButtonVariant.Primary,
