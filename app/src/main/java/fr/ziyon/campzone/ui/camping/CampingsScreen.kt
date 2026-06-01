@@ -158,7 +158,7 @@ fun CampingsScreen(
 ) {
     val showAdminCard = onCreateCamping != null || onReviewRegistrations != null
     var sheetCamping by remember { mutableStateOf<Camping?>(null) }
-    val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     Column(
         modifier = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,

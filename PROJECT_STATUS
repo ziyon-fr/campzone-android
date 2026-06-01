@@ -13,6 +13,9 @@ Updated: 2026-06-01
   with register CTA and manager edit action. Home featured camping now uses the
   camp logo as the hero image when available and shows stacked recent approved
   participant avatars in the registration summary row.
+- Follow-up: the event details bottom sheet now skips the collapsed partial
+  state so it opens tall enough to show the fixed "Secure My Place" CTA without
+  requiring an initial drag.
 - Verification so far: `:app:compileDebugKotlin` green with Android Studio JBR.
 
 ---
