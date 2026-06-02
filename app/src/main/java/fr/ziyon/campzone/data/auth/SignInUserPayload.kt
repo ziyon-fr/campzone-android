@@ -10,6 +10,8 @@ internal data class SignInIdentity(
 )
 
 internal object SignInUserPayload {
+    private const val InitialRole = "adult"
+
     fun mergePayload(
         identity: SignInIdentity,
         existing: Map<String, Any?>?,
@@ -24,11 +26,11 @@ internal object SignInUserPayload {
         )
 
         if (existing == null) {
-            payload["role"] = "guest"
+            payload["role"] = InitialRole
             payload["createdAt"] = serverTimestamp
             payload["onboardingCompleted"] = false
         } else {
-            payload.putIfMissing(existing, "role", "guest")
+            payload.putIfMissing(existing, "role", InitialRole)
             payload.putIfMissing(existing, "createdAt", serverTimestamp)
             payload.putIfMissing(existing, "onboardingCompleted", false)
         }

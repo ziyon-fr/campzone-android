@@ -7,7 +7,7 @@ import org.junit.Test
 
 class SignInUserPayloadTest {
     @Test
-    fun firstSignInCreatesGuestUserDocumentPayload() {
+    fun firstSignInCreatesAdultUserDocumentPayload() {
         val payload = SignInUserPayload.mergePayload(
             identity = identity(),
             existing = null,
@@ -16,7 +16,7 @@ class SignInUserPayloadTest {
 
         assertEquals("uid-1", payload["id"])
         assertEquals("uid-1", payload["uid"])
-        assertEquals("guest", payload["role"])
+        assertEquals("adult", payload["role"])
         assertEquals(false, payload["onboardingCompleted"])
         assertEquals(Timestamp, payload["createdAt"])
         assertEquals(Timestamp, payload["updatedAt"])
@@ -68,7 +68,7 @@ class SignInUserPayloadTest {
         assertEquals("user@example.com", payload["email"])
         assertEquals("Ada Camp", payload["displayName"])
         assertEquals("https://example.com/photo.jpg", payload["photoURL"])
-        assertEquals("guest", payload["role"])
+        assertEquals("adult", payload["role"])
         assertTrue(payload.containsKey("createdAt"))
         assertEquals(false, payload["onboardingCompleted"])
     }

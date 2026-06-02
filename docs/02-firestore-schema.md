@@ -57,6 +57,9 @@ users/{uid}                                         User profile
   users/{uid}/blockedUsers/{blockedUid}             Chat block list (UGC 1.2)
   users/{uid}/badges/{achievementId}                EarnedBadge (backend-written)
 
+badges/{achievementId}                              Achievement catalog
+                                                     (localized display source)
+
 campings/{campingId}                                Camping (event)
   campings/{id}/registrations/{attendeeId}          CampingAttendee
   campings/{id}/schedule/config                     Schedule config (single doc)
@@ -94,6 +97,30 @@ notification_apps/{appID}/users/{uid}/...            Backend FCM topic store
 
 `campings.attendees` is **NOT** a field on the camping document.
 Attendees live exclusively in the `registrations` subcollection.
+
+### 1.1 `badges/{achievementId}` - Achievement catalog
+
+- **Doc ID**: stable achievement id, shared with earned badge docs.
+- Written by: backend/admin seeding. Read by iOS/web/Android for display.
+- Client behavior: use this top-level catalog as the display source; keep the
+  shipped in-code `AchievementCatalog` as the fallback and unknown-ID filter.
+
+| Wire key | Type | Req/Opt | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | string | opt | doc ID | stable achievement id |
+| `title` | string | opt | fallback catalog title | legacy flat display fallback |
+| `summary` | string | opt | fallback catalog summary | legacy flat display fallback |
+| `detail` | string | opt | fallback catalog detail | legacy flat display fallback |
+| `localizations` | map | opt | - | preferred display source: locale key (`en`, `fr`, `pt-BR`) -> `{ title, summary, detail }` |
+| `translations` | map | opt | - | accepted legacy alias with the same shape as `localizations`; `localizations` wins |
+| `systemImage` / `icon` / `iconName` | string | opt | fallback icon | SF Symbol or icon alias; clients map to platform icons |
+| `tint` / `color` | string | opt | fallback tint | `ember,amber,pine,sky,rose,gold` |
+| `rarity` | string | opt | fallback rarity | `common,uncommon,rare,epic,legendary` |
+| `awardKind` | string | opt | fallback award kind | `manual,automatic` |
+| `canBeAwardedManually` | bool | opt | derived from `awardKind` | admin UI hint |
+| `sortOrder` / `order` | int | opt | in-code catalog order | display ordering |
+| `isActive` | bool | opt | `true` | clients may hide inactive catalog rows |
+| `updatedAt` | timestamp | opt | - | server timestamp from catalog upload |
 
 ---
 
@@ -227,9 +254,10 @@ No `appID` field here (that lives only in the backend API payload).
 | `campingID` | string \| **null** | `nil` | written as explicit **`null`** (`NSNull`) when none - **not** omitted, **not** deleted |
 | `note` | string \| **null** | `nil` | explicit **`null`** when empty; backend auto-award writes `"Auto-awarded"` |
 
-The full static `AchievementCatalog` (50 ids, rarities, award kind) is in
-`08-feature-parity.md` → it is in-code, **not** in Firestore; only ids in
-the catalog are kept on read.
+Top-level `badges/{achievementId}` is the display source for title,
+summary, detail, localization, rarity, tint, and award kind. The shipped
+in-code `AchievementCatalog` remains the fallback mirror and unknown-ID
+filter; earned badge docs only store the user-specific award instance.
 
 ---
 

@@ -1,3 +1,52 @@
+# Project Status - Badge catalog localization parity
+
+Updated: 2026-06-02
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: Android badge catalog decoding now mirrors the Firebase/iOS
+  catalog system, reading display copy from top-level `badges/{achievementId}`
+  documents with `localizations.{en,fr,pt-BR}.{title,summary,detail}`.
+- Parser: prefers `localizations` / `translations` wrapper content, falls back
+  to flat display fields and legacy per-field locale maps, normalizes locale
+  keys, and supports regional fallback such as Android `pt` resolving to
+  Firestore `pt-BR`.
+- Compatibility: earned badge docs in `users/{uid}/badges/{achievementId}`
+  remain backend-written; Android still uses the in-code catalog as a fallback
+  and unknown-ID filter when a remote catalog document is missing or partial.
+- Handoff sync: refreshed `TODO.md` and the Firestore/parity docs so badges are
+  documented as Firestore catalog display source + in-code fallback, not
+  in-code-only.
+- Verification (JBR): focused
+  `:app:testDebugUnitTest --tests fr.ziyon.campzone.data.model.AchievementPayloadTest`
+  green.
+- Note: the branch already had unrelated onboarding/localization dirty files;
+  those were preserved.
+
+---
+
+# Project Status - Onboarding localization, church picker, adult role
+
+Updated: 2026-06-02
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: localized the Android `OnboardingScreen` header, CTA,
+  gender, age-group, and language labels through resources in EN / FR / PT /
+  PT-BR. Removed the mixed Portuguese hardcoded copy and a stale credential
+  comment from the screen.
+- Church selector: replaced the free-text church field with the shared
+  `ChurchPickerBottomSheet` used by the rest of the app; the shared picker now
+  localizes its selected-state OK label and load-error fallback.
+- Role default: first sign-in now seeds `users/{uid}.role = "adult"` instead of
+  `"guest"` for new/missing-role profiles, and onboarding completion also
+  stamps `"adult"` while staying inside the self-assignable RBAC set.
+- Handoff sync: updated `TODO.md` A6/A7 notes to reflect the adult initial role
+  and onboarding role write.
+- Verification (JBR): focused
+  `:app:testDebugUnitTest --tests fr.ziyon.campzone.data.auth.OnboardingProfilePayloadTest --tests fr.ziyon.campzone.data.auth.SignInUserPayloadTest`
+  green; `:app:assembleDebug` green; `:app:lintDebug` green.
+
+---
+
 # Project Status - Campings list and featured camping iOS parity
 
 Updated: 2026-06-01
@@ -49,6 +98,11 @@ Updated: 2026-06-01
   separate cleanup).
 - Verification (JBR): `:app:compileDebugKotlin` + `:app:processDebugResources`
   green; format specifiers verified consistent across all four locales.
+- Release: bumped `app/build.gradle.kts` `versionCode 1 → 2`,
+  `versionName "1.0" → "1.0.1"` (Play rejected the re-upload of code 1).
+  Release name: "Full PT-BR / PT / FR translation coverage". Signing is done via
+  Android Studio's signed-bundle wizard (no `signingConfig` in the release
+  block); `:app:bundleRelease --dry-run` configures clean.
 
 ---
 

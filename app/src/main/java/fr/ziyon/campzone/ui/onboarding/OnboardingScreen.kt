@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -74,6 +75,7 @@ import fr.ziyon.campzone.data.auth.CampingAgeGroup
 import fr.ziyon.campzone.data.auth.OnboardingProfile
 import fr.ziyon.campzone.data.auth.PreferredLanguage
 import fr.ziyon.campzone.data.auth.UserGender
+import fr.ziyon.campzone.ui.common.ChurchPickerBottomSheet
 
 private val OnboardingNight = Color(0xFF070E1A)
 private val OnboardingTwilight = Color(0xFF1A0E30)
@@ -96,6 +98,7 @@ fun OnboardingScreen(
     var step by rememberSaveable { mutableIntStateOf(0) }
     var ageText by rememberSaveable { mutableStateOf(user.age?.toString().orEmpty()) }
     var church by rememberSaveable { mutableStateOf(user.church) }
+    var showChurchPicker by rememberSaveable { mutableStateOf(false) }
     var preferredLanguageCode by rememberSaveable {
         mutableStateOf(
             user.preferredLanguage
@@ -162,7 +165,7 @@ fun OnboardingScreen(
                         } else {
                             CommunityStep(
                                 church = church,
-                                onChurchChange = { church = it },
+                                onOpenChurchPicker = { showChurchPicker = true },
                                 selectedLanguage = selectedLanguage,
                                 onLanguageChange = { preferredLanguageCode = it.wireValue },
                                 errorMessage = errorMessage,
@@ -199,6 +202,17 @@ fun OnboardingScreen(
                         .fillMaxWidth(),
                 )
             }
+        }
+
+        if (showChurchPicker) {
+            ChurchPickerBottomSheet(
+                selectedChurch = church,
+                onSelectChurch = { selectedChurch ->
+                    church = selectedChurch
+                    showChurchPicker = false
+                },
+                onDismiss = { showChurchPicker = false },
+            )
         }
     }
 }
@@ -237,17 +251,25 @@ private fun OnboardingHeader(step: Int, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
         ) {
             Text(
-                text = if (step == 0) "Sobre você" else "Sua comunidade",
+                text = stringResource(
+                    if (step == 0) {
+                        R.string.onboarding_step_about_title
+                    } else {
+                        R.string.onboarding_step_community_title
+                    },
+                ),
                 color = OnboardingAmber,
                 style = MaterialTheme.typography.headlineMedium,
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = if (step == 0) {
-                    "Usaremos isso para colocar você no grupo certo"
-                } else {
-                    "Conecte-se com sua família da igreja no camp"
-                },
+                text = stringResource(
+                    if (step == 0) {
+                        R.string.onboarding_step_about_subtitle
+                    } else {
+                        R.string.onboarding_step_community_subtitle
+                    },
+                ),
                 color = OnboardingAmber.copy(alpha = 0.72f),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
@@ -354,17 +376,14 @@ private fun AgeGroupRow(ageGroup: CampingAgeGroup?, modifier: Modifier = Modifie
                 .padding(horizontal = CzSpacing.sm, vertical = CzSpacing.xs),
         ) {
             Text(
-                text = ageGroup?.displayName ?: "Digite a idade acima",
+                text = ageGroup?.localizedName() ?: stringResource(R.string.onboarding_age_group_empty),
                 color = if (ageGroup != null) OnboardingEmber else OnboardingAmber.copy(alpha = 0.55f),
                 style = MaterialTheme.typography.labelMedium,
             )
         }
     }
 }
-/*
- review@ziyon.fr
- @ReviewTeam2026
- */
+
 @Composable
 private fun GenderSegmentedControl(
     selectedGender: UserGender,
@@ -392,11 +411,7 @@ private fun GenderSegmentedControl(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = when (gender) {
-                        UserGender.Female -> "Fem."
-                        UserGender.Male -> "Masc."
-                        UserGender.PreferNotToSay -> "Prefiro"
-                    },
+                    text = gender.localizedShortName(),
                     color = if (selected) Color.White else OnboardingCream,
                     style = MaterialTheme.typography.labelMedium,
                     textAlign = TextAlign.Center,
@@ -409,7 +424,7 @@ private fun GenderSegmentedControl(
 @Composable
 private fun CommunityStep(
     church: String,
-    onChurchChange: (String) -> Unit,
+    onOpenChurchPicker: () -> Unit,
     selectedLanguage: PreferredLanguage,
     onLanguageChange: (PreferredLanguage) -> Unit,
     errorMessage: String?,
@@ -421,20 +436,9 @@ private fun CommunityStep(
         verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
     ) {
         OnboardingField(title = stringResource(R.string.onboarding_church)) {
-            OutlinedTextField(
-                value = church,
-                onValueChange = onChurchChange,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(stringResource(R.string.onboarding_church_placeholder)) },
-                singleLine = true,
-                leadingIcon = { Text("⌂", color = OnboardingEmber) },
-                trailingIcon = {
-                    if (church.trim().isNotEmpty()) {
-                        Text(stringResource(R.string.common_ok), color = OnboardingEmber, style = MaterialTheme.typography.labelMedium)
-                    }
-                },
-                shape = RoundedCornerShape(CzRadius.md),
-                colors = onboardingTextFieldColors(),
+            ChurchSelectorButton(
+                church = church,
+                onClick = onOpenChurchPicker,
             )
         }
 
@@ -448,6 +452,43 @@ private fun CommunityStep(
         if (errorMessage != null) {
             OnboardingErrorBanner(message = errorMessage, onDismiss = onDismissError)
         }
+    }
+}
+
+@Composable
+private fun ChurchSelectorButton(
+    church: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val hasChurch = church.trim().isNotEmpty()
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(CzRadius.md))
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, OnboardingDivider, RoundedCornerShape(CzRadius.md))
+            .clickable(onClick = onClick)
+            .padding(CzSpacing.base),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        Text("⌂", color = OnboardingEmber, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            text = church.takeIf { hasChurch }
+                ?: stringResource(R.string.onboarding_church_placeholder),
+            modifier = Modifier.weight(1f),
+            color = if (hasChurch) OnboardingCream else OnboardingAmber.copy(alpha = 0.7f),
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = if (hasChurch) stringResource(R.string.common_ok) else "›",
+            color = if (hasChurch) OnboardingEmber else OnboardingAmber,
+            style = MaterialTheme.typography.labelMedium,
+        )
     }
 }
 
@@ -472,7 +513,7 @@ private fun LanguageMenu(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = selectedLanguage.displayName,
+                text = selectedLanguage.localizedName(),
                 modifier = Modifier.weight(1f),
                 color = OnboardingCream,
                 style = MaterialTheme.typography.bodyLarge,
@@ -491,7 +532,7 @@ private fun LanguageMenu(
                 DropdownMenuItem(
                     text = {
                         Text(
-                            text = language.displayName,
+                            text = language.localizedName(),
                             color = OnboardingCream,
                             style = MaterialTheme.typography.bodyMedium,
                         )
@@ -566,7 +607,13 @@ private fun BottomBar(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = if (step == 0) "Próximo" else "Começar",
+                        text = stringResource(
+                            if (step == 0) {
+                                R.string.onboarding_next
+                            } else {
+                                R.string.onboarding_get_started
+                            },
+                        ),
                         style = MaterialTheme.typography.titleSmall,
                     )
                     Spacer(Modifier.width(CzSpacing.sm))
@@ -650,6 +697,63 @@ private fun onboardingTextFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedPlaceholderColor = OnboardingAmber.copy(alpha = 0.55f),
     unfocusedPlaceholderColor = OnboardingAmber.copy(alpha = 0.55f),
 )
+
+@Composable
+private fun UserGender.localizedShortName(): String =
+    stringResource(
+        when (this) {
+            UserGender.Female -> R.string.onboarding_gender_female_short
+            UserGender.Male -> R.string.onboarding_gender_male_short
+            UserGender.PreferNotToSay -> R.string.onboarding_gender_prefer_not_to_say_short
+        },
+    )
+
+@Composable
+private fun CampingAgeGroup.localizedName(): String =
+    stringResource(
+        when (this) {
+            CampingAgeGroup.Kids -> R.string.age_group_kids
+            CampingAgeGroup.Youth -> R.string.age_group_youth
+            CampingAgeGroup.Adult -> R.string.age_group_adult
+        },
+    )
+
+@Composable
+private fun PreferredLanguage.localizedName(): String =
+    stringResource(
+        when (this) {
+            PreferredLanguage.English -> R.string.language_english
+            PreferredLanguage.Mandarin -> R.string.language_mandarin
+            PreferredLanguage.Hindi -> R.string.language_hindi
+            PreferredLanguage.Spanish -> R.string.language_spanish
+            PreferredLanguage.French -> R.string.language_french
+            PreferredLanguage.Arabic -> R.string.language_arabic
+            PreferredLanguage.Bengali -> R.string.language_bengali
+            PreferredLanguage.Portuguese -> R.string.language_portuguese
+            PreferredLanguage.Russian -> R.string.language_russian
+            PreferredLanguage.Urdu -> R.string.language_urdu
+            PreferredLanguage.Indonesian -> R.string.language_indonesian
+            PreferredLanguage.German -> R.string.language_german
+            PreferredLanguage.Japanese -> R.string.language_japanese
+            PreferredLanguage.Swahili -> R.string.language_swahili
+            PreferredLanguage.Marathi -> R.string.language_marathi
+            PreferredLanguage.Telugu -> R.string.language_telugu
+            PreferredLanguage.Turkish -> R.string.language_turkish
+            PreferredLanguage.Tamil -> R.string.language_tamil
+            PreferredLanguage.Vietnamese -> R.string.language_vietnamese
+            PreferredLanguage.Korean -> R.string.language_korean
+            PreferredLanguage.Italian -> R.string.language_italian
+            PreferredLanguage.Thai -> R.string.language_thai
+            PreferredLanguage.Gujarati -> R.string.language_gujarati
+            PreferredLanguage.Persian -> R.string.language_persian
+            PreferredLanguage.Polish -> R.string.language_polish
+            PreferredLanguage.Ukrainian -> R.string.language_ukrainian
+            PreferredLanguage.Malay -> R.string.language_malay
+            PreferredLanguage.Kannada -> R.string.language_kannada
+            PreferredLanguage.Oromo -> R.string.language_oromo
+            PreferredLanguage.Romanian -> R.string.language_romanian
+        },
+    )
 
 @Preview(showBackground = true)
 @Composable

@@ -169,9 +169,10 @@ internal data class AchievementCatalogEntry(
 internal fun Map<String, Any?>.toAchievementCatalogEntryOrNull(documentId: String): AchievementCatalogEntry? {
     val id = stringValue("id") ?: documentId.takeUnless { it.isBlank() } ?: return null
     val fallback = AchievementCatalog.achievement(id)
-    val title = localizedString("title", "name") ?: fallback?.title ?: return null
-    val summary = localizedString("summary", "subtitle", "description") ?: fallback?.summary ?: ""
-    val detail = localizedString("detail", "details", "longDescription") ?: fallback?.detail ?: summary
+    val localizedContent = localizedContent()
+    val title = localizedString(localizedContent, "title", "name") ?: fallback?.title ?: return null
+    val summary = localizedString(localizedContent, "summary", "subtitle", "description") ?: fallback?.summary ?: title
+    val detail = localizedString(localizedContent, "detail", "details", "longDescription") ?: fallback?.detail ?: summary
     val icon = achievementIcon(
         stringValue("icon") ?: stringValue("iconName") ?: stringValue("systemImage"),
         fallback?.icon,
@@ -207,21 +208,77 @@ private fun Map<String, Any?>.achievementAwardKind(fallback: AchievementAwardKin
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun Map<String, Any?>.localizedString(vararg keys: String): String? {
+private fun Map<String, Any?>.localizedString(
+    localizedContent: Map<String, Map<String, Any?>>,
+    vararg keys: String,
+): String? {
     val candidates = localeCandidates()
+    candidates.forEach { localeKey ->
+        localizedContent.localizedMap(localeKey)?.let { content ->
+            keys.forEach { key ->
+                content.stringValue(key)?.let { return it }
+            }
+        }
+    }
     for (key in keys) {
         when (val value = this[key]) {
             is String -> value.trim().takeUnless { it.isBlank() }?.let { return it }
             is Map<*, *> -> {
                 val map = value as Map<String, Any?>
-                candidates.forEach { localeKey ->
-                    map.stringValue(localeKey)?.let { return it }
-                }
+                map.localizedValue(candidates)?.let { return it }
             }
         }
     }
     return null
 }
+
+@Suppress("UNCHECKED_CAST")
+private fun Map<String, Any?>.localizedContent(): Map<String, Map<String, Any?>> {
+    val localizations = this["localizations"] as? Map<String, Any?>
+    val translations = this["translations"] as? Map<String, Any?>
+    return buildMap {
+        localizations?.forEach { (localeKey, content) ->
+            (content as? Map<String, Any?>)?.let { put(localeKey, it) }
+        }
+        translations?.forEach { (localeKey, content) ->
+            (content as? Map<String, Any?>)?.let { putIfAbsent(localeKey, it) }
+        }
+    }
+}
+
+private fun Map<String, Map<String, Any?>>.localizedMap(localeKey: String): Map<String, Any?>? {
+    this[localeKey]?.let { return it }
+    val normalized = localeKey.normalizedLocaleKey()
+    entries.firstOrNull { it.key.normalizedLocaleKey() == normalized }?.value?.let { return it }
+    if (!normalized.contains("-")) {
+        entries
+            .sortedBy { it.key }
+            .firstOrNull { it.key.normalizedLocaleKey().startsWith("$normalized-") }
+            ?.value
+            ?.let { return it }
+    }
+    return null
+}
+
+private fun Map<String, Any?>.localizedValue(localeKeys: List<String>): String? {
+    localeKeys.forEach { localeKey ->
+        stringValue(localeKey)?.let { return it }
+        val normalized = localeKey.normalizedLocaleKey()
+        entries.firstOrNull { it.key.normalizedLocaleKey() == normalized }?.value.asLocalizedString()?.let { return it }
+        if (!normalized.contains("-")) {
+            entries
+                .sortedBy { it.key }
+                .firstOrNull { it.key.normalizedLocaleKey().startsWith("$normalized-") }
+                ?.value
+                .asLocalizedString()
+                ?.let { return it }
+        }
+    }
+    return null
+}
+
+private fun Any?.asLocalizedString(): String? =
+    (this as? String)?.trim()?.takeUnless { it.isBlank() }
 
 private fun localeCandidates(): List<String> {
     val locale = Locale.getDefault()
@@ -238,6 +295,11 @@ private fun localeCandidates(): List<String> {
         add("default")
     }.distinct()
 }
+
+private fun String.normalizedLocaleKey(): String =
+    trim()
+        .replace("_", "-")
+        .lowercase()
 
 private fun achievementIcon(raw: String?, fallback: ImageVector?): ImageVector {
     val key = raw
