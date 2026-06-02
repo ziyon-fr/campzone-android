@@ -1,9 +1,12 @@
 package fr.ziyon.campzone.ui.songbook
 
 import android.media.MediaPlayer
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.R
+import fr.ziyon.campzone.core.i18n.StringProvider
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.data.analytics.AnalyticsService
@@ -55,17 +58,22 @@ data class SongEditorForm(
 ) {
     val isEditingLyricsPart: Boolean get() = editingLyricsPartId != null
 
-    val validationErrors: List<String>
+    val validationErrors: List<SongEditorValidationError>
         get() = buildList {
-            if (title.isBlank()) add("Song title is required.")
+            if (title.isBlank()) add(SongEditorValidationError.TitleRequired)
             val hasLyrics = lyrics.isNotBlank() || lyricsParts.any { it.text.isNotBlank() }
             val hasChordLyrics = ChordProParser.parse(chordSheetText).lines.any {
                 it.text.isNotBlank() || it.chords.isNotEmpty()
             }
-            if (!hasLyrics && !hasChordLyrics) add("Lyrics are required.")
+            if (!hasLyrics && !hasChordLyrics) add(SongEditorValidationError.LyricsRequired)
         }
 
     val isValid: Boolean get() = validationErrors.isEmpty()
+}
+
+enum class SongEditorValidationError(@param:StringRes val messageRes: Int) {
+    TitleRequired(R.string.songbook_title_required),
+    LyricsRequired(R.string.songbook_lyrics_required),
 }
 
 enum class SongMoveDirection { Up, Down }
@@ -101,10 +109,24 @@ internal val SongLyricsPartKind.displayName: String
         SongLyricsPartKind.Custom -> "Custom"
     }
 
+@get:StringRes
+internal val SongLyricsPartKind.displayNameRes: Int
+    get() = when (this) {
+        SongLyricsPartKind.Intro -> R.string.songbook_part_intro
+        SongLyricsPartKind.Verse -> R.string.songbook_part_verse
+        SongLyricsPartKind.PreChorus -> R.string.songbook_part_pre_chorus
+        SongLyricsPartKind.Chorus -> R.string.songbook_part_chorus
+        SongLyricsPartKind.Bridge -> R.string.songbook_part_bridge
+        SongLyricsPartKind.Instrumental -> R.string.songbook_part_instrumental
+        SongLyricsPartKind.Outro -> R.string.songbook_part_outro
+        SongLyricsPartKind.Custom -> R.string.songbook_part_custom
+    }
+
 @HiltViewModel
 class SongbookViewModel @Inject constructor(
     private val songbookService: SongbookService,
     private val campingService: CampingService,
+    private val stringProvider: StringProvider,
     private val analyticsService: AnalyticsService = NoOpAnalyticsService,
 ) : ViewModel() {
 
@@ -135,6 +157,9 @@ class SongbookViewModel @Inject constructor(
     private val _playingSongId = MutableStateFlow<String?>(null)
     val playingSongId: StateFlow<String?> = _playingSongId.asStateFlow()
 
+    private val _isAudioPlaying = MutableStateFlow(false)
+    val isAudioPlaying: StateFlow<Boolean> = _isAudioPlaying.asStateFlow()
+
     private val _editingSongId = MutableStateFlow<String?>(null)
     val editingSongId: StateFlow<String?> = _editingSongId.asStateFlow()
 
@@ -161,12 +186,12 @@ class SongbookViewModel @Inject constructor(
             runCatching {
                 campingTitleById[campingId] = runCatching {
                     campingService.fetchCamping(campingId).title
-                }.getOrDefault("Camping")
+                }.getOrDefault(stringProvider.get(R.string.common_camping))
                 songsByCampingId[campingId] = songbookService.loadSongs(campingId)
                 loadedCampingIds.add(campingId)
                 publish(campingId)
             }.onFailure { e ->
-                _uiState.value = SongbookUiState.Error(e.message ?: "Songbook operation failed. Please try again.")
+                _uiState.value = SongbookUiState.Error(e.message ?: operationFailedMessage())
             }
         }
     }
@@ -196,6 +221,21 @@ class SongbookViewModel @Inject constructor(
     fun pinnedSong(campingId: String): Song? =
         songs(campingId).firstOrNull { it.isPinnedTheme }
 
+    fun currentPlayingSong(): Song? {
+        val songId = _playingSongId.value ?: return null
+        return songsByCampingId.values.asSequence()
+            .flatMap { it.asSequence() }
+            .firstOrNull { it.id == songId }
+    }
+
+    fun currentPlayingSongEntry(): Pair<String, Song>? {
+        val songId = _playingSongId.value ?: return null
+        return songsByCampingId.entries.asSequence()
+            .firstNotNullOfOrNull { (campingId, songs) ->
+                songs.firstOrNull { it.id == songId }?.let { campingId to it }
+            }
+    }
+
     fun updateSearch(text: String) {
         _searchText.value = text
     }
@@ -224,7 +264,7 @@ class SongbookViewModel @Inject constructor(
 
     fun addPendingAudio(fileName: String, contentType: String, bytes: ByteArray): Boolean {
         if (!isSupportedAudio(fileName, contentType)) {
-            _operationError.value = "Choose a supported audio file: MP3, M4A, AAC, or WAV."
+            _operationError.value = stringProvider.get(R.string.songbook_audio_unsupported_error)
             return false
         }
 
@@ -303,7 +343,7 @@ class SongbookViewModel @Inject constructor(
         val form = _form.value
         val text = form.lyricsPartText.trim()
         if (text.isEmpty()) {
-            _operationError.value = "Lyrics text is required."
+            _operationError.value = stringProvider.get(R.string.songbook_lyrics_text_required)
             return
         }
 
@@ -351,7 +391,7 @@ class SongbookViewModel @Inject constructor(
 
         val form = _form.value
         if (!form.isValid) {
-            _operationError.value = form.validationErrors.firstOrNull()
+            _operationError.value = form.validationErrors.firstOrNull()?.let { stringProvider.get(it.messageRes) }
             return
         }
 
@@ -389,12 +429,12 @@ class SongbookViewModel @Inject constructor(
                 upsert(saved, campingId)
                 _editingSongId.value = saved.id
                 _form.value = formFrom(saved)
-                _operationMessage.value = "Song saved."
+                _operationMessage.value = stringProvider.get(R.string.songbook_saved)
                 loadedCampingIds.add(campingId)
                 publish(campingId)
                 onSuccess()
             }.onFailure { e ->
-                _operationError.value = e.message ?: "Songbook operation failed. Please try again."
+                _operationError.value = e.message ?: operationFailedMessage()
             }
             _isSaving.value = false
         }
@@ -411,11 +451,11 @@ class SongbookViewModel @Inject constructor(
                     .filterNot { it.id == songId }
                     .mapIndexed { index, song -> song.copy(orderIndex = index) }
                 if (_playingSongId.value == songId) stopAudio()
-                _operationMessage.value = "Song deleted."
+                _operationMessage.value = stringProvider.get(R.string.songbook_deleted)
                 publish(campingId)
                 onDeleted()
             }.onFailure { e ->
-                _operationError.value = e.message ?: "Songbook operation failed. Please try again."
+                _operationError.value = e.message ?: operationFailedMessage()
             }
         }
     }
@@ -435,10 +475,10 @@ class SongbookViewModel @Inject constructor(
             _operationError.value = null
             runCatching {
                 songsByCampingId[campingId] = songbookService.reorderSongs(campingId, ordered.map { it.id })
-                _operationMessage.value = "Song order updated."
+                _operationMessage.value = stringProvider.get(R.string.songbook_order_updated)
                 publish(campingId)
             }.onFailure { e ->
-                _operationError.value = e.message ?: "Songbook operation failed. Please try again."
+                _operationError.value = e.message ?: operationFailedMessage()
             }
         }
     }
@@ -450,17 +490,17 @@ class SongbookViewModel @Inject constructor(
             _operationError.value = null
             runCatching {
                 songsByCampingId[campingId] = songbookService.setPinnedTheme(songId, campingId)
-                _operationMessage.value = "Theme song pinned."
+                _operationMessage.value = stringProvider.get(R.string.songbook_theme_pinned)
                 publish(campingId)
             }.onFailure { e ->
-                _operationError.value = e.message ?: "Songbook operation failed. Please try again."
+                _operationError.value = e.message ?: operationFailedMessage()
             }
         }
     }
 
     fun toggleFavorite(songId: String, campingId: String, userId: String?) {
         if (userId == null) {
-            _operationError.value = "Sign in to favorite songs."
+            _operationError.value = stringProvider.get(R.string.songbook_sign_in_favorite)
             return
         }
         val song = songById(songId, campingId) ?: return
@@ -478,20 +518,37 @@ class SongbookViewModel @Inject constructor(
                 upsert(updated, campingId)
                 publish(campingId)
             }.onFailure { e ->
-                _operationError.value = e.message ?: "Songbook operation failed. Please try again."
+                _operationError.value = e.message ?: operationFailedMessage()
             }
         }
     }
 
     fun toggleAudio(song: Song) {
         if (_playingSongId.value == song.id) {
-            stopAudio()
+            val player = mediaPlayer
+            if (player == null) {
+                _playingSongId.value = null
+                _isAudioPlaying.value = false
+                return
+            }
+            runCatching {
+                if (_isAudioPlaying.value) {
+                    player.pause()
+                    _isAudioPlaying.value = false
+                } else {
+                    player.start()
+                    _isAudioPlaying.value = true
+                }
+            }.onFailure {
+                _operationError.value = stringProvider.get(R.string.songbook_audio_play_error)
+                stopAudio()
+            }
             return
         }
 
         val url = song.audio?.downloadUrl?.takeUnless { it.isBlank() }
         if (url == null) {
-            _operationError.value = "This song does not have playable audio yet."
+            _operationError.value = stringProvider.get(R.string.songbook_audio_missing)
             return
         }
 
@@ -502,18 +559,19 @@ class SongbookViewModel @Inject constructor(
                 setOnPreparedListener {
                     it.start()
                     _playingSongId.value = song.id
+                    _isAudioPlaying.value = true
                     analyticsService.playSong(song.id, song.title)
                 }
                 setOnCompletionListener { stopAudio() }
                 setOnErrorListener { _, _, _ ->
                     stopAudio()
-                    _operationError.value = "This song could not be played."
+                    _operationError.value = stringProvider.get(R.string.songbook_audio_play_error)
                     true
                 }
                 prepareAsync()
             }
         }.onFailure {
-            _operationError.value = "This song could not be played."
+            _operationError.value = stringProvider.get(R.string.songbook_audio_play_error)
             stopAudio()
         }
     }
@@ -522,6 +580,7 @@ class SongbookViewModel @Inject constructor(
         mediaPlayer?.release()
         mediaPlayer = null
         _playingSongId.value = null
+        _isAudioPlaying.value = false
     }
 
     fun clearOperationMessage() { _operationMessage.value = null }
@@ -534,7 +593,7 @@ class SongbookViewModel @Inject constructor(
 
     private fun publish(campingId: String) {
         val songs = songs(campingId)
-        val title = campingTitleById[campingId] ?: "Camping"
+        val title = campingTitleById[campingId] ?: stringProvider.get(R.string.common_camping)
         _uiState.value = if (songs.isEmpty()) SongbookUiState.Empty(title)
         else SongbookUiState.Loaded(songs, title)
     }
@@ -548,9 +607,12 @@ class SongbookViewModel @Inject constructor(
 
     private fun canManageOrWarn(): Boolean {
         if (_canManageSongbook.value) return true
-        _operationError.value = "Only admins can manage the songbook."
+        _operationError.value = stringProvider.get(R.string.songbook_restricted_message)
         return false
     }
+
+    private fun operationFailedMessage(): String =
+        stringProvider.get(R.string.songbook_operation_failed)
 
     private fun upsert(song: Song, campingId: String) {
         val current = songs(campingId).toMutableList()

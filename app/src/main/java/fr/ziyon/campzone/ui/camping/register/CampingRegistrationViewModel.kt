@@ -32,7 +32,6 @@ data class CampingRegistrationUiState(
     val camping: Camping? = null,
     val participants: List<RegistrationParticipant> = emptyList(),
     val selectedParticipantIds: Set<String> = emptySet(),
-    val transportationChoices: Map<String, TransportationChoice> = emptyMap(),
     val transportationOptionIds: Map<String, String?> = emptyMap(),
     val isSubmitting: Boolean = false,
     val errorMessage: String? = null,
@@ -77,7 +76,6 @@ class CampingRegistrationViewModel @Inject constructor(
                 val participants = participantOptions(user)
                 camping to participants
             }.onSuccess { (camping, participants) ->
-                val choices = participants.associate { it.id to TransportationChoice.OwnCar }
                 val selected = seedSelection(
                     participants = participants,
                     camping = camping,
@@ -88,7 +86,6 @@ class CampingRegistrationViewModel @Inject constructor(
                     camping = camping,
                     participants = participants,
                     selectedParticipantIds = selected,
-                    transportationChoices = choices,
                 )
             }.onFailure { error ->
                 loadedKey = null
@@ -110,12 +107,6 @@ class CampingRegistrationViewModel @Inject constructor(
                 selected.remove(participantId)
             }
             state.copy(selectedParticipantIds = selected)
-        }
-    }
-
-    fun selectTransportationChoice(participantId: String, choice: TransportationChoice) {
-        _uiState.update {
-            it.copy(transportationChoices = it.transportationChoices + (participantId to choice))
         }
     }
 
@@ -229,7 +220,7 @@ class CampingRegistrationViewModel @Inject constructor(
         }
         return RegistrationSubmission(
             participant = participant,
-            transportationChoice = state.transportationChoices[participant.id] ?: TransportationChoice.OwnCar,
+            transportationChoice = TransportationChoice.OwnCar,
         )
     }
 

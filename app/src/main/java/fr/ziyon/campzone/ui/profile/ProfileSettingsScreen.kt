@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material.icons.rounded.WorkspacePremium
@@ -72,6 +73,7 @@ import fr.ziyon.campzone.core.designsystem.CzButton
 import fr.ziyon.campzone.core.designsystem.CzButtonVariant
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
+import fr.ziyon.campzone.core.designsystem.ThemePicker
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.core.permissions.AppPermission
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
@@ -198,6 +200,14 @@ fun ProfileSettingsScreen(
                 title = stringResource(R.string.profile_offline_content),
                 note = stringResource(R.string.profile_available),
             )
+        }
+
+        ProfileSettingsSection(
+            title = stringResource(R.string.profile_appearance),
+            icon = Icons.Rounded.Palette,
+            footer = stringResource(R.string.profile_theme_footer),
+        ) {
+            ThemePicker()
         }
 
         if (canViewAdminUi) {
@@ -351,7 +361,7 @@ private fun ProfileSettingsCard(
                 )
                 Text(
                     text = user.role.localizedName(),
-                    color = colors.primary,
+                    color = colors.accent,
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                 )
             }
@@ -384,7 +394,7 @@ private fun ProfileSettingsSection(
             Icon(
                 imageVector = icon,
                 contentDescription = null, // Null is acceptable here since the adjacent Text element provides the accessibility context
-                tint = colors.primary,
+                tint = colors.accent,
                 modifier = Modifier.size(18.dp) // Adjusted to align proportionally with labelLarge typography height
             )
             Text(
@@ -499,7 +509,7 @@ private fun ProfileSettingsBaseRow(
         Icon(
             imageVector = icon,
             contentDescription = null, // Null is acceptable here since the adjacent Text element provides the accessibility context
-            tint = colors.primary,
+            tint = colors.accent,
             modifier = Modifier.size(18.dp) // Adjusted to align proportionally with labelLarge typography height
         )
         Text(

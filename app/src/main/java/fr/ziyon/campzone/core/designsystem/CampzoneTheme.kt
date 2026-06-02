@@ -1,14 +1,20 @@
 package fr.ziyon.campzone.core.designsystem
 
+import android.content.Context
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.platform.LocalContext
 
 private val CampzoneLightColorScheme = lightColorScheme(
     primary = CzColors.PrimaryLight,
@@ -81,10 +87,36 @@ fun CampzoneTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val colorPalette = CzColors.palette(darkTheme)
-    val colorScheme = if (darkTheme) CampzoneDarkColorScheme else CampzoneLightColorScheme
+    val context = LocalContext.current
+    val preferences = remember(context) {
+        context.applicationContext.getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
+    }
+    var appTheme by remember(preferences) {
+        mutableStateOf(AppTheme.fromStorageKey(preferences.getString(THEME_STORAGE_KEY, null)))
+    }
+    val selectTheme: (AppTheme) -> Unit = { theme ->
+        if (theme != appTheme) {
+            appTheme = theme
+            preferences.edit().putString(THEME_STORAGE_KEY, theme.storageKey).apply()
+        }
+    }
+    val colorPalette = CzColors.palette(darkTheme, appTheme)
+    val accent = appTheme.color(darkTheme)
+    val baseColorScheme = if (darkTheme) CampzoneDarkColorScheme else CampzoneLightColorScheme
+    val colorScheme = baseColorScheme.copy(
+        primary = accent,
+        primaryContainer = accent,
+        tertiary = accent,
+        onPrimary = colorPalette.onAccent,
+        onPrimaryContainer = colorPalette.onAccent,
+        onTertiary = colorPalette.onAccent,
+    )
 
-    CompositionLocalProvider(LocalCzColors provides colorPalette) {
+    CompositionLocalProvider(
+        LocalCzColors provides colorPalette,
+        LocalAppTheme provides appTheme,
+        LocalSelectAppTheme provides selectTheme,
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = CzTypography,
@@ -93,3 +125,6 @@ fun CampzoneTheme(
         )
     }
 }
+
+private const val THEME_PREFERENCES = "campzone_theme"
+private const val THEME_STORAGE_KEY = "cz.appTheme"

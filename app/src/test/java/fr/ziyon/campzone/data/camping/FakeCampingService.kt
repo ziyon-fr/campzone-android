@@ -6,7 +6,6 @@ import fr.ziyon.campzone.data.model.WinnerRevealPolicy
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.RegistrationSubmission
-import fr.ziyon.campzone.data.model.TransportationChoice
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -101,8 +100,9 @@ class FakeCampingService(
             .forEach { submission ->
                 val participant = submission.participant
                 val isSelf = participant.kind == RegistrationParticipantKind.SelfParticipant
-                val bookingId = if (submission.transportationChoice == TransportationChoice.ProvidedBus) {
-                    "${participant.id}-bus"
+                val selectedOption = camping.transportationOption(submission.transportationOptionId)
+                val bookingId = if (selectedOption?.issuesTicket == true) {
+                    "${participant.id}-transport"
                 } else {
                     null
                 }

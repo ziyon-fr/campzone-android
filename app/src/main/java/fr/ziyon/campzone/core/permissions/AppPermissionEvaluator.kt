@@ -167,8 +167,7 @@ class AppPermissionEvaluator {
     fun canManageAnnouncements(
         user: PermissionUser?,
         camping: CampingPermissionContext?,
-    ): Boolean = canEditCamping(user, camping) ||
-        canManageScoped(user, AppPermission.CreateAnnouncements, camping) ||
+    ): Boolean = canManageScoped(user, AppPermission.CreateAnnouncements, camping) ||
         canManageScoped(user, AppPermission.EditAnnouncements, camping)
 
     fun canModerateCampingChat(

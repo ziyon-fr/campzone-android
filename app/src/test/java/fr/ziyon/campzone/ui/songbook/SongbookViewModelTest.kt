@@ -11,6 +11,7 @@ import fr.ziyon.campzone.data.model.Song
 import fr.ziyon.campzone.data.model.SongLyricsPart
 import fr.ziyon.campzone.data.model.SongLyricsPartKind
 import fr.ziyon.campzone.data.songbook.FakeSongbookService
+import fr.ziyon.campzone.testing.FakeStringProvider
 import fr.ziyon.campzone.testing.MainDispatcherRule
 import java.util.Date
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -228,6 +229,7 @@ class SongbookViewModelTest {
                 mapOf(campingId to songs),
             ),
             campingService = FakeCampingService(listOf(camping())),
+            stringProvider = FakeStringProvider(),
         )
 
     private fun camping(): Camping = Camping(

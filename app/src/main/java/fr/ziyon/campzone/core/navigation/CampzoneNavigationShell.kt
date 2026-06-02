@@ -1,6 +1,7 @@
 package fr.ziyon.campzone.core.navigation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -96,6 +98,7 @@ import fr.ziyon.campzone.ui.schedule.food.FoodMenuRoute
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuViewModel
 import fr.ziyon.campzone.ui.songbook.SongDetailRoute
 import fr.ziyon.campzone.ui.songbook.SongEditorRoute
+import fr.ziyon.campzone.ui.songbook.FloatingSongPlaybackIndicator
 import fr.ziyon.campzone.ui.songbook.SongbookRoute
 import fr.ziyon.campzone.ui.songbook.SongbookViewModel
 import androidx.compose.runtime.remember
@@ -131,6 +134,10 @@ fun CampzoneNavigationShell(
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val pendingDeepLink by deepLinkInbox.pendingDeepLink.collectAsState()
     val navReady = currentBackStackEntry != null
+    val songbookViewModel: SongbookViewModel = hiltViewModel()
+    val playingSongId by songbookViewModel.playingSongId.collectAsState()
+    val isSongAudioPlaying by songbookViewModel.isAudioPlaying.collectAsState()
+    val currentPlayingSongEntry = if (playingSongId != null) songbookViewModel.currentPlayingSongEntry() else null
 
     LaunchedEffect(authReady, navReady, pendingDeepLink) {
         val deepLink = pendingDeepLink
@@ -150,13 +157,14 @@ fun CampzoneNavigationShell(
             )
         },
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = AppRoute.Home.route,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
+        Box(Modifier.fillMaxSize()) {
+            NavHost(
+                navController = navController,
+                startDestination = AppRoute.Home.route,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) {
             composable(AppRoute.Home.route) {
                 HomeRoute(
                     onOpenCamping = { campingId ->
@@ -1450,21 +1458,11 @@ fun CampzoneNavigationShell(
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
             ) { backStackEntry ->
                 val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
-                val songbookEntry = remember(backStackEntry) {
-                    runCatching {
-                        navController.getBackStackEntry(AppRoute.CampingSongbook(campingId).route)
-                    }.getOrNull()
-                }
-                val viewModel: SongbookViewModel = if (songbookEntry != null) {
-                    hiltViewModel(songbookEntry)
-                } else {
-                    hiltViewModel()
-                }
                 SongEditorRoute(
                     campingId = campingId,
                     songId = null,
                     authenticatedUser = authenticatedUser,
-                    viewModel = viewModel,
+                    viewModel = songbookViewModel,
                     onBack = { navController.popBackStack() },
                     onSaved = { navController.popBackStack() },
                 )
@@ -1478,21 +1476,11 @@ fun CampzoneNavigationShell(
             ) { backStackEntry ->
                 val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
                 val songId = backStackEntry.stringArg(AppRouteArgs.SongId)
-                val songbookEntry = remember(backStackEntry) {
-                    runCatching {
-                        navController.getBackStackEntry(AppRoute.CampingSongbook(campingId).route)
-                    }.getOrNull()
-                }
-                val viewModel: SongbookViewModel = if (songbookEntry != null) {
-                    hiltViewModel(songbookEntry)
-                } else {
-                    hiltViewModel()
-                }
                 SongEditorRoute(
                     campingId = campingId,
                     songId = songId,
                     authenticatedUser = authenticatedUser,
-                    viewModel = viewModel,
+                    viewModel = songbookViewModel,
                     onBack = { navController.popBackStack() },
                     onSaved = { navController.popBackStack() },
                 )
@@ -1506,21 +1494,11 @@ fun CampzoneNavigationShell(
             ) { backStackEntry ->
                 val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
                 val songId = backStackEntry.stringArg(AppRouteArgs.SongId)
-                val songbookEntry = remember(backStackEntry) {
-                    runCatching {
-                        navController.getBackStackEntry(AppRoute.CampingSongbook(campingId).route)
-                    }.getOrNull()
-                }
-                val viewModel: SongbookViewModel = if (songbookEntry != null) {
-                    hiltViewModel(songbookEntry)
-                } else {
-                    hiltViewModel()
-                }
                 SongDetailRoute(
                     campingId = campingId,
                     songId = songId,
                     authenticatedUser = authenticatedUser,
-                    viewModel = viewModel,
+                    viewModel = songbookViewModel,
                     onBack = { navController.popBackStack() },
                     onOpenEditor = { id ->
                         navController.navigate(AppRoute.SongEditor(campingId, id).route)
@@ -1535,6 +1513,7 @@ fun CampzoneNavigationShell(
                 SongbookRoute(
                     campingId = campingId,
                     authenticatedUser = authenticatedUser,
+                    viewModel = songbookViewModel,
                     onBack = { navController.popBackStack() },
                     onOpenSong = { songId ->
                         navController.navigate(AppRoute.SongDetail(campingId, songId).route)
@@ -1545,6 +1524,33 @@ fun CampzoneNavigationShell(
                 )
             }
         }
+        currentPlayingSongEntry?.let { (playingCampingId, currentPlayingSong) ->
+            FloatingSongPlaybackIndicator(
+                song = currentPlayingSong,
+                isPlaying = isSongAudioPlaying,
+                onOpen = {
+                    val isCurrentSongDetail =
+                        currentBackStackEntry?.destination?.route == AppRoutePattern.SongDetail &&
+                            currentBackStackEntry?.arguments?.getString(AppRouteArgs.CampingId) == playingCampingId &&
+                            currentBackStackEntry?.arguments?.getString(AppRouteArgs.SongId) == currentPlayingSong.id
+                    if (!isCurrentSongDetail) {
+                        navController.navigate(AppRoute.SongDetail(playingCampingId, currentPlayingSong.id).route) {
+                            launchSingleTop = true
+                        }
+                    }
+                },
+                onToggle = { songbookViewModel.toggleAudio(currentPlayingSong) },
+                onStop = songbookViewModel::stopAudio,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        start = CzSpacing.base,
+                        end = CzSpacing.base,
+                        bottom = innerPadding.calculateBottomPadding() + CzSpacing.base,
+                    ),
+            )
+        }
+    }
     }
 }
 
@@ -1583,15 +1589,15 @@ private fun CampzoneBottomNavigation(
                     label = {
                         Text(
                             text = tab.localizedLabel(),
-                            color = if (selected) colors.ember else colors.textSecondary,
+                            color = if (selected) colors.accent else colors.textSecondary,
                             style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = colors.ember,
-                        selectedTextColor = colors.ember,
+                        selectedIconColor = colors.accent,
+                        selectedTextColor = colors.accent,
                         indicatorColor = Color.Transparent,
                         unselectedIconColor = colors.textSecondary,
                         unselectedTextColor = colors.textSecondary,

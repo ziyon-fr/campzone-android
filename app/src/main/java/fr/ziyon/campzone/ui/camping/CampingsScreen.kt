@@ -3,6 +3,7 @@ package fr.ziyon.campzone.ui.camping
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
@@ -62,14 +64,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -380,14 +386,20 @@ private fun MonthSection(
     onRequestEventSheet: (Camping) -> Unit,
     showAdminInfo: (Camping) -> Boolean,
 ) {
+    val listState = rememberLazyListState()
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
     ) {
         MonthSectionHeader(section.title)
         LazyRow(
-            modifier = Modifier.fillMaxWidth(),
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalBleed(CzSpacing.lg),
+            contentPadding = PaddingValues(horizontal = CzSpacing.base),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
+            flingBehavior = rememberSnapFlingBehavior(lazyListState = listState),
         ) {
             items(section.campings, key = { it.id }) { camping ->
                 CampingCard(
@@ -482,8 +494,9 @@ private fun CampingCardBanner(
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.45f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = 0.60f),
+                            0f to Color.Transparent,
+                            0.46f to Color.Black.copy(alpha = 0.18f),
+                            1f to Color.Black.copy(alpha = 0.72f),
                         ),
                     ),
                 ),
@@ -510,7 +523,10 @@ private fun CampingCardBanner(
             )
             Text(
                 text = camping.location,
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    shadow = campingImageTextShadow(),
+                ),
                 color = Color.White,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -857,7 +873,10 @@ private fun CampingEventCover(
         )
         Text(
             text = camping.title,
-            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontWeight = FontWeight.ExtraBold,
+                shadow = campingImageTextShadow(),
+            ),
             color = Color.White,
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
@@ -1166,6 +1185,33 @@ private fun campingFillAccentColor(ratio: Float): Color {
         ratio < 0.5f -> colors.leaf
         ratio < 0.75f -> colors.amber
         else -> colors.error
+    }
+}
+
+private fun campingImageTextShadow(): Shadow = Shadow(
+    color = Color.Black.copy(alpha = 0.42f),
+    offset = Offset(x = 0f, y = 1f),
+    blurRadius = 3f,
+)
+
+private fun Modifier.horizontalBleed(amount: Dp): Modifier = layout { measurable, constraints ->
+    if (!constraints.hasBoundedWidth) {
+        val placeable = measurable.measure(constraints)
+        layout(placeable.width, placeable.height) {
+            placeable.placeRelative(0, 0)
+        }
+    } else {
+        val bleedPx = amount.roundToPx()
+        val expandedWidth = constraints.maxWidth + bleedPx * 2
+        val placeable = measurable.measure(
+            constraints.copy(
+                minWidth = expandedWidth,
+                maxWidth = expandedWidth,
+            ),
+        )
+        layout(constraints.maxWidth, placeable.height) {
+            placeable.placeRelative(-bleedPx, 0)
+        }
     }
 }
 

@@ -1,17 +1,25 @@
 package fr.ziyon.campzone.ui.songbook
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -24,9 +32,9 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.PauseCircle
-import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.SlowMotionVideo
 import androidx.compose.material.icons.rounded.TextIncrease
@@ -42,6 +50,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -62,12 +71,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ziyon.campzone.R
-import fr.ziyon.campzone.core.designsystem.CzButton
-import fr.ziyon.campzone.core.designsystem.CzButtonVariant
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
@@ -76,11 +84,14 @@ import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.ChordLine
 import fr.ziyon.campzone.data.model.Song
+import fr.ziyon.campzone.data.model.SongLyricsPart
+import fr.ziyon.campzone.data.model.SongLyricsPartKind
+import kotlinx.coroutines.delay
+import java.util.Locale
 
-private enum class SongDisplayMode(val title: String) {
-    Lyrics("Lyrics"),
-    Sheet("Sheet"),
-    Chords("Chords"),
+private enum class SongDisplayMode(@param:androidx.annotation.StringRes val titleRes: Int) {
+    Lyrics(R.string.songbook_lyrics),
+    Chords(R.string.songbook_chords),
 }
 
 @Composable
@@ -94,6 +105,7 @@ fun SongDetailRoute(
 ) {
     val canManage by viewModel.canManageSongbook.collectAsState()
     val playingSongId by viewModel.playingSongId.collectAsState()
+    val isAudioPlaying by viewModel.isAudioPlaying.collectAsState()
     val song = viewModel.songById(songId, campingId)
 
     LaunchedEffect(campingId, authenticatedUser.uid) {
@@ -103,7 +115,7 @@ fun SongDetailRoute(
     SongDetailScreen(
         song = song,
         userId = authenticatedUser.uid,
-        isPlaying = playingSongId == songId,
+        isPlaying = playingSongId == songId && isAudioPlaying,
         canManage = canManage,
         onBack = onBack,
         onEdit = {
@@ -146,8 +158,18 @@ fun SongDetailScreen(
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var mode by remember { mutableStateOf(SongDisplayMode.Lyrics) }
-    var textSize by remember { mutableFloatStateOf(18f) }
     val context = LocalContext.current
+    val textSizePreferences = remember(context) {
+        context.applicationContext.getSharedPreferences("songbook_preferences", android.content.Context.MODE_PRIVATE)
+    }
+    var textSize by remember(textSizePreferences) {
+        mutableFloatStateOf(textSizePreferences.getFloat("songbook.textSize", 20f))
+    }
+    val updateTextSize: (Float) -> Unit = { next ->
+        val bounded = next.coerceIn(14f, 30f)
+        textSize = bounded
+        textSizePreferences.edit().putFloat("songbook.textSize", bounded).apply()
+    }
 
     Scaffold(
         modifier = modifier,
@@ -155,7 +177,13 @@ fun SongDetailScreen(
         contentWindowInsets = WindowInsets(),
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.songbook_song_title), style = CzTypeScale.headline, color = colors.textPrimary) },
+                title = {
+                    Text(
+                        stringResource(R.string.songbook_music).uppercase(),
+                        style = CzTypeScale.caption2.copy(fontWeight = FontWeight.SemiBold),
+                        color = colors.textTertiary,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = colors.textPrimary)
@@ -168,13 +196,43 @@ fun SongDetailScreen(
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.songbook_smaller_text)) }, leadingIcon = { Icon(Icons.Rounded.Remove, null) }, onClick = {
-                                textSize = (textSize - 1f).coerceAtLeast(14f)
+                                updateTextSize(textSize - 1f)
                                 menuOpen = false
                             })
                             DropdownMenuItem(text = { Text(stringResource(R.string.songbook_larger_text)) }, leadingIcon = { Icon(Icons.Rounded.TextIncrease, null) }, onClick = {
-                                textSize = (textSize + 1f).coerceAtMost(30f)
+                                updateTextSize(textSize + 1f)
                                 menuOpen = false
                             })
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            if (userId?.let(song::isFavoritedBy) == true) {
+                                                R.string.songbook_remove_favorite
+                                            } else {
+                                                R.string.songbook_add_favorite
+                                            },
+                                        ),
+                                    )
+                                },
+                                leadingIcon = { Icon(if (userId?.let(song::isFavoritedBy) == true) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, null) },
+                                onClick = {
+                                    menuOpen = false
+                                    onToggleFavorite()
+                                },
+                            )
+                            if (song.youtubeLink.isNotBlank()) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.songbook_watch_youtube)) }, leadingIcon = { Icon(Icons.Rounded.SlowMotionVideo, null) }, onClick = {
+                                    menuOpen = false
+                                    openUrl(context, song.youtubeLink)
+                                })
+                            }
+                            if (song.pdfLink.isNotBlank()) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.songbook_open_sheet_pdf)) }, leadingIcon = { Icon(Icons.Rounded.Description, null) }, onClick = {
+                                    menuOpen = false
+                                    openUrl(context, song.pdfLink)
+                                })
+                            }
                             if (canManage) {
                                 DropdownMenuItem(text = { Text(stringResource(R.string.common_edit)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = {
                                     menuOpen = false
@@ -194,7 +252,7 @@ fun SongDetailScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = colors.background,
                     scrolledContainerColor = colors.background,
                 ),
@@ -212,6 +270,8 @@ fun SongDetailScreen(
                     .padding(CzSpacing.xl),
             )
         } else {
+            val modes = availableDisplayModes(song)
+            val currentMode = if (mode in modes) mode else SongDisplayMode.Lyrics
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -220,32 +280,30 @@ fun SongDetailScreen(
             ) {
                 SongDetailHeader(
                     song = song,
-                    isFavorite = userId?.let(song::isFavoritedBy) == true,
                     isPlaying = isPlaying,
-                    onFavorite = onToggleFavorite,
                     onPlay = onToggleAudio,
-                    onWatch = { openUrl(context, song.youtubeLink) },
                     modifier = Modifier.padding(horizontal = CzSpacing.lg, vertical = CzSpacing.md),
                 )
 
-                SingleChoiceSegmentedButtonRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = CzSpacing.lg),
-                ) {
-                    SongDisplayMode.entries.forEachIndexed { index, item ->
-                        SegmentedButton(
-                            selected = mode == item,
-                            onClick = { mode = item },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = SongDisplayMode.entries.size),
-                            label = { Text(item.title) },
-                        )
+                if (modes.size > 1) {
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = CzSpacing.lg),
+                    ) {
+                        modes.forEachIndexed { index, item ->
+                            SegmentedButton(
+                                selected = currentMode == item,
+                                onClick = { mode = item },
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
+                                label = { Text(stringResource(item.titleRes)) },
+                            )
+                        }
                     }
                 }
 
-                when (mode) {
+                when (currentMode) {
                     SongDisplayMode.Lyrics -> LyricsPanel(song = song, textSize = textSize)
-                    SongDisplayMode.Sheet -> SheetPanel(song = song, onOpen = { openUrl(context, song.pdfLink) })
                     SongDisplayMode.Chords -> ChordsPanel(song = song, textSize = textSize)
                 }
             }
@@ -272,73 +330,64 @@ fun SongDetailScreen(
     }
 }
 
+private fun availableDisplayModes(song: Song): List<SongDisplayMode> = buildList {
+    add(SongDisplayMode.Lyrics)
+    val hasChords = song.chordSheet.lines.isNotEmpty() || song.chords.isNotBlank()
+    if (hasChords) add(SongDisplayMode.Chords)
+}
+
 @Composable
 private fun SongDetailHeader(
     song: Song,
-    isFavorite: Boolean,
     isPlaying: Boolean,
-    onFavorite: () -> Unit,
     onPlay: () -> Unit,
-    onWatch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.lg), verticalAlignment = Alignment.Top) {
-            Box(
-                modifier = Modifier
-                    .size(88.dp)
-                    .clip(RoundedCornerShape(CzRadius.lg))
-                    .background(
-                        Brush.linearGradient(
-                            if (song.isPinnedTheme) {
-                                listOf(colors.amber.copy(alpha = 0.3f), colors.ember.copy(alpha = 0.2f))
-                            } else {
-                                listOf(colors.ember.copy(alpha = 0.2f), colors.ember.copy(alpha = 0.1f))
-                            },
-                        ),
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (song.isPinnedTheme) Icons.Rounded.Mic else Icons.Rounded.MusicNote,
-                    contentDescription = null,
-                    tint = if (song.isPinnedTheme) colors.amber else colors.ember,
-                    modifier = Modifier.size(40.dp),
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CzRadius.xxl))
+            .background(Brush.linearGradient(listOf(colors.espresso, colors.espressoDeep)))
+            .border(BorderStroke(1.dp, Color.Black.copy(alpha = 0.20f)), RoundedCornerShape(CzRadius.xxl))
+            .padding(horizontal = CzSpacing.base, vertical = 13.dp),
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+            Text(
+                text = song.title,
+                style = CzTypeScale.title2.copy(fontWeight = FontWeight.Medium, fontFamily = FontFamily.Serif),
+                color = colors.cream,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (song.artist.isNotBlank()) {
+                Text(
+                    text = song.artist,
+                    style = CzTypeScale.caption,
+                    color = colors.cream.copy(alpha = 0.66f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-            }
-
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
-                Text(song.title, style = CzTypeScale.title2.copy(fontWeight = FontWeight.Bold), color = colors.textPrimary, maxLines = 2)
-                if (song.artist.isNotBlank()) {
-                    Text(song.artist, style = CzTypeScale.body, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Text(song.subtitleText(), style = CzTypeScale.caption, color = colors.textSecondary)
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onFavorite) {
+        if (song.audio != null) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent)
+                    .clickable(onClick = onPlay),
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
-                    if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    contentDescription = if (isFavorite) "Remove favorite" else "Add favorite",
-                    tint = colors.error,
+                    if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    contentDescription = stringResource(if (isPlaying) R.string.songbook_pause else R.string.songbook_play),
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
                 )
-            }
-            if (song.audio != null) {
-                IconButton(onClick = onPlay) {
-                    Icon(
-                        if (isPlaying) Icons.Rounded.PauseCircle else Icons.Rounded.PlayCircle,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = colors.ember,
-                    )
-                }
-            }
-            if (song.youtubeLink.isNotBlank()) {
-                TextButton(onClick = onWatch) {
-                    Icon(Icons.Rounded.SlowMotionVideo, contentDescription = null, tint = colors.ember, modifier = Modifier.size(18.dp))
-                    Text(stringResource(R.string.songbook_watch_youtube), color = colors.ember, style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold))
-                }
             }
         }
     }
@@ -347,43 +396,70 @@ private fun SongDetailHeader(
 @Composable
 private fun LyricsPanel(song: Song, textSize: Float) {
     val colors = MaterialTheme.czColors
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.md),
-        verticalArrangement = Arrangement.spacedBy(CzSpacing.xl),
-    ) {
-        if (song.lyricsParts.isEmpty()) {
-            Text(song.lyrics, fontSize = textSize.sp, color = colors.textPrimary, lineHeight = (textSize + 6).sp)
-        } else {
-            song.lyricsParts.forEach { part ->
-                Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-                    Text(part.displayTitle(), fontSize = (textSize * 0.8f).sp, color = colors.ember, fontWeight = FontWeight.Bold)
-                    Text(part.text, fontSize = textSize.sp, color = colors.textPrimary, lineHeight = (textSize + 6).sp)
+    SelectionContainer {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = CzSpacing.xl, vertical = CzSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.xxl),
+        ) {
+            if (song.lyricsParts.isEmpty()) {
+                Text(
+                    song.lyrics,
+                    fontFamily = FontFamily.Serif,
+                    fontSize = textSize.sp,
+                    color = colors.textPrimary,
+                    lineHeight = (textSize * 1.34f).sp,
+                )
+            } else {
+                song.lyricsParts.forEach { part ->
+                    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                        LyricsPartLabel(part)
+                        Text(
+                            part.text,
+                            fontFamily = FontFamily.Serif,
+                            fontSize = textSize.sp,
+                            color = colors.textPrimary,
+                            lineHeight = (textSize * 1.34f).sp,
+                        )
+                    }
                 }
             }
-        }
-        if (song.composer.isNotBlank()) {
-            Text(stringResource(R.string.songbook_composed_by, song.composer), style = CzTypeScale.caption, color = colors.textSecondary, modifier = Modifier.fillMaxWidth())
+            if (song.composer.isNotBlank()) {
+                Text(
+                    stringResource(R.string.songbook_composed_by, song.composer),
+                    style = CzTypeScale.caption,
+                    color = colors.textSecondary,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun SheetPanel(song: Song, onOpen: () -> Unit) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        if (song.pdfLink.isBlank()) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-                Icon(Icons.Rounded.Description, contentDescription = null, tint = MaterialTheme.czColors.textSecondary, modifier = Modifier.size(36.dp))
-                Text(stringResource(R.string.songbook_no_sheet), style = CzTypeScale.body, color = MaterialTheme.czColors.textPrimary)
-                Text(stringResource(R.string.songbook_no_sheet_message), style = CzTypeScale.caption, color = MaterialTheme.czColors.textSecondary)
-            }
-        } else {
-            CzButton(
-                text = stringResource(R.string.songbook_open_sheet),
-                onClick = onOpen,
-                variant = CzButtonVariant.Primary,
+private fun LyricsPartLabel(part: SongLyricsPart) {
+    val colors = MaterialTheme.czColors
+    Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = if (part.kind == SongLyricsPartKind.Custom && part.title.isNotBlank()) {
+                part.title.uppercase()
+            } else {
+                stringResource(part.kind.displayNameRes).uppercase()
+            },
+            style = CzTypeScale.caption2.copy(fontWeight = FontWeight.Bold),
+            color = colors.accent,
+        )
+        if (part.kind != SongLyricsPartKind.Custom) {
+            Text(
+                text = part.number.toString(),
+                style = CzTypeScale.caption2.copy(fontWeight = FontWeight.Bold),
+                color = colors.accent,
+                modifier = Modifier
+                    .defaultMinSize(minWidth = 18.dp, minHeight = 17.dp)
+                    .background(colors.accent.copy(alpha = 0.12f), RoundedCornerShape(5.dp))
+                    .padding(horizontal = 5.dp),
             )
         }
     }
@@ -393,63 +469,269 @@ private fun SheetPanel(song: Song, onOpen: () -> Unit) {
 private fun ChordsPanel(song: Song, textSize: Float) {
     val colors = MaterialTheme.czColors
     val lines = song.chordSheet.lines.ifEmpty { ChordProParser.parse(song.chords).lines }
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.md),
-        verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
-    ) {
-        if (lines.isEmpty() || lines.all { it.chords.isEmpty() && it.text.isBlank() }) {
-            Text(
-                text = song.chords.ifBlank { "No chord sheet available." },
-                fontFamily = FontFamily.Monospace,
-                fontSize = textSize.sp,
-                color = if (song.chords.isBlank()) colors.textSecondary else colors.textPrimary,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(CzRadius.md))
-                    .background(colors.surface)
-                    .padding(CzSpacing.md),
+    val uniqueChords = remember(lines) {
+        lines.flatMap { line -> line.chords.map { it.chord } }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+    }
+    val scrollState = rememberScrollState()
+    var transposeOffset by remember(song.id) { mutableStateOf(0) }
+    var isAutoScrolling by remember(song.id) { mutableStateOf(false) }
+    var scrollSpeed by remember(song.id) { mutableFloatStateOf(1f) }
+    val keyName = song.chordSheet.originalKey.ifBlank { "C" }
+
+    LaunchedEffect(isAutoScrolling, scrollSpeed, scrollState.maxValue) {
+        while (isAutoScrolling) {
+            if (scrollState.value >= scrollState.maxValue) {
+                isAutoScrolling = false
+            } else {
+                scrollState.scrollBy(28f * scrollSpeed / 10f)
+                delay(100)
+            }
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
+        ) {
+            TransposeBar(
+                keyName = keyName,
+                transposeOffset = transposeOffset,
+                onTranspose = { delta -> transposeOffset = (transposeOffset + delta).coerceIn(-12, 12) },
             )
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(CzRadius.lg))
-                    .background(colors.surface)
-                    .padding(CzSpacing.md),
-                verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-            ) {
-                lines.forEach { line ->
-                    RenderedChordLine(line = line, textSize = textSize)
+
+            if (uniqueChords.isEmpty()) {
+                Text(
+                    text = song.chords.ifBlank { stringResource(R.string.songbook_no_chord_sheet) },
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = textSize.sp,
+                    color = if (song.chords.isBlank()) colors.textSecondary else colors.textPrimary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(CzRadius.md))
+                        .background(colors.surface)
+                        .padding(CzSpacing.md),
+                )
+            } else {
+                ChordStrip(
+                    chords = uniqueChords,
+                    transposeOffset = transposeOffset,
+                    originalKey = keyName,
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                    lines.forEach { line ->
+                        RenderedChordLine(
+                            line = line,
+                            textSize = textSize,
+                            transposeOffset = transposeOffset,
+                            originalKey = keyName,
+                        )
+                    }
                 }
+            }
+
+            Spacer(Modifier.height(96.dp))
+        }
+
+        AutoScrollBar(
+            isAutoScrolling = isAutoScrolling,
+            scrollSpeed = scrollSpeed,
+            onToggle = { isAutoScrolling = !isAutoScrolling },
+            onSpeedChange = { scrollSpeed = it },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = CzSpacing.base, vertical = CzSpacing.sm),
+        )
+    }
+}
+
+@Composable
+private fun TransposeBar(
+    keyName: String,
+    transposeOffset: Int,
+    onTranspose: (Int) -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CzRadius.lg))
+            .background(colors.card)
+            .border(BorderStroke(1.dp, colors.divider), RoundedCornerShape(CzRadius.lg))
+            .padding(horizontal = CzSpacing.base, vertical = CzSpacing.md),
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column {
+            Text(
+                stringResource(R.string.songbook_key).uppercase(),
+                style = CzTypeScale.caption2.copy(fontWeight = FontWeight.Bold),
+                color = colors.textTertiary,
+            )
+            Text(
+                keyName,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.accent,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(30.dp)
+                .background(colors.divider),
+        )
+        Spacer(Modifier.weight(1f))
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(CzRadius.sm))
+                .background(colors.background)
+                .border(BorderStroke(1.dp, colors.divider), RoundedCornerShape(CzRadius.sm)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = { onTranspose(-1) }) {
+                Icon(Icons.Rounded.Remove, contentDescription = null, tint = colors.accent)
+            }
+            Text(
+                transposeOffset.formatTranspose(),
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                color = if (transposeOffset == 0) colors.textSecondary else colors.accent,
+                modifier = Modifier.padding(horizontal = CzSpacing.sm),
+            )
+            IconButton(onClick = { onTranspose(1) }) {
+                Icon(Icons.Rounded.Add, contentDescription = null, tint = colors.accent)
             }
         }
     }
 }
 
 @Composable
-private fun RenderedChordLine(line: ChordLine, textSize: Float) {
+private fun ChordStrip(
+    chords: List<String>,
+    transposeOffset: Int,
+    originalKey: String,
+) {
+    val colors = MaterialTheme.czColors
+    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        Text(
+            stringResource(R.string.songbook_chords_in_song).uppercase(),
+            style = CzTypeScale.caption2.copy(fontWeight = FontWeight.Bold),
+            color = colors.textTertiary,
+        )
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            chords.forEach { chord ->
+                Text(
+                    text = transposeChordSymbol(chord, transposeOffset, originalKey),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.accent,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(CzRadius.sm))
+                        .background(colors.accent.copy(alpha = 0.12f))
+                        .border(BorderStroke(1.dp, colors.accent.copy(alpha = 0.18f)), RoundedCornerShape(CzRadius.sm))
+                        .padding(horizontal = CzSpacing.md, vertical = 7.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AutoScrollBar(
+    isAutoScrolling: Boolean,
+    scrollSpeed: Float,
+    onToggle: () -> Unit,
+    onSpeedChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.czColors
+    Row(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(colors.card)
+            .border(BorderStroke(1.dp, colors.divider), CircleShape)
+            .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(if (isAutoScrolling) colors.accent else colors.surface)
+                .clickable(onClick = onToggle),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (isAutoScrolling) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                contentDescription = stringResource(if (isAutoScrolling) R.string.songbook_stop_auto_scroll else R.string.songbook_start_auto_scroll),
+                tint = if (isAutoScrolling) Color.White else colors.accent,
+            )
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.songbook_auto_scroll),
+                    style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.textPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    String.format(Locale.US, "%.1fx", scrollSpeed),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.accent,
+                )
+            }
+            Slider(
+                value = scrollSpeed,
+                onValueChange = onSpeedChange,
+                valueRange = 0.2f..3f,
+                steps = 27,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RenderedChordLine(
+    line: ChordLine,
+    textSize: Float,
+    transposeOffset: Int,
+    originalKey: String,
+) {
     val colors = MaterialTheme.czColors
     if (line.isSectionHeader) {
         Text(
             text = line.text,
             fontSize = (textSize - 1).coerceAtLeast(14f).sp,
             fontWeight = FontWeight.SemiBold,
-            color = colors.ember,
+            color = colors.accent,
             modifier = Modifier.padding(top = CzSpacing.xs),
         )
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            val chordLine = ChordProParser.renderedChordLine(line)
+            val chordLine = renderedChordLine(line, transposeOffset, originalKey)
             if (chordLine.isNotBlank()) {
                 Text(
                     text = chordLine,
                     fontFamily = FontFamily.Monospace,
                     fontSize = (textSize - 2).coerceAtLeast(13f).sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = colors.ember,
+                    color = colors.accent,
                 )
             }
             Text(
@@ -462,9 +744,83 @@ private fun RenderedChordLine(line: ChordLine, textSize: Float) {
     }
 }
 
-private fun Song.subtitleText(): String = when {
-    isPinnedTheme -> "Theme song"
-    audio != null -> "Audio available"
-    chordSheet.lines.isNotEmpty() || chords.isNotBlank() -> "Lyrics and chords"
-    else -> "Lyrics only"
+private fun renderedChordLine(line: ChordLine, transposeOffset: Int, originalKey: String): String {
+    val sorted = line.chords.sortedWith(compareBy({ it.position }, { it.chord }))
+    val output = StringBuilder()
+    var cursor = 0
+    sorted.forEach { chord ->
+        val target = chord.position.coerceAtLeast(cursor)
+        while (cursor < target) {
+            output.append(' ')
+            cursor += 1
+        }
+        val display = transposeChordSymbol(chord.chord, transposeOffset, originalKey)
+        output.append(display)
+        cursor += display.length
+    }
+    return output.toString().trimEnd()
 }
+
+private fun Int.formatTranspose(): String = when {
+    this > 0 -> "+$this"
+    else -> toString()
+}
+
+private fun transposeChordSymbol(symbol: String, semitones: Int, originalKey: String): String {
+    if (semitones == 0) return symbol
+    val match = chordSymbolRegex.matchEntire(symbol.trim()) ?: return symbol
+    val root = match.groupValues[1] + match.groupValues[2]
+    val quality = match.groupValues[3]
+    val bassRoot = match.groupValues[4].takeIf { it.isNotBlank() }
+    val bassAccidental = match.groupValues[5]
+    val trailing = match.groupValues[6]
+    val preferFlats = originalKey.contains("b", ignoreCase = true) ||
+        originalKey in setOf("F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb")
+    val transposedRoot = transposePitch(root, semitones, preferFlats) ?: root
+    val transposedBass = bassRoot?.let { transposePitch(it + bassAccidental, semitones, preferFlats) ?: it + bassAccidental }
+    return buildString {
+        append(transposedRoot)
+        append(quality)
+        if (transposedBass != null) append('/').append(transposedBass)
+        append(trailing)
+    }
+}
+
+private fun transposePitch(raw: String, semitones: Int, preferFlats: Boolean): String? {
+    val normalized = raw
+        .replace("♯", "#")
+        .replace("♭", "b")
+        .replaceFirstChar { it.uppercase() }
+    val index = pitchIndex[normalized] ?: return null
+    val next = (index + semitones).floorMod(12)
+    return if (preferFlats) flatPitches[next] else sharpPitches[next]
+}
+
+private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus
+
+private val sharpPitches = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+private val flatPitches = listOf("C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B")
+private val pitchIndex = mapOf(
+    "C" to 0,
+    "B#" to 0,
+    "C#" to 1,
+    "Db" to 1,
+    "D" to 2,
+    "D#" to 3,
+    "Eb" to 3,
+    "E" to 4,
+    "Fb" to 4,
+    "E#" to 5,
+    "F" to 5,
+    "F#" to 6,
+    "Gb" to 6,
+    "G" to 7,
+    "G#" to 8,
+    "Ab" to 8,
+    "A" to 9,
+    "A#" to 10,
+    "Bb" to 10,
+    "B" to 11,
+    "Cb" to 11,
+)
+private val chordSymbolRegex = Regex("""^([A-Ga-g])([#b♯♭]?)([^/]*)(?:/([A-Ga-g])([#b♯♭]?))?(.*)$""")

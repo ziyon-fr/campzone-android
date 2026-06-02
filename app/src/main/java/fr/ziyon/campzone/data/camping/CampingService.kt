@@ -18,7 +18,6 @@ import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.RegistrationSubmission
 import fr.ziyon.campzone.data.model.TransportationBooking
 import fr.ziyon.campzone.data.model.TransportationBookingPayload
-import fr.ziyon.campzone.data.model.TransportationChoice
 import fr.ziyon.campzone.data.model.toCampingAttendeeOrNull
 import fr.ziyon.campzone.data.model.toCampingOrNull
 import java.util.UUID
@@ -262,8 +261,9 @@ class FirebaseCampingService @Inject constructor(
         submissions
             .filterNot { it.participant.id in existingIds }
             .forEach { submission ->
-                val bookingId = if (submission.transportationChoice == TransportationChoice.ProvidedBus) {
-                    "${submission.participant.id}-bus"
+                val selectedOption = camping.transportationOption(submission.transportationOptionId)
+                val bookingId = if (selectedOption?.issuesTicket == true) {
+                    "${submission.participant.id}-transport"
                 } else {
                     null
                 }

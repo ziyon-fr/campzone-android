@@ -1,3 +1,69 @@
+# Project Status - Songbook floating playback indicator parity
+
+Updated: 2026-06-03
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: Android `FloatingSongPlaybackIndicator` now mirrors the
+  latest iOS behavior while respecting Android's different Material bottom
+  navigation layout.
+- Playback state: the mini-player stays visible while a song is loaded even
+  when paused, switches its control between play and pause, and keeps the
+  artwork animation tied to active playback only.
+- Navigation/placement: tapping the track area opens the current song detail
+  without duplicating the same detail destination; the shell anchors the card
+  above Android's `Scaffold` bottom-bar padding plus Campzone spacing instead
+  of using the iOS tab-bar clearance constant.
+- Verification (JBR): focused
+  `:app:testDebugUnitTest --tests fr.ziyon.campzone.ui.songbook.*` green;
+  `:app:lintDebug :app:assembleDebug` green.
+
+---
+
+# Project Status - Notification feed and announcement gate fixes
+
+Updated: 2026-06-02
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change in progress: fixed Android notification feed parity with iOS by
+  de-duping backend-written `ziyon_notifications` announcement rows by
+  `announcementID`, so an updated announcement does not appear as a second feed
+  item.
+- Notification settings: channel counts now intersect saved subscriptions with
+  the user's current attended campings / personal teams, stale channel IDs are
+  silently pruned, and settings saves no longer wait on the backend topic sync
+  after the Firestore settings document is written.
+- Announcement permissions: `canManageAnnouncements` now requires announcement
+  create/edit permission scoped to the camp instead of granting access to any
+  camping creator; docs/tests updated to keep parity with the iOS rule change.
+- Registration transportation: the registration flow now hides the
+  transportation section when a camping has no `transportationOptions`; ticket
+  bookings are created only when the user selects a configured option that
+  issues a ticket, removing the legacy default-bus path.
+- Verification (JBR): focused
+  `:app:testDebugUnitTest --tests fr.ziyon.campzone.ui.camping.register.* --tests fr.ziyon.campzone.ui.notifications.* --tests fr.ziyon.campzone.core.permissions.* --tests fr.ziyon.campzone.data.model.AppNotification*`
+  green.
+
+---
+
+# Project Status - Camping card readability and scroll parity
+
+Updated: 2026-06-02
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: Android camping list and home featured cards now mirror the
+  latest iOS readability treatment for image-backed text.
+- Campings list: `CampingCard` banners use the stronger always-on bottom scrim,
+  image-overlaid location text gets the subtle shadow treatment, and month
+  sections now use snapping horizontal `LazyRow` paging with iOS-style content
+  margins plus the outer carousel bleed from SwiftUI.
+- Home featured camping: the hero scrim now uses the same permanent dark
+  gradient stops as iOS for uploaded images and fallback art; title/location
+  text gets a subtle shadow; the lower info strip is white in light mode and
+  `czSurface` in dark mode to match the SwiftUI card.
+- Verification (JBR): `:app:assembleDebug` green; `:app:lintDebug` green.
+
+---
+
 # Project Status - Badge catalog localization parity
 
 Updated: 2026-06-02

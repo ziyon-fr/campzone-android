@@ -192,12 +192,12 @@ fun SongEditorScreen(
                 actions = {
                     TextButton(onClick = onSave, enabled = !isSaving && form.title.isNotBlank()) {
                         if (isSaving) {
-                            CircularProgressIndicator(color = colors.ember, strokeWidth = 2.dp, modifier = Modifier.padding(end = CzSpacing.xs))
+                            CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.padding(end = CzSpacing.xs))
                         }
-                        Text(stringResource(R.string.common_save), color = if (!isSaving && form.title.isNotBlank()) colors.ember else colors.textSecondary)
+                        Text(stringResource(R.string.common_save), color = if (!isSaving && form.title.isNotBlank()) colors.accent else colors.textSecondary)
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = colors.background,
                     scrolledContainerColor = colors.background,
                 ),
@@ -253,7 +253,7 @@ fun SongEditorScreen(
                         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Rounded.Mic, contentDescription = null, tint = colors.amber)
+                        Icon(Icons.Rounded.Mic, contentDescription = null, tint = colors.accent)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(stringResource(R.string.songbook_theme_song_toggle), style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary)
                             Text(stringResource(R.string.songbook_theme_song_desc), style = CzTypeScale.caption, color = colors.textSecondary)
@@ -274,13 +274,13 @@ fun SongEditorScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
                     ) {
-                        Icon(Icons.Rounded.UploadFile, contentDescription = null, tint = colors.ember)
+                        Icon(Icons.Rounded.UploadFile, contentDescription = null, tint = colors.accent)
                         Column(Modifier.weight(1f)) {
                             Text(stringResource(R.string.songbook_local_file), style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary)
                             Text(stringResource(R.string.songbook_audio_types), style = CzTypeScale.caption, color = colors.textSecondary)
                         }
                         TextButton(onClick = { audioPicker.launch("audio/*") }) {
-                            Text(stringResource(R.string.songbook_choose), color = colors.ember)
+                            Text(stringResource(R.string.songbook_choose), color = colors.accent)
                         }
                     }
                 }
@@ -366,7 +366,12 @@ fun SongEditorScreen(
                 if (form.validationErrors.isNotEmpty() || operationError != null) {
                     EditorCard(background = colors.error.copy(alpha = 0.06f)) {
                         form.validationErrors.forEach { error ->
-                            Text(error, style = CzTypeScale.caption, color = colors.error, modifier = Modifier.padding(CzSpacing.md))
+                            Text(
+                                stringResource(error.messageRes),
+                                style = CzTypeScale.caption,
+                                color = colors.error,
+                                modifier = Modifier.padding(CzSpacing.md),
+                            )
                         }
                         if (operationError != null) {
                             Text(operationError, style = CzTypeScale.caption, color = colors.error, modifier = Modifier.padding(CzSpacing.md))
@@ -392,7 +397,7 @@ fun SongEditorScreen(
 private fun EditorSectionHeader(title: String, icon: ImageVector) {
     val colors = MaterialTheme.czColors
     Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = colors.ember, modifier = Modifier.padding(start = CzSpacing.xs))
+        Icon(icon, contentDescription = null, tint = colors.accent, modifier = Modifier.padding(start = CzSpacing.xs))
         Text(title, style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold), color = colors.textSecondary)
     }
 }
@@ -442,7 +447,7 @@ private fun AudioRow(title: String, subtitle: String, onDelete: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
     ) {
-        Icon(Icons.Rounded.Headphones, contentDescription = null, tint = colors.ember)
+        Icon(Icons.Rounded.Headphones, contentDescription = null, tint = colors.accent)
         Column(Modifier.weight(1f)) {
             Text(title, style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(subtitle, style = CzTypeScale.caption, color = colors.textSecondary)
@@ -512,11 +517,11 @@ private fun LyricsPartEditorCard(
                 Icon(
                     if (form.isEditingLyricsPart) Icons.Rounded.Edit else Icons.Rounded.Add,
                     contentDescription = null,
-                    tint = if (form.lyricsPartText.trim().isNotEmpty()) colors.ember else colors.textSecondary,
+                    tint = if (form.lyricsPartText.trim().isNotEmpty()) colors.accent else colors.textSecondary,
                 )
                 Text(
                     stringResource(if (form.isEditingLyricsPart) R.string.songbook_update_lyrics else R.string.songbook_add_lyrics),
-                    color = if (form.lyricsPartText.trim().isNotEmpty()) colors.ember else colors.textSecondary,
+                    color = if (form.lyricsPartText.trim().isNotEmpty()) colors.accent else colors.textSecondary,
                     style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
                 )
             }
@@ -541,19 +546,19 @@ private fun LyricsPartKindPicker(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(stringResource(R.string.songbook_type), style = CzTypeScale.caption, color = colors.textSecondary)
             Text(
-                selectedKind.displayName,
+                stringResource(selectedKind.displayNameRes),
                 style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
                 color = colors.textPrimary,
             )
         }
         Box {
             TextButton(onClick = { expanded = true }) {
-                Text(stringResource(R.string.songbook_change), color = colors.ember)
+                Text(stringResource(R.string.songbook_change), color = colors.accent)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 SongLyricsPartKind.entries.forEach { kind ->
                     DropdownMenuItem(
-                        text = { Text(kind.displayName) },
+                        text = { Text(stringResource(kind.displayNameRes)) },
                         onClick = {
                             expanded = false
                             onKindChange(kind)
@@ -587,10 +592,10 @@ private fun PartNumberStepper(
             )
         }
         TextButton(onClick = { onValueChange(value - 1) }, enabled = value > 1) {
-            Text("-", color = if (value > 1) colors.ember else colors.textSecondary)
+            Text("-", color = if (value > 1) colors.accent else colors.textSecondary)
         }
         TextButton(onClick = { onValueChange(value + 1) }, enabled = value < 24) {
-            Text("+", color = if (value < 24) colors.ember else colors.textSecondary)
+            Text("+", color = if (value < 24) colors.accent else colors.textSecondary)
         }
     }
 }
@@ -622,7 +627,7 @@ private fun LyricsPreviewRow(
             Text(
                 part.displayTitle(),
                 style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
-                color = if (part.kind == SongLyricsPartKind.Chorus) colors.ember else colors.textPrimary,
+                color = if (part.kind == SongLyricsPartKind.Chorus) colors.accent else colors.textPrimary,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -635,7 +640,7 @@ private fun LyricsPreviewRow(
                 Icon(Icons.Rounded.ArrowDownward, contentDescription = stringResource(R.string.songbook_move_lyrics_down), tint = if (canMoveDown) colors.textSecondary else colors.divider)
             }
             IconButton(onClick = onEdit) {
-                Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.songbook_edit_lyrics), tint = colors.ember)
+                Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.songbook_edit_lyrics), tint = colors.accent)
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.songbook_delete_lyrics), tint = colors.error)
@@ -666,7 +671,7 @@ private fun transparentTextFieldColors() = TextFieldDefaults.colors(
     unfocusedContainerColor = Color.Transparent,
     focusedIndicatorColor = Color.Transparent,
     unfocusedIndicatorColor = Color.Transparent,
-    cursorColor = MaterialTheme.czColors.ember,
+    cursorColor = MaterialTheme.czColors.accent,
 )
 
 private fun android.content.Context.displayNameFor(uri: Uri): String? =

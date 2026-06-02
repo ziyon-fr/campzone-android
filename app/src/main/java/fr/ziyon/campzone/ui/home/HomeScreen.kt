@@ -42,8 +42,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.intl.Locale as ComposeLocale
@@ -55,7 +57,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
-import fr.ziyon.campzone.core.designsystem.CzColors
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzErrorState
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
@@ -627,17 +628,11 @@ private fun FeaturedCampingCard(
                         .matchParentSize()
                         .background(
                             Brush.verticalGradient(
-                                colors = if (isDarkMode) {
-                                    listOf(
-                                        Color.Transparent,
-                                        MaterialTheme.czColors.surface.copy(alpha = 0.85f)
-                                    )
-                                } else {
-                                    listOf(
-                                        CzColors.BackgroundDark.copy(alpha = 0.1f),
-                                        CzColors.BackgroundDark.copy(alpha = 0.4f),
-                                    )
-                                },
+                                colorStops = arrayOf(
+                                    0f to Color.Transparent,
+                                    0.38f to Color.Black.copy(alpha = 0.16f),
+                                    1f to Color.Black.copy(alpha = 0.78f),
+                                ),
                             ),
                         ),
                 )
@@ -657,7 +652,9 @@ private fun FeaturedCampingCard(
                     ) {
                         Text(
                             text = camping.title,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                shadow = featuredCampingTextShadow(),
+                            ),
                             color = Color.White,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -677,7 +674,9 @@ private fun FeaturedCampingCard(
                                 text = camping.location.ifBlank {
                                     stringResource(R.string.home_location_pending)
                                 },
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    shadow = featuredCampingTextShadow(),
+                                ),
                                 color = Color.White.copy(alpha = 0.9f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -690,7 +689,7 @@ private fun FeaturedCampingCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.czColors.surface)
+                    .background(if (isDarkMode) MaterialTheme.czColors.surface else Color.White)
                     .padding(CzSpacing.md),
                 verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
             ) {
@@ -930,6 +929,12 @@ private fun Date.homeProgramTimeText(): String =
 
 private fun Date.homeProgramDayText(): String =
     SimpleDateFormat("EEE", Locale.getDefault()).format(this)
+
+private fun featuredCampingTextShadow(): Shadow = Shadow(
+    color = Color.Black.copy(alpha = 0.42f),
+    offset = Offset(x = 0f, y = 1f),
+    blurRadius = 3f,
+)
 
 @Composable
 @Preview(showBackground = true)

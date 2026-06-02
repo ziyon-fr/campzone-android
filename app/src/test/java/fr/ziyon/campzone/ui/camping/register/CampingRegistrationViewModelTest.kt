@@ -69,13 +69,13 @@ class CampingRegistrationViewModelTest {
         viewModel.load("camp-1", adult)
         viewModel.toggleParticipant("guardian-1")
         viewModel.toggleParticipant("child-1")
-        viewModel.selectTransportationChoice("child-1", TransportationChoice.ProvidedBus)
         viewModel.submit(adult) { requiresPayment = it }
 
         assertEquals(false, requiresPayment)
         assertEquals(1, service.submitted.size)
         assertEquals("child-1", service.submitted.single().participant.id)
-        assertEquals(TransportationChoice.ProvidedBus, service.submitted.single().transportationChoice)
+        assertEquals(TransportationChoice.OwnCar, service.submitted.single().transportationChoice)
+        assertEquals(null, service.submitted.single().transportationOptionId)
         assertEquals(RegistrationParticipantKind.Child, service.submitted.single().participant.kind)
         assertEquals(1, dispatcher.requests.size)
         assertEquals(1, dispatcher.requests.single().participantCount)

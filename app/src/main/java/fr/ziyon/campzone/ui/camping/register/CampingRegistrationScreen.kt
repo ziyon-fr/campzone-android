@@ -84,7 +84,6 @@ import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipant
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
-import fr.ziyon.campzone.data.model.TransportationChoice
 import fr.ziyon.campzone.data.model.TransportationMode
 import fr.ziyon.campzone.ui.camping.campingDateRange
 import java.text.NumberFormat
@@ -125,7 +124,6 @@ fun CampingRegistrationRoute(
         snackbarHostState = snackbarHostState,
         onBack = onBack,
         onToggleParticipant = viewModel::toggleParticipant,
-        onSelectTransportationChoice = viewModel::selectTransportationChoice,
         onSelectTransportationOption = viewModel::selectTransportationOption,
         onAddParticipant = onAddParticipant,
         onSubmit = {
@@ -148,7 +146,6 @@ fun CampingRegistrationScreen(
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onToggleParticipant: (String) -> Unit,
-    onSelectTransportationChoice: (String, TransportationChoice) -> Unit,
     onSelectTransportationOption: (String, String?) -> Unit,
     onAddParticipant: () -> Unit,
     onSubmit: () -> Unit,
@@ -228,7 +225,6 @@ fun CampingRegistrationScreen(
                 state = state,
                 camping = camping,
                 onToggleParticipant = onToggleParticipant,
-                onSelectTransportationChoice = onSelectTransportationChoice,
                 onSelectTransportationOption = onSelectTransportationOption,
                 onAddParticipant = onAddParticipant,
                 modifier = Modifier.padding(innerPadding),
@@ -242,7 +238,6 @@ private fun RegistrationContent(
     state: CampingRegistrationUiState,
     camping: Camping,
     onToggleParticipant: (String) -> Unit,
-    onSelectTransportationChoice: (String, TransportationChoice) -> Unit,
     onSelectTransportationOption: (String, String?) -> Unit,
     onAddParticipant: () -> Unit,
     modifier: Modifier = Modifier,
@@ -287,21 +282,21 @@ private fun RegistrationContent(
         if (state.selectedParticipants.isEmpty()) {
             item { EmptySelectionHint() }
         } else {
-            item {
-                SectionTitle(
-                    title = stringResource(R.string.registration_transportation),
-                    icon = Icons.Filled.DirectionsBus,
-                )
-            }
-            items(state.selectedParticipants, key = { "transport-${it.id}" }) { participant ->
-                TransportationCard(
-                    participant = participant,
-                    camping = camping,
-                    selectedChoice = state.transportationChoices[participant.id] ?: TransportationChoice.OwnCar,
-                    selectedOptionId = state.transportationOptionIds[participant.id],
-                    onSelectChoice = { onSelectTransportationChoice(participant.id, it) },
-                    onSelectOption = { onSelectTransportationOption(participant.id, it) },
-                )
+            if (camping.usesTransportationOptions) {
+                item {
+                    SectionTitle(
+                        title = stringResource(R.string.registration_transportation),
+                        icon = Icons.Filled.DirectionsBus,
+                    )
+                }
+                items(state.selectedParticipants, key = { "transport-${it.id}" }) { participant ->
+                    TransportationCard(
+                        participant = participant,
+                        camping = camping,
+                        selectedOptionId = state.transportationOptionIds[participant.id],
+                        onSelectOption = { onSelectTransportationOption(participant.id, it) },
+                    )
+                }
             }
             item {
                 SectionTitle(
@@ -344,7 +339,13 @@ private fun RegistrationHeader(camping: Camping) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = stringResource(R.string.registration_header_copy),
+                text = stringResource(
+                    if (camping.usesTransportationOptions) {
+                        R.string.registration_header_copy_with_transport
+                    } else {
+                        R.string.registration_header_copy
+                    },
+                ),
                 color = MaterialTheme.czColors.textSecondary,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -438,9 +439,7 @@ private fun ParticipantSelectionCard(
 private fun TransportationCard(
     participant: RegistrationParticipant,
     camping: Camping,
-    selectedChoice: TransportationChoice,
     selectedOptionId: String?,
-    onSelectChoice: (TransportationChoice) -> Unit,
     onSelectOption: (String?) -> Unit,
 ) {
     Surface(
@@ -451,28 +450,18 @@ private fun TransportationCard(
             modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
         ) {
-            ParticipantHeader(participant = participant, icon = transportIcon(camping, selectedChoice, selectedOptionId))
-            if (camping.usesTransportationOptions) {
+            ParticipantHeader(participant = participant, icon = transportIcon(camping, selectedOptionId))
+            TransportationOptionRow(
+                label = stringResource(R.string.registration_own_arrangement),
+                selected = selectedOptionId == null,
+                onClick = { onSelectOption(null) },
+            )
+            camping.transportationOptions.forEach { option ->
                 TransportationOptionRow(
-                    label = stringResource(R.string.registration_own_arrangement),
-                    selected = selectedOptionId == null,
-                    onClick = { onSelectOption(null) },
+                    label = optionLabel(option),
+                    selected = selectedOptionId == option.id,
+                    onClick = { onSelectOption(option.id) },
                 )
-                camping.transportationOptions.forEach { option ->
-                    TransportationOptionRow(
-                        label = optionLabel(option),
-                        selected = selectedOptionId == option.id,
-                        onClick = { onSelectOption(option.id) },
-                    )
-                }
-            } else {
-                TransportationChoice.entries.forEach { choice ->
-                    TransportationOptionRow(
-                        label = choice.displayName(),
-                        selected = selectedChoice == choice,
-                        onClick = { onSelectChoice(choice) },
-                    )
-                }
             }
         }
     }
@@ -503,21 +492,24 @@ private fun ReviewCard(
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                         )
-                        Text(
-                            text = transportSummary(participant, camping, state),
-                            color = MaterialTheme.czColors.textSecondary,
-                            style = MaterialTheme.typography.labelMedium,
+                        if (camping.usesTransportationOptions) {
+                            Text(
+                                text = transportSummary(participant, camping, state),
+                                color = MaterialTheme.czColors.textSecondary,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                    }
+                    if (camping.usesTransportationOptions) {
+                        Icon(
+                            imageVector = transportIcon(
+                                camping = camping,
+                                optionId = state.transportationOptionIds[participant.id],
+                            ),
+                            contentDescription = null,
+                            tint = MaterialTheme.czColors.ember,
                         )
                     }
-                    Icon(
-                        imageVector = transportIcon(
-                            camping = camping,
-                            choice = state.transportationChoices[participant.id] ?: TransportationChoice.OwnCar,
-                            optionId = state.transportationOptionIds[participant.id],
-                        ),
-                        contentDescription = null,
-                        tint = MaterialTheme.czColors.ember,
-                    )
                 }
                 if (index != participants.lastIndex) {
                     HorizontalDivider(
@@ -702,42 +694,28 @@ private fun RegistrationParticipantKind.displayName(): String = when (this) {
     RegistrationParticipantKind.Child -> stringResource(R.string.registration_kind_child)
 }
 
-@Composable
-private fun TransportationChoice.displayName(): String = when (this) {
-    TransportationChoice.OwnCar -> stringResource(R.string.registration_transport_own_car)
-    TransportationChoice.ProvidedBus -> stringResource(R.string.registration_transport_provided_bus)
-}
-
 private fun transportIcon(
     camping: Camping,
-    choice: TransportationChoice,
     optionId: String?,
 ): ImageVector {
-    if (camping.usesTransportationOptions) {
-        val option = camping.transportationOption(optionId)
-        return when (option?.mode) {
-            TransportationMode.Bus,
-            TransportationMode.Coach,
-            TransportationMode.Minibus,
-            TransportationMode.Shuttle,
-            -> Icons.Filled.DirectionsBus
-            TransportationMode.Train -> Icons.Filled.DirectionsBus
-            TransportationMode.OwnCar,
-            TransportationMode.Carpool,
-            -> Icons.Filled.DirectionsCar
-            TransportationMode.Plane,
-            TransportationMode.Boat,
-            TransportationMode.Bike,
-            TransportationMode.OnFoot,
-            TransportationMode.Other,
-            null,
-            -> Icons.Filled.BusAlert
-        }
-    }
-    return if (choice == TransportationChoice.ProvidedBus) {
-        Icons.Filled.DirectionsBus
-    } else {
-        Icons.Filled.DirectionsCar
+    val option = camping.transportationOption(optionId)
+    return when (option?.mode) {
+        TransportationMode.Bus,
+        TransportationMode.Coach,
+        TransportationMode.Minibus,
+        TransportationMode.Shuttle,
+        -> Icons.Filled.DirectionsBus
+        TransportationMode.Train -> Icons.Filled.DirectionsBus
+        TransportationMode.OwnCar,
+        TransportationMode.Carpool,
+        -> Icons.Filled.DirectionsCar
+        TransportationMode.Plane,
+        TransportationMode.Boat,
+        TransportationMode.Bike,
+        TransportationMode.OnFoot,
+        TransportationMode.Other,
+        null,
+        -> Icons.Filled.BusAlert
     }
 }
 
@@ -762,7 +740,7 @@ private fun transportSummary(
         return camping.transportationOption(state.transportationOptionIds[participant.id])?.resolvedName
             ?: stringResource(R.string.registration_own_arrangement)
     }
-    return (state.transportationChoices[participant.id] ?: TransportationChoice.OwnCar).displayName()
+    return ""
 }
 
 @Preview(showBackground = true)
@@ -807,12 +785,10 @@ private fun CampingRegistrationScreenPreview() {
                 camping = camping,
                 participants = listOf(RegistrationParticipant.from(user)),
                 selectedParticipantIds = setOf(user.uid),
-                transportationChoices = mapOf(user.uid to TransportationChoice.OwnCar),
             ),
             snackbarHostState = remember { SnackbarHostState() },
             onBack = {},
             onToggleParticipant = {},
-            onSelectTransportationChoice = { _, _ -> },
             onSelectTransportationOption = { _, _ -> },
             onAddParticipant = {},
             onSubmit = {},

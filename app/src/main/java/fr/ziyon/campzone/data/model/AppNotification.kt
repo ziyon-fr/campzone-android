@@ -33,6 +33,13 @@ data class AppNotification(
     val event: String? = null,
     val mentionedUserIds: List<String> = emptyList(),
 ) {
+    val feedDeduplicationKey: String
+        get() = if (kind == AppNotificationKind.Announcement && !announcementId.isNullOrBlank()) {
+            "$appId:announcement:$announcementId"
+        } else {
+            "$appId:document:$id"
+        }
+
     /**
      * Whether this notification should appear in [role]'s feed, given the set
      * of topics that user is subscribed to. Mirrors iOS `concerns(user:visibleTopics:)`:
@@ -94,6 +101,12 @@ data class AppNotification(
             event?.trim()?.lowercase() in POINT_EVENTS
     }
 }
+
+fun AppNotification.isPreferredFeedRepresentativeOver(existing: AppNotification): Boolean =
+    when {
+        sentAt != existing.sentAt -> sentAt.after(existing.sentAt)
+        else -> id < existing.id
+    }
 
 /** Returns null for docs whose `appID` is not `"campzone"` (filtered client-side). */
 internal fun Map<String, Any?>.toAppNotificationOrNull(documentId: String): AppNotification? {
