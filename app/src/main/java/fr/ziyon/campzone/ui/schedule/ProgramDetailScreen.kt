@@ -182,7 +182,8 @@ private fun ProgramDetailContent(
 
 @Composable
 private fun ProgramHeader(program: Program) {
-    val accent = program.type.accentColor
+    val accent = program.resolvedAccentColor
+    val typeName = program.customType?.trimmedName ?: stringResource(program.type.displayNameRes)
     Row(
         modifier = Modifier.padding(top = CzSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
@@ -200,7 +201,7 @@ private fun ProgramHeader(program: Program) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = program.type.icon,
+                imageVector = program.resolvedIcon,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(26.dp),
@@ -211,7 +212,7 @@ private fun ProgramHeader(program: Program) {
             shape = RoundedCornerShape(CzRadius.full),
         ) {
             Text(
-                text = stringResource(program.type.displayNameRes),
+                text = typeName,
                 style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
                 color = accent,
                 modifier = Modifier.padding(horizontal = CzSpacing.sm, vertical = 3.dp),

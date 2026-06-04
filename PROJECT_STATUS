@@ -1,3 +1,60 @@
+# Project Status - Schedule day titles and custom program types parity
+
+Updated: 2026-06-04
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: Android schedule days now use the shared
+  `campings/{campingID}/schedule/config/days/{dayID}` title contract. Blank or
+  absent titles resolve to localized display-only `Day N`, while custom names
+  are persisted and can be cleared back to the automatic label.
+- Program types: Android now reads/writes iOS-compatible `customTypeName`,
+  `customTypeSymbol`, and `customTypeColorHex` only for `type == custom`; built
+  in program types delete those fields on write. The editor offers the same 40
+  SF Symbol identifiers and 12 color swatches, reuses distinct existing custom
+  types, and renders custom icon/color in timeline, detail, editor, and guardian
+  schedule rows.
+- Localization/tests: day and program counts now use Android plurals in EN, FR,
+  PT, and PT-BR. Focused coverage was added for day-title reset behavior, custom
+  type payload writes/deletes, custom-type validation/reuse, unknown type
+  fallback, and the plural resource contract.
+
+---
+
+# Project Status - Team earned points history parity
+
+Updated: 2026-06-04
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Audit completed: iOS stores game awards as immutable `activities` first, then
+  mutates team/member scores. The team detail "Points earned" section reads
+  positive team-targeted `Activity` records; positive awards are not duplicated
+  into a team-history array, while negative team awards surface through
+  `penalties[]`.
+- Change completed: Android team detail now observes the games activity stream
+  and renders the same recent positive team awards section, with "View all"
+  opening the existing team-scoped point history route.
+- Regression coverage added for positive team awards recording the game
+  activity audit entry and incrementing team score without creating a penalty.
+
+---
+
+# Project Status - Games point-rule target enforcement
+
+Updated: 2026-06-04
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: Android games awarding now mirrors the iOS point-rule
+  target policy. Team-only rules can only target teams, participant-only rules
+  can only target participants, and mixed (`any`) rules allow both.
+- Award sheet: the target segmented control is constrained from the selected
+  rule scope and stale opposite-target selections are cleared whenever the rule
+  or target kind changes.
+- ViewModel: `awardPoints` validates exactly one target and the selected
+  `pointRules[].appliesTo` before recording an activity or mutating team/member
+  scores. Regression coverage added in `GameViewModelTest`.
+
+---
+
 # Project Status - Songbook floating playback indicator parity
 
 Updated: 2026-06-03

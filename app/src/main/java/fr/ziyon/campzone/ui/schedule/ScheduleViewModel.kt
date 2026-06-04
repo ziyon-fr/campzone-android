@@ -13,6 +13,7 @@ import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampDay
 import fr.ziyon.campzone.data.model.CampingSchedule
+import fr.ziyon.campzone.data.model.CustomProgramType
 import fr.ziyon.campzone.data.model.DateKeys
 import fr.ziyon.campzone.data.model.FoodMenuProgramSync
 import fr.ziyon.campzone.data.model.Program
@@ -51,12 +52,14 @@ data class ProgramForm(
     val endDate: Date = Date(System.currentTimeMillis() + 3_600_000L),
     val venuePointId: String? = null,
     val endsNextDay: Boolean = false,
+    val customType: CustomProgramType? = null,
 )
 
 enum class ProgramValidationError(val messageRes: Int) {
     TitleRequired(R.string.schedule_validation_title_required),
     LocationRequired(R.string.schedule_validation_location_required),
     EndBeforeStart(R.string.schedule_validation_end_after_start),
+    CustomTypeRequired(R.string.schedule_validation_custom_type_required),
 }
 
 @HiltViewModel
@@ -214,6 +217,7 @@ class ScheduleViewModel @Inject constructor(
             startDate = program.startDate,
             endDate = program.endDate,
             venuePointId = program.venuePointId,
+            customType = program.customType,
         )
         _validationErrors.value = emptyList()
         _operationError.value = null
@@ -279,6 +283,27 @@ class ScheduleViewModel @Inject constructor(
         }
     }
 
+    fun saveDayTitle(title: String, dayId: String, campingId: String) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            _operationError.value = null
+            runCatching {
+                val schedule = scheduleService.saveDayTitle(title, dayId, campingId)
+                val camping = runCatching { campingService.fetchCamping(campingId) }.getOrNull()
+                schedules[campingId] = if (camping != null) {
+                    schedule.normalizedForCamping(camping, ::defaultDayTitle)
+                } else {
+                    schedule
+                }
+                _operationMessage.value = stringProvider.get(R.string.schedule_day_title_saved)
+                publishSchedule(campingId)
+            }.onFailure { e ->
+                _operationError.value = e.message ?: stringProvider.get(R.string.schedule_day_title_save_error)
+            }
+            _isSaving.value = false
+        }
+    }
+
     fun program(id: String): Program? =
         schedules.values.flatMap { it.allPrograms }.firstOrNull { it.id == id }
 
@@ -290,6 +315,9 @@ class ScheduleViewModel @Inject constructor(
     }
 
     fun schedule(campingId: String): CampingSchedule? = schedules[campingId]
+
+    fun customProgramTypes(campingId: String): List<CustomProgramType> =
+        schedules[campingId]?.customProgramTypes.orEmpty()
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
@@ -361,6 +389,9 @@ class ScheduleViewModel @Inject constructor(
         if (form.title.isBlank()) errors.add(ProgramValidationError.TitleRequired)
         if (form.location.isBlank()) errors.add(ProgramValidationError.LocationRequired)
         if (form.endDate <= form.startDate) errors.add(ProgramValidationError.EndBeforeStart)
+        if (form.type == ProgramType.Custom && form.customType?.isValid != true) {
+            errors.add(ProgramValidationError.CustomTypeRequired)
+        }
         return errors
     }
 
@@ -402,6 +433,8 @@ class ScheduleViewModel @Inject constructor(
             form.endDate
         }
 
+        val customType = if (form.type == ProgramType.Custom) form.customType else null
+
         return Program(
             id = _editingProgramId.value ?: form.id,
             campingId = campingId,
@@ -413,6 +446,9 @@ class ScheduleViewModel @Inject constructor(
             location = form.location.trim(),
             description = form.description.trim(),
             venuePointId = form.venuePointId?.takeUnless { it.isBlank() },
+            customTypeName = customType?.trimmedName,
+            customTypeSymbol = customType?.symbol,
+            customTypeColorHex = customType?.colorHex,
         )
     }
 }

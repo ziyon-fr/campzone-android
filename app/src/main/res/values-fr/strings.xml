@@ -1294,6 +1294,8 @@
     <string name="teams_team_chat">Chat d’équipe</string>
     <string name="teams_team_chat_subtitle">Discuter avec les membres de %1$s</string>
     <string name="teams_point_history">Historique des points</string>
+    <string name="teams_points_earned">Points gagnés</string>
+    <string name="teams_no_points_earned">Aucun point gagné pour le moment. Les récompenses des jeux apparaîtront ici.</string>
     <string name="teams_no_members">Aucun membre pour le moment.</string>
     <string name="teams_manage_member">Gérer le membre</string>
     <string name="teams_remove_member">Retirer de l’équipe</string>
@@ -1559,6 +1561,7 @@
     <string name="schedule_validation_title_required">Le titre de l activite est requis.</string>
     <string name="schedule_validation_location_required">Le lieu de l activite est requis.</string>
     <string name="schedule_validation_end_after_start">L heure de fin doit etre apres l heure de debut.</string>
+    <string name="schedule_validation_custom_type_required">Personnalisez le type de programme personnalise.</string>
     <string name="schedule_validation_bullet">- %1$s</string>
     <string name="schedule_day_program_count_cd">%1$s, %2$s, %3$d activites</string>
     <string name="schedule_add_menu_cd">Ajouter un repas</string>
@@ -1906,9 +1909,20 @@
     <string name="auth_tagline">Bienvenue ! L’aventure vous attend.</string>
     <string name="auth_or_use_email">ou utilisez l’e-mail</string>
     <string name="schedule_add_program">+ Ajouter un programme</string>
-    <string name="schedule_overview_summary">%1$d jour · %2$d programme</string>
+    <string name="schedule_overview_summary">%1$s · %2$s</string>
+    <string name="schedule_day_title_saved">Nom du jour enregistre.</string>
+    <string name="schedule_day_title_save_error">Impossible d enregistrer le nom du jour.</string>
+    <string name="schedule_rename_day">Renommer le jour</string>
+    <string name="schedule_day_name_title">Nom du jour</string>
+    <string name="schedule_day_name_label">Nom</string>
+    <string name="schedule_day_name_hint">Laissez vide pour utiliser le nom par defaut "%1$s".</string>
     <string name="schedule_no_programs_date">Aucun programme à cette date</string>
     <string name="schedule_no_programs_hint">Utilisez Ajouter un programme pour créer le premier élément du %1$s.</string>
+    <plurals name="schedule_day_count">
+        <item quantity="one">%1$d jour</item>
+        <item quantity="many">%1$d jours</item>
+        <item quantity="other">%1$d jours</item>
+    </plurals>
     <plurals name="schedule_program_count">
         <item quantity="one">%1$d programme</item>
         <item quantity="many">%1$d programmes</item>
@@ -1919,6 +1933,15 @@
     <string name="program_start">Début</string>
     <string name="program_end">Fin</string>
     <string name="program_duration">Durée</string>
+    <string name="program_personalize">Personnaliser</string>
+    <string name="program_custom_type_hint">Touchez Personnaliser pour creer un type avec son propre nom, icone et couleur.</string>
+    <string name="program_custom_types_title">Vos types personnalises</string>
+    <string name="program_custom_type_preview_name">Votre type personnalise</string>
+    <string name="program_custom_type_live_preview">Apercu en direct</string>
+    <string name="program_custom_type_name">Nom</string>
+    <string name="program_custom_type_name_hint">p. ex. Feu de camp, Atelier</string>
+    <string name="program_custom_type_icon">Icone</string>
+    <string name="program_custom_type_color">Couleur</string>
     <string name="program_menu_not_published">Menu pas encore publié.</string>
     <string name="program_times_scheduled_on">Les heures de début et de fin sont programmées le %1$s.</string>
     <string name="food_camp_menu">Menu du camp</string>

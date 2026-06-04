@@ -904,6 +904,13 @@ fun CampzoneNavigationShell(
                 val campingDetailVm: CampingDetailViewModel =
                     if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
                 val campingDetailState by campingDetailVm.uiState.collectAsState()
+                val gamesEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingGames(campingId).route)
+                    }.getOrNull()
+                }
+                val gameViewModel: GameViewModel =
+                    if (gamesEntry != null) hiltViewModel(gamesEntry) else hiltViewModel()
                 TeamDetailRoute(
                     teamId = teamId,
                     campingId = campingId,
@@ -912,6 +919,7 @@ fun CampzoneNavigationShell(
                     approvedAttendees = campingDetailState.attendees
                         .filter { it.registrationStatus == RegistrationApprovalStatus.Approved },
                     viewModel = viewModel,
+                    gameViewModel = gameViewModel,
                     onBack = { navController.popBackStack() },
                     onOpenEditor = { id ->
                         navController.navigate(AppRoute.TeamEditor(campingId, id).route)

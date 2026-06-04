@@ -226,31 +226,44 @@ class GameViewModel @Inject constructor(
         camping: Camping,
         teams: List<Team>,
         actor: AuthenticatedUser,
+        suppliedGame: Game? = null,
     ): Activity? {
         if (request.points == 0) {
             operationError = "Enter a non-zero point delta."
             return null
         }
+        val targetKind = request.targetKind() ?: run {
+            operationError = "Select one target team or participant."
+            return null
+        }
+        val sourceGame = suppliedGame
+            ?.takeIf { it.id == request.gameId && it.campingId == camping.id }
+            ?: game(request.gameId, camping.id)
+        request.pointRuleScopeError(targetKind, sourceGame)?.let { error ->
+            operationError = error
+            return null
+        }
+
         val previousScore: Int
         val targetTeam: Team?
         val targetMemberId: String?
 
-        if (request.targetTeamId != null) {
-            val team = teams.firstOrNull { it.id == request.targetTeamId }
-                ?: run { operationError = "Team not found."; return null }
-            previousScore = team.totalScore
-            targetTeam = team
-            targetMemberId = null
-        } else if (request.targetUserId != null) {
-            val pair = teams.flatMap { t -> t.members.map { t to it } }
-                .firstOrNull { (_, m) -> m.userId == request.targetUserId }
-                ?: run { operationError = "Participant not found."; return null }
-            previousScore = pair.second.personalScore
-            targetTeam = pair.first
-            targetMemberId = pair.second.id
-        } else {
-            operationError = "Select a target team or participant."
-            return null
+        when (targetKind) {
+            ActivityTargetKind.Team -> {
+                val team = teams.firstOrNull { it.id == request.targetTeamId }
+                    ?: run { operationError = "Team not found."; return null }
+                previousScore = team.totalScore
+                targetTeam = team
+                targetMemberId = null
+            }
+            ActivityTargetKind.User -> {
+                val pair = teams.flatMap { t -> t.members.map { t to it } }
+                    .firstOrNull { (_, m) -> m.userId == request.targetUserId }
+                    ?: run { operationError = "Participant not found."; return null }
+                previousScore = pair.second.personalScore
+                targetTeam = pair.first
+                targetMemberId = pair.second.id
+            }
         }
 
         isAwarding = true
@@ -506,6 +519,36 @@ class GameViewModel @Inject constructor(
                     reason = reason,
                 ),
             )
+        }
+    }
+}
+
+private enum class ActivityTargetKind { Team, User }
+
+private fun ActivityRequest.targetKind(): ActivityTargetKind? = when {
+    targetTeamId != null && targetUserId == null -> ActivityTargetKind.Team
+    targetTeamId == null && targetUserId != null -> ActivityTargetKind.User
+    else -> null
+}
+
+private fun ActivityRequest.pointRuleScopeError(
+    targetKind: ActivityTargetKind,
+    sourceGame: Game?,
+): String? {
+    val ruleId = pointRuleId ?: return null
+    val rule = sourceGame?.pointRules?.firstOrNull { it.id == ruleId }
+        ?: return "Selected point rule could not be found."
+    return when (rule.appliesTo) {
+        PointRuleTarget.Any -> null
+        PointRuleTarget.Team -> if (targetKind == ActivityTargetKind.Team) {
+            null
+        } else {
+            "This point rule can only be awarded to teams."
+        }
+        PointRuleTarget.User -> if (targetKind == ActivityTargetKind.User) {
+            null
+        } else {
+            "This point rule can only be awarded to participants."
         }
     }
 }

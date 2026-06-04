@@ -24,6 +24,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.TrendingDown
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.BarChart
@@ -32,13 +34,12 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.TrendingDown
-import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -78,6 +79,7 @@ import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.Team
@@ -85,6 +87,8 @@ import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.model.TeamMemberRole
 import fr.ziyon.campzone.data.model.TeamPenalty
 import fr.ziyon.campzone.data.model.toTeamMember
+import fr.ziyon.campzone.ui.games.ActivityRow
+import fr.ziyon.campzone.ui.games.GameViewModel
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
@@ -100,6 +104,7 @@ fun TeamDetailRoute(
     onOpenTeamChat: (String, String) -> Unit,
     onOpenPointHistory: (String, String) -> Unit,
     viewModel: TeamViewModel = hiltViewModel(),
+    gameViewModel: GameViewModel = hiltViewModel(),
 ) {
     val evaluator = remember { AppPermissionEvaluator() }
     val permissionUser = PermissionUser(
@@ -117,23 +122,36 @@ fun TeamDetailRoute(
 
     val canManageTeams = campingCtx != null && evaluator.canManageTeams(permissionUser, campingCtx)
     val canModerateTeamChat = campingCtx != null && evaluator.canModerateTeamChat(permissionUser, campingCtx)
+    val canSeeHiddenGameActivity = campingCtx != null && (
+        evaluator.canRevealWinners(permissionUser, campingCtx) ||
+            evaluator.canManageGames(permissionUser, campingCtx)
+        )
 
     val uiState by viewModel.uiState.collectAsState()
+    val gamesUiState by gameViewModel.uiState.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
     val operationError by viewModel.operationError.collectAsState()
     val operationMessage by viewModel.operationMessage.collectAsState()
 
     LaunchedEffect(campingId) { viewModel.loadIfNeeded(campingId) }
+    LaunchedEffect(campingId) { gameViewModel.loadIfNeeded(campingId) }
     DisposableEffect(campingId) {
         viewModel.startObserving(campingId)
         onDispose { viewModel.stopObserving() }
     }
 
     val team = viewModel.team(teamId, campingId)
+    val earnedActivities = remember(gamesUiState, camping, teamId, canSeeHiddenGameActivity) {
+        camping
+            ?.let { gameViewModel.visibleActivities(it, canSeeHiddenGameActivity) }
+            .orEmpty()
+            .teamEarnedActivities(teamId)
+    }
 
     TeamDetailScreen(
         team = team,
         campingId = campingId,
+        earnedActivities = earnedActivities,
         canManageTeams = canManageTeams,
         authenticatedUserId = authenticatedUser.uid,
         approvedAttendees = approvedAttendees,
@@ -165,6 +183,7 @@ fun TeamDetailRoute(
 private fun TeamDetailScreen(
     team: Team?,
     campingId: String,
+    earnedActivities: List<Activity>,
     canManageTeams: Boolean,
     canModerateTeamChat: Boolean,
     authenticatedUserId: String,
@@ -275,11 +294,6 @@ private fun TeamDetailScreen(
             // Score breakdown
             TeamDetailSectionLabel(stringResource(R.string.teams_score_breakdown), Icons.Outlined.BarChart)
             ScoreBreakdownRow(team = team)
-            TextButton(onClick = onOpenPointHistory, modifier = Modifier.align(Alignment.End)) {
-                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null)
-                Spacer(Modifier.width(CzSpacing.xs))
-                Text(stringResource(R.string.teams_point_history))
-            }
 
             // Team chat link (visible to members or managers)
             val isTeamMember = team.members.any { it.userId == authenticatedUserId }
@@ -297,9 +311,15 @@ private fun TeamDetailScreen(
                 onAdjustScore = { scoreMember = it },
             )
 
+            TeamDetailSectionLabel(stringResource(R.string.teams_points_earned), Icons.AutoMirrored.Outlined.TrendingUp)
+            PointsEarnedSection(
+                activities = earnedActivities,
+                onOpenPointHistory = onOpenPointHistory,
+            )
+
             // Penalties
             if (team.penalties.isNotEmpty()) {
-                TeamDetailSectionLabel(stringResource(R.string.teams_penalties), Icons.Outlined.TrendingDown)
+                TeamDetailSectionLabel(stringResource(R.string.teams_penalties), Icons.AutoMirrored.Outlined.TrendingDown)
                 PenaltiesSection(penalties = team.penalties)
             }
 
@@ -555,6 +575,74 @@ fun MemberAvatarView(member: TeamMember, size: Int, modifier: Modifier = Modifie
     }
 }
 
+// ── Points earned section ─────────────────────────────────────────────────────
+
+@Composable
+private fun PointsEarnedSection(
+    activities: List<Activity>,
+    onOpenPointHistory: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.czColors
+
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        if (activities.isNotEmpty()) {
+            TextButton(onClick = onOpenPointHistory, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.common_view_all), color = colors.ember)
+                Spacer(Modifier.width(CzSpacing.xs))
+                Icon(
+                    Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = colors.ember,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+
+        if (activities.isEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(CzRadius.md))
+                    .background(colors.surface)
+                    .padding(CzSpacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Outlined.TrendingUp,
+                    contentDescription = null,
+                    tint = colors.textSecondary,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    stringResource(R.string.teams_no_points_earned),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(CzRadius.lg))
+                    .background(colors.surface),
+            ) {
+                activities.take(5).forEachIndexed { index, activity ->
+                    ActivityRow(activity = activity)
+                    if (index < minOf(4, activities.lastIndex)) {
+                        HorizontalDivider(color = colors.divider, modifier = Modifier.padding(start = CzSpacing.lg))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun List<Activity>.teamEarnedActivities(teamId: String): List<Activity> =
+    filter { it.targetTeamId == teamId && it.points > 0 }
+        .sortedByDescending { it.createdAt }
+
 // ── Penalties section ─────────────────────────────────────────────────────────
 
 @Composable
@@ -572,7 +660,7 @@ private fun PenaltiesSection(penalties: List<TeamPenalty>, modifier: Modifier = 
 private fun PenaltyRow(penalty: TeamPenalty, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.czColors
     Row(modifier = modifier.fillMaxWidth().padding(CzSpacing.md), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
-        Icon(Icons.Outlined.TrendingDown, contentDescription = null, tint = colors.error, modifier = Modifier.size(16.dp))
+        Icon(Icons.AutoMirrored.Outlined.TrendingDown, contentDescription = null, tint = colors.error, modifier = Modifier.size(16.dp))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(penalty.reason.ifBlank { stringResource(R.string.teams_penalty_no_reason) }, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium), color = colors.textPrimary)
         }
@@ -719,7 +807,7 @@ private fun ScoreControlCard(onUpdateScore: (Int) -> Unit, modifier: Modifier = 
             onValueChange = { deltaText = it },
             label = { Text(stringResource(R.string.teams_score_hint)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            leadingIcon = { Icon(Icons.Outlined.TrendingUp, contentDescription = null, tint = colors.ember) },
+            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.TrendingUp, contentDescription = null, tint = colors.ember) },
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -757,7 +845,7 @@ private fun PenaltyControlCard(onApplyPenalty: (Int, String) -> Unit, modifier: 
             onValueChange = { ptsText = it },
             label = { Text(stringResource(R.string.teams_penalty_points_hint)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            leadingIcon = { Icon(Icons.Outlined.TrendingDown, contentDescription = null, tint = colors.error) },
+            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.TrendingDown, contentDescription = null, tint = colors.error) },
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -832,6 +920,23 @@ private fun TeamDetailScreenPreview() {
         TeamDetailScreen(
             team = team,
             campingId = "preview-camping",
+            earnedActivities = listOf(
+                Activity(
+                    id = "activity-1",
+                    campingId = "preview-camping",
+                    gameId = "game-1",
+                    name = "Bible quiz win",
+                    points = 25,
+                    previousScore = 180,
+                    newScore = 205,
+                    createdBy = "leader-1",
+                    createdByName = "Leader",
+                    createdAt = java.util.Date(),
+                    reason = "Fastest correct answer",
+                    targetTeamId = team.id,
+                    targetTeamName = team.name,
+                ),
+            ),
             canManageTeams = true,
             canModerateTeamChat = true,
             authenticatedUserId = "u1",
