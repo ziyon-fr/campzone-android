@@ -73,6 +73,7 @@ import fr.ziyon.campzone.core.designsystem.CzTypeScale
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.model.CampDay
 import fr.ziyon.campzone.data.model.CustomProgramType
+import fr.ziyon.campzone.data.model.Game
 import fr.ziyon.campzone.data.model.ProgramType
 import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.ui.venuemap.icon
@@ -95,6 +96,7 @@ fun ProgramEditorScreen(
     val isSaving by viewModel.isSaving.collectAsState()
     val operationError by viewModel.operationError.collectAsState()
     val venuePoints by viewModel.venuePoints.collectAsState()
+    val games by viewModel.games.collectAsState()
     val isEditing = editingProgramId != null
     var showCustomTypeDialog by remember { mutableStateOf(false) }
 
@@ -121,6 +123,7 @@ fun ProgramEditorScreen(
         selectedDay = selectedDay,
         customTypes = customTypes,
         venuePoints = venuePoints,
+        games = games,
         validationErrors = validationErrors,
         isSaving = isSaving,
         operationError = operationError,
@@ -138,6 +141,9 @@ fun ProgramEditorScreen(
         onCustomizeType = { showCustomTypeDialog = true },
         onCustomTypeSelected = { customType ->
             viewModel.updateEditorForm { f -> f.copy(type = ProgramType.Custom, customType = customType) }
+        },
+        onLinkedGameSelected = { gameId ->
+            viewModel.updateEditorForm { f -> f.copy(linkedGameId = gameId) }
         },
         onDaySelected = { day ->
             viewModel.setSelectedDayId(day.id)
@@ -167,6 +173,7 @@ private fun ProgramEditorContent(
     selectedDay: CampDay?,
     customTypes: List<CustomProgramType>,
     venuePoints: List<VenuePoint>,
+    games: List<Game>,
     validationErrors: List<ProgramValidationError>,
     isSaving: Boolean,
     operationError: String?,
@@ -177,6 +184,7 @@ private fun ProgramEditorContent(
     onTypeSelected: (ProgramType) -> Unit,
     onCustomizeType: () -> Unit,
     onCustomTypeSelected: (CustomProgramType) -> Unit,
+    onLinkedGameSelected: (String?) -> Unit,
     onDaySelected: (CampDay) -> Unit,
     onStartTimeChanged: (Date) -> Unit,
     onEndTimeChanged: (Date) -> Unit,
@@ -286,6 +294,15 @@ private fun ProgramEditorContent(
                     onCustomizeType = onCustomizeType,
                     onCustomTypeSelected = onCustomTypeSelected,
                 )
+            }
+            if (form.type == ProgramType.Games) {
+                item {
+                    LinkedGameSection(
+                        games = games,
+                        selectedGameId = form.linkedGameId,
+                        onLinkedGameSelected = onLinkedGameSelected,
+                    )
+                }
             }
         }
     }
@@ -443,6 +460,57 @@ private fun BasicInfoSection(
                 }
                 Text(
                     text = stringResource(R.string.program_location_helper),
+                    style = CzTypeScale.caption,
+                    color = colors.textSecondary,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LinkedGameSection(
+    games: List<Game>,
+    selectedGameId: String?,
+    onLinkedGameSelected: (String?) -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        FormSectionHeader(stringResource(R.string.program_linked_game), icon = Icons.Rounded.CheckCircle)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = colors.surface,
+            shape = RoundedCornerShape(CzRadius.lg),
+        ) {
+            Column(
+                modifier = Modifier.padding(CzSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                if (games.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.program_linked_game_empty),
+                        style = CzTypeScale.caption,
+                        color = colors.textSecondary,
+                    )
+                } else {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+                        FilterChip(
+                            selected = selectedGameId == null,
+                            onClick = { onLinkedGameSelected(null) },
+                            label = { Text(stringResource(R.string.common_none)) },
+                        )
+                        games.forEach { game ->
+                            FilterChip(
+                                selected = selectedGameId == game.id,
+                                onClick = { onLinkedGameSelected(game.id) },
+                                label = { Text(game.name) },
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.program_linked_game_helper),
                     style = CzTypeScale.caption,
                     color = colors.textSecondary,
                 )

@@ -1,0 +1,212 @@
+package fr.ziyon.campzone.data.model
+
+import java.util.Date
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class VehicleModelTest {
+
+    @Test
+    fun vehicleStatusRawValuesMatchInteropContract() {
+        assertEquals(
+            listOf("pending", "confirmed", "arrived", "cancelled"),
+            VehicleStatus.entries.map { it.wireValue },
+        )
+        assertEquals(VehicleStatus.Pending, VehicleStatus.fromWire("futureStatus"))
+    }
+
+    @Test
+    fun tokenAndInvitationCodeHaveIosShape() {
+        val first = VehicleTokenFactory.makeToken()
+        val second = VehicleTokenFactory.makeToken()
+
+        assertEquals(64, first.length)
+        assertTrue(first.all { it in '0'..'9' || it in 'a'..'f' })
+        assertNotEquals(first, second)
+
+        val code = VehicleTokenFactory.makeInvitationCode()
+        assertEquals(6, code.length)
+        assertTrue(code.all { it in "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" })
+        assertFalse(code.any { it in "IO01" })
+    }
+
+    @Test
+    fun vehicleQrPayloadDecodesOnlySupportedForms() {
+        val token = "a".repeat(64)
+
+        assertEquals(
+            token,
+            VehicleCheckInPayload.decode("campzone://vehicle-checkin/$token")?.token,
+        )
+        assertEquals(
+            token,
+            VehicleCheckInPayload.decode("campzone://vehicle-checkin?t=$token")?.token,
+        )
+        assertEquals(
+            token,
+            VehicleCheckInPayload.decode("https://campzone.app/checkin/vehicle/$token")?.token,
+        )
+        assertNull(VehicleCheckInPayload.decode("https://example.com/checkin/vehicle/$token"))
+        assertNull(VehicleCheckInPayload.decode("http://campzone.app/checkin/vehicle/$token"))
+        assertNull(VehicleCheckInPayload.decode("campzone://check-in/$token"))
+        assertNull(VehicleCheckInPayload.decode(""))
+    }
+
+    @Test
+    fun validationAndDerivedFieldsProtectPrivacyAndSeatBounds() {
+        val vehicle = sampleVehicle(
+            plateNumber = "AB-123-CD",
+            totalSeats = 5,
+            occupiedSeats = 3,
+            passengerRegistrationIds = listOf("p1", "p2"),
+        )
+
+        assertEquals(2, vehicle.availableSeats)
+        assertEquals(3, vehicle.expectedRegisteredCount)
+        assertEquals("*******CD", vehicle.maskedPlate)
+        assertNull(vehicle.validationError)
+
+        assertEquals(
+            VehicleValidationError.PlateRequired,
+            vehicle.copy(plateNumber = " ").validationError,
+        )
+        assertEquals(
+            VehicleValidationError.OccupiedExceedsTotal,
+            vehicle.copy(totalSeats = 2, occupiedSeats = 3).validationError,
+        )
+        assertEquals(
+            VehicleValidationError.DuplicatePassengers,
+            vehicle.copy(passengerRegistrationIds = listOf("p1", "p1")).validationError,
+        )
+        assertEquals(
+            VehicleValidationError.DriverListedAsPassenger,
+            vehicle.copy(passengerRegistrationIds = listOf("driver-reg")).validationError,
+        )
+    }
+
+    @Test
+    fun passengerMutationsKeepListsAlignedAndOccupancyBounded() {
+        val vehicle = sampleVehicle(
+            totalSeats = 2,
+            occupiedSeats = 1,
+            pendingPassengerRegistrationIds = listOf("p1"),
+            pendingPassengerNames = listOf("Joao"),
+        )
+
+        val approved = VehicleMutation.addingPassenger(vehicle, "p1", "Joao")
+        assertEquals(listOf("p1"), approved.passengerRegistrationIds)
+        assertEquals(listOf("Joao"), approved.passengerNames)
+        assertEquals(emptyList<String>(), approved.pendingPassengerRegistrationIds)
+        assertEquals(2, approved.occupiedSeats)
+
+        val capped = VehicleMutation.addingPassenger(approved, "p2", "Maria")
+        assertEquals(2, capped.occupiedSeats)
+        assertEquals(listOf("p1", "p2"), capped.passengerRegistrationIds)
+
+        val removed = VehicleMutation.removingPassenger(capped, "p1")
+        assertEquals(listOf("p2"), removed.passengerRegistrationIds)
+        assertEquals(listOf("Maria"), removed.passengerNames)
+        assertEquals(1, removed.occupiedSeats)
+    }
+
+    @Test
+    fun vehiclePayloadUsesExactFirestoreKeysAndOmitsTokenFromArrivalPatch() {
+        val vehicle = sampleVehicle(invitationCode = "abc234")
+        val payload = VehiclePayload.vehiclePayload(vehicle, TS, includeCreatedAt = true)
+
+        assertEquals("camp-1", payload["campingID"])
+        assertEquals("driver-user", payload["driverUserID"])
+        assertEquals("driver-reg", payload["driverRegistrationID"])
+        assertEquals("AB-123-CD", payload["plateNumber"])
+        assertEquals("ABC234", payload["invitationCode"])
+        assertEquals("pending", payload["status"])
+        assertEquals(TS, payload["createdAt"])
+        assertEquals(TS, payload["updatedAt"])
+
+        val arrival = VehiclePayload.arrivalPayload(
+            checkIn = VehicleCheckIn(
+                campingId = "camp-1",
+                vehicleId = "veh-1",
+                scannedToken = vehicle.qrToken,
+                checkedInByUid = "leader-1",
+                checkedInAt = Date(5),
+                expectedPassengerCount = 2,
+                actualPassengerCount = 1,
+                presentRegistrationIds = listOf("driver-reg"),
+                missingRegistrationIds = listOf("p1"),
+                plateNumberConfirmed = true,
+            ),
+            serverTimestamp = TS,
+        )
+        assertEquals("arrived", arrival["status"])
+        assertFalse(arrival.containsKey("qrToken"))
+        assertFalse(arrival.containsKey("passengerRegistrationIDs"))
+    }
+
+    @Test
+    fun vehicleUpdatePayloadStaysWithinDriverManagerAllowlist() {
+        val payload = VehiclePayload.updatePayload(
+            vehicle = sampleVehicle().copy(
+                brand = null,
+                notes = "",
+                status = VehicleStatus.Confirmed,
+            ),
+            serverTimestamp = TS,
+            deleteField = DEL,
+        )
+
+        assertEquals("AB-123-CD", payload["plateNumber"])
+        assertEquals("confirmed", payload["status"])
+        assertEquals(DEL, payload["brand"])
+        assertEquals(DEL, payload["notes"])
+        assertFalse(payload.containsKey("id"))
+        assertFalse(payload.containsKey("campingID"))
+        assertFalse(payload.containsKey("ownerUserID"))
+        assertFalse(payload.containsKey("driverUserID"))
+        assertFalse(payload.containsKey("driverRegistrationID"))
+        assertFalse(payload.containsKey("qrToken"))
+        assertFalse(payload.containsKey("invitationCode"))
+        assertFalse(payload.containsKey("createdAt"))
+    }
+
+    private fun sampleVehicle(
+        plateNumber: String = "AB-123-CD",
+        totalSeats: Int = 5,
+        occupiedSeats: Int = 1,
+        passengerRegistrationIds: List<String> = emptyList(),
+        passengerNames: List<String> = emptyList(),
+        pendingPassengerRegistrationIds: List<String> = emptyList(),
+        pendingPassengerNames: List<String> = emptyList(),
+        invitationCode: String? = "INV234",
+    ) = CampingVehicle(
+        id = "veh-1",
+        campingId = "camp-1",
+        ownerUserId = "driver-user",
+        driverUserId = "driver-user",
+        driverRegistrationId = "driver-reg",
+        driverName = "Driver",
+        driverPhotoUrl = "https://example.com/driver.jpg",
+        plateNumber = plateNumber,
+        brand = "Toyota",
+        model = "Yaris",
+        color = "Blue",
+        totalSeats = totalSeats,
+        occupiedSeats = occupiedSeats,
+        hasAvailableSeats = true,
+        passengerRegistrationIds = passengerRegistrationIds,
+        passengerNames = passengerNames,
+        pendingPassengerRegistrationIds = pendingPassengerRegistrationIds,
+        pendingPassengerNames = pendingPassengerNames,
+        qrToken = "a".repeat(64),
+        invitationCode = invitationCode,
+    )
+
+    private companion object {
+        val TS = Date(123)
+        const val DEL = "__DELETE__"
+    }
+}

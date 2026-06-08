@@ -16,8 +16,10 @@ import fr.ziyon.campzone.data.model.CampingPayload
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.RegistrationSubmission
+import fr.ziyon.campzone.data.model.RegistrationTransportPayload
 import fr.ziyon.campzone.data.model.TransportationBooking
 import fr.ziyon.campzone.data.model.TransportationBookingPayload
+import fr.ziyon.campzone.data.model.TransportationMode
 import fr.ziyon.campzone.data.model.toCampingAttendeeOrNull
 import fr.ziyon.campzone.data.model.toCampingOrNull
 import java.util.UUID
@@ -85,6 +87,21 @@ interface CampingService {
         attendeeId: String,
         status: RegistrationApprovalStatus,
         campingId: String,
+    ): Camping
+
+    /**
+     * Vehicle QR transport-intent path - writes only the deployed rules
+     * allowlist: transportationMode, vehicleID, isDriver, needsTransportHelp,
+     * transportationNotes, updatedAt.
+     */
+    suspend fun updateRegistrationTransport(
+        campingId: String,
+        attendeeId: String,
+        transportationMode: TransportationMode?,
+        vehicleId: String?,
+        isDriver: Boolean,
+        needsTransportHelp: Boolean,
+        notes: String?,
     ): Camping
 
     /**
@@ -344,6 +361,34 @@ class FirebaseCampingService @Inject constructor(
         return fetchCamping(campingId)
     }
 
+    override suspend fun updateRegistrationTransport(
+        campingId: String,
+        attendeeId: String,
+        transportationMode: TransportationMode?,
+        vehicleId: String?,
+        isDriver: Boolean,
+        needsTransportHelp: Boolean,
+        notes: String?,
+    ): Camping {
+        campings().document(campingId)
+            .collection(Registrations)
+            .document(attendeeId)
+            .set(
+                RegistrationTransportPayload.payload(
+                    transportationMode = transportationMode,
+                    vehicleId = vehicleId,
+                    isDriver = isDriver,
+                    needsTransportHelp = needsTransportHelp,
+                    notes = notes,
+                    serverTimestamp = FieldValue.serverTimestamp(),
+                    deleteField = FieldValue.delete(),
+                ),
+                SetOptions.merge(),
+            )
+            .await()
+        return fetchCamping(campingId)
+    }
+
     override suspend fun deleteAttendee(
         attendeeId: String,
         campingId: String,
@@ -528,6 +573,15 @@ class PreviewCampingService(private val camping: Camping? = null) : CampingServi
         attendeeId: String,
         status: fr.ziyon.campzone.data.model.RegistrationApprovalStatus,
         campingId: String,
+    ) = camping ?: error("No camping")
+    override suspend fun updateRegistrationTransport(
+        campingId: String,
+        attendeeId: String,
+        transportationMode: fr.ziyon.campzone.data.model.TransportationMode?,
+        vehicleId: String?,
+        isDriver: Boolean,
+        needsTransportHelp: Boolean,
+        notes: String?,
     ) = camping ?: error("No camping")
     override suspend fun deleteAttendee(attendeeId: String, campingId: String) = camping ?: error("No camping")
 }

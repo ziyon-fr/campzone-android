@@ -5,11 +5,13 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.UserGender
 import fr.ziyon.campzone.data.camping.PreviewCampingService
 import fr.ziyon.campzone.data.games.FakeGameService
+import fr.ziyon.campzone.data.media.PreviewMediaUploader
 import fr.ziyon.campzone.data.games.previewGame
 import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.Game
+import fr.ziyon.campzone.data.model.GameInstructionAttachment
 import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.PointRule
@@ -19,6 +21,7 @@ import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.teams.FakeTeamNotificationDispatcher
 import fr.ziyon.campzone.data.teams.FakeTeamService
+import fr.ziyon.campzone.data.venuemap.FakeVenueMapService
 import fr.ziyon.campzone.testing.MainDispatcherRule
 import java.util.Date
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,6 +44,9 @@ class GameViewModelTest {
         teamService = FakeTeamService(mutableListOf()),
         campingService = PreviewCampingService(),
         teamNotificationDispatcher = FakeTeamNotificationDispatcher(),
+        imageUploader = PreviewMediaUploader,
+        assetDeleter = PreviewMediaUploader,
+        venueMapService = FakeVenueMapService(),
     )
 
     private fun viewModel(service: FakeGameService, teamService: FakeTeamService) = GameViewModel(
@@ -48,6 +54,9 @@ class GameViewModelTest {
         teamService = teamService,
         campingService = PreviewCampingService(),
         teamNotificationDispatcher = FakeTeamNotificationDispatcher(),
+        imageUploader = PreviewMediaUploader,
+        assetDeleter = PreviewMediaUploader,
+        venueMapService = FakeVenueMapService(),
     )
 
     private fun activity(id: String, campingId: String, gameId: String) = Activity(
@@ -93,6 +102,36 @@ class GameViewModelTest {
         val activities = vm.activitiesFor("camp-1")
         assertEquals(1, activities.size)
         assertEquals("act-1", activities.first().id)
+    }
+
+    @Test
+    fun savesAndDeletesLeadershipInstructionsAgainstFakeService() = runTest {
+        val service = FakeGameService()
+        val vm = viewModel(service)
+
+        vm.updateInstructionsForm {
+            GameInstructionsForm(
+                title = "  Setup note  ",
+                description = "Leaders meet behind the stage.",
+                images = listOf(
+                    GameInstructionAttachment(
+                        url = "https://example.com/setup.jpg",
+                        publicId = "campzone/setup",
+                    ),
+                ),
+            )
+        }
+
+        assertTrue(vm.saveInstructions(gameId = "game-1", campingId = "camp-1"))
+        val saved = service.loadInstructions(gameId = "game-1", campingId = "camp-1")
+        assertEquals("Setup note", saved?.title)
+        assertEquals("Leaders meet behind the stage.", saved?.description)
+        assertEquals("campzone/setup", saved?.images?.single()?.publicId)
+
+        vm.updateInstructionsForm { GameInstructionsForm() }
+
+        assertTrue(vm.saveInstructions(gameId = "game-1", campingId = "camp-1"))
+        assertNull(service.loadInstructions(gameId = "game-1", campingId = "camp-1"))
     }
 
     @Test

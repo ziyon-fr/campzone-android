@@ -74,6 +74,7 @@ data class Program(
     val location: String = "",
     val description: String = "",
     val venuePointId: String? = null,
+    val linkedGameId: String? = null,
     val customTypeName: String? = null,
     val customTypeSymbol: String? = null,
     val customTypeColorHex: String? = null,
@@ -127,6 +128,7 @@ internal fun Map<String, Any?>.toProgramOrNull(documentId: String): Program? {
         location = rawStringValue("location").orEmpty(),
         description = rawStringValue("description").orEmpty(),
         venuePointId = stringValue("venuePointID"),
+        linkedGameId = stringValue("linkedGameID"),
         customTypeName = stringValue("customTypeName"),
         customTypeSymbol = stringValue("customTypeSymbol"),
         customTypeColorHex = stringValue("customTypeColorHex"),
@@ -256,6 +258,7 @@ internal object SchedulePayload {
             "updatedAt" to serverTimestamp,
         )
         payload["venuePointID"] = program.venuePointId?.trim()?.takeUnless { it.isBlank() } ?: deleteField
+        payload["linkedGameID"] = program.linkedGameId?.trim()?.takeUnless { it.isBlank() } ?: deleteField
         val customType = program.customType
         if (customType != null) {
             payload["customTypeName"] = customType.trimmedName

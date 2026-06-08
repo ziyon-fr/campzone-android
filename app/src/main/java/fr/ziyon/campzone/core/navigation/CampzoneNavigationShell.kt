@@ -121,6 +121,14 @@ import fr.ziyon.campzone.ui.transportation.TransportationDashboardRoute
 import fr.ziyon.campzone.ui.transportation.TransportationHistoryRoute
 import fr.ziyon.campzone.ui.transportation.TransportationScannerRoute
 import fr.ziyon.campzone.ui.transportation.TransportationTicketsRoute
+import fr.ziyon.campzone.ui.vehicle.CampingVehiclesRoute
+import fr.ziyon.campzone.ui.vehicle.MyTransportationRoute
+import fr.ziyon.campzone.ui.vehicle.MyVehiclesRoute
+import fr.ziyon.campzone.ui.vehicle.UserVehicleEditorRoute
+import fr.ziyon.campzone.ui.vehicle.VehicleArrivalRoute
+import fr.ziyon.campzone.ui.vehicle.VehicleFormRoute
+import fr.ziyon.campzone.ui.vehicle.VehicleQrRoute
+import fr.ziyon.campzone.ui.vehicle.VehicleScanRoute
 
 @Composable
 fun CampzoneNavigationShell(
@@ -295,6 +303,7 @@ fun CampzoneNavigationShell(
                     onOpenAchievements = { navController.navigate(AppRoute.ProfileAchievements.route) },
                     onOpenNotifications = { navController.navigate(AppRoute.NotificationSettings.route) },
                     onOpenFamilyParticipants = { navController.navigate(AppRoute.FamilyParticipants.route) },
+                    onOpenMyVehicles = { navController.navigate(AppRoute.MyVehicles.route) },
                     onOpenAdminTools = { navController.navigate(AppRoute.AdminTools.route) },
                     onOpenDataExport = { navController.navigate(AppRoute.UserDataExport.route) },
                     onOpenSupport = { navController.navigate(AppRoute.AppSupport.route) },
@@ -350,6 +359,32 @@ fun CampzoneNavigationShell(
                 FamilyParticipantsScreen(
                     authenticatedUser = authenticatedUser,
                     onNavigateBack = { navController.popBackStack() },
+                )
+            }
+            composable(AppRoutePattern.MyVehicles) {
+                MyVehiclesRoute(
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenEditor = { vehicleId ->
+                        navController.navigate(AppRoute.UserVehicleEditor(vehicleId).route)
+                    },
+                )
+            }
+            composable(AppRoutePattern.UserVehicleEditor) {
+                UserVehicleEditorRoute(
+                    vehicleId = null,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.UserVehicleEdit,
+                arguments = listOf(navArgument(AppRouteArgs.UserVehicleId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                UserVehicleEditorRoute(
+                    vehicleId = backStackEntry.stringArg(AppRouteArgs.UserVehicleId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(AppRoute.AdminTools.route) {
@@ -488,6 +523,9 @@ fun CampzoneNavigationShell(
                     onOpenTransportationDashboard = { campingId ->
                         navController.navigate(AppRoute.TransportationDashboard(campingId).route)
                     },
+                    onOpenVehicles = { campingId ->
+                        navController.navigate(AppRoute.CampingVehicles(campingId).route)
+                    },
                     onOpenBadgeAward = { campingId ->
                         navController.navigate(AppRoute.CampingBadgeAward(campingId).route)
                     },
@@ -568,6 +606,9 @@ fun CampzoneNavigationShell(
                     state = campingDetailState,
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
+                    onOpenTransport = {
+                        navController.navigate(AppRoute.MyTransportation(campingId).route)
+                    },
                 )
             }
             composable(
@@ -614,6 +655,121 @@ fun CampzoneNavigationShell(
                     campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.MyTransportation,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                MyTransportationRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenVehicleForm = { vehicleId ->
+                        navController.navigate(AppRoute.VehicleForm(campingId, vehicleId).route)
+                    },
+                    onOpenVehicleQr = { vehicleId ->
+                        navController.navigate(AppRoute.VehicleQr(campingId, vehicleId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.VehicleForm,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                VehicleFormRoute(
+                    campingId = campingId,
+                    vehicleId = null,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onShowQr = { vehicleId ->
+                        navController.navigate(AppRoute.VehicleQr(campingId, vehicleId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.VehicleEdit,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.VehicleId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                VehicleFormRoute(
+                    campingId = campingId,
+                    vehicleId = backStackEntry.stringArg(AppRouteArgs.VehicleId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onShowQr = { vehicleId ->
+                        navController.navigate(AppRoute.VehicleQr(campingId, vehicleId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.VehicleQr,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.VehicleId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val vehicleId = backStackEntry.stringArg(AppRouteArgs.VehicleId)
+                VehicleQrRoute(
+                    campingId = campingId,
+                    vehicleId = vehicleId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onEdit = { id ->
+                        navController.navigate(AppRoute.VehicleForm(campingId, id).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingVehicles,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                CampingVehiclesRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenScanner = {
+                        navController.navigate(AppRoute.VehicleScanner(campingId).route)
+                    },
+                    onOpenArrival = { vehicleId ->
+                        navController.navigate(AppRoute.VehicleArrival(campingId, vehicleId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.VehicleScanner,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                VehicleScanRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenArrival = { vehicleId ->
+                        navController.navigate(AppRoute.VehicleArrival(campingId, vehicleId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.VehicleArrival,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.VehicleId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                VehicleArrivalRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    vehicleId = backStackEntry.stringArg(AppRouteArgs.VehicleId),
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onDone = { navController.popBackStack() },
                 )
             }
             composable(
@@ -1116,6 +1272,9 @@ fun CampzoneNavigationShell(
                     onOpenPointHistory = {
                         navController.navigate(AppRoute.PointHistory(campingId).route)
                     },
+                    onOpenVenueMap = {
+                        navController.navigate(AppRoute.CampingVenueMap(campingId).route)
+                    },
                 )
             }
             composable(
@@ -1412,6 +1571,9 @@ fun CampzoneNavigationShell(
                     onBack = { navController.popBackStack() },
                     onOpenFoodMenu = {
                         navController.navigate(AppRoute.CampingFoodMenu(campingId).route)
+                    },
+                    onOpenGame = { gameId ->
+                        navController.navigate(AppRoute.GameDetail(campingId, gameId).route)
                     },
                 )
             }

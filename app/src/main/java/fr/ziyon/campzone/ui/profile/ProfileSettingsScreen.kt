@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.AdminPanelSettings
 import androidx.compose.material.icons.rounded.AssignmentInd
 import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.DownloadForOffline
 import androidx.compose.material.icons.rounded.FamilyRestroom
@@ -89,6 +90,7 @@ fun ProfileSettingsScreen(
     onOpenAchievements: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenFamilyParticipants: () -> Unit,
+    onOpenMyVehicles: () -> Unit,
     onOpenAdminTools: () -> Unit,
     onOpenDataExport: () -> Unit,
     onOpenSupport: () -> Unit,
@@ -186,6 +188,14 @@ fun ProfileSettingsScreen(
                     },
                 )
             }
+            ProfileSettingsActionRow(
+                icon = Icons.Rounded.DirectionsCar,
+                title = stringResource(R.string.profile_my_vehicles),
+                onClick = {
+                    haptics.profileImpact()
+                    onOpenMyVehicles()
+                },
+            )
             ProfileSettingsActionRow(
                 icon = Icons.Rounded.Language,
                 title = stringResource(R.string.profile_language),
@@ -599,6 +609,7 @@ private fun ProfileSettingsScreenPreview() {
             onOpenAchievements = {},
             onOpenNotifications = {},
             onOpenFamilyParticipants = {},
+            onOpenMyVehicles = {},
             onOpenAdminTools = {},
             onOpenDataExport = {},
             onOpenSupport = {},

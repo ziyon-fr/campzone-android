@@ -16,8 +16,12 @@ import fr.ziyon.campzone.data.model.TransportationChoice
 import fr.ziyon.campzone.data.model.TransportationMode
 import fr.ziyon.campzone.data.notifications.RegistrationNotificationDispatcher
 import fr.ziyon.campzone.data.notifications.RegistrationNotificationRequest
+import fr.ziyon.campzone.data.vehicle.FakeUserVehicleService
+import fr.ziyon.campzone.data.vehicle.FakeVehicleService
 import fr.ziyon.campzone.testing.MainDispatcherRule
 import java.util.Date
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -122,11 +126,64 @@ class CampingRegistrationViewModelTest {
         assertEquals(true, requiresPayment)
     }
 
+    @Test
+    fun inlineCarCaptureCreatesVehicleAndLinksDriverRegistration() = runTest {
+        val service = FakeCampingService(initial = listOf(camping()))
+        val vehicleService = FakeVehicleService()
+        val userVehicleService = FakeUserVehicleService()
+        val viewModel = viewModel(
+            service = service,
+            vehicleService = vehicleService,
+            userVehicleService = userVehicleService,
+        )
+        var requiresPayment: Boolean? = null
+
+        viewModel.load("camp-1", adult.copy(role = UserRole.User))
+        viewModel.goNext()
+        viewModel.toggleInlineVehicle(true)
+        viewModel.updateInlineVehiclePlate(" ab-123-cd ")
+        viewModel.updateInlineVehicleBrand("Renault")
+        viewModel.updateInlineVehicleModel("Scenic")
+        viewModel.updateInlineVehicleColor("Blue")
+        viewModel.updateInlineVehicleTotalSeats(4)
+        viewModel.updateInlineVehiclePeopleInCar(2)
+        viewModel.updateInlineVehicleHasSeats(true)
+        viewModel.updateInlineVehicleNotes("Arriving after lunch")
+        viewModel.goNext()
+        viewModel.submit(adult.copy(role = UserRole.User)) { requiresPayment = it }
+
+        assertEquals(false, requiresPayment)
+        val createdVehicle = vehicleService.vehicles("camp-1").first().single()
+        assertEquals("AB-123-CD", createdVehicle.plateNumber)
+        assertEquals("guardian-1", createdVehicle.driverRegistrationId)
+        assertEquals(4, createdVehicle.totalSeats)
+        assertEquals(2, createdVehicle.occupiedSeats)
+        assertTrue(createdVehicle.hasAvailableSeats)
+
+        val attendee = service.fetchCamping("camp-1").attendees.single { it.id == "guardian-1" }
+        assertEquals(TransportationMode.OwnCar, attendee.transportationMode)
+        assertEquals(createdVehicle.id, attendee.vehicleId)
+        assertTrue(attendee.isDriver)
+        assertFalse(attendee.needsTransportHelp)
+
+        val savedVehicle = userVehicleService.loadVehicles("guardian-1").single()
+        assertEquals("AB-123-CD", savedVehicle.plateNumber)
+        assertEquals(4, savedVehicle.defaultTotalSeats)
+    }
+
     private fun viewModel(
         service: FakeCampingService = FakeCampingService(initial = listOf(camping())),
         familyRepository: FakeFamilyRepository = FakeFamilyRepository(),
+        vehicleService: FakeVehicleService = FakeVehicleService(),
+        userVehicleService: FakeUserVehicleService = FakeUserVehicleService(),
         dispatcher: FakeRegistrationNotificationDispatcher = FakeRegistrationNotificationDispatcher(),
-    ) = CampingRegistrationViewModel(service, familyRepository, dispatcher)
+    ) = CampingRegistrationViewModel(
+        service,
+        familyRepository,
+        vehicleService,
+        userVehicleService,
+        dispatcher,
+    )
 
     private fun camping(
         registrationFeeCents: Int? = null,

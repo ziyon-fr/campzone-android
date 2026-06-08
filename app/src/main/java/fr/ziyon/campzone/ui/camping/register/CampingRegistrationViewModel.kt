@@ -13,11 +13,19 @@ import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.family.FamilyRepository
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingTransportationOption
+import fr.ziyon.campzone.data.model.CampingVehicle
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipant
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.RegistrationSubmission
 import fr.ziyon.campzone.data.model.TransportationChoice
+import fr.ziyon.campzone.data.model.TransportationMode
+import fr.ziyon.campzone.data.model.UserVehicle
+import fr.ziyon.campzone.data.model.VehicleStatus
+import fr.ziyon.campzone.data.model.VehicleTokenFactory
+import fr.ziyon.campzone.data.vehicle.UserVehicleService
+import fr.ziyon.campzone.data.vehicle.VehicleService
+import java.util.Locale
 import fr.ziyon.campzone.data.notifications.RegistrationNotificationDispatcher
 import fr.ziyon.campzone.data.notifications.RegistrationNotificationRequest
 import javax.inject.Inject
@@ -27,12 +35,40 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+enum class RegistrationStep {
+    Who,
+    Transport,
+    Review,
+}
+
+data class InlineVehicleDraft(
+    val enabled: Boolean = false,
+    val selectedSavedVehicleId: String? = null,
+    val plateNumber: String = "",
+    val brand: String = "",
+    val model: String = "",
+    val color: String = "",
+    val totalSeats: Int = 5,
+    val peopleInCar: Int = 1,
+    val hasAvailableSeats: Boolean = true,
+    val notes: String = "",
+) {
+    val normalizedPlate: String
+        get() = plateNumber.trim().uppercase(Locale.ROOT)
+
+    val plateIsBlank: Boolean
+        get() = normalizedPlate.isBlank()
+}
+
 data class CampingRegistrationUiState(
     val isLoading: Boolean = true,
     val camping: Camping? = null,
     val participants: List<RegistrationParticipant> = emptyList(),
     val selectedParticipantIds: Set<String> = emptySet(),
     val transportationOptionIds: Map<String, String?> = emptyMap(),
+    val step: RegistrationStep = RegistrationStep.Who,
+    val savedVehicles: List<UserVehicle> = emptyList(),
+    val inlineVehicle: InlineVehicleDraft = InlineVehicleDraft(),
     val isSubmitting: Boolean = false,
     val errorMessage: String? = null,
     val successMessage: String? = null,
@@ -44,7 +80,37 @@ data class CampingRegistrationUiState(
         }
 
     val canSubmit: Boolean
-        get() = selectedParticipants.isNotEmpty() && !isSubmitting
+        get() = selectedParticipants.isNotEmpty() && !isSubmitting && !inlineVehicleNeedsPlate
+
+    val canProceed: Boolean
+        get() = when (step) {
+            RegistrationStep.Who -> selectedParticipants.isNotEmpty()
+            RegistrationStep.Transport -> !inlineVehicleNeedsPlate
+            RegistrationStep.Review -> canSubmit
+        }
+
+    val canGoBack: Boolean
+        get() = step != RegistrationStep.Who && !isSubmitting
+
+    val selfParticipantForInlineVehicle: RegistrationParticipant?
+        get() = selectedParticipants.firstOrNull {
+            it.kind == RegistrationParticipantKind.SelfParticipant
+        }
+
+    val shouldOfferInlineVehicle: Boolean
+        get() {
+            val camping = camping ?: return false
+            val self = selfParticipantForInlineVehicle ?: return false
+            if (!camping.usesTransportationOptions) return true
+            val option = camping.transportationOption(transportationOptionIds[self.id])
+            return option == null || !option.issuesTicket
+        }
+
+    val wantsInlineVehicle: Boolean
+        get() = shouldOfferInlineVehicle && inlineVehicle.enabled
+
+    val inlineVehicleNeedsPlate: Boolean
+        get() = wantsInlineVehicle && inlineVehicle.plateIsBlank
 
     fun existingRegistration(participant: RegistrationParticipant) =
         camping?.attendees?.firstOrNull { it.id == participant.id }
@@ -54,6 +120,8 @@ data class CampingRegistrationUiState(
 class CampingRegistrationViewModel @Inject constructor(
     private val campingService: CampingService,
     private val familyRepository: FamilyRepository,
+    private val vehicleService: VehicleService,
+    private val userVehicleService: UserVehicleService,
     private val notificationDispatcher: RegistrationNotificationDispatcher,
     private val analyticsService: AnalyticsService = NoOpAnalyticsService,
 ) : ViewModel() {
@@ -74,8 +142,10 @@ class CampingRegistrationViewModel @Inject constructor(
             runCatching {
                 val camping = campingService.fetchCamping(campingId)
                 val participants = participantOptions(user)
-                camping to participants
-            }.onSuccess { (camping, participants) ->
+                val savedVehicles = runCatching { userVehicleService.loadVehicles(user.uid) }
+                    .getOrElse { emptyList() }
+                Triple(camping, participants, savedVehicles)
+            }.onSuccess { (camping, participants, savedVehicles) ->
                 val selected = seedSelection(
                     participants = participants,
                     camping = camping,
@@ -86,6 +156,7 @@ class CampingRegistrationViewModel @Inject constructor(
                     camping = camping,
                     participants = participants,
                     selectedParticipantIds = selected,
+                    savedVehicles = savedVehicles,
                 )
             }.onFailure { error ->
                 loadedKey = null
@@ -106,13 +177,124 @@ class CampingRegistrationViewModel @Inject constructor(
             if (!selected.add(participantId)) {
                 selected.remove(participantId)
             }
-            state.copy(selectedParticipantIds = selected)
+            state.copy(selectedParticipantIds = selected).sanitizeInlineVehicle()
         }
     }
 
     fun selectTransportationOption(participantId: String, optionId: String?) {
         _uiState.update {
             it.copy(transportationOptionIds = it.transportationOptionIds + (participantId to optionId))
+                .sanitizeInlineVehicle()
+        }
+    }
+
+    fun goBack() {
+        _uiState.update { state ->
+            if (!state.canGoBack) return@update state
+            val previous = when (state.step) {
+                RegistrationStep.Who -> RegistrationStep.Who
+                RegistrationStep.Transport -> RegistrationStep.Who
+                RegistrationStep.Review -> RegistrationStep.Transport
+            }
+            state.copy(step = previous, errorMessage = null)
+        }
+    }
+
+    fun goNext() {
+        _uiState.update { state ->
+            when (state.step) {
+                RegistrationStep.Who -> {
+                    if (state.selectedParticipants.isEmpty()) {
+                        state.copy(errorMessage = "Select at least one participant.")
+                    } else {
+                        state.copy(step = RegistrationStep.Transport, errorMessage = null)
+                            .sanitizeInlineVehicle()
+                    }
+                }
+
+                RegistrationStep.Transport -> {
+                    if (state.inlineVehicleNeedsPlate) {
+                        state.copy(errorMessage = "Enter your car's plate, or turn off \"I'm driving my own car\".")
+                    } else {
+                        state.copy(step = RegistrationStep.Review, errorMessage = null)
+                            .sanitizeInlineVehicle()
+                    }
+                }
+
+                RegistrationStep.Review -> state
+            }
+        }
+    }
+
+    fun toggleInlineVehicle(enabled: Boolean) {
+        _uiState.update { state ->
+            state.copy(inlineVehicle = state.inlineVehicle.copy(enabled = enabled))
+                .sanitizeInlineVehicle()
+        }
+    }
+
+    fun updateInlineVehiclePlate(value: String) {
+        _uiState.update {
+            it.copy(inlineVehicle = it.inlineVehicle.copy(plateNumber = value.uppercase(Locale.ROOT)))
+        }
+    }
+
+    fun updateInlineVehicleBrand(value: String) {
+        _uiState.update { it.copy(inlineVehicle = it.inlineVehicle.copy(brand = value)) }
+    }
+
+    fun updateInlineVehicleModel(value: String) {
+        _uiState.update { it.copy(inlineVehicle = it.inlineVehicle.copy(model = value)) }
+    }
+
+    fun updateInlineVehicleColor(value: String) {
+        _uiState.update { it.copy(inlineVehicle = it.inlineVehicle.copy(color = value)) }
+    }
+
+    fun updateInlineVehicleTotalSeats(value: Int) {
+        _uiState.update { state ->
+            val seats = value.coerceIn(CampingVehicle.MinSeats, CampingVehicle.MaxSeats)
+            state.copy(
+                inlineVehicle = state.inlineVehicle.copy(
+                    totalSeats = seats,
+                    peopleInCar = state.inlineVehicle.peopleInCar.coerceIn(1, seats),
+                ),
+            )
+        }
+    }
+
+    fun updateInlineVehiclePeopleInCar(value: Int) {
+        _uiState.update { state ->
+            state.copy(
+                inlineVehicle = state.inlineVehicle.copy(
+                    peopleInCar = value.coerceIn(1, state.inlineVehicle.totalSeats),
+                ),
+            )
+        }
+    }
+
+    fun updateInlineVehicleHasSeats(value: Boolean) {
+        _uiState.update { it.copy(inlineVehicle = it.inlineVehicle.copy(hasAvailableSeats = value)) }
+    }
+
+    fun updateInlineVehicleNotes(value: String) {
+        _uiState.update { it.copy(inlineVehicle = it.inlineVehicle.copy(notes = value)) }
+    }
+
+    fun applySavedVehicle(vehicle: UserVehicle) {
+        _uiState.update { state ->
+            state.copy(
+                inlineVehicle = state.inlineVehicle.copy(
+                    enabled = true,
+                    selectedSavedVehicleId = vehicle.id,
+                    plateNumber = vehicle.plateNumber.uppercase(Locale.ROOT),
+                    brand = vehicle.brand.orEmpty(),
+                    model = vehicle.model.orEmpty(),
+                    color = vehicle.color.orEmpty(),
+                    totalSeats = vehicle.clampedTotalSeats,
+                    peopleInCar = state.inlineVehicle.peopleInCar.coerceIn(1, vehicle.clampedTotalSeats),
+                ),
+            )
         }
     }
 
@@ -135,6 +317,12 @@ class CampingRegistrationViewModel @Inject constructor(
             _uiState.update { it.copy(errorMessage = "Every child registration needs guardian consent.") }
             return
         }
+        if (state.inlineVehicleNeedsPlate) {
+            _uiState.update { it.copy(errorMessage = "Enter your car's plate, or turn off \"I'm driving my own car\".") }
+            return
+        }
+        val inlineVehicle = state.inlineVehicle
+        val shouldCreateVehicle = state.wantsInlineVehicle
 
         val submissions = selected.map { participant ->
             submission(
@@ -153,16 +341,29 @@ class CampingRegistrationViewModel @Inject constructor(
                     user = user,
                 )
             }.onSuccess { updatedCamping ->
+                val vehicleCreationResult = if (shouldCreateVehicle) {
+                    runCatching {
+                        createDriverVehicle(
+                            camping = updatedCamping,
+                            user = user,
+                            draft = inlineVehicle,
+                        )
+                    }
+                } else {
+                    null
+                }
                 analyticsService.registerForCamping(updatedCamping.id)
                 _uiState.update {
                     it.copy(
                         isSubmitting = false,
                         camping = updatedCamping,
+                        inlineVehicle = if (vehicleCreationResult?.isSuccess == true) InlineVehicleDraft() else it.inlineVehicle,
                         successMessage = if (submissions.size == 1) {
                             "Registration sent for approval."
                         } else {
                             "Registrations sent for approval."
                         },
+                        errorMessage = vehicleCreationResult?.exceptionOrNull()?.message,
                     )
                 }
                 notifyLeadership(
@@ -180,6 +381,61 @@ class CampingRegistrationViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private suspend fun createDriverVehicle(
+        camping: Camping,
+        user: AuthenticatedUser,
+        draft: InlineVehicleDraft,
+    ): CampingVehicle {
+        val totalSeats = draft.totalSeats.coerceIn(CampingVehicle.MinSeats, CampingVehicle.MaxSeats)
+        val occupiedSeats = draft.peopleInCar.coerceIn(1, totalSeats)
+        val vehicle = CampingVehicle(
+            campingId = camping.id,
+            ownerUserId = user.uid,
+            userVehicleId = draft.selectedSavedVehicleId,
+            driverUserId = user.uid,
+            driverRegistrationId = user.uid,
+            driverName = user.preferredDisplayName,
+            driverPhotoUrl = user.photoUrl,
+            plateNumber = draft.normalizedPlate,
+            brand = draft.brand.clean(),
+            model = draft.model.clean(),
+            color = draft.color.clean(),
+            totalSeats = totalSeats,
+            occupiedSeats = occupiedSeats,
+            hasAvailableSeats = draft.hasAvailableSeats && occupiedSeats < totalSeats,
+            passengerRegistrationIds = emptyList(),
+            passengerNames = emptyList(),
+            pendingPassengerRegistrationIds = emptyList(),
+            pendingPassengerNames = emptyList(),
+            qrToken = VehicleTokenFactory.makeToken(),
+            invitationCode = VehicleTokenFactory.makeInvitationCode(),
+            status = VehicleStatus.Pending,
+            notes = draft.notes.clean(),
+        )
+        val created = vehicleService.createVehicle(vehicle)
+        campingService.updateRegistrationTransport(
+            campingId = camping.id,
+            attendeeId = user.uid,
+            transportationMode = TransportationMode.OwnCar,
+            vehicleId = created.id,
+            isDriver = true,
+            needsTransportHelp = false,
+            notes = draft.notes.clean(),
+        )
+        if (draft.selectedSavedVehicleId == null) {
+            val saved = UserVehicle(
+                ownerUserId = user.uid,
+                plateNumber = draft.normalizedPlate,
+                brand = draft.brand.clean(),
+                model = draft.model.clean(),
+                color = draft.color.clean(),
+                defaultTotalSeats = totalSeats,
+            )
+            runCatching { userVehicleService.saveVehicle(saved) }
+        }
+        return created
     }
 
     private suspend fun participantOptions(user: AuthenticatedUser): List<RegistrationParticipant> {
@@ -264,3 +520,13 @@ class CampingRegistrationViewModel @Inject constructor(
         val church: String,
     )
 }
+
+private fun CampingRegistrationUiState.sanitizeInlineVehicle(): CampingRegistrationUiState =
+    if (shouldOfferInlineVehicle) {
+        this
+    } else {
+        copy(inlineVehicle = inlineVehicle.copy(enabled = false))
+    }
+
+private fun String.clean(): String? =
+    trim().takeUnless { it.isBlank() }

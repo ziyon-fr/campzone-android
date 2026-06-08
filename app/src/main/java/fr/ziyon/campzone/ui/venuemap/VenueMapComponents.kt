@@ -56,6 +56,7 @@ import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.model.VenueCategory
+import fr.ziyon.campzone.data.model.VenueIconCatalog
 import fr.ziyon.campzone.data.model.VenueMap
 import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.model.pointsOnIllustration
@@ -73,7 +74,30 @@ val VenueCategory.icon: ImageVector
         VenueCategory.Program -> Icons.Filled.CalendarMonth
         VenueCategory.Info -> Icons.Filled.Info
         VenueCategory.Other -> Icons.Filled.Place
+        VenueCategory.Custom -> Icons.Filled.Place
     }
+
+val sfSymbolToMaterialIcon: Map<String, ImageVector> = VenueIconCatalog.allIconNames
+    .associateWith { icon ->
+        when (icon) {
+            "tent.fill" -> Icons.Filled.Festival
+            "music.mic", "guitars.fill", "theatermasks.fill" -> Icons.Filled.Mic
+            "fork.knife", "cup.and.saucer.fill", "cart.fill" -> Icons.Filled.Restaurant
+            "cross.case.fill", "staroflife.fill" -> Icons.Filled.MedicalServices
+            "toilet.fill", "shower.fill" -> Icons.Filled.Wc
+            "parkingsign", "car.fill", "bus.fill" -> Icons.Filled.LocalParking
+            "drop.fill", "spigot.fill" -> Icons.Filled.WaterDrop
+            "calendar", "book.fill" -> Icons.Filled.CalendarMonth
+            "info.circle.fill", "bell.fill", "exclamationmark.triangle.fill" -> Icons.Filled.Info
+            else -> Icons.Filled.Place
+        }
+    } + mapOf(
+    "mappin" to Icons.Filled.Place,
+    VenueIconCatalog.defaultIconName to Icons.Filled.Place,
+)
+
+fun materialIconForSfSymbol(iconName: String?): ImageVector =
+    sfSymbolToMaterialIcon[iconName] ?: Icons.Filled.Place
 
 /** Semantic tint (first-aid is the safety red; the rest use the warm palette). */
 val VenueCategory.tint: Color
@@ -97,6 +121,7 @@ val VenueCategory.labelRes: Int
         VenueCategory.Program -> R.string.venue_category_program
         VenueCategory.Info -> R.string.venue_category_info
         VenueCategory.Other -> R.string.venue_category_other
+        VenueCategory.Custom -> R.string.venue_category_custom
     }
 
 /** The category-tinted circular marker used everywhere a pin renders. */
@@ -106,6 +131,7 @@ fun VenuePinGlyph(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     diameter: Dp = 30.dp,
+    iconName: String? = null,
 ) {
     Box(
         modifier = modifier
@@ -115,7 +141,7 @@ fun VenuePinGlyph(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = category.icon,
+            imageVector = iconName?.let(::materialIconForSfSymbol) ?: category.icon,
             contentDescription = null,
             tint = Color.White,
             modifier = Modifier.size(diameter * 0.55f),
@@ -131,13 +157,14 @@ fun VenuePinView(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     label: String? = null,
+    iconName: String? = null,
 ) {
     Column(
         modifier = modifier.semantics(mergeDescendants = true) { this.contentDescription = contentDescription },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        VenuePinGlyph(category = category, selected = selected)
+        VenuePinGlyph(category = category, selected = selected, iconName = iconName)
         if (!label.isNullOrEmpty()) {
             Surface(
                 color = MaterialTheme.czColors.surface.copy(alpha = 0.92f),
@@ -238,6 +265,7 @@ fun VenueImageCanvas(
                 contentDescription = point.name,
                 selected = point.id == selectedPointId,
                 label = point.name,
+                iconName = point.resolvedIconName,
                 modifier = Modifier
                     .offset(
                         x = canvasWidth * x.toFloat() - glyph / 2,
@@ -276,7 +304,7 @@ fun VenuePointDetailCard(
                 horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                VenuePinGlyph(category = point.category, diameter = 36.dp)
+                VenuePinGlyph(category = point.category, diameter = 36.dp, iconName = point.resolvedIconName)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = point.name,
@@ -285,7 +313,7 @@ fun VenuePointDetailCard(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = stringResource(point.category.labelRes),
+                        text = point.displayCategoryLabel(),
                         color = MaterialTheme.czColors.textSecondary,
                         style = MaterialTheme.typography.labelMedium,
                     )
@@ -328,7 +356,7 @@ fun VenueLegendRow(
             horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            VenuePinGlyph(category = point.category, diameter = 28.dp)
+            VenuePinGlyph(category = point.category, diameter = 28.dp, iconName = point.resolvedIconName)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = point.name,
@@ -337,7 +365,7 @@ fun VenueLegendRow(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = stringResource(point.category.labelRes),
+                    text = point.displayCategoryLabel(),
                     color = MaterialTheme.czColors.textSecondary,
                     style = MaterialTheme.typography.labelSmall,
                 )
@@ -346,3 +374,11 @@ fun VenueLegendRow(
         }
     }
 }
+
+@Composable
+private fun VenuePoint.displayCategoryLabel(): String =
+    if (category == VenueCategory.Custom) {
+        customCategoryName?.trim()?.takeUnless { it.isBlank() } ?: stringResource(category.labelRes)
+    } else {
+        stringResource(category.labelRes)
+    }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Restaurant
@@ -57,6 +58,7 @@ import fr.ziyon.campzone.core.designsystem.CzTypeScale
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.model.FoodMenuEntry
 import fr.ziyon.campzone.data.model.FoodMenuProgramSync
+import fr.ziyon.campzone.data.model.Game
 import fr.ziyon.campzone.data.model.Program
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuUiState
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuViewModel
@@ -73,6 +75,7 @@ fun ProgramDetailScreen(
     programId: String,
     onBack: () -> Unit,
     onOpenFoodMenu: () -> Unit,
+    onOpenGame: (String) -> Unit,
     modifier: Modifier = Modifier,
     foodMenuViewModel: FoodMenuViewModel = hiltViewModel(),
 ) {
@@ -82,6 +85,7 @@ fun ProgramDetailScreen(
     }
 
     val uiState by viewModel.uiState.collectAsState()
+    val games by viewModel.games.collectAsState()
     val foodMenuState by foodMenuViewModel.uiState.collectAsState()
     val program = (uiState as? ScheduleUiState.Loaded)
         ?.schedule
@@ -93,11 +97,14 @@ fun ProgramDetailScreen(
     } else {
         null
     }
+    val linkedGame = program?.linkedGameId?.let { id -> games.firstOrNull { it.id == id } }
     ProgramDetailContent(
         program = program,
         foodMenuEntry = foodMenuEntry,
+        linkedGame = linkedGame,
         onBack = onBack,
         onOpenFoodMenu = onOpenFoodMenu,
+        onOpenGame = onOpenGame,
         modifier = modifier,
     )
 }
@@ -107,8 +114,10 @@ fun ProgramDetailScreen(
 private fun ProgramDetailContent(
     program: Program?,
     foodMenuEntry: FoodMenuEntry?,
+    linkedGame: Game?,
     onBack: () -> Unit,
     onOpenFoodMenu: () -> Unit,
+    onOpenGame: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
@@ -172,6 +181,14 @@ private fun ProgramDetailContent(
                         FoodSection(
                             entry = foodMenuEntry,
                             onOpenFoodMenu = onOpenFoodMenu,
+                        )
+                    }
+                }
+                if (linkedGame != null) {
+                    item {
+                        ProgramGameSection(
+                            game = linkedGame,
+                            onOpenGame = { onOpenGame(linkedGame.id) },
                         )
                     }
                 }
@@ -358,6 +375,48 @@ private fun FoodSection(
     }
 }
 
+@Composable
+private fun ProgramGameSection(
+    game: Game,
+    onOpenGame: () -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        ProgramSectionHeader(title = stringResource(R.string.program_game), icon = Icons.Rounded.CheckCircle)
+        Surface(
+            onClick = onOpenGame,
+            modifier = Modifier.fillMaxWidth(),
+            color = colors.surface,
+            shape = RoundedCornerShape(CzRadius.xl),
+        ) {
+            Row(
+                modifier = Modifier.padding(CzSpacing.base),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = null,
+                    tint = colors.ember,
+                    modifier = Modifier.size(32.dp),
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = game.name,
+                        style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
+                        color = colors.textPrimary,
+                    )
+                    Text(
+                        text = stringResource(R.string.program_game_helper),
+                        style = CzTypeScale.caption,
+                        color = colors.textSecondary,
+                    )
+                }
+            }
+        }
+    }
+}
+
 private val fullDateTimeFormatter = SimpleDateFormat("EEEE, MMMM d · HH:mm", Locale.getDefault())
 
 private fun fullDateTimeText(date: Date): String = fullDateTimeFormatter.format(date)
@@ -381,8 +440,10 @@ private fun ProgramDetailNotFoundPreview() {
         ProgramDetailContent(
             program = null,
             foodMenuEntry = null,
+            linkedGame = null,
             onBack = {},
             onOpenFoodMenu = {},
+            onOpenGame = {},
         )
     }
 }

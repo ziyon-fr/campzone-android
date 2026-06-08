@@ -1,3 +1,34 @@
+# Project Status - Venue map, games locations, and leadership instructions parity
+
+Updated: 2026-06-08
+
+- Branch: `venue-map-games-locations-instructions`
+- Change completed: Android now reads/writes the iOS venue-map custom category
+  fields (`customCategoryName`, `customIconName`), game location fields
+  (`venuePointIDs`, `locationVisibleToAll`), schedule `linkedGameID`, and the
+  private `staffInstructions/config` document with additive/legacy-safe
+  decoding.
+- Venue map: leaders can enter manual coordinates, seed a pin from current
+  device location, import GPX waypoints/routes/tracks through SAF, choose custom
+  pin categories/icons using iOS SF Symbol identifiers, and open external
+  directions for pins or the camp marker via Google Maps, Waze, web Google
+  Maps, or generic `geo:` intents.
+- Games/schedule: game editing supports linked venue pins plus participant
+  visibility, game detail gates hidden locations and leadership-only
+  instructions, venue map/card filtering hides unpublished game-only pins from
+  participants, and games-type programs can link to a game with detail
+  navigation back to the game.
+- Media/backend: instruction image uploads use the existing authenticated
+  Cloudinary backend flow, deletion calls the backend destroy endpoint, and
+  leadership can open instruction images in a full-screen pan/zoom viewer.
+- Verification (JBR): `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and
+  `:app:assembleDebug` green. No Android Firestore rules emulator harness exists
+  in this repo; `firestore-rbac.rules` remains owned by the iOS repo. Device QA
+  still needed for runtime location permission, GPX file picker, installed
+  external map apps, and real Cloudinary upload/destroy.
+
+---
+
 # Project Status - Schedule day titles and custom program types parity
 
 Updated: 2026-06-04
@@ -439,3 +470,51 @@ report model were already shipped; D7 reuses them.
 - Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew testDebugUnitTest --tests fr.ziyon.campzone.data.model.AchievementPayloadTest --tests fr.ziyon.campzone.ui.profile.badges.AchievementViewModelTest` SUCCESSFUL
   - `./gradlew assembleDebug` SUCCESSFUL
+
+---
+
+# Project Status - Vehicle QR Code Check-in
+
+- Branch/worktree: continued on existing dirty checkout
+  `venue-map-games-locations-instructions`; unrelated venue-map/games/media
+  changes were preserved.
+- Scope shipped: Android port of the iOS vehicle QR check-in core contract:
+  vehicle/user-vehicle/check-in models, Firestore services/fakes, registration
+  transport-field update, participant transport hub, vehicle form, driver QR,
+  manager dashboard, scanner, arrival confirmation, saved profile vehicles, and
+  the compact vehicle card in My QR Passes. Follow-up completed: camping
+  registration is now the iOS-style progressive Who -> Transport -> Review
+  wizard with optional inline own-car capture during submit.
+- Firestore/interop:
+  - Uses exact deployed paths `campings/{campingID}/vehicles/{vehicleID}`,
+    nested `checkins`, `users/{userID}/vehicles`, and registration transport
+    fields.
+  - QR payload accepts `campzone://vehicle-checkin/{token}`,
+    `campzone://vehicle-checkin?t={token}`, and
+    `https://campzone.app/checkin/vehicle/{token}`.
+  - Token shape is two UUIDs joined/dash-stripped/lowercased (64 hex);
+    invitation code is 6 chars from the iOS unambiguous alphabet.
+  - Vehicle edits now use the narrow RBAC allowlist payload, omitting immutable
+    fields like `qrToken`, driver IDs, `campingID`, `invitationCode`, and
+    `createdAt`.
+- Navigation/entry points:
+  - Camping Detail operations row -> Vehicles dashboard (gated by
+    `canManageTransportation`).
+  - My QR Passes -> compact `MyVehicleCard` -> My Transportation.
+  - Profile -> My Vehicles -> saved vehicle CRUD/default editor.
+  - Register Participants -> Who/Transport/Review wizard; the Transport step
+    can reuse a saved vehicle or capture plate/brand/model/color/seats/notes
+    inline, then submit the registration, create the camping vehicle QR, link
+    the attendee as driver, and best-effort save the typed car for reuse.
+- Localization: entry-point strings added to EN/FR/PT/PT-BR; the new vehicle
+  registration wizard strings are localized in EN/FR/PT/PT-BR; standalone
+  vehicle screens still have hardcoded screen-local English copy and need a
+  dedicated string-resource pass.
+- Verification (JAVA_HOME = Android Studio JBR):
+  - `./gradlew :app:compileDebugKotlin` SUCCESSFUL
+  - `./gradlew :app:testDebugUnitTest --tests fr.ziyon.campzone.data.model.VehicleModelTest` SUCCESSFUL
+  - `./gradlew :app:testDebugUnitTest --tests fr.ziyon.campzone.ui.camping.register.CampingRegistrationViewModelTest --tests fr.ziyon.campzone.data.model.VehicleModelTest` SUCCESSFUL
+- Not done / needs QA:
+  - Device/emulator QA for CameraX + ML Kit scanning, permission-denied state,
+    and real Firestore RBAC writes.
+  - Broader ViewModel/UI test matrix from the request remains to be added.

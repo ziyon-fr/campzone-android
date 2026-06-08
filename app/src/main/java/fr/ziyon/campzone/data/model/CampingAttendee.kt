@@ -29,6 +29,11 @@ data class CampingAttendee(
     val transportationBookingId: String? = null,
     val transportationOptionId: String? = null,
     val transportationOptionName: String? = null,
+    val transportationMode: TransportationMode? = null,
+    val vehicleId: String? = null,
+    val isDriver: Boolean = false,
+    val needsTransportHelp: Boolean = false,
+    val transportationNotes: String? = null,
     val paymentStatus: TransportationPaymentStatus = TransportationPaymentStatus.Unpaid,
     val paymentReference: String? = null,
     val paymentUpdatedAt: Date? = null,
@@ -72,6 +77,11 @@ internal fun Map<String, Any?>.toCampingAttendeeOrNull(documentId: String): Camp
         transportationBookingId = stringValue("transportationBookingID"),
         transportationOptionId = stringValue("transportationOptionID"),
         transportationOptionName = stringValue("transportationOptionName"),
+        transportationMode = stringValue("transportationMode")?.let(TransportationMode::fromWire),
+        vehicleId = stringValue("vehicleID"),
+        isDriver = boolValue("isDriver") ?: false,
+        needsTransportHelp = boolValue("needsTransportHelp") ?: false,
+        transportationNotes = stringValue("transportationNotes"),
         paymentStatus = TransportationPaymentStatus.fromWire(stringValue("paymentStatus")),
         paymentReference = stringValue("paymentReference"),
         paymentUpdatedAt = dateValue("paymentUpdatedAt"),
@@ -123,6 +133,12 @@ internal object CampingAttendeePayload {
             ?.let { payload["transportationOptionID"] = it }
         attendee.transportationOptionName?.trim()?.takeUnless { it.isBlank() }
             ?.let { payload["transportationOptionName"] = it }
+        attendee.transportationMode?.let { payload["transportationMode"] = it.wireValue }
+        attendee.vehicleId?.trim()?.takeUnless { it.isBlank() }?.let { payload["vehicleID"] = it }
+        payload["isDriver"] = attendee.isDriver
+        payload["needsTransportHelp"] = attendee.needsTransportHelp
+        attendee.transportationNotes?.trim()?.takeUnless { it.isBlank() }
+            ?.let { payload["transportationNotes"] = it }
         attendee.photoUrl?.trim()?.takeUnless { it.isBlank() }?.let { payload["photoURL"] = it }
 
         if (includeCreatedAt) {

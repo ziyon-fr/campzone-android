@@ -2,6 +2,10 @@
 
 package fr.ziyon.campzone.ui.games
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,6 +27,10 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -50,10 +58,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzSpacing
@@ -68,13 +84,21 @@ import fr.ziyon.campzone.data.games.previewGame
 import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.Game
+import fr.ziyon.campzone.data.model.GameInstructionAttachment
+import fr.ziyon.campzone.data.model.GameInstructionAttachmentKind
+import fr.ziyon.campzone.data.model.GameInstructions
 import fr.ziyon.campzone.data.model.PointRule
 import fr.ziyon.campzone.data.model.Team
+import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.camping.PreviewCampingService
 import fr.ziyon.campzone.data.teams.FakeTeamService
 import fr.ziyon.campzone.core.designsystem.CzErrorState
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
 import fr.ziyon.campzone.core.designsystem.CzSectionHeader
+import fr.ziyon.campzone.ui.venuemap.VenuePinGlyph
+import fr.ziyon.campzone.data.venuemap.DirectionsTarget
+import fr.ziyon.campzone.data.venuemap.ExternalMapsApp
+import fr.ziyon.campzone.data.venuemap.ExternalNavigationLauncher
 import kotlinx.coroutines.launch
 
 @Composable
@@ -88,6 +112,7 @@ fun GameDetailRoute(
     onBack: () -> Unit,
     onOpenEditor: (String) -> Unit,
     onOpenPointHistory: () -> Unit,
+    onOpenVenueMap: () -> Unit,
 ) {
     val evaluator = remember { AppPermissionEvaluator() }
     val permissionUser = PermissionUser(
@@ -109,7 +134,13 @@ fun GameDetailRoute(
             evaluator.canManageGames(permissionUser, campingCtx)
         )
 
-    LaunchedEffect(campingId) { viewModel.loadIfNeeded(campingId) }
+    LaunchedEffect(campingId) {
+        viewModel.loadIfNeeded(campingId)
+        viewModel.loadVenuePoints(campingId)
+    }
+    LaunchedEffect(gameId, canManage) {
+        if (canManage) viewModel.loadInstructions(gameId, campingId)
+    }
 
     val uiState by viewModel.uiState.collectAsState()
     val game = viewModel.game(gameId, campingId)
@@ -129,11 +160,14 @@ fun GameDetailRoute(
             activities = visibleActivities,
             canManage = canManage,
             canAssign = canAssign,
+            venuePoints = viewModel.venuePointsFor(campingId),
+            instructions = if (canManage) viewModel.instructions(game.id) else null,
             viewModel = viewModel,
             authenticatedUser = authenticatedUser,
             onBack = onBack,
             onOpenEditor = { onOpenEditor(game.id) },
             onOpenPointHistory = onOpenPointHistory,
+            onOpenVenueMap = onOpenVenueMap,
         )
     }
 }
@@ -147,11 +181,14 @@ private fun GameDetailScreen(
     activities: List<Activity>,
     canManage: Boolean,
     canAssign: Boolean,
+    venuePoints: List<VenuePoint>,
+    instructions: GameInstructions?,
     viewModel: GameViewModel,
     authenticatedUser: AuthenticatedUser,
     onBack: () -> Unit,
     onOpenEditor: () -> Unit,
     onOpenPointHistory: () -> Unit,
+    onOpenVenueMap: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
     val scope = rememberCoroutineScope()
@@ -295,6 +332,19 @@ private fun GameDetailScreen(
                 item { GameRulesCard(rules = game.rules) }
             }
 
+            item {
+                GameLocationsSection(
+                    game = game,
+                    venuePoints = venuePoints,
+                    canManage = canManage,
+                    onOpenVenueMap = onOpenVenueMap,
+                )
+            }
+
+            if (canManage && instructions?.isEmpty == false) {
+                item { GameInstructionsCard(instructions = instructions) }
+            }
+
             item { CzSectionHeader(title = stringResource(R.string.games_point_rules)) }
 
             if (game.pointRules.isEmpty()) {
@@ -403,6 +453,238 @@ private fun GameRulesCard(rules: String) {
 }
 
 @Composable
+private fun GameLocationsSection(
+    game: Game,
+    venuePoints: List<VenuePoint>,
+    canManage: Boolean,
+    onOpenVenueMap: () -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    val context = LocalContext.current
+    val pointsById = venuePoints.associateBy { it.id }
+    val points = game.venuePointIds.mapNotNull(pointsById::get)
+    val canSee = canManage || game.locationVisibleToAll
+    if (!canSee || points.isEmpty()) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CzSectionHeader(title = stringResource(R.string.games_locations_title))
+            if (!game.locationVisibleToAll) {
+                Text(
+                    stringResource(R.string.games_locations_staff_only),
+                    color = colors.textSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+        points.forEach { point ->
+            Surface(color = colors.surface, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(CzSpacing.lg), verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        VenuePinGlyph(
+                            category = point.category,
+                            iconName = point.resolvedIconName,
+                            diameter = 30.dp,
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                point.name,
+                                color = colors.textPrimary,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            if (point.note.isNotBlank()) {
+                                Text(
+                                    point.note,
+                                    color = colors.textSecondary,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
+                        }
+                        IconButton(onClick = onOpenVenueMap) {
+                            Icon(Icons.Outlined.Map, contentDescription = stringResource(R.string.venue_map_title), tint = colors.ember)
+                        }
+                    }
+                    if (point.hasCoordinate) {
+                        TextButton(
+                            onClick = {
+                                val target = DirectionsTarget(
+                                    id = point.id,
+                                    name = point.name,
+                                    latitude = point.latitude!!,
+                                    longitude = point.longitude!!,
+                                )
+                                context.startActivity(
+                                    android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        ExternalNavigationLauncher.uriFor(target, ExternalMapsApp.Geo),
+                                    ),
+                                )
+                            },
+                        ) {
+                            Icon(Icons.Outlined.Map, null, modifier = Modifier.size(16.dp))
+                            Text(stringResource(R.string.venue_route), modifier = Modifier.padding(start = CzSpacing.xs))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GameInstructionsCard(instructions: GameInstructions) {
+    val colors = MaterialTheme.czColors
+    var expandedImage by remember { mutableStateOf<GameInstructionAttachment?>(null) }
+    expandedImage?.let { attachment ->
+        FullScreenInstructionImageViewer(
+            attachment = attachment,
+            onDismiss = { expandedImage = null },
+        )
+    }
+    Surface(color = colors.surface, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(CzSpacing.lg), verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+            CzSectionHeader(title = stringResource(R.string.games_instructions_title))
+            if (instructions.title.isNotBlank()) {
+                Text(
+                    instructions.title,
+                    color = colors.textPrimary,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            if (instructions.description.isNotBlank()) {
+                Text(
+                    instructions.description,
+                    color = colors.textPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            instructions.images.forEach { attachment ->
+                GameInstructionAttachmentRow(
+                    attachment = attachment,
+                    onOpenImage = {
+                        if (attachment.kind == GameInstructionAttachmentKind.Image) {
+                            expandedImage = attachment
+                        }
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GameInstructionAttachmentRow(
+    attachment: GameInstructionAttachment,
+    onOpenImage: () -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    Surface(
+        onClick = onOpenImage,
+        enabled = attachment.kind == GameInstructionAttachmentKind.Image,
+        color = colors.surface,
+        modifier = Modifier.fillMaxWidth().padding(top = CzSpacing.xs),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (attachment.kind == GameInstructionAttachmentKind.Image) {
+                AsyncImage(
+                    model = attachment.url,
+                    contentDescription = attachment.displayName,
+                    modifier = Modifier.size(52.dp),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.PictureAsPdf,
+                    contentDescription = null,
+                    tint = colors.ember,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            Text(
+                attachment.displayName,
+                color = colors.textSecondary,
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f),
+            )
+            if (attachment.kind == GameInstructionAttachmentKind.Image) {
+                Icon(
+                    imageVector = Icons.Outlined.Image,
+                    contentDescription = null,
+                    tint = colors.ember,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FullScreenInstructionImageViewer(
+    attachment: GameInstructionAttachment,
+    onDismiss: () -> Unit,
+) {
+    var scale by remember { mutableStateOf(1f) }
+    var offsetX by remember { mutableStateOf(0f) }
+    var offsetY by remember { mutableStateOf(0f) }
+    val transformState = rememberTransformableState { zoomChange, offsetChange, _ ->
+        scale = (scale * zoomChange).coerceIn(1f, 5f)
+        offsetX += offsetChange.x
+        offsetY += offsetChange.y
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .clipToBounds(),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = attachment.url,
+                contentDescription = attachment.displayName,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offsetX
+                        translationY = offsetY
+                    }
+                    .transformable(transformState),
+                contentScale = ContentScale.Fit,
+            )
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.TopEnd).padding(CzSpacing.md),
+            ) {
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.common_close_image),
+                    tint = Color.White,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun PointRulesCategoryCard(
     category: String,
     rules: List<PointRule>,
@@ -486,8 +768,11 @@ private fun GameDetailScreenPreview() {
                 FakeTeamService(),
                 PreviewCampingService(),
                 fr.ziyon.campzone.data.teams.FakeTeamNotificationDispatcher(),
+                fr.ziyon.campzone.data.media.PreviewMediaUploader,
+                fr.ziyon.campzone.data.media.PreviewMediaUploader,
+                fr.ziyon.campzone.data.venuemap.FakeVenueMapService(),
             ),
-            onBack = {}, onOpenEditor = {}, onOpenPointHistory = {},
+            onBack = {}, onOpenEditor = {}, onOpenPointHistory = {}, onOpenVenueMap = {},
         )
     }
 }

@@ -1,6 +1,7 @@
 package fr.ziyon.campzone.ui.games
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -8,22 +9,30 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.camping.CampingService
+import fr.ziyon.campzone.data.media.CloudinaryAssetDeleter
+import fr.ziyon.campzone.data.media.ImageUploader
 import fr.ziyon.campzone.data.games.GameService
 import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.Game
+import fr.ziyon.campzone.data.model.GameInstructionAttachment
+import fr.ziyon.campzone.data.model.GameInstructionAttachmentKind
+import fr.ziyon.campzone.data.model.GameInstructions
 import fr.ziyon.campzone.data.model.PointRule
 import fr.ziyon.campzone.data.model.PointRuleTarget
 import fr.ziyon.campzone.data.model.PointRuleVisibility
 import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.model.TeamPenalty
+import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.model.WinnerRevealPolicy
+import fr.ziyon.campzone.data.model.leadershipOnlyVenuePointIds
 import fr.ziyon.campzone.data.teams.TeamNotificationDispatcher
 import fr.ziyon.campzone.data.teams.TeamNotificationEvent
 import fr.ziyon.campzone.data.teams.TeamNotificationRequest
 import fr.ziyon.campzone.data.teams.TeamScoreRequest
 import fr.ziyon.campzone.data.teams.TeamService
+import fr.ziyon.campzone.data.venuemap.VenueMapService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,7 +55,30 @@ data class GameForm(
     val name: String = "",
     val rules: String = "",
     val pointRules: List<PointRule> = emptyList(),
+    val venuePointIds: List<String> = emptyList(),
+    val locationVisibleToAll: Boolean = false,
 )
+
+data class GameInstructionsForm(
+    val title: String = "",
+    val description: String = "",
+    val images: List<GameInstructionAttachment> = emptyList(),
+) {
+    fun asInstructions(): GameInstructions =
+        GameInstructions(
+            title = title.trim(),
+            description = description.trim(),
+            images = images,
+        )
+
+    companion object {
+        fun of(instructions: GameInstructions?) = GameInstructionsForm(
+            title = instructions?.title.orEmpty(),
+            description = instructions?.description.orEmpty(),
+            images = instructions?.images.orEmpty(),
+        )
+    }
+}
 
 enum class GameValidationError { NameRequired, PointRulesEmpty }
 
@@ -69,6 +101,9 @@ class GameViewModel @Inject constructor(
     private val teamService: TeamService,
     private val campingService: CampingService,
     private val teamNotificationDispatcher: TeamNotificationDispatcher,
+    private val imageUploader: ImageUploader,
+    private val assetDeleter: CloudinaryAssetDeleter,
+    private val venueMapService: VenueMapService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<GamesUiState>(GamesUiState.Loading)
@@ -76,20 +111,26 @@ class GameViewModel @Inject constructor(
 
     private val gamesByCampingId = mutableMapOf<String, List<Game>>()
     private val activitiesByCampingId = mutableMapOf<String, List<Activity>>()
+    private val venuePointsByCampingId = mutableStateMapOf<String, List<VenuePoint>>()
+    private val instructionsByGameId = mutableMapOf<String, GameInstructions?>()
     private val loadedIds = mutableSetOf<String>()
     private val observeJobs = mutableMapOf<String, Job>()
 
     var form by mutableStateOf(GameForm())
     var editingGameId by mutableStateOf<String?>(null)
     var validationErrors by mutableStateOf<List<GameValidationError>>(emptyList())
+    var instructionsForm by mutableStateOf(GameInstructionsForm())
 
     var isSaving by mutableStateOf(false)
     var isAwarding by mutableStateOf(false)
     var isResetting by mutableStateOf(false)
+    var isSavingInstructions by mutableStateOf(false)
+    var isUploadingInstructionImage by mutableStateOf(false)
     var isUpdatingReveal by mutableStateOf(false)
         private set
     var operationMessage by mutableStateOf<String?>(null)
     var operationError by mutableStateOf<String?>(null)
+    var instructionsError by mutableStateOf<String?>(null)
 
     fun loadIfNeeded(campingId: String) {
         if (observeJobs[campingId]?.isActive == true) {
@@ -144,6 +185,23 @@ class GameViewModel @Inject constructor(
     fun activitiesFor(campingId: String): List<Activity> =
         activitiesByCampingId[campingId]?.sortedByDescending { it.createdAt } ?: emptyList()
 
+    fun venuePointsFor(campingId: String): List<VenuePoint> =
+        venuePointsByCampingId[campingId].orEmpty()
+
+    fun loadVenuePoints(campingId: String) {
+        viewModelScope.launch {
+            runCatching { venueMapService.loadMap(campingId).points }
+                .onSuccess { venuePointsByCampingId[campingId] = it }
+        }
+    }
+
+    fun instructions(gameId: String): GameInstructions? = instructionsByGameId[gameId]
+
+    fun hiddenVenuePointIds(campingId: String, canSeeHiddenGameLocations: Boolean): Set<String> {
+        if (canSeeHiddenGameLocations) return emptySet()
+        return leadershipOnlyVenuePointIds(gamesFor(campingId))
+    }
+
     fun visibleActivities(camping: Camping, canSeeHidden: Boolean): List<Activity> {
         val policy = camping.winnerRevealPolicy
         val scoresHidden = policy != null && !policy.isRevealed &&
@@ -163,6 +221,7 @@ class GameViewModel @Inject constructor(
     fun prepareNewGame() {
         editingGameId = UUID.randomUUID().toString()
         form = GameForm()
+        instructionsForm = GameInstructionsForm()
         validationErrors = emptyList()
         operationError = null
         operationMessage = null
@@ -170,7 +229,13 @@ class GameViewModel @Inject constructor(
 
     fun prepareEditingGame(game: Game) {
         editingGameId = game.id
-        form = GameForm(name = game.name, rules = game.rules, pointRules = game.pointRules)
+        form = GameForm(
+            name = game.name,
+            rules = game.rules,
+            pointRules = game.pointRules,
+            venuePointIds = game.venuePointIds,
+            locationVisibleToAll = game.locationVisibleToAll,
+        )
         validationErrors = emptyList()
         operationError = null
         operationMessage = null
@@ -191,6 +256,8 @@ class GameViewModel @Inject constructor(
                 name = form.name.trim(),
                 rules = form.rules.trim(),
                 pointRules = form.pointRules,
+                venuePointIds = form.venuePointIds.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+                locationVisibleToAll = form.locationVisibleToAll,
                 createdBy = existing?.createdBy ?: createdBy,
                 createdAt = existing?.createdAt,
                 updatedAt = Date(),
@@ -219,6 +286,94 @@ class GameViewModel @Inject constructor(
         }.onFailure { e ->
             operationError = e.message ?: "Failed to delete game."
         }.getOrDefault(false)
+    }
+
+    suspend fun loadInstructions(gameId: String, campingId: String) {
+        runCatching {
+            gameService.loadInstructions(gameId, campingId)
+        }.onSuccess { instructions ->
+            instructionsByGameId[gameId] = instructions
+        }.onFailure { e ->
+            instructionsError = e.message ?: "Failed to load instructions."
+        }
+    }
+
+    suspend fun prepareInstructions(gameId: String, campingId: String) {
+        loadInstructions(gameId, campingId)
+        instructionsForm = GameInstructionsForm.of(instructions(gameId))
+    }
+
+    fun updateInstructionsForm(update: (GameInstructionsForm) -> GameInstructionsForm) {
+        instructionsForm = update(instructionsForm)
+    }
+
+    suspend fun saveInstructions(gameId: String, campingId: String): Boolean {
+        isSavingInstructions = true
+        instructionsError = null
+        return runCatching {
+            val instructions = instructionsForm.asInstructions()
+            if (instructions.isEmpty) {
+                gameService.deleteInstructions(gameId, campingId)
+                instructionsByGameId[gameId] = null
+            } else {
+                val saved = gameService.saveInstructions(instructions, gameId, campingId)
+                instructionsByGameId[gameId] = saved
+            }
+            true
+        }.onFailure { e ->
+            instructionsError = e.message ?: "Failed to save instructions."
+        }.also {
+            isSavingInstructions = false
+        }.getOrDefault(false)
+    }
+
+    suspend fun uploadInstructionImage(
+        bytes: ByteArray,
+        mimeType: String,
+        fileExtension: String,
+        gameId: String,
+        campingId: String,
+    ) {
+        isUploadingInstructionImage = true
+        instructionsError = null
+        runCatching {
+            val result = imageUploader.uploadImage(
+                assetIdPrefix = "instruction",
+                folder = "campzone/campings/$campingId/games/$gameId/instructions",
+                tags = listOf("campzone", "game_instructions", "camping_$campingId", "game_$gameId"),
+                bytes = bytes,
+                mimeType = mimeType,
+                fileExtension = fileExtension,
+            )
+            instructionsForm = instructionsForm.copy(
+                images = instructionsForm.images + GameInstructionAttachment(
+                    url = result.secureUrl,
+                    publicId = result.publicId,
+                    kind = GameInstructionAttachmentKind.Image,
+                ),
+            )
+            saveInstructions(gameId, campingId)
+        }.onFailure { e ->
+            instructionsError = e.message ?: "Failed to upload instruction image."
+        }
+        isUploadingInstructionImage = false
+    }
+
+    suspend fun removeInstructionAttachment(
+        attachment: GameInstructionAttachment,
+        gameId: String,
+        campingId: String,
+    ) {
+        instructionsForm = instructionsForm.copy(
+            images = instructionsForm.images.filterNot { it.id == attachment.id },
+        )
+        saveInstructions(gameId, campingId)
+        runCatching {
+            assetDeleter.deleteAsset(
+                publicId = attachment.publicId,
+                resourceType = if (attachment.kind == GameInstructionAttachmentKind.Pdf) "raw" else "image",
+            )
+        }
     }
 
     suspend fun awardPoints(

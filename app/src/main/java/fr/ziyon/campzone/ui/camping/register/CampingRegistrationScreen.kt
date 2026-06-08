@@ -9,24 +9,29 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BusAlert
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Circle
-import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Verified
@@ -44,8 +49,8 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -59,6 +64,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -73,6 +80,7 @@ import fr.ziyon.campzone.core.designsystem.CzErrorState
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
+import fr.ziyon.campzone.core.designsystem.CzTextField
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.UserGender
@@ -85,6 +93,7 @@ import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipant
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.TransportationMode
+import fr.ziyon.campzone.data.model.UserVehicle
 import fr.ziyon.campzone.ui.camping.campingDateRange
 import java.text.NumberFormat
 import java.util.Date
@@ -121,10 +130,23 @@ fun CampingRegistrationRoute(
 
     CampingRegistrationScreen(
         state = state,
+        authenticatedUser = authenticatedUser,
         snackbarHostState = snackbarHostState,
         onBack = onBack,
         onToggleParticipant = viewModel::toggleParticipant,
         onSelectTransportationOption = viewModel::selectTransportationOption,
+        onGoBackStep = viewModel::goBack,
+        onGoNextStep = viewModel::goNext,
+        onToggleInlineVehicle = viewModel::toggleInlineVehicle,
+        onApplySavedVehicle = viewModel::applySavedVehicle,
+        onUpdateVehiclePlate = viewModel::updateInlineVehiclePlate,
+        onUpdateVehicleBrand = viewModel::updateInlineVehicleBrand,
+        onUpdateVehicleModel = viewModel::updateInlineVehicleModel,
+        onUpdateVehicleColor = viewModel::updateInlineVehicleColor,
+        onUpdateVehicleTotalSeats = viewModel::updateInlineVehicleTotalSeats,
+        onUpdateVehiclePeopleInCar = viewModel::updateInlineVehiclePeopleInCar,
+        onUpdateVehicleHasSeats = viewModel::updateInlineVehicleHasSeats,
+        onUpdateVehicleNotes = viewModel::updateInlineVehicleNotes,
         onAddParticipant = onAddParticipant,
         onSubmit = {
             viewModel.submit(authenticatedUser) { requiresPayment ->
@@ -143,10 +165,23 @@ fun CampingRegistrationRoute(
 @Composable
 fun CampingRegistrationScreen(
     state: CampingRegistrationUiState,
+    authenticatedUser: AuthenticatedUser,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onToggleParticipant: (String) -> Unit,
     onSelectTransportationOption: (String, String?) -> Unit,
+    onGoBackStep: () -> Unit,
+    onGoNextStep: () -> Unit,
+    onToggleInlineVehicle: (Boolean) -> Unit,
+    onApplySavedVehicle: (UserVehicle) -> Unit,
+    onUpdateVehiclePlate: (String) -> Unit,
+    onUpdateVehicleBrand: (String) -> Unit,
+    onUpdateVehicleModel: (String) -> Unit,
+    onUpdateVehicleColor: (String) -> Unit,
+    onUpdateVehicleTotalSeats: (Int) -> Unit,
+    onUpdateVehiclePeopleInCar: (Int) -> Unit,
+    onUpdateVehicleHasSeats: (Boolean) -> Unit,
+    onUpdateVehicleNotes: (String) -> Unit,
     onAddParticipant: () -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
@@ -183,11 +218,15 @@ fun CampingRegistrationScreen(
         },
         bottomBar = {
             if (camping != null && !state.isLoading) {
-                RegistrationSubmitBar(
+                RegistrationWizardBar(
+                    step = state.step,
                     isWaitlist = camping.isAtCapacity,
                     selectedCount = state.selectedParticipants.size,
-                    canSubmit = state.canSubmit,
+                    canProceed = state.canProceed,
+                    canGoBack = state.canGoBack,
                     isSubmitting = state.isSubmitting,
+                    onBack = onGoBackStep,
+                    onNext = onGoNextStep,
                     onSubmit = onSubmit,
                 )
             }
@@ -224,8 +263,19 @@ fun CampingRegistrationScreen(
             else -> RegistrationContent(
                 state = state,
                 camping = camping,
+                authenticatedUser = authenticatedUser,
                 onToggleParticipant = onToggleParticipant,
                 onSelectTransportationOption = onSelectTransportationOption,
+                onToggleInlineVehicle = onToggleInlineVehicle,
+                onApplySavedVehicle = onApplySavedVehicle,
+                onUpdateVehiclePlate = onUpdateVehiclePlate,
+                onUpdateVehicleBrand = onUpdateVehicleBrand,
+                onUpdateVehicleModel = onUpdateVehicleModel,
+                onUpdateVehicleColor = onUpdateVehicleColor,
+                onUpdateVehicleTotalSeats = onUpdateVehicleTotalSeats,
+                onUpdateVehiclePeopleInCar = onUpdateVehiclePeopleInCar,
+                onUpdateVehicleHasSeats = onUpdateVehicleHasSeats,
+                onUpdateVehicleNotes = onUpdateVehicleNotes,
                 onAddParticipant = onAddParticipant,
                 modifier = Modifier.padding(innerPadding),
             )
@@ -237,8 +287,19 @@ fun CampingRegistrationScreen(
 private fun RegistrationContent(
     state: CampingRegistrationUiState,
     camping: Camping,
+    authenticatedUser: AuthenticatedUser,
     onToggleParticipant: (String) -> Unit,
     onSelectTransportationOption: (String, String?) -> Unit,
+    onToggleInlineVehicle: (Boolean) -> Unit,
+    onApplySavedVehicle: (UserVehicle) -> Unit,
+    onUpdateVehiclePlate: (String) -> Unit,
+    onUpdateVehicleBrand: (String) -> Unit,
+    onUpdateVehicleModel: (String) -> Unit,
+    onUpdateVehicleColor: (String) -> Unit,
+    onUpdateVehicleTotalSeats: (Int) -> Unit,
+    onUpdateVehiclePeopleInCar: (Int) -> Unit,
+    onUpdateVehicleHasSeats: (Boolean) -> Unit,
+    onUpdateVehicleNotes: (String) -> Unit,
     onAddParticipant: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -252,64 +313,114 @@ private fun RegistrationContent(
         ),
         verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
     ) {
-        item { RegistrationHeader(camping) }
-        item {
-            SectionTitle(
-                title = stringResource(R.string.registration_participants),
-                icon = Icons.Filled.People,
-            )
-        }
-        items(state.participants, key = { it.id }) { participant ->
-            ParticipantSelectionCard(
-                participant = participant,
-                existingStatus = state.existingRegistration(participant)?.registrationStatus,
-                isSelected = participant.id in state.selectedParticipantIds,
-                onClick = { onToggleParticipant(participant.id) },
-            )
-        }
-        item {
-            CzButton(
-                text = stringResource(R.string.registration_add_participant),
-                onClick = onAddParticipant,
-                modifier = Modifier.fillMaxWidth(),
-                variant = CzButtonVariant.Secondary,
-                leadingIcon = {
-                    Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                },
-            )
-        }
+        item { RegistrationStepProgress(currentStep = state.step) }
 
-        if (state.selectedParticipants.isEmpty()) {
-            item { EmptySelectionHint() }
-        } else {
-            if (camping.usesTransportationOptions) {
+        when (state.step) {
+            RegistrationStep.Who -> {
+                item { RegistrationHeader(camping) }
                 item {
                     SectionTitle(
-                        title = stringResource(R.string.registration_transportation),
+                        title = stringResource(R.string.registration_participants),
+                        icon = Icons.Filled.People,
+                    )
+                }
+                items(state.participants, key = { it.id }) { participant ->
+                    ParticipantSelectionCard(
+                        participant = participant,
+                        existingStatus = state.existingRegistration(participant)?.registrationStatus,
+                        isSelected = participant.id in state.selectedParticipantIds,
+                        onClick = { onToggleParticipant(participant.id) },
+                    )
+                }
+                item {
+                    CzButton(
+                        text = stringResource(R.string.registration_add_participant),
+                        onClick = onAddParticipant,
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = CzButtonVariant.Secondary,
+                        leadingIcon = {
+                            Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                        },
+                    )
+                }
+                if (state.selectedParticipants.isEmpty()) {
+                    item { EmptySelectionHint() }
+                }
+            }
+
+            RegistrationStep.Transport -> {
+                item {
+                    StepIntroCard(
+                        title = stringResource(R.string.registration_transport_step_title),
+                        message = stringResource(
+                            if (camping.usesTransportationOptions) {
+                                R.string.registration_transport_step_message_options
+                            } else {
+                                R.string.registration_transport_step_message_no_options
+                            },
+                        ),
                         icon = Icons.Filled.DirectionsBus,
                     )
                 }
-                items(state.selectedParticipants, key = { "transport-${it.id}" }) { participant ->
-                    TransportationCard(
-                        participant = participant,
-                        camping = camping,
-                        selectedOptionId = state.transportationOptionIds[participant.id],
-                        onSelectOption = { onSelectTransportationOption(participant.id, it) },
-                    )
+                if (state.selectedParticipants.isEmpty()) {
+                    item { EmptySelectionHint() }
+                } else {
+                    if (camping.usesTransportationOptions) {
+                        items(state.selectedParticipants, key = { "transport-${it.id}" }) { participant ->
+                            TransportationCard(
+                                participant = participant,
+                                camping = camping,
+                                selectedOptionId = state.transportationOptionIds[participant.id],
+                                onSelectOption = { onSelectTransportationOption(participant.id, it) },
+                            )
+                        }
+                    } else if (!state.shouldOfferInlineVehicle) {
+                        item { NoTransportSetupCard() }
+                    }
+                    if (state.shouldOfferInlineVehicle) {
+                        item {
+                            InlineVehicleCaptureCard(
+                                user = authenticatedUser,
+                                draft = state.inlineVehicle,
+                                savedVehicles = state.savedVehicles,
+                                onEnabledChange = onToggleInlineVehicle,
+                                onSavedVehicleSelected = onApplySavedVehicle,
+                                onPlateChange = onUpdateVehiclePlate,
+                                onBrandChange = onUpdateVehicleBrand,
+                                onModelChange = onUpdateVehicleModel,
+                                onColorChange = onUpdateVehicleColor,
+                                onTotalSeatsChange = onUpdateVehicleTotalSeats,
+                                onPeopleInCarChange = onUpdateVehiclePeopleInCar,
+                                onHasSeatsChange = onUpdateVehicleHasSeats,
+                                onNotesChange = onUpdateVehicleNotes,
+                            )
+                        }
+                    }
                 }
             }
-            item {
-                SectionTitle(
-                    title = stringResource(R.string.registration_review),
-                    icon = Icons.Filled.Verified,
-                )
-            }
-            item {
-                ReviewCard(
-                    participants = state.selectedParticipants,
-                    camping = camping,
-                    state = state,
-                )
+
+            RegistrationStep.Review -> {
+                item {
+                    StepIntroCard(
+                        title = stringResource(R.string.registration_review_step_title),
+                        message = stringResource(R.string.registration_review_step_message),
+                        icon = Icons.Filled.Verified,
+                    )
+                }
+                if (state.selectedParticipants.isEmpty()) {
+                    item { EmptySelectionHint() }
+                } else {
+                    item {
+                        ReviewCard(
+                            participants = state.selectedParticipants,
+                            camping = camping,
+                            state = state,
+                        )
+                    }
+                    if (state.wantsInlineVehicle) {
+                        item { InlineVehicleReviewCard(state.inlineVehicle) }
+                    }
+                }
             }
         }
     }
@@ -366,6 +477,94 @@ private fun SectionTitle(title: String, icon: ImageVector) {
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
+    }
+}
+
+@Composable
+private fun RegistrationStepProgress(currentStep: RegistrationStep) {
+    val steps = listOf(RegistrationStep.Who, RegistrationStep.Transport, RegistrationStep.Review)
+    val currentIndex = steps.indexOf(currentStep).coerceAtLeast(0)
+    Surface(
+        color = MaterialTheme.czColors.surface,
+        shape = RoundedCornerShape(CzRadius.lg),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(CzSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+                steps.forEachIndexed { index, step ->
+                    Surface(
+                        modifier = Modifier.weight(1f).height(5.dp),
+                        color = if (index <= currentIndex) {
+                            MaterialTheme.czColors.ember
+                        } else {
+                            MaterialTheme.czColors.divider
+                        },
+                        shape = RoundedCornerShape(CzRadius.full),
+                        content = {},
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+                steps.forEach { step ->
+                    Text(
+                        text = step.displayName(),
+                        color = if (step == currentStep) {
+                            MaterialTheme.czColors.textPrimary
+                        } else {
+                            MaterialTheme.czColors.textSecondary
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (step == currentStep) FontWeight.SemiBold else FontWeight.Medium,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepIntroCard(
+    title: String,
+    message: String,
+    icon: ImageVector,
+) {
+    Surface(
+        color = MaterialTheme.czColors.surface,
+        shape = RoundedCornerShape(CzRadius.lg),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                color = MaterialTheme.czColors.ember.copy(alpha = 0.12f),
+                shape = CircleShape,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = MaterialTheme.czColors.ember)
+                }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = title,
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = message,
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
     }
 }
 
@@ -468,6 +667,307 @@ private fun TransportationCard(
 }
 
 @Composable
+private fun NoTransportSetupCard() {
+    Surface(
+        color = MaterialTheme.czColors.surface,
+        shape = RoundedCornerShape(CzRadius.lg),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.czColors.textSecondary)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = stringResource(R.string.registration_no_transport_needed_title),
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.registration_no_transport_needed_message),
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InlineVehicleCaptureCard(
+    user: AuthenticatedUser,
+    draft: InlineVehicleDraft,
+    savedVehicles: List<UserVehicle>,
+    onEnabledChange: (Boolean) -> Unit,
+    onSavedVehicleSelected: (UserVehicle) -> Unit,
+    onPlateChange: (String) -> Unit,
+    onBrandChange: (String) -> Unit,
+    onModelChange: (String) -> Unit,
+    onColorChange: (String) -> Unit,
+    onTotalSeatsChange: (Int) -> Unit,
+    onPeopleInCarChange: (Int) -> Unit,
+    onHasSeatsChange: (Boolean) -> Unit,
+    onNotesChange: (String) -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.czColors.surface,
+        shape = RoundedCornerShape(CzRadius.lg),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            ) {
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    color = MaterialTheme.czColors.ember.copy(alpha = 0.12f),
+                    shape = CircleShape,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.DirectionsCar, contentDescription = null, tint = MaterialTheme.czColors.ember)
+                    }
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = stringResource(R.string.registration_inline_car_title),
+                        color = MaterialTheme.czColors.textPrimary,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(R.string.registration_inline_car_message, user.preferredDisplayName),
+                        color = MaterialTheme.czColors.textSecondary,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth().clickable { onEnabledChange(!draft.enabled) },
+                color = MaterialTheme.czColors.background,
+                shape = RoundedCornerShape(CzRadius.md),
+                border = BorderStroke(1.dp, MaterialTheme.czColors.divider),
+            ) {
+                Row(
+                    modifier = Modifier.padding(CzSpacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+                ) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = stringResource(R.string.registration_inline_car_toggle),
+                            color = MaterialTheme.czColors.textPrimary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = stringResource(R.string.registration_inline_car_toggle_subtitle),
+                            color = MaterialTheme.czColors.textSecondary,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                    Switch(checked = draft.enabled, onCheckedChange = onEnabledChange)
+                }
+            }
+
+            if (draft.enabled) {
+                if (savedVehicles.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+                        Text(
+                            text = stringResource(R.string.registration_saved_vehicles),
+                            color = MaterialTheme.czColors.textSecondary,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                            items(savedVehicles, key = { it.id }) { vehicle ->
+                                SavedVehicleChip(
+                                    vehicle = vehicle,
+                                    selected = draft.selectedSavedVehicleId == vehicle.id,
+                                    onClick = { onSavedVehicleSelected(vehicle) },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                CzTextField(
+                    value = draft.plateNumber,
+                    onValueChange = onPlateChange,
+                    label = stringResource(R.string.registration_plate_number),
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = draft.plateIsBlank,
+                    supportingText = if (draft.plateIsBlank) {
+                        stringResource(R.string.registration_vehicle_plate_required)
+                    } else {
+                        null
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Characters,
+                        keyboardType = KeyboardType.Text,
+                    ),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                    CzTextField(
+                        value = draft.brand,
+                        onValueChange = onBrandChange,
+                        label = stringResource(R.string.registration_brand),
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    )
+                    CzTextField(
+                        value = draft.model,
+                        onValueChange = onModelChange,
+                        label = stringResource(R.string.registration_model),
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    )
+                }
+                CzTextField(
+                    value = draft.color,
+                    onValueChange = onColorChange,
+                    label = stringResource(R.string.registration_color),
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                )
+                SeatStepperRow(
+                    label = stringResource(R.string.registration_total_seats),
+                    value = draft.totalSeats,
+                    onDecrease = { onTotalSeatsChange(draft.totalSeats - 1) },
+                    onIncrease = { onTotalSeatsChange(draft.totalSeats + 1) },
+                )
+                SeatStepperRow(
+                    label = stringResource(R.string.registration_people_in_car),
+                    value = draft.peopleInCar,
+                    onDecrease = { onPeopleInCarChange(draft.peopleInCar - 1) },
+                    onIncrease = { onPeopleInCarChange(draft.peopleInCar + 1) },
+                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable { onHasSeatsChange(!draft.hasAvailableSeats) },
+                    color = MaterialTheme.czColors.background,
+                    shape = RoundedCornerShape(CzRadius.md),
+                    border = BorderStroke(1.dp, MaterialTheme.czColors.divider),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(CzSpacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.registration_seats_available),
+                            color = MaterialTheme.czColors.textPrimary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(checked = draft.hasAvailableSeats, onCheckedChange = onHasSeatsChange)
+                    }
+                }
+                CzTextField(
+                    value = draft.notes,
+                    onValueChange = onNotesChange,
+                    label = stringResource(R.string.registration_notes_optional),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = false,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedVehicleChip(
+    vehicle: UserVehicle,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.width(190.dp).clickable(onClick = onClick),
+        color = if (selected) MaterialTheme.czColors.ember.copy(alpha = 0.12f) else MaterialTheme.czColors.background,
+        shape = RoundedCornerShape(CzRadius.md),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (selected) MaterialTheme.czColors.ember else MaterialTheme.czColors.divider,
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(CzSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            Icon(
+                imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Filled.DirectionsCar,
+                contentDescription = null,
+                tint = if (selected) MaterialTheme.czColors.ember else MaterialTheme.czColors.textSecondary,
+                modifier = Modifier.size(18.dp),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
+                Text(
+                    text = vehicle.displayTitle,
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = vehicle.plateNumber,
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeatStepperRow(
+    label: String,
+    value: Int,
+    onDecrease: () -> Unit,
+    onIncrease: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.czColors.background,
+        shape = RoundedCornerShape(CzRadius.md),
+        border = BorderStroke(1.dp, MaterialTheme.czColors.divider),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(CzSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            Text(
+                text = label,
+                color = MaterialTheme.czColors.textPrimary,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onDecrease, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Filled.Remove, contentDescription = null)
+            }
+            Text(
+                text = value.toString(),
+                color = MaterialTheme.czColors.textPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.defaultMinSize(minWidth = 28.dp),
+            )
+            IconButton(onClick = onIncrease, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Filled.Add, contentDescription = null)
+            }
+        }
+    }
+}
+
+@Composable
 private fun ReviewCard(
     participants: List<RegistrationParticipant>,
     camping: Camping,
@@ -492,24 +992,21 @@ private fun ReviewCard(
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                         )
-                        if (camping.usesTransportationOptions) {
-                            Text(
-                                text = transportSummary(participant, camping, state),
-                                color = MaterialTheme.czColors.textSecondary,
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                        }
-                    }
-                    if (camping.usesTransportationOptions) {
-                        Icon(
-                            imageVector = transportIcon(
-                                camping = camping,
-                                optionId = state.transportationOptionIds[participant.id],
-                            ),
-                            contentDescription = null,
-                            tint = MaterialTheme.czColors.ember,
+                        Text(
+                            text = transportSummary(participant, camping, state),
+                            color = MaterialTheme.czColors.textSecondary,
+                            style = MaterialTheme.typography.labelMedium,
                         )
                     }
+                    Icon(
+                        imageVector = participantTransportIcon(
+                            participant = participant,
+                            camping = camping,
+                            state = state,
+                        ),
+                        contentDescription = null,
+                        tint = MaterialTheme.czColors.ember,
+                    )
                 }
                 if (index != participants.lastIndex) {
                     HorizontalDivider(
@@ -523,30 +1020,89 @@ private fun ReviewCard(
 }
 
 @Composable
-private fun RegistrationSubmitBar(
+private fun InlineVehicleReviewCard(draft: InlineVehicleDraft) {
+    Surface(
+        color = MaterialTheme.czColors.surface,
+        shape = RoundedCornerShape(CzRadius.lg),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            Icon(Icons.Filled.DirectionsCar, contentDescription = null, tint = MaterialTheme.czColors.ember)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = stringResource(R.string.registration_vehicle_review_title),
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(
+                        R.string.registration_vehicle_review_detail,
+                        draft.normalizedPlate,
+                        draft.peopleInCar,
+                        draft.totalSeats,
+                    ),
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RegistrationWizardBar(
+    step: RegistrationStep,
     isWaitlist: Boolean,
     selectedCount: Int,
-    canSubmit: Boolean,
+    canProceed: Boolean,
+    canGoBack: Boolean,
     isSubmitting: Boolean,
+    onBack: () -> Unit,
+    onNext: () -> Unit,
     onSubmit: () -> Unit,
 ) {
     Surface(color = MaterialTheme.czColors.background, shadowElevation = 8.dp) {
-        CzButton(
-            text = when {
-                isWaitlist -> stringResource(R.string.registration_join_waitlist)
-                selectedCount <= 1 -> stringResource(R.string.registration_submit_one)
-                else -> stringResource(R.string.registration_submit_many)
-            },
-            onClick = onSubmit,
-            enabled = canSubmit,
-            loading = isSubmitting,
-            modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg).height(54.dp),
-            leadingIcon = {
-                if (!isSubmitting) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                }
-            },
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            if (canGoBack) {
+                CzButton(
+                    text = stringResource(R.string.common_back),
+                    onClick = onBack,
+                    enabled = !isSubmitting,
+                    modifier = Modifier.weight(0.42f).height(54.dp),
+                    variant = CzButtonVariant.Secondary,
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
+                    },
+                )
+            }
+            CzButton(
+                text = if (step == RegistrationStep.Review) {
+                    when {
+                        isWaitlist -> stringResource(R.string.registration_join_waitlist)
+                        selectedCount <= 1 -> stringResource(R.string.registration_submit_one)
+                        else -> stringResource(R.string.registration_submit_many)
+                    }
+                } else {
+                    stringResource(R.string.registration_continue)
+                },
+                onClick = if (step == RegistrationStep.Review) onSubmit else onNext,
+                enabled = canProceed,
+                loading = isSubmitting,
+                modifier = Modifier.weight(1f).height(54.dp),
+                leadingIcon = {
+                    if (!isSubmitting) {
+                        Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -694,6 +1250,24 @@ private fun RegistrationParticipantKind.displayName(): String = when (this) {
     RegistrationParticipantKind.Child -> stringResource(R.string.registration_kind_child)
 }
 
+@Composable
+private fun RegistrationStep.displayName(): String = when (this) {
+    RegistrationStep.Who -> stringResource(R.string.registration_step_who)
+    RegistrationStep.Transport -> stringResource(R.string.registration_step_transport)
+    RegistrationStep.Review -> stringResource(R.string.registration_step_review)
+}
+
+private fun participantTransportIcon(
+    participant: RegistrationParticipant,
+    camping: Camping,
+    state: CampingRegistrationUiState,
+): ImageVector =
+    if (participant.usesInlineVehicle(state)) {
+        Icons.Filled.DirectionsCar
+    } else {
+        transportIcon(camping, state.transportationOptionIds[participant.id])
+    }
+
 private fun transportIcon(
     camping: Camping,
     optionId: String?,
@@ -736,12 +1310,23 @@ private fun transportSummary(
     camping: Camping,
     state: CampingRegistrationUiState,
 ): String {
+    if (participant.usesInlineVehicle(state)) {
+        return stringResource(
+            R.string.registration_vehicle_review_detail,
+            state.inlineVehicle.normalizedPlate,
+            state.inlineVehicle.peopleInCar,
+            state.inlineVehicle.totalSeats,
+        )
+    }
     if (camping.usesTransportationOptions) {
         return camping.transportationOption(state.transportationOptionIds[participant.id])?.resolvedName
             ?: stringResource(R.string.registration_own_arrangement)
     }
-    return ""
+    return stringResource(R.string.registration_own_arrangement)
 }
+
+private fun RegistrationParticipant.usesInlineVehicle(state: CampingRegistrationUiState): Boolean =
+    state.wantsInlineVehicle && id == state.selfParticipantForInlineVehicle?.id
 
 @Preview(showBackground = true)
 @Composable
@@ -786,10 +1371,23 @@ private fun CampingRegistrationScreenPreview() {
                 participants = listOf(RegistrationParticipant.from(user)),
                 selectedParticipantIds = setOf(user.uid),
             ),
+            authenticatedUser = user,
             snackbarHostState = remember { SnackbarHostState() },
             onBack = {},
             onToggleParticipant = {},
             onSelectTransportationOption = { _, _ -> },
+            onGoBackStep = {},
+            onGoNextStep = {},
+            onToggleInlineVehicle = {},
+            onApplySavedVehicle = {},
+            onUpdateVehiclePlate = {},
+            onUpdateVehicleBrand = {},
+            onUpdateVehicleModel = {},
+            onUpdateVehicleColor = {},
+            onUpdateVehicleTotalSeats = {},
+            onUpdateVehiclePeopleInCar = {},
+            onUpdateVehicleHasSeats = {},
+            onUpdateVehicleNotes = {},
             onAddParticipant = {},
             onSubmit = {},
         )

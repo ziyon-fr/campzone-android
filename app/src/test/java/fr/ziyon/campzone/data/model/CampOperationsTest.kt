@@ -149,6 +149,61 @@ class CampOperationsTest {
         assertEquals(VenueCategory.Stage, decoded.points.first().category)
     }
 
+    @Test
+    fun venueMapCustomPinsWriteCustomCategoryAndIconOnlyForCustomCategory() {
+        val map = VenueMap(
+            campingId = "camp-1",
+            points = listOf(
+                VenuePoint(
+                    id = "pin-custom",
+                    name = "Clue Tree",
+                    category = VenueCategory.Custom,
+                    customCategoryName = "Clue",
+                    customIconName = "leaf.fill",
+                    latitude = 45.1,
+                    longitude = 6.2,
+                ),
+                VenuePoint(
+                    id = "pin-built-in",
+                    name = "Stage",
+                    category = VenueCategory.Stage,
+                    customCategoryName = "Should not leak",
+                    customIconName = "leaf.fill",
+                ),
+            ),
+        )
+        val payload = VenueMapPayload.configPayload(map, TS, DEL)
+
+        @Suppress("UNCHECKED_CAST")
+        val pins = payload["points"] as List<Map<String, Any?>>
+        assertEquals("custom", pins[0]["category"])
+        assertEquals("Clue", pins[0]["customCategoryName"])
+        assertEquals("leaf.fill", pins[0]["customIconName"])
+        assertEquals(45.1, pins[0]["latitude"])
+        assertFalse(pins[1].containsKey("customCategoryName"))
+        assertFalse(pins[1].containsKey("customIconName"))
+
+        val decoded = payload.toVenueMap("config")
+        assertEquals(VenueCategory.Custom, decoded.points[0].category)
+        assertEquals("Clue", decoded.points[0].resolvedDisplayName)
+        assertEquals("leaf.fill", decoded.points[0].resolvedIconName)
+    }
+
+    @Test
+    fun venueMapCustomPinFallbacksAndIconCatalogStayCrossPlatformSized() {
+        val point = VenuePoint(
+            id = "pin-custom",
+            name = "Custom",
+            category = VenueCategory.Custom,
+            customCategoryName = " ",
+            customIconName = "",
+        )
+
+        assertEquals("custom", point.resolvedDisplayName)
+        assertEquals(VenueIconCatalog.defaultIconName, point.resolvedIconName)
+        assertTrue(VenueIconCatalog.allIconNames.size >= 40)
+    }
+
     // --- CampFeedback ---
 
     @Test

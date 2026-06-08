@@ -4,6 +4,7 @@ import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.UserGender
 import fr.ziyon.campzone.data.camping.FakeCampingService
+import fr.ziyon.campzone.data.games.FakeGameService
 import fr.ziyon.campzone.data.media.CloudinaryUploadResult
 import fr.ziyon.campzone.data.media.ImageUploader
 import fr.ziyon.campzone.data.model.Camping
@@ -149,6 +150,7 @@ class VenueMapViewModelTest {
     private fun viewModel(initial: VenueMap) = VenueMapViewModel(
         service = FakeVenueMapService(listOf(initial)),
         campingService = FakeCampingService(initial = listOf(camping())),
+        gameService = FakeGameService(),
         imageUploader = FakeImageUploader,
     )
 

@@ -107,6 +107,7 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
+    implementation(libs.play.services.location)
 
     // CameraX + ML Kit (QR check-in scanner)
     implementation(libs.androidx.camera.core)

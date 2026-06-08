@@ -20,4 +20,10 @@ abstract class MediaBindings {
     abstract fun bindAudioUploader(
         uploader: CloudinaryImageUploader,
     ): AudioUploader
+
+    @Binds
+    @Singleton
+    abstract fun bindCloudinaryAssetDeleter(
+        uploader: CloudinaryImageUploader,
+    ): CloudinaryAssetDeleter
 }

@@ -3,6 +3,7 @@ package fr.ziyon.campzone.data.model
 import java.util.Date
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GameActivityTest {
@@ -45,6 +46,102 @@ class GameActivityTest {
         val decoded = payload.toGameOrNull("g1")!!
         assertEquals(2, decoded.pointRules.size)
         assertEquals(PointRuleTarget.Team, decoded.pointRules[1].appliesTo)
+    }
+
+    @Test
+    fun gamePayloadWritesVenueLinksAndLegacyDocsDefaultHidden() {
+        val now = Date(1_700_000_000_000L)
+        val game = Game(
+            id = "g1",
+            campingId = "camp-1",
+            name = "Trail Race",
+            createdBy = "admin-1",
+            venuePointIds = listOf(" pin-1 ", "pin-2", "pin-1", ""),
+            locationVisibleToAll = true,
+        )
+        val payload = GamePayload.gamePayload(game, now, includeCreatedAt = false)
+
+        assertEquals(listOf("pin-1", "pin-2"), payload["venuePointIDs"])
+        assertEquals(true, payload["locationVisibleToAll"])
+
+        val decoded = payload.toGameOrNull("g1")!!
+        assertEquals(listOf("pin-1", "pin-2"), decoded.venuePointIds)
+        assertTrue(decoded.locationVisibleToAll)
+
+        val defaultHiddenPayload = GamePayload.gamePayload(
+            game.copy(venuePointIds = emptyList(), locationVisibleToAll = false),
+            now,
+            includeCreatedAt = false,
+        )
+        assertFalse(defaultHiddenPayload.containsKey("venuePointIDs"))
+        assertFalse(defaultHiddenPayload.containsKey("locationVisibleToAll"))
+
+        val legacy = mapOf(
+            "campingID" to "camp-1",
+            "name" to "Legacy game",
+        ).toGameOrNull("legacy")!!
+        assertTrue(legacy.venuePointIds.isEmpty())
+        assertFalse(legacy.locationVisibleToAll)
+    }
+
+    @Test
+    fun leadershipOnlyVenuePointIdsHideUnpublishedGameLocationsUnlessRepublished() {
+        val hiddenGame = Game(
+            id = "g-hidden",
+            campingId = "camp-1",
+            name = "Secret clue",
+            venuePointIds = listOf("pin-hidden", "pin-shared"),
+            locationVisibleToAll = false,
+        )
+        val publicGame = Game(
+            id = "g-public",
+            campingId = "camp-1",
+            name = "Public race",
+            venuePointIds = listOf("pin-shared", "pin-public"),
+            locationVisibleToAll = true,
+        )
+        val map = VenueMap(
+            campingId = "camp-1",
+            points = listOf(
+                VenuePoint(id = "pin-hidden", name = "Hidden", category = VenueCategory.Program),
+                VenuePoint(id = "pin-shared", name = "Shared", category = VenueCategory.Program),
+                VenuePoint(id = "pin-public", name = "Public", category = VenueCategory.Program),
+            ),
+        )
+
+        assertEquals(setOf("pin-hidden"), leadershipOnlyVenuePointIds(listOf(hiddenGame, publicGame)))
+        assertEquals(
+            listOf("pin-shared", "pin-public"),
+            map.visibleForGameLocationRules(listOf(hiddenGame, publicGame), canSeeHiddenGameLocations = false)
+                .points
+                .map { it.id },
+        )
+        assertEquals(3, map.visibleForGameLocationRules(listOf(hiddenGame), canSeeHiddenGameLocations = true).points.size)
+    }
+
+    @Test
+    fun gameInstructionsImagesOmitKindAndDecodeLegacyAsImage() {
+        val instructions = GameInstructions(
+            title = "Leader setup",
+            description = "Bring flags.",
+            images = listOf(
+                GameInstructionAttachment(
+                    id = "img-1",
+                    url = "https://example.com/flag.jpg",
+                    publicId = "campzone/flag",
+                ),
+            ),
+        )
+
+        val payload = GameInstructionsPayload.instructionsPayload(instructions)
+        @Suppress("UNCHECKED_CAST")
+        val image = (payload["images"] as List<Map<String, Any?>>).single()
+        assertEquals("img-1", image["id"])
+        assertEquals("campzone/flag", image["publicID"])
+        assertFalse(image.containsKey("kind"))
+
+        val decoded = payload.toGameInstructions()
+        assertEquals(GameInstructionAttachmentKind.Image, decoded.images.single().kind)
     }
 
     @Test
