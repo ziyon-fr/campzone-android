@@ -13,10 +13,15 @@ data class Game(
     val name: String,
     val rules: String = "",
     val pointRules: List<PointRule> = emptyList(),
+    val venuePointIds: List<String> = emptyList(),
+    val locationVisibleToAll: Boolean = false,
     val createdBy: String = "",
     val createdAt: Date? = null,
     val updatedAt: Date? = null,
-)
+) {
+    val linkedVenuePointIds: List<String> get() = venuePointIds
+    val isLocationVisibleToAll: Boolean get() = locationVisibleToAll
+}
 
 data class PointRule(
     val id: String,
@@ -38,10 +43,35 @@ internal fun Map<String, Any?>.toGameOrNull(documentId: String): Game? {
         name = name,
         rules = rawStringValue("rules").orEmpty(),
         pointRules = mapListValue("pointRules").mapNotNull { it.toPointRuleOrNull() },
+        venuePointIds = stringListValue("venuePointIDs"),
+        locationVisibleToAll = boolValue("locationVisibleToAll") ?: false,
         createdBy = stringValue("createdBy").orEmpty(),
         createdAt = dateValue("createdAt"),
         updatedAt = dateValue("updatedAt"),
     )
+}
+
+fun leadershipOnlyVenuePointIds(games: List<Game>): Set<String> {
+    val hidden = linkedSetOf<String>()
+    val published = linkedSetOf<String>()
+    games.forEach { game ->
+        if (game.locationVisibleToAll) {
+            published.addAll(game.venuePointIds)
+        } else {
+            hidden.addAll(game.venuePointIds)
+        }
+    }
+    return hidden.subtract(published)
+}
+
+fun VenueMap.visibleForGameLocationRules(
+    games: List<Game>,
+    canSeeHiddenGameLocations: Boolean,
+): VenueMap {
+    if (canSeeHiddenGameLocations) return this
+    val hidden = leadershipOnlyVenuePointIds(games)
+    if (hidden.isEmpty()) return this
+    return copy(points = points.filterNot { it.id in hidden })
 }
 
 internal fun Map<String, Any?>.toPointRuleOrNull(): PointRule? {
@@ -70,6 +100,13 @@ internal object GamePayload {
             "createdBy" to game.createdBy,
             "updatedAt" to now,
         )
+        game.venuePointIds
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .takeUnless { it.isEmpty() }
+            ?.let { payload["venuePointIDs"] = it }
+        if (game.locationVisibleToAll) payload["locationVisibleToAll"] = true
         if (includeCreatedAt) payload["createdAt"] = game.createdAt ?: now
         return payload
     }
@@ -88,4 +125,7 @@ internal object GamePayload {
         rule.category?.trim()?.takeUnless { it.isBlank() }?.let { map["category"] = it }
         return map
     }
+
+    fun leadershipOnlyVenuePointIds(games: List<Game>): Set<String> =
+        fr.ziyon.campzone.data.model.leadershipOnlyVenuePointIds(games)
 }

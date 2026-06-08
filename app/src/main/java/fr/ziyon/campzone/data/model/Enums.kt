@@ -425,7 +425,8 @@ enum class VenueCategory(val wireValue: String) {
     Water("water"),
     Program("program"),
     Info("info"),
-    Other("other");
+    Other("other"),
+    Custom("custom");
 
     companion object {
         fun fromWire(value: String?): VenueCategory =

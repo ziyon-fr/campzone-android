@@ -6,8 +6,8 @@ import fr.ziyon.campzone.data.model.WinnerRevealPolicy
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.RegistrationSubmission
-import fr.ziyon.campzone.data.model.TransportationChoice
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
+import fr.ziyon.campzone.data.model.TransportationMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
@@ -101,8 +101,9 @@ class FakeCampingService(
             .forEach { submission ->
                 val participant = submission.participant
                 val isSelf = participant.kind == RegistrationParticipantKind.SelfParticipant
-                val bookingId = if (submission.transportationChoice == TransportationChoice.ProvidedBus) {
-                    "${participant.id}-bus"
+                val selectedOption = camping.transportationOption(submission.transportationOptionId)
+                val bookingId = if (selectedOption?.issuesTicket == true) {
+                    "${participant.id}-transport"
                 } else {
                     null
                 }
@@ -151,6 +152,35 @@ class FakeCampingService(
         attendeeStore[campingId] = list
             .map { attendee ->
                 if (attendee.id == attendeeId) attendee.copy(registrationStatus = status) else attendee
+            }
+            .toMutableList()
+        return fetchCamping(campingId)
+    }
+
+    override suspend fun updateRegistrationTransport(
+        campingId: String,
+        attendeeId: String,
+        transportationMode: TransportationMode?,
+        vehicleId: String?,
+        isDriver: Boolean,
+        needsTransportHelp: Boolean,
+        notes: String?,
+    ): Camping {
+        if (shouldFail) error("Registration transport update failed")
+        val list = attendeeStore.getOrPut(campingId) { mutableListOf() }
+        attendeeStore[campingId] = list
+            .map { attendee ->
+                if (attendee.id == attendeeId) {
+                    attendee.copy(
+                        transportationMode = transportationMode,
+                        vehicleId = vehicleId,
+                        isDriver = isDriver,
+                        needsTransportHelp = needsTransportHelp,
+                        transportationNotes = notes,
+                    )
+                } else {
+                    attendee
+                }
             }
             .toMutableList()
         return fetchCamping(campingId)

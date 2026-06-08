@@ -49,6 +49,7 @@ import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.CzTextField
 import fr.ziyon.campzone.core.designsystem.czColors
+import fr.ziyon.campzone.core.i18n.StringProvider
 import fr.ziyon.campzone.data.church.ChurchGroup
 import fr.ziyon.campzone.data.church.SDAChurch
 
@@ -181,7 +182,7 @@ private fun ChurchPickerRow(
         }
         if (isSelected) {
             Text(
-                text = "OK",
+                text = stringResource(R.string.common_ok),
                 color = MaterialTheme.czColors.primary,
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
             )
@@ -203,6 +204,7 @@ data class ChurchPickerUiState(
 @HiltViewModel
 class ChurchPickerViewModel @Inject constructor(
     private val churchDirectory: ChurchDirectory,
+    private val strings: StringProvider,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ChurchPickerUiState())
     val uiState: StateFlow<ChurchPickerUiState> = _uiState.asStateFlow()
@@ -213,7 +215,12 @@ class ChurchPickerViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             runCatching { churchDirectory.loadChurches() }
                 .onSuccess { list -> _uiState.value = _uiState.value.copy(churches = list, isLoading = false) }
-                .onFailure { _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = "Could not load churches.") }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = strings.get(R.string.churches_load_error),
+                    )
+                }
         }
     }
 

@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.EventBusy
@@ -155,6 +156,7 @@ fun CampingDetailRoute(
     onOpenQrPasses: (String) -> Unit = {},
     onOpenTransportationTickets: (String) -> Unit = {},
     onOpenTransportationDashboard: (String) -> Unit = {},
+    onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
@@ -233,6 +235,7 @@ fun CampingDetailRoute(
         onOpenQrPasses = onOpenQrPasses,
         onOpenTransportationTickets = onOpenTransportationTickets,
         onOpenTransportationDashboard = onOpenTransportationDashboard,
+        onOpenVehicles = onOpenVehicles,
         onOpenBadgeAward = onOpenBadgeAward,
         onOpenAlbum = onOpenAlbum,
         modifier = modifier,
@@ -276,6 +279,7 @@ fun CampingDetailScreen(
     onOpenQrPasses: (String) -> Unit = {},
     onOpenTransportationTickets: (String) -> Unit = {},
     onOpenTransportationDashboard: (String) -> Unit = {},
+    onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
 ) {
@@ -355,6 +359,7 @@ fun CampingDetailScreen(
                     onOpenQrPasses = onOpenQrPasses,
                     onOpenTransportationTickets = onOpenTransportationTickets,
                     onOpenTransportationDashboard = onOpenTransportationDashboard,
+                    onOpenVehicles = onOpenVehicles,
                     onOpenBadgeAward = onOpenBadgeAward,
                     onOpenAlbum = onOpenAlbum,
                 )
@@ -438,6 +443,7 @@ private fun CampingDetailContent(
     onOpenQrPasses: (String) -> Unit = {},
     onOpenTransportationTickets: (String) -> Unit = {},
     onOpenTransportationDashboard: (String) -> Unit = {},
+    onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
 ) {
@@ -550,6 +556,7 @@ private fun CampingDetailContent(
                 onOpenQrPasses = onOpenQrPasses,
                 onOpenTransportationTickets = onOpenTransportationTickets,
                 onOpenTransportationDashboard = onOpenTransportationDashboard,
+                onOpenVehicles = onOpenVehicles,
                 onOpenBadgeAward = onOpenBadgeAward,
                 onOpenAlbum = onOpenAlbum,
             )
@@ -1437,7 +1444,7 @@ private fun MyTeamShortcut(
             )
         } else {
             Text(
-                text = "${team.totalScore} pts",
+                text = stringResource(R.string.teams_points_format, team.totalScore),
                 color = teamColor,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
@@ -1469,6 +1476,7 @@ private fun ResourcesSection(
     onOpenQrPasses: (String) -> Unit = {},
     onOpenTransportationTickets: (String) -> Unit = {},
     onOpenTransportationDashboard: (String) -> Unit = {},
+    onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
 ) {
@@ -1571,6 +1579,15 @@ private fun ResourcesSection(
                 )
             }
             if (state.canManageTransportation) {
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.vehicle_dashboard_title),
+                        subtitle = stringResource(R.string.vehicle_dashboard_entry_subtitle),
+                        icon = Icons.Filled.DirectionsCar,
+                        accent = MaterialTheme.czColors.accent,
+                        onClick = { onOpenVehicles(camping.id) },
+                    ),
+                )
                 add(
                     DetailResource(
                         title = stringResource(R.string.transportation_dashboard_title),

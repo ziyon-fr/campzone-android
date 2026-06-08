@@ -36,6 +36,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,6 +51,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,6 +94,7 @@ fun ScheduleEditorScreen(
     val operationError by viewModel.operationError.collectAsState()
     val operationMessage by viewModel.operationMessage.collectAsState()
     var deletingProgram by remember { mutableStateOf<Program?>(null) }
+    var renamingDay by remember { mutableStateOf<CampDay?>(null) }
 
     LaunchedEffect(campingId) { viewModel.normalizeSchedule(campingId, authenticatedUser) }
 
@@ -118,6 +121,17 @@ fun ScheduleEditorScreen(
             },
         )
     }
+    renamingDay?.let { day ->
+        DayTitleEditorDialog(
+            day = day,
+            isSaving = isSaving,
+            onDismiss = { renamingDay = null },
+            onSave = { title ->
+                renamingDay = null
+                viewModel.saveDayTitle(title, day.id, campingId)
+            },
+        )
+    }
 
     ScheduleEditorContent(
         uiState = uiState,
@@ -135,6 +149,7 @@ fun ScheduleEditorScreen(
             onOpenProgramEditor()
         },
         onDeleteProgram = { program -> deletingProgram = program },
+        onRenameDay = { day -> renamingDay = day },
         onAddProgram = {
             viewModel.prepareNewProgram(campingId, selectedDayId)
             onOpenProgramEditor()
@@ -161,6 +176,7 @@ private fun ScheduleEditorContent(
     onSaveReminderTiming: () -> Unit,
     onEditProgram: (Program) -> Unit,
     onDeleteProgram: (Program) -> Unit,
+    onRenameDay: (CampDay) -> Unit,
     onAddProgram: () -> Unit,
     onClearError: () -> Unit,
     onClearMessage: () -> Unit,
@@ -235,6 +251,7 @@ private fun ScheduleEditorContent(
                     onSaveReminderTiming = onSaveReminderTiming,
                     onEditProgram = onEditProgram,
                     onDeleteProgram = onDeleteProgram,
+                    onRenameDay = onRenameDay,
                     onAddProgram = onAddProgram,
                     onClearError = onClearError,
                 )
@@ -259,7 +276,7 @@ private fun EmptyEditorBody(
         )
         Spacer(modifier = Modifier.height(CzSpacing.lg))
         CzButton(
-            text = "+ Add Program",
+            text = stringResource(R.string.schedule_add_program),
             onClick = onAddProgram,
             variant = CzButtonVariant.Primary,
         )
@@ -278,6 +295,7 @@ private fun EditorLoadedBody(
     onSaveReminderTiming: () -> Unit,
     onEditProgram: (Program) -> Unit,
     onDeleteProgram: (Program) -> Unit,
+    onRenameDay: (CampDay) -> Unit,
     onAddProgram: () -> Unit,
     onClearError: () -> Unit,
 ) {
@@ -317,6 +335,7 @@ private fun EditorLoadedBody(
                     operationError = operationError,
                     onEditProgram = onEditProgram,
                     onDeleteProgram = onDeleteProgram,
+                    onRenameDay = onRenameDay,
                     onClearError = onClearError,
                 )
             }
@@ -335,6 +354,10 @@ private fun EditorLoadedBody(
 @Composable
 private fun ScheduleOverviewCard(schedule: CampingSchedule) {
     val colors = MaterialTheme.czColors
+    val dayCount = schedule.sortedDays.count { it.programs.isNotEmpty() }
+    val programCount = schedule.allPrograms.count()
+    val dayText = pluralStringResource(R.plurals.schedule_day_count, dayCount, dayCount)
+    val programText = pluralStringResource(R.plurals.schedule_program_count, programCount, programCount)
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = colors.surface,
@@ -352,10 +375,8 @@ private fun ScheduleOverviewCard(schedule: CampingSchedule) {
                 modifier = Modifier.size(CzSpacing.xl),
             )
             Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
-                val dayCount = schedule.sortedDays.count { it.programs.isNotEmpty() }
-                val programCount = schedule.allPrograms.count()
                 Text(
-                    text = "${dayCount} day · ${programCount} program",
+                    text = stringResource(R.string.schedule_overview_summary, dayText, programText),
                     style = CzTypeScale.caption,
                     color = colors.textSecondary,
                 )
@@ -431,7 +452,11 @@ private fun EditorDayChip(
             color = dateColor,
         )
         Text(
-            text = if (programCount == 1) "1 program" else "$programCount programs",
+            text = pluralStringResource(
+                R.plurals.schedule_program_count,
+                programCount,
+                programCount,
+            ),
             style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
             color = countColor,
         )
@@ -444,6 +469,7 @@ private fun EditorProgramsSection(
     operationError: String?,
     onEditProgram: (Program) -> Unit,
     onDeleteProgram: (Program) -> Unit,
+    onRenameDay: (CampDay) -> Unit,
     onClearError: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
@@ -465,7 +491,7 @@ private fun EditorProgramsSection(
             return@Column
         }
 
-        SelectedDayHeader(day = selectedDay)
+        SelectedDayHeader(day = selectedDay, onRenameDay = { onRenameDay(selectedDay) })
 
         if (operationError != null) {
             Surface(
@@ -508,12 +534,12 @@ private fun EditorProgramsSection(
                     verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
                 ) {
                     Text(
-                        text = "No programs on this date",
+                        text = stringResource(R.string.schedule_no_programs_date),
                         style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
                         color = colors.textPrimary,
                     )
                     Text(
-                        text = "Use Add Program to create the first item for ${selectedDay.dateTitle()}.",
+                        text = stringResource(R.string.schedule_no_programs_hint, selectedDay.dateTitle()),
                         style = CzTypeScale.caption,
                         color = colors.textSecondary,
                     )
@@ -546,7 +572,7 @@ private fun EditorProgramsSection(
 }
 
 @Composable
-private fun SelectedDayHeader(day: CampDay) {
+private fun SelectedDayHeader(day: CampDay, onRenameDay: () -> Unit) {
     val colors = MaterialTheme.czColors
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -577,14 +603,73 @@ private fun SelectedDayHeader(day: CampDay) {
                 shape = RoundedCornerShape(CzRadius.full),
             ) {
                 Text(
-                    text = "${day.programs.size} program",
+                    text = pluralStringResource(
+                        R.plurals.schedule_program_count,
+                        day.programs.size,
+                        day.programs.size,
+                    ),
                     style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
                     color = colors.ember,
                     modifier = Modifier.padding(horizontal = CzSpacing.sm, vertical = CzSpacing.xs),
                 )
             }
+            IconButton(onClick = onRenameDay) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = stringResource(R.string.schedule_rename_day),
+                    tint = colors.ember,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun DayTitleEditorDialog(
+    day: CampDay,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var name by remember(day.id, day.hasCustomTitle, day.title) {
+        mutableStateOf(if (day.hasCustomTitle) day.title else "")
+    }
+    val colors = MaterialTheme.czColors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.schedule_day_name_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    placeholder = { Text(day.title) },
+                    label = { Text(stringResource(R.string.schedule_day_name_label)) },
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = colors.ember)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = stringResource(R.string.schedule_day_name_hint, day.title),
+                    style = CzTypeScale.caption,
+                    color = colors.textSecondary,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(name) }, enabled = !isSaving) {
+                Text(stringResource(R.string.common_save), color = colors.ember)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_cancel), color = colors.textSecondary)
+            }
+        },
+    )
 }
 
 @Composable
@@ -594,7 +679,7 @@ private fun ProgramEditorRow(
     onDelete: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
-    val accent = program.type.accentColor
+    val accent = program.resolvedAccentColor
 
     Row(
         modifier = Modifier
@@ -618,7 +703,7 @@ private fun ProgramEditorRow(
         )
 
         Icon(
-            imageVector = program.type.icon,
+            imageVector = program.resolvedIcon,
             contentDescription = null,
             tint = accent,
             modifier = Modifier.size(CzSpacing.base + 4.dp),
@@ -690,7 +775,7 @@ private fun ReminderSection(
     var showMenu by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-        EditorSectionLabel(text = "Reminder Timing", icon = Icons.Rounded.Notifications)
+        EditorSectionLabel(text = stringResource(R.string.schedule_reminder_timing), icon = Icons.Rounded.Notifications)
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -778,13 +863,13 @@ private fun AddProgramBar(
         ) {
             if (selectedDay != null) {
                 Text(
-                    text = "Selected date: ${selectedDay.dateTitle()}",
+                    text = stringResource(R.string.schedule_selected_date, selectedDay.dateTitle()),
                     style = CzTypeScale.caption,
                     color = colors.textSecondary,
                 )
             }
             CzButton(
-                text = "+ Add Program",
+                text = stringResource(R.string.schedule_add_program),
                 onClick = onAddProgram,
                 enabled = selectedDay != null,
                 variant = CzButtonVariant.Primary,
@@ -835,6 +920,7 @@ private fun ScheduleEditorLoadingPreview() {
             onSaveReminderTiming = {},
             onEditProgram = {},
             onDeleteProgram = {},
+            onRenameDay = {},
             onAddProgram = {},
             onClearError = {},
             onClearMessage = {},

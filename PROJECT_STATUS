@@ -1,3 +1,265 @@
+# Project Status - Venue map, games locations, and leadership instructions parity
+
+Updated: 2026-06-08
+
+- Branch: `venue-map-games-locations-instructions`
+- Change completed: Android now reads/writes the iOS venue-map custom category
+  fields (`customCategoryName`, `customIconName`), game location fields
+  (`venuePointIDs`, `locationVisibleToAll`), schedule `linkedGameID`, and the
+  private `staffInstructions/config` document with additive/legacy-safe
+  decoding.
+- Venue map: leaders can enter manual coordinates, seed a pin from current
+  device location, import GPX waypoints/routes/tracks through SAF, choose custom
+  pin categories/icons using iOS SF Symbol identifiers, and open external
+  directions for pins or the camp marker via Google Maps, Waze, web Google
+  Maps, or generic `geo:` intents.
+- Games/schedule: game editing supports linked venue pins plus participant
+  visibility, game detail gates hidden locations and leadership-only
+  instructions, venue map/card filtering hides unpublished game-only pins from
+  participants, and games-type programs can link to a game with detail
+  navigation back to the game.
+- Media/backend: instruction image uploads use the existing authenticated
+  Cloudinary backend flow, deletion calls the backend destroy endpoint, and
+  leadership can open instruction images in a full-screen pan/zoom viewer.
+- Verification (JBR): `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and
+  `:app:assembleDebug` green. No Android Firestore rules emulator harness exists
+  in this repo; `firestore-rbac.rules` remains owned by the iOS repo. Device QA
+  still needed for runtime location permission, GPX file picker, installed
+  external map apps, and real Cloudinary upload/destroy.
+
+---
+
+# Project Status - Schedule day titles and custom program types parity
+
+Updated: 2026-06-04
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: Android schedule days now use the shared
+  `campings/{campingID}/schedule/config/days/{dayID}` title contract. Blank or
+  absent titles resolve to localized display-only `Day N`, while custom names
+  are persisted and can be cleared back to the automatic label.
+- Program types: Android now reads/writes iOS-compatible `customTypeName`,
+  `customTypeSymbol`, and `customTypeColorHex` only for `type == custom`; built
+  in program types delete those fields on write. The editor offers the same 40
+  SF Symbol identifiers and 12 color swatches, reuses distinct existing custom
+  types, and renders custom icon/color in timeline, detail, editor, and guardian
+  schedule rows.
+- Localization/tests: day and program counts now use Android plurals in EN, FR,
+  PT, and PT-BR. Focused coverage was added for day-title reset behavior, custom
+  type payload writes/deletes, custom-type validation/reuse, unknown type
+  fallback, and the plural resource contract.
+
+---
+
+# Project Status - Team earned points history parity
+
+Updated: 2026-06-04
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Audit completed: iOS stores game awards as immutable `activities` first, then
+  mutates team/member scores. The team detail "Points earned" section reads
+  positive team-targeted `Activity` records; positive awards are not duplicated
+  into a team-history array, while negative team awards surface through
+  `penalties[]`.
+- Change completed: Android team detail now observes the games activity stream
+  and renders the same recent positive team awards section, with "View all"
+  opening the existing team-scoped point history route.
+- Regression coverage added for positive team awards recording the game
+  activity audit entry and incrementing team score without creating a penalty.
+
+---
+
+# Project Status - Games point-rule target enforcement
+
+Updated: 2026-06-04
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: Android games awarding now mirrors the iOS point-rule
+  target policy. Team-only rules can only target teams, participant-only rules
+  can only target participants, and mixed (`any`) rules allow both.
+- Award sheet: the target segmented control is constrained from the selected
+  rule scope and stale opposite-target selections are cleared whenever the rule
+  or target kind changes.
+- ViewModel: `awardPoints` validates exactly one target and the selected
+  `pointRules[].appliesTo` before recording an activity or mutating team/member
+  scores. Regression coverage added in `GameViewModelTest`.
+
+---
+
+# Project Status - Songbook floating playback indicator parity
+
+Updated: 2026-06-03
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: Android `FloatingSongPlaybackIndicator` now mirrors the
+  latest iOS behavior while respecting Android's different Material bottom
+  navigation layout.
+- Playback state: the mini-player stays visible while a song is loaded even
+  when paused, switches its control between play and pause, and keeps the
+  artwork animation tied to active playback only.
+- Navigation/placement: tapping the track area opens the current song detail
+  without duplicating the same detail destination; the shell anchors the card
+  above Android's `Scaffold` bottom-bar padding plus Campzone spacing instead
+  of using the iOS tab-bar clearance constant.
+- Verification (JBR): focused
+  `:app:testDebugUnitTest --tests fr.ziyon.campzone.ui.songbook.*` green;
+  `:app:lintDebug :app:assembleDebug` green.
+
+---
+
+# Project Status - Notification feed and announcement gate fixes
+
+Updated: 2026-06-02
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change in progress: fixed Android notification feed parity with iOS by
+  de-duping backend-written `ziyon_notifications` announcement rows by
+  `announcementID`, so an updated announcement does not appear as a second feed
+  item.
+- Notification settings: channel counts now intersect saved subscriptions with
+  the user's current attended campings / personal teams, stale channel IDs are
+  silently pruned, and settings saves no longer wait on the backend topic sync
+  after the Firestore settings document is written.
+- Announcement permissions: `canManageAnnouncements` now requires announcement
+  create/edit permission scoped to the camp instead of granting access to any
+  camping creator; docs/tests updated to keep parity with the iOS rule change.
+- Registration transportation: the registration flow now hides the
+  transportation section when a camping has no `transportationOptions`; ticket
+  bookings are created only when the user selects a configured option that
+  issues a ticket, removing the legacy default-bus path.
+- Verification (JBR): focused
+  `:app:testDebugUnitTest --tests fr.ziyon.campzone.ui.camping.register.* --tests fr.ziyon.campzone.ui.notifications.* --tests fr.ziyon.campzone.core.permissions.* --tests fr.ziyon.campzone.data.model.AppNotification*`
+  green.
+
+---
+
+# Project Status - Camping card readability and scroll parity
+
+Updated: 2026-06-02
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: Android camping list and home featured cards now mirror the
+  latest iOS readability treatment for image-backed text.
+- Campings list: `CampingCard` banners use the stronger always-on bottom scrim,
+  image-overlaid location text gets the subtle shadow treatment, and month
+  sections now use snapping horizontal `LazyRow` paging with iOS-style content
+  margins plus the outer carousel bleed from SwiftUI.
+- Home featured camping: the hero scrim now uses the same permanent dark
+  gradient stops as iOS for uploaded images and fallback art; title/location
+  text gets a subtle shadow; the lower info strip is white in light mode and
+  `czSurface` in dark mode to match the SwiftUI card.
+- Verification (JBR): `:app:assembleDebug` green; `:app:lintDebug` green.
+
+---
+
+# Project Status - Badge catalog localization parity
+
+Updated: 2026-06-02
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: Android badge catalog decoding now mirrors the Firebase/iOS
+  catalog system, reading display copy from top-level `badges/{achievementId}`
+  documents with `localizations.{en,fr,pt-BR}.{title,summary,detail}`.
+- Parser: prefers `localizations` / `translations` wrapper content, falls back
+  to flat display fields and legacy per-field locale maps, normalizes locale
+  keys, and supports regional fallback such as Android `pt` resolving to
+  Firestore `pt-BR`.
+- Compatibility: earned badge docs in `users/{uid}/badges/{achievementId}`
+  remain backend-written; Android still uses the in-code catalog as a fallback
+  and unknown-ID filter when a remote catalog document is missing or partial.
+- Handoff sync: refreshed `TODO.md` and the Firestore/parity docs so badges are
+  documented as Firestore catalog display source + in-code fallback, not
+  in-code-only.
+- Verification (JBR): focused
+  `:app:testDebugUnitTest --tests fr.ziyon.campzone.data.model.AchievementPayloadTest`
+  green.
+- Note: the branch already had unrelated onboarding/localization dirty files;
+  those were preserved.
+
+---
+
+# Project Status - Onboarding localization, church picker, adult role
+
+Updated: 2026-06-02
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change completed: localized the Android `OnboardingScreen` header, CTA,
+  gender, age-group, and language labels through resources in EN / FR / PT /
+  PT-BR. Removed the mixed Portuguese hardcoded copy and a stale credential
+  comment from the screen.
+- Church selector: replaced the free-text church field with the shared
+  `ChurchPickerBottomSheet` used by the rest of the app; the shared picker now
+  localizes its selected-state OK label and load-error fallback.
+- Role default: first sign-in now seeds `users/{uid}.role = "adult"` instead of
+  `"guest"` for new/missing-role profiles, and onboarding completion also
+  stamps `"adult"` while staying inside the self-assignable RBAC set.
+- Handoff sync: updated `TODO.md` A6/A7 notes to reflect the adult initial role
+  and onboarding role write.
+- Verification (JBR): focused
+  `:app:testDebugUnitTest --tests fr.ziyon.campzone.data.auth.OnboardingProfilePayloadTest --tests fr.ziyon.campzone.data.auth.SignInUserPayloadTest`
+  green; `:app:assembleDebug` green; `:app:lintDebug` green.
+
+---
+
+# Project Status - Campings list and featured camping iOS parity
+
+Updated: 2026-06-01
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Change in progress: porting the newest iOS `CampingsView` /
+  `CampingCard` / `CampingEventSheet` and `FeaturedCampingCard` polish to
+  Android.
+- Implemented so far: Campings tab now uses horizontal full-width event cards
+  with logo/gradient banners, status pill, location overlay, richer date /
+  organizer rows, and iOS-style capacity bars. Tapping an already-approved
+  participant opens detail; everyone else gets an event details bottom sheet
+  with register CTA and manager edit action. Home featured camping now uses the
+  camp logo as the hero image when available and shows stacked recent approved
+  participant avatars in the registration summary row.
+- Follow-up: the event details bottom sheet now skips the collapsed partial
+  state so it opens tall enough to show the fixed "Secure My Place" CTA without
+  requiring an initial drag.
+- Verification so far: `:app:compileDebugKotlin` green with Android Studio JBR.
+
+---
+
+# Project Status - Hardcoded-string localization sweep
+
+Updated: 2026-06-01
+
+- Branch: `localization-hardcoded-strings-sweep`
+- Audit result: the `values-pt` / `values-pt-rBR` / `values-fr` resource files
+  were already complete (1750 user-facing keys each, genuinely translated; the
+  only base-only key is the non-UI `firebase_google_web_client_id`). The real
+  gap was Compose screens that hardcoded literals and bypassed `stringResource`
+  entirely, so they never localized — incl. `AnnouncementsScreen` (flagged by
+  user) and a **reverse** bug in `AuthGate` (hardcoded Portuguese, so EN/FR
+  users saw PT on the login screen).
+- Fix: extracted the hardcoded copy across ~13 files to resources and wired
+  `stringResource` / `pluralStringResource`. Added 37 strings + 3 plurals
+  (`announcements_attachment_count`, `schedule_program_count`,
+  `songbook_song_count`) to all four locale files with accented PT/FR. Reused
+  existing keys where present (`program_location_label`, `songbook_add_song`,
+  `camping_editor_organizer_custom_hint` for a `label="label"` placeholder bug).
+  Points unit unified on `teams_points_format` (`%1$s pts`, used in
+  Teams/TeamDetail/CampingDetail/ActivityRow).
+- Files: announcements (Screen/Detail), AuthGate, schedule (ScheduleEditor/
+  ProgramDetail/ProgramEditor/FoodMenu), CampingEditor, songbook (Songbook/
+  SongDetail), teams (TeamsScreen/TeamDetail), CampingDetail, games/ActivityRow.
+- Out of scope (deliberately left): `EUR` currency-code placeholders (ISO code,
+  identical across locales) and the dead `ExpeditionCard` demo in
+  `FeaturedMountainBackground.kt` (not wired into HomeScreen — flagged for
+  separate cleanup).
+- Verification (JBR): `:app:compileDebugKotlin` + `:app:processDebugResources`
+  green; format specifiers verified consistent across all four locales.
+- Release: bumped `app/build.gradle.kts` `versionCode 1 → 2`,
+  `versionName "1.0" → "1.0.1"` (Play rejected the re-upload of code 1).
+  Release name: "Full PT-BR / PT / FR translation coverage". Signing is done via
+  Android Studio's signed-bundle wizard (no `signingConfig` in the release
+  block); `:app:bundleRelease --dry-run` configures clean.
+
+---
+
 # Project Status - Camping registration due date
 
 Updated: 2026-06-01
@@ -19,12 +281,11 @@ Updated: 2026-06-01
     register CTA + both register guards + status pill on the effective status.
   - Contract: added `registrationDeadline` to `docs/02` §3 (propagate to web
     repo; iOS schema remains authoritative).
-- Verification (JBR): `:app:assembleDebug` green; new
-  `CampingRegistrationDeadlineTest` (4) and `CampingPayloadTest` deadline cases
-  (7) pass. Full `:app:testDebugUnitTest`/lint is blocked by an unrelated
-  concurrent-WIP duplicate string (`fees_receipts_section` in `values-pt-rBR`)
-  and the known `proofService`/`transportationService` test-constructor drift —
-  both outside this task's files.
+- Verification (JBR): `:app:assembleDebug`, `:app:testDebugUnitTest`, and
+  `:app:lintDebug` all green. New `CampingRegistrationDeadlineTest` (4) and
+  `CampingPayloadTest` deadline cases (7) pass. (The earlier concurrent-WIP
+  blockers — `fees_receipts_section` dup string in `values-pt-rBR` + the
+  `proofService` test-constructor drift — have since been resolved.)
 
 ---
 
@@ -209,3 +470,51 @@ report model were already shipped; D7 reuses them.
 - Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew testDebugUnitTest --tests fr.ziyon.campzone.data.model.AchievementPayloadTest --tests fr.ziyon.campzone.ui.profile.badges.AchievementViewModelTest` SUCCESSFUL
   - `./gradlew assembleDebug` SUCCESSFUL
+
+---
+
+# Project Status - Vehicle QR Code Check-in
+
+- Branch/worktree: continued on existing dirty checkout
+  `venue-map-games-locations-instructions`; unrelated venue-map/games/media
+  changes were preserved.
+- Scope shipped: Android port of the iOS vehicle QR check-in core contract:
+  vehicle/user-vehicle/check-in models, Firestore services/fakes, registration
+  transport-field update, participant transport hub, vehicle form, driver QR,
+  manager dashboard, scanner, arrival confirmation, saved profile vehicles, and
+  the compact vehicle card in My QR Passes. Follow-up completed: camping
+  registration is now the iOS-style progressive Who -> Transport -> Review
+  wizard with optional inline own-car capture during submit.
+- Firestore/interop:
+  - Uses exact deployed paths `campings/{campingID}/vehicles/{vehicleID}`,
+    nested `checkins`, `users/{userID}/vehicles`, and registration transport
+    fields.
+  - QR payload accepts `campzone://vehicle-checkin/{token}`,
+    `campzone://vehicle-checkin?t={token}`, and
+    `https://campzone.app/checkin/vehicle/{token}`.
+  - Token shape is two UUIDs joined/dash-stripped/lowercased (64 hex);
+    invitation code is 6 chars from the iOS unambiguous alphabet.
+  - Vehicle edits now use the narrow RBAC allowlist payload, omitting immutable
+    fields like `qrToken`, driver IDs, `campingID`, `invitationCode`, and
+    `createdAt`.
+- Navigation/entry points:
+  - Camping Detail operations row -> Vehicles dashboard (gated by
+    `canManageTransportation`).
+  - My QR Passes -> compact `MyVehicleCard` -> My Transportation.
+  - Profile -> My Vehicles -> saved vehicle CRUD/default editor.
+  - Register Participants -> Who/Transport/Review wizard; the Transport step
+    can reuse a saved vehicle or capture plate/brand/model/color/seats/notes
+    inline, then submit the registration, create the camping vehicle QR, link
+    the attendee as driver, and best-effort save the typed car for reuse.
+- Localization: entry-point strings added to EN/FR/PT/PT-BR; the new vehicle
+  registration wizard strings are localized in EN/FR/PT/PT-BR; standalone
+  vehicle screens still have hardcoded screen-local English copy and need a
+  dedicated string-resource pass.
+- Verification (JAVA_HOME = Android Studio JBR):
+  - `./gradlew :app:compileDebugKotlin` SUCCESSFUL
+  - `./gradlew :app:testDebugUnitTest --tests fr.ziyon.campzone.data.model.VehicleModelTest` SUCCESSFUL
+  - `./gradlew :app:testDebugUnitTest --tests fr.ziyon.campzone.ui.camping.register.CampingRegistrationViewModelTest --tests fr.ziyon.campzone.data.model.VehicleModelTest` SUCCESSFUL
+- Not done / needs QA:
+  - Device/emulator QA for CameraX + ML Kit scanning, permission-denied state,
+    and real Firestore RBAC writes.
+  - Broader ViewModel/UI test matrix from the request remains to be added.

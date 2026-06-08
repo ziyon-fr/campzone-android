@@ -21,6 +21,7 @@ import fr.ziyon.campzone.data.model.toCampDayOrNull
 import fr.ziyon.campzone.data.model.toProgramOrNull
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +38,7 @@ interface ScheduleService {
     suspend fun loadSchedule(campingId: String): CampingSchedule
     suspend fun saveReminderTiming(timing: ScheduleReminderTiming, campingId: String): CampingSchedule
     suspend fun saveProgram(program: Program): CampingSchedule
+    suspend fun saveDayTitle(title: String, dayId: String, campingId: String): CampingSchedule
     suspend fun deleteProgram(programId: String, campingId: String): CampingSchedule
     /** Re-files every program under the canonical date-derived day id. Idempotent. */
     suspend fun normalizeDays(campingId: String): CampingSchedule
@@ -138,6 +140,37 @@ class FirestoreScheduleService @Inject constructor(
         pruneEmptyDays(program.campingId)
 
         return loadSchedule(program.campingId)
+    }
+
+    override suspend fun saveDayTitle(
+        title: String,
+        dayId: String,
+        campingId: String,
+    ): CampingSchedule {
+        val trimmed = title.trim()
+        val scheduleDoc = scheduleDoc(campingId)
+        val dayDoc = scheduleDoc.collection(DAYS).document(dayId)
+        val daySnap = dayDoc.get().await()
+        val ts = FieldValue.serverTimestamp()
+
+        scheduleDoc.set(
+            mapOf(CAMPING_ID to campingId, UPDATED_AT to ts),
+            com.google.firebase.firestore.SetOptions.merge(),
+        ).await()
+
+        val payload = mutableMapOf<String, Any?>(
+            CAMPING_ID to campingId,
+            "title" to trimmed,
+            UPDATED_AT to ts,
+        )
+        DateKeys.dateFromCampDayId(dayId)?.let { canonicalDate ->
+            payload["date"] = canonicalDate
+        }
+        if (!daySnap.exists()) payload[CREATED_AT] = ts
+
+        dayDoc.set(payload, com.google.firebase.firestore.SetOptions.merge()).await()
+        pruneEmptyDays(campingId)
+        return loadSchedule(campingId)
     }
 
     override suspend fun deleteProgram(programId: String, campingId: String): CampingSchedule {
@@ -318,6 +351,37 @@ class FakeScheduleService(
         return updated
     }
 
+    override suspend fun saveDayTitle(
+        title: String,
+        dayId: String,
+        campingId: String,
+    ): CampingSchedule {
+        check()
+        val trimmed = title.trim()
+        val schedule = loadSchedule(campingId)
+        val existingIndex = schedule.days.indexOfFirst { it.id == dayId }
+        val date = schedule.days.getOrNull(existingIndex)?.date
+            ?: DateKeys.dateFromCampDayId(dayId)
+            ?: Date()
+        val days = schedule.days.toMutableList()
+        if (existingIndex >= 0) {
+            days[existingIndex] = days[existingIndex].copy(title = trimmed, hasCustomTitle = trimmed.isNotBlank())
+        } else {
+            days.add(
+                CampDay(
+                    id = dayId,
+                    campingId = campingId,
+                    date = date,
+                    title = trimmed,
+                    hasCustomTitle = trimmed.isNotBlank(),
+                ),
+            )
+        }
+        val updated = schedule.copy(days = days.filter { it.programs.isNotEmpty() || it.title.isNotBlank() })
+        schedules[campingId] = updated
+        return updated
+    }
+
     override suspend fun deleteProgram(programId: String, campingId: String): CampingSchedule {
         check()
         val schedule = loadSchedule(campingId)
@@ -346,4 +410,3 @@ abstract class ScheduleBindings {
     @Binds
     abstract fun bindScheduleService(impl: FirestoreScheduleService): ScheduleService
 }
-

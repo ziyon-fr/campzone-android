@@ -38,6 +38,13 @@ internal object DateKeys {
     fun campDayId(campingId: String, startDate: Date): String =
         "$campingId-day-${dayKey(startDate)}"
 
+    /** Parses the local-midnight date from a schedule day doc ID, when possible. */
+    fun dateFromCampDayId(dayId: String): Date? {
+        val key = dayId.substringAfterLast("-day-", missingDelimiterValue = "")
+        if (key.isBlank()) return null
+        return runCatching { startOfDay(dayFormatter().parse(key)!!) }.getOrNull()
+    }
+
     /** Food menu doc ID: `"<yyyy-MM-dd>-<meal>"` (campingID intentionally omitted). */
     fun foodMenuId(date: Date, meal: FoodMealKind): String =
         "${dayKey(date)}-${meal.wireValue}"

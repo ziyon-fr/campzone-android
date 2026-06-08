@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -71,6 +72,8 @@ import fr.ziyon.campzone.core.designsystem.CzTextField
 import fr.ziyon.campzone.core.designsystem.CzTypeScale
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.model.CampDay
+import fr.ziyon.campzone.data.model.CustomProgramType
+import fr.ziyon.campzone.data.model.Game
 import fr.ziyon.campzone.data.model.ProgramType
 import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.ui.venuemap.icon
@@ -93,18 +96,34 @@ fun ProgramEditorScreen(
     val isSaving by viewModel.isSaving.collectAsState()
     val operationError by viewModel.operationError.collectAsState()
     val venuePoints by viewModel.venuePoints.collectAsState()
+    val games by viewModel.games.collectAsState()
     val isEditing = editingProgramId != null
+    var showCustomTypeDialog by remember { mutableStateOf(false) }
 
     val schedule = viewModel.schedule(campingId)
     val scheduleDays = schedule?.sortedDays ?: emptyList()
     val selectedDay = scheduleDays.firstOrNull { it.id == form.dayId } ?: scheduleDays.firstOrNull()
+    val customTypes = viewModel.customProgramTypes(campingId)
+
+    if (showCustomTypeDialog) {
+        CustomProgramTypeDialog(
+            initialType = if (form.type == ProgramType.Custom) form.customType else null,
+            onDismiss = { showCustomTypeDialog = false },
+            onSave = { customType ->
+                showCustomTypeDialog = false
+                viewModel.updateEditorForm { f -> f.copy(type = ProgramType.Custom, customType = customType) }
+            },
+        )
+    }
 
     ProgramEditorContent(
         form = form,
         isEditing = isEditing,
         scheduleDays = scheduleDays,
         selectedDay = selectedDay,
+        customTypes = customTypes,
         venuePoints = venuePoints,
+        games = games,
         validationErrors = validationErrors,
         isSaving = isSaving,
         operationError = operationError,
@@ -112,7 +131,20 @@ fun ProgramEditorScreen(
         onLocationChanged = { viewModel.updateEditorForm { f -> f.copy(location = it, venuePointId = null) } },
         onSelectVenuePoint = viewModel::selectVenuePoint,
         onDescriptionChanged = { viewModel.updateEditorForm { f -> f.copy(description = it) } },
-        onTypeSelected = { viewModel.updateEditorForm { f -> f.copy(type = it) } },
+        onTypeSelected = { type ->
+            if (type == ProgramType.Custom) {
+                showCustomTypeDialog = true
+            } else {
+                viewModel.updateEditorForm { f -> f.copy(type = type, customType = null) }
+            }
+        },
+        onCustomizeType = { showCustomTypeDialog = true },
+        onCustomTypeSelected = { customType ->
+            viewModel.updateEditorForm { f -> f.copy(type = ProgramType.Custom, customType = customType) }
+        },
+        onLinkedGameSelected = { gameId ->
+            viewModel.updateEditorForm { f -> f.copy(linkedGameId = gameId) }
+        },
         onDaySelected = { day ->
             viewModel.setSelectedDayId(day.id)
             viewModel.updateEditorForm { f -> f.copy(dayId = day.id) }
@@ -139,7 +171,9 @@ private fun ProgramEditorContent(
     isEditing: Boolean,
     scheduleDays: List<CampDay>,
     selectedDay: CampDay?,
+    customTypes: List<CustomProgramType>,
     venuePoints: List<VenuePoint>,
+    games: List<Game>,
     validationErrors: List<ProgramValidationError>,
     isSaving: Boolean,
     operationError: String?,
@@ -148,6 +182,9 @@ private fun ProgramEditorContent(
     onSelectVenuePoint: (VenuePoint) -> Unit,
     onDescriptionChanged: (String) -> Unit,
     onTypeSelected: (ProgramType) -> Unit,
+    onCustomizeType: () -> Unit,
+    onCustomTypeSelected: (CustomProgramType) -> Unit,
+    onLinkedGameSelected: (String?) -> Unit,
     onDaySelected: (CampDay) -> Unit,
     onStartTimeChanged: (Date) -> Unit,
     onEndTimeChanged: (Date) -> Unit,
@@ -251,8 +288,21 @@ private fun ProgramEditorContent(
             item {
                 TypeSelectorSection(
                     selectedType = form.type,
+                    selectedCustomType = form.customType,
+                    customTypes = customTypes,
                     onTypeSelected = onTypeSelected,
+                    onCustomizeType = onCustomizeType,
+                    onCustomTypeSelected = onCustomTypeSelected,
                 )
+            }
+            if (form.type == ProgramType.Games) {
+                item {
+                    LinkedGameSection(
+                        games = games,
+                        selectedGameId = form.linkedGameId,
+                        onLinkedGameSelected = onLinkedGameSelected,
+                    )
+                }
             }
         }
     }
@@ -410,6 +460,57 @@ private fun BasicInfoSection(
                 }
                 Text(
                     text = stringResource(R.string.program_location_helper),
+                    style = CzTypeScale.caption,
+                    color = colors.textSecondary,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LinkedGameSection(
+    games: List<Game>,
+    selectedGameId: String?,
+    onLinkedGameSelected: (String?) -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        FormSectionHeader(stringResource(R.string.program_linked_game), icon = Icons.Rounded.CheckCircle)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = colors.surface,
+            shape = RoundedCornerShape(CzRadius.lg),
+        ) {
+            Column(
+                modifier = Modifier.padding(CzSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                if (games.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.program_linked_game_empty),
+                        style = CzTypeScale.caption,
+                        color = colors.textSecondary,
+                    )
+                } else {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+                        FilterChip(
+                            selected = selectedGameId == null,
+                            onClick = { onLinkedGameSelected(null) },
+                            label = { Text(stringResource(R.string.common_none)) },
+                        )
+                        games.forEach { game ->
+                            FilterChip(
+                                selected = selectedGameId == game.id,
+                                onClick = { onLinkedGameSelected(game.id) },
+                                label = { Text(game.name) },
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.program_linked_game_helper),
                     style = CzTypeScale.caption,
                     color = colors.textSecondary,
                 )
@@ -601,7 +702,7 @@ private fun TimeSection(
                 if (selectedDay != null) {
                     Spacer(modifier = Modifier.height(CzSpacing.sm))
                     Text(
-                        text = "Start and end times are scheduled on ${selectedDay.dateTitle()}.",
+                        text = stringResource(R.string.program_times_scheduled_on, selectedDay.dateTitle()),
                         style = CzTypeScale.caption,
                         color = colors.textSecondary,
                     )
@@ -689,19 +790,24 @@ private fun TimePickerDialog(
 @Composable
 private fun TypeSelectorSection(
     selectedType: ProgramType,
+    selectedCustomType: CustomProgramType?,
+    customTypes: List<CustomProgramType>,
     onTypeSelected: (ProgramType) -> Unit,
+    onCustomizeType: () -> Unit,
+    onCustomTypeSelected: (CustomProgramType) -> Unit,
 ) {
     val colors = MaterialTheme.czColors
+    val builtInTypes = ProgramType.entries.filter { it != ProgramType.Custom }
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
         FormSectionHeader(stringResource(R.string.program_type), icon = Icons.Rounded.CheckCircle)
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-            modifier = Modifier.height(((ProgramType.entries.size / 3 + 1) * 80 + 8).dp),
+            modifier = Modifier.height(((builtInTypes.size / 3 + 1) * 80 + 8).dp),
             userScrollEnabled = false,
         ) {
-            items(ProgramType.entries) { type ->
+            items(builtInTypes) { type ->
                 ProgramTypeChip(
                     type = type,
                     isSelected = type == selectedType,
@@ -709,6 +815,101 @@ private fun TypeSelectorSection(
                 )
             }
         }
+        PersonalizeTypeChip(
+            customType = selectedCustomType.takeIf { selectedType == ProgramType.Custom },
+            isSelected = selectedType == ProgramType.Custom,
+            onClick = onCustomizeType,
+        )
+        Text(
+            text = stringResource(R.string.program_custom_type_hint),
+            style = CzTypeScale.caption,
+            color = colors.textSecondary,
+        )
+        if (customTypes.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.program_custom_types_title),
+                style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.textSecondary,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm), verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                customTypes.forEach { customType ->
+                    CustomTypeReuseChip(
+                        customType = customType,
+                        isSelected = selectedCustomType?.id == customType.id && selectedType == ProgramType.Custom,
+                        onClick = { onCustomTypeSelected(customType) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PersonalizeTypeChip(
+    customType: CustomProgramType?,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    val accent = customType?.color() ?: colors.ember
+    val bgColor = if (isSelected) accent else colors.background
+    val iconColor = if (isSelected) Color.White else accent
+    val textColor = if (isSelected) Color.White else colors.textPrimary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CzRadius.md))
+            .background(bgColor)
+            .then(
+                if (!isSelected) Modifier.border(1.dp, colors.divider, RoundedCornerShape(CzRadius.md)) else Modifier
+            )
+            .clickable(onClick = onClick)
+            .padding(CzSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+    ) {
+        Icon(
+            imageVector = customType?.symbol?.programSymbolIcon ?: Icons.Rounded.CheckCircle,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(
+            text = customType?.trimmedName ?: stringResource(R.string.program_personalize),
+            style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
+            color = textColor,
+        )
+    }
+}
+
+@Composable
+private fun CustomTypeReuseChip(
+    customType: CustomProgramType,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.czColors
+    val accent = customType.color()
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(CzRadius.full))
+            .background(if (isSelected) accent.copy(alpha = 0.16f) else colors.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+    ) {
+        Icon(
+            imageVector = customType.symbol.programSymbolIcon,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = customType.trimmedName,
+            style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.textPrimary,
+        )
     }
 }
 
@@ -761,6 +962,172 @@ private fun ProgramTypeChip(
     }
 }
 
+@Composable
+private fun CustomProgramTypeDialog(
+    initialType: CustomProgramType?,
+    onDismiss: () -> Unit,
+    onSave: (CustomProgramType) -> Unit,
+) {
+    var name by remember(initialType?.id) { mutableStateOf(initialType?.name.orEmpty()) }
+    var symbol by remember(initialType?.id) {
+        mutableStateOf(initialType?.symbol ?: CustomProgramType.FallbackSymbol)
+    }
+    var colorHex by remember(initialType?.id) {
+        mutableStateOf(initialType?.colorHex ?: CustomProgramTypeOptions.palette.first())
+    }
+    val draft = CustomProgramType(name = name, symbol = symbol, colorHex = colorHex)
+    val colors = MaterialTheme.czColors
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            color = colors.background,
+            shape = RoundedCornerShape(CzRadius.xl),
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(CzSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
+            ) {
+                item {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(draft.color().copy(alpha = 0.16f))
+                                .border(2.dp, draft.color(), CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = symbol.programSymbolIcon,
+                                contentDescription = null,
+                                tint = draft.color(),
+                                modifier = Modifier.size(26.dp),
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = draft.trimmedName.takeIf { it.isNotBlank() }
+                                    ?: stringResource(R.string.program_custom_type_preview_name),
+                                style = CzTypeScale.headline,
+                                color = if (draft.isValid) colors.textPrimary else colors.textSecondary,
+                            )
+                            Text(
+                                text = stringResource(R.string.program_custom_type_live_preview),
+                                style = CzTypeScale.caption,
+                                color = colors.textSecondary,
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                        FormSectionHeader(stringResource(R.string.program_custom_type_name), Icons.Rounded.TextFields)
+                        CzTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = stringResource(R.string.program_custom_type_name_hint),
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Words,
+                            ),
+                        )
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                        FormSectionHeader(stringResource(R.string.program_custom_type_icon), Icons.Rounded.CheckCircle)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm), verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                            CustomProgramTypeOptions.symbols.forEach { option ->
+                                val selected = symbol == option
+                                Box(
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clip(RoundedCornerShape(CzRadius.md))
+                                        .background(if (selected) draft.color() else colors.surface)
+                                        .border(
+                                            1.dp,
+                                            if (selected) Color.Transparent else colors.divider,
+                                            RoundedCornerShape(CzRadius.md),
+                                        )
+                                        .clickable { symbol = option },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = option.programSymbolIcon,
+                                        contentDescription = option.replace('.', ' '),
+                                        tint = if (selected) Color.White else colors.textSecondary,
+                                        modifier = Modifier.size(22.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                        FormSectionHeader(stringResource(R.string.program_custom_type_color), Icons.Rounded.CheckCircle)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(CzSpacing.md), verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
+                            CustomProgramTypeOptions.palette.forEach { hex ->
+                                val selected = colorHex.equals(hex, ignoreCase = true)
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(hex.toScheduleColorOrNull() ?: colors.ember)
+                                        .border(
+                                            2.dp,
+                                            if (selected) colors.textPrimary else Color.Transparent,
+                                            CircleShape,
+                                        )
+                                        .clickable { colorHex = hex },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (selected) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.CheckCircle,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = onDismiss) {
+                            Text(stringResource(R.string.common_cancel), color = colors.textSecondary)
+                        }
+                        TextButton(
+                            onClick = { onSave(draft) },
+                            enabled = draft.isValid,
+                        ) {
+                            Text(
+                                stringResource(R.string.common_save),
+                                color = if (draft.isValid) colors.ember else colors.textSecondary,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun ProgramTypeChipPreview() {
@@ -772,5 +1139,17 @@ private fun ProgramTypeChipPreview() {
             ProgramTypeChip(type = ProgramType.Preaching, isSelected = true, onClick = {})
             ProgramTypeChip(type = ProgramType.Games, isSelected = false, onClick = {})
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun CustomProgramTypeDialogPreview() {
+    CampzoneTheme {
+        CustomProgramTypeDialog(
+            initialType = CustomProgramType("Campfire", "flame.fill", "#E2582B"),
+            onDismiss = {},
+            onSave = {},
+        )
     }
 }

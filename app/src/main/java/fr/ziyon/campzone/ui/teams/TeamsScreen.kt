@@ -926,7 +926,7 @@ private fun PodiumBlock(team: Team, rank: Int, height: Int, scoresHidden: Boolea
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = if (scoresHidden) stringResource(R.string.teams_scores_hidden_short) else "${team.totalScore} pts",
+            text = if (scoresHidden) stringResource(R.string.teams_scores_hidden_short) else stringResource(R.string.teams_points_format, team.totalScore),
             style = MaterialTheme.typography.labelSmall,
             color = colors.textSecondary,
             maxLines = 1,

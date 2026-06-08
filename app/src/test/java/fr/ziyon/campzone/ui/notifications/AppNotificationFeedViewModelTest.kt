@@ -20,7 +20,11 @@ class AppNotificationFeedViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private fun notification(id: String, sentAt: Date) = AppNotification(
+    private fun notification(
+        id: String,
+        sentAt: Date,
+        announcementId: String = id,
+    ) = AppNotification(
         id = id,
         appId = AppNotification.APP_ID,
         kind = AppNotificationKind.Announcement,
@@ -28,7 +32,7 @@ class AppNotificationFeedViewModelTest {
         body = "b",
         topic = NotificationTopics.globalAnnouncement,
         sentAt = sentAt,
-        announcementId = id,
+        announcementId = announcementId,
     )
 
     @Test
@@ -45,6 +49,23 @@ class AppNotificationFeedViewModelTest {
 
         val state = vm.uiState.value as AppNotificationFeedUiState.Loaded
         assertEquals(listOf("new", "old"), state.notifications.map { it.id })
+    }
+
+    @Test
+    fun loadDedupesAnnouncementUpdatesByAnnouncementId() = runTest {
+        val service = FakeAppNotificationFeedService(
+            notifications = listOf(
+                notification("first-doc", Date(1_000), announcementId = "a1"),
+                notification("updated-doc", Date(3_000), announcementId = "a1"),
+                notification("other", Date(2_000), announcementId = "a2"),
+            ),
+        )
+        val vm = AppNotificationFeedViewModel(service)
+        vm.load("u1", UserRole.User)
+        advanceUntilIdle()
+
+        val state = vm.uiState.value as AppNotificationFeedUiState.Loaded
+        assertEquals(listOf("updated-doc", "other"), state.notifications.map { it.id })
     }
 
     @Test

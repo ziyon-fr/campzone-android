@@ -13,6 +13,8 @@ import fr.ziyon.campzone.data.analytics.NoOpAnalyticsService
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.CampingAgeGroup
 import fr.ziyon.campzone.data.camping.CampingService
+import fr.ziyon.campzone.data.games.FakeGameService
+import fr.ziyon.campzone.data.games.GameService
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
@@ -20,6 +22,7 @@ import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.TransportationPaymentStatus
 import fr.ziyon.campzone.data.model.VenueMap
 import fr.ziyon.campzone.data.model.hasContent
+import fr.ziyon.campzone.data.model.visibleForGameLocationRules
 import fr.ziyon.campzone.data.venuemap.FakeVenueMapService
 import fr.ziyon.campzone.data.venuemap.VenueMapService
 import javax.inject.Inject
@@ -150,6 +153,7 @@ data class CampingDetailUiState(
 class CampingDetailViewModel @Inject constructor(
     private val service: CampingService,
     private val venueMapService: VenueMapService = FakeVenueMapService(),
+    private val gameService: GameService = FakeGameService(),
     private val analyticsService: AnalyticsService = NoOpAnalyticsService,
 ) : ViewModel() {
 
@@ -186,6 +190,7 @@ class CampingDetailViewModel @Inject constructor(
         observeJob = viewModelScope.launch {
             var attendees: List<CampingAttendee> = emptyList()
             var venueMap: VenueMap? = null
+            var games = emptyList<fr.ziyon.campzone.data.model.Game>()
             var loadedExtras = false
             var trackedView = false
             try {
@@ -196,6 +201,8 @@ class CampingDetailViewModel @Inject constructor(
                         venueMap = runCatching { venueMapService.loadMap(campingId) }
                             .getOrNull()
                             ?.takeIf { it.hasContent }
+                        games = runCatching { gameService.loadGames(campingId) }
+                            .getOrDefault(emptyList())
                         loadedExtras = true
                     }
                     if (!trackedView) {
@@ -238,6 +245,15 @@ class CampingDetailViewModel @Inject constructor(
                     val isApproved = userRegistrations.any {
                         it.registrationStatus == RegistrationApprovalStatus.Approved
                     }
+                    val canManageSchedule = permissions.canManageSchedule(permissionUser, context)
+                    val canManageTeams = permissions.canManageTeams(permissionUser, context)
+                    val canManageGames = permissions.canManageGames(permissionUser, context)
+                    val visibleVenueMap = venueMap
+                        ?.visibleForGameLocationRules(
+                            games = games,
+                            canSeeHiddenGameLocations = canManageGames || canManageTeams || canManageSchedule,
+                        )
+                        ?.takeIf { it.hasContent }
                     _uiState.value = CampingDetailUiState(
                         isLoading = false,
                         camping = camping.copy(attendees = attendees),
@@ -251,10 +267,10 @@ class CampingDetailViewModel @Inject constructor(
                             permissionUser,
                             context,
                         ),
-                        canManageSchedule = permissions.canManageSchedule(permissionUser, context),
+                        canManageSchedule = canManageSchedule,
                         canManageFoodMenu = permissions.canManageFoodMenu(permissionUser, context),
-                        canManageTeams = permissions.canManageTeams(permissionUser, context),
-                        canManageGames = permissions.canManageGames(permissionUser, context),
+                        canManageTeams = canManageTeams,
+                        canManageGames = canManageGames,
                         canRevealWinners = permissions.canRevealWinners(permissionUser, context),
                         canManageAlbumMedia = permissions.canManageAlbumMedia(permissionUser, context),
                         canManageCheckIns = permissions.canManageCheckIns(permissionUser, context),
@@ -276,7 +292,7 @@ class CampingDetailViewModel @Inject constructor(
                                 camping.resolvedRegistrationFeeCents(attendee.age) > 0
                         },
                         hasPayablePriceItems = camping.priceItems.any { it.amountCents > 0 },
-                        venueMap = venueMap,
+                        venueMap = visibleVenueMap,
                         guardianChildAttendeeIds = guardianChildIds,
                     )
                 }

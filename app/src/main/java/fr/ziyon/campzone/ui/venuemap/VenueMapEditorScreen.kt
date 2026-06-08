@@ -1,5 +1,6 @@
 package fr.ziyon.campzone.ui.venuemap
 
+import android.Manifest
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,6 +59,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -75,11 +78,17 @@ import fr.ziyon.campzone.core.designsystem.CzTextField
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.VenueCategory
+import fr.ziyon.campzone.data.model.VenueIconCatalog
 import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.model.hasImage
+import fr.ziyon.campzone.data.venuemap.GPXParser
+import fr.ziyon.campzone.data.venuemap.ParsedGpxPoint
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import org.osmdroid.util.GeoPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 /** Where the next illustration tap lands. */
 private sealed interface Placement {
@@ -91,6 +100,7 @@ private data class PointEditorTarget(
     val editingId: String?,
     val imageX: Double?,
     val imageY: Double?,
+    val initialForm: VenuePointForm? = null,
 )
 
 @Composable
@@ -116,6 +126,7 @@ fun VenueMapEditorRoute(
         onUploadImage = viewModel::uploadSiteImage,
         onRemoveImage = viewModel::removeSiteImage,
         onSavePoint = viewModel::savePoint,
+        onImportGpxPoints = viewModel::importGpxPoints,
         onMovePoint = viewModel::movePoint,
         onDeletePoint = viewModel::deletePoint,
         onSetCoordinate = viewModel::setCoordinate,
@@ -135,6 +146,7 @@ private fun VenueMapEditorScreen(
     onUploadImage: (ByteArray, String, String) -> Unit,
     onRemoveImage: () -> Unit,
     onSavePoint: (VenuePointForm, String?, Double?, Double?) -> Unit,
+    onImportGpxPoints: (List<ParsedGpxPoint>) -> Unit,
     onMovePoint: (String, Double, Double) -> Unit,
     onDeletePoint: (String) -> Unit,
     onSetCoordinate: (String, Double?, Double?) -> Unit,
@@ -175,6 +187,46 @@ private fun VenueMapEditorScreen(
             onUploadImage(bytes, mimeType, ext)
         }
     }
+    val gpxLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: error(context.getString(R.string.venue_gpx_read_error))
+                GPXParser.parse(bytes)
+            }.onSuccess { points ->
+                onImportGpxPoints(points)
+            }.onFailure {
+                snackbar.showSnackbar(context.getString(R.string.venue_gpx_parse_error))
+            }
+        }
+    }
+    val currentLocationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { result ->
+        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (!granted) {
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.venue_location_denied)) }
+            return@rememberLauncherForActivityResult
+        }
+        scope.launch {
+            val location = runCatching { currentLocation(context) }.getOrNull()
+            if (location == null) {
+                snackbar.showSnackbar(context.getString(R.string.venue_current_location_error))
+            } else {
+                editorTarget = PointEditorTarget(
+                    editingId = null,
+                    imageX = null,
+                    imageY = null,
+                    initialForm = VenuePointForm(
+                        latitudeText = String.format(java.util.Locale.US, "%.6f", location.latitude),
+                        longitudeText = String.format(java.util.Locale.US, "%.6f", location.longitude),
+                    ),
+                )
+            }
+        }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -200,6 +252,27 @@ private fun VenueMapEditorScreen(
                                 } else {
                                     editorTarget = PointEditorTarget(null, null, null)
                                 }
+                            },
+                            onEnterCoordinates = {
+                                editorTarget = PointEditorTarget(null, null, null)
+                            },
+                            onUseCurrentLocation = {
+                                currentLocationLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                                    ),
+                                )
+                            },
+                            onImportGpx = {
+                                gpxLauncher.launch(
+                                    arrayOf(
+                                        "application/gpx+xml",
+                                        "application/xml",
+                                        "text/xml",
+                                        "*/*",
+                                    ),
+                                )
                             },
                             onPreview = onOpenPreview,
                         )
@@ -259,7 +332,7 @@ private fun VenueMapEditorScreen(
     if (ready != null && target != null) {
         val editing = target.editingId?.let { id -> ready.map.points.firstOrNull { it.id == id } }
         VenuePointEditorSheet(
-            initialForm = editing?.let { VenuePointForm.of(it) } ?: VenuePointForm(),
+            initialForm = target.initialForm ?: editing?.let { VenuePointForm.of(it) } ?: VenuePointForm(),
             isEditing = editing != null,
             isSaving = ready.isSaving,
             onSave = { form ->
@@ -520,7 +593,13 @@ private fun VenuePointAdminRow(
 }
 
 @Composable
-private fun EditorOverflowMenu(onAddLocation: () -> Unit, onPreview: () -> Unit) {
+private fun EditorOverflowMenu(
+    onAddLocation: () -> Unit,
+    onEnterCoordinates: () -> Unit,
+    onUseCurrentLocation: () -> Unit,
+    onImportGpx: () -> Unit,
+    onPreview: () -> Unit,
+) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -534,6 +613,21 @@ private fun EditorOverflowMenu(onAddLocation: () -> Unit, onPreview: () -> Unit)
                 text = { Text(stringResource(R.string.venue_add_location)) },
                 leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 onClick = { open = false; onAddLocation() },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.venue_enter_coordinates)) },
+                leadingIcon = { Icon(Icons.Filled.Place, contentDescription = null) },
+                onClick = { open = false; onEnterCoordinates() },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.venue_use_current_location)) },
+                leadingIcon = { Icon(Icons.Filled.GpsFixed, contentDescription = null) },
+                onClick = { open = false; onUseCurrentLocation() },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.venue_import_gpx)) },
+                leadingIcon = { Icon(Icons.Filled.Image, contentDescription = null) },
+                onClick = { open = false; onImportGpx() },
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.venue_preview)) },
@@ -595,9 +689,83 @@ private fun VenuePointEditorSheet(
                         selected = form.category == category,
                         onClick = { form = form.copy(category = category) },
                         label = { Text(stringResource(category.labelRes)) },
-                        leadingIcon = { Icon(category.icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        leadingIcon = {
+                            Icon(
+                                if (category == VenueCategory.Custom) {
+                                    materialIconForSfSymbol(form.customIconName)
+                                } else {
+                                    category.icon
+                                },
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
                     )
                 }
+            }
+            if (form.category == VenueCategory.Custom) {
+                CzTextField(
+                    value = form.customCategoryName,
+                    onValueChange = { form = form.copy(customCategoryName = it) },
+                    label = stringResource(R.string.venue_field_custom_category),
+                    isError = form.customCategoryName.isBlank(),
+                    supportingText = if (form.customCategoryName.isBlank()) {
+                        stringResource(R.string.venue_custom_category_required)
+                    } else {
+                        null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = stringResource(R.string.venue_field_custom_icon),
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+                    VenueIconCatalog.allIconNames.forEach { iconName ->
+                        FilterChip(
+                            selected = form.customIconName == iconName,
+                            onClick = { form = form.copy(customIconName = iconName) },
+                            label = {
+                                Icon(
+                                    imageVector = materialIconForSfSymbol(iconName),
+                                    contentDescription = iconName,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+            Text(
+                text = stringResource(R.string.venue_field_coordinates),
+                color = MaterialTheme.czColors.textSecondary,
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                CzTextField(
+                    value = form.latitudeText,
+                    onValueChange = { form = form.copy(latitudeText = it) },
+                    label = stringResource(R.string.venue_field_latitude),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    isError = form.hasCoordinateInput && form.parsedCoordinate == null,
+                    modifier = Modifier.weight(1f),
+                )
+                CzTextField(
+                    value = form.longitudeText,
+                    onValueChange = { form = form.copy(longitudeText = it) },
+                    label = stringResource(R.string.venue_field_longitude),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    isError = form.hasCoordinateInput && form.parsedCoordinate == null,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            if (form.hasCoordinateInput && form.parsedCoordinate == null) {
+                Text(
+                    text = stringResource(R.string.venue_coordinate_invalid),
+                    color = MaterialTheme.czColors.error,
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
             CzTextField(
                 value = form.note,
@@ -702,6 +870,13 @@ private fun VenuePointLocationSheet(
     }
 }
 
+@Suppress("MissingPermission")
+private suspend fun currentLocation(context: android.content.Context): android.location.Location? {
+    val client = LocationServices.getFusedLocationProviderClient(context)
+    return client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
+        ?: client.lastLocation.await()
+}
+
 @Preview
 @Composable
 private fun VenueMapEditorScreenPreview() {
@@ -718,6 +893,7 @@ private fun VenueMapEditorScreenPreview() {
             onUploadImage = { _, _, _ -> },
             onRemoveImage = {},
             onSavePoint = { _, _, _, _ -> },
+            onImportGpxPoints = {},
             onMovePoint = { _, _, _ -> },
             onDeletePoint = {},
             onSetCoordinate = { _, _, _ -> },

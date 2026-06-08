@@ -162,7 +162,7 @@ fun FoodMenuScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "Camp Menu",
+                        text = stringResource(R.string.food_camp_menu),
                         style = CzTypeScale.headline,
                         color = colors.textPrimary,
                     )
@@ -493,7 +493,7 @@ fun MealMenuCard(
                         modifier = Modifier.padding(top = 4.dp),
                     ) {
                         Text(
-                            text = "See all menus",
+                            text = stringResource(R.string.food_see_all_menus),
                             style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
                             color = colors.ember,
                         )

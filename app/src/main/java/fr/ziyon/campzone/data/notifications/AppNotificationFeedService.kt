@@ -8,6 +8,7 @@ import dagger.hilt.components.SingletonComponent
 import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.model.AppNotification
 import fr.ziyon.campzone.data.model.NotificationTopics
+import fr.ziyon.campzone.data.model.isPreferredFeedRepresentativeOver
 import fr.ziyon.campzone.data.model.toAppNotificationOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,8 +19,9 @@ import kotlinx.coroutines.flow.callbackFlow
 /**
  * Streams the in-app notification feed (`ziyon_notifications`, `02` §6.5).
  * Reads one bounded snapshot listener per visible topic (derived from the
- * user's saved settings), merges & dedupes by `id`, filters `concerns`, and
- * emits newest-first. Clients are readers only.
+ * user's saved settings), merges by document id, de-dupes announcement update
+ * rows by `announcementID`, filters `concerns`, and emits newest-first.
+ * Clients are readers only.
  */
 interface AppNotificationFeedService {
     fun observeNotifications(uid: String, role: UserRole): Flow<List<AppNotification>>
@@ -61,7 +63,7 @@ class FirestoreAppNotificationFeedService @Inject constructor(
                                     byId[notification.id] = notification
                                 }
                             }
-                            byId.values.sortedByDescending { it.sentAt }
+                            byId.values.sortedForFeed()
                         }
                         trySend(merged)
                     }
@@ -88,9 +90,24 @@ class FakeAppNotificationFeedService(
                 close(IllegalStateException("Fake feed failed."))
                 return@callbackFlow
             }
-            trySend(notifications.sortedByDescending { it.sentAt })
+            trySend(notifications.sortedForFeed())
             awaitClose { }
         }
+}
+
+private fun Iterable<AppNotification>.sortedForFeed(): List<AppNotification> {
+    val byFeedKey = linkedMapOf<String, AppNotification>()
+    for (notification in this) {
+        val existing = byFeedKey[notification.feedDeduplicationKey]
+        if (existing == null || notification.isPreferredFeedRepresentativeOver(existing)) {
+            byFeedKey[notification.feedDeduplicationKey] = notification
+        }
+    }
+
+    return byFeedKey.values.sortedWith(
+        compareByDescending<AppNotification> { it.sentAt }
+            .thenBy { it.id },
+    )
 }
 
 @Module

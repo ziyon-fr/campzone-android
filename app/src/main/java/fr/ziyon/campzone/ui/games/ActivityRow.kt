@@ -62,7 +62,10 @@ fun ActivityRow(
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = if (activity.points > 0) "+${activity.points} pts" else "${activity.points} pts",
+                    text = stringResource(
+                        R.string.teams_points_format,
+                        if (activity.points > 0) "+${activity.points}" else "${activity.points}",
+                    ),
                     style = MaterialTheme.typography.titleSmall,
                     color = accent,
                 )

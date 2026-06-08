@@ -58,15 +58,15 @@
 ### A6. Auth & Session (`ui/auth/`) ✅
 
 - [x] Sign-in screen: Google + Apple buttons ( follow iOS design)
-- [x] On first sign-in: create `users/{uid}` doc with `role: "guest"`, `createdAt: serverTimestamp()`, `onboardingCompleted: false` - **merge: true**; do not overwrite existing `email`/`displayName`/`photoURL`
+- [x] On first sign-in: create `users/{uid}` doc with `role: "adult"`, `createdAt: serverTimestamp()`, `onboardingCompleted: false` - **merge: true**; do not overwrite existing `email`/`displayName`/`photoURL`
 - [x] Session state: `StateFlow<AuthState>` (signed-out / onboarding-incomplete / signed-in)
 - [x] Sign-out clears local session; navigates to auth screen
 
 ### A7. Onboarding (`ui/onboarding/`) ✅
 
 - [x] Collect: age (derive `ageGroup`), church, preferred language, gender
-- [x] Write `users/{uid}` with `onboardingCompleted: true`, `languages: [preferredLanguage]` (single element) - **merge: true**
-- [x] Apply `07` pre-write checklist: `age`/`ageGroup`/`gender` are **delete-when-nil** if blank; no extra keys
+- [x] Write `users/{uid}` with `role: "adult"`, `onboardingCompleted: true`, `languages: [preferredLanguage]` (single element) - **merge: true**
+- [x] Apply `07` pre-write checklist: `age`/`ageGroup`/`gender` are **delete-when-nil** if blank; role stays within the self-assignable set
 - [x] Gate: show onboarding when `onboardingCompleted == false`; request FCM permission **after** onboarding completes (not at launch)
 
 ### A8. Profile View/Edit + Account Deletion (`ui/profile/`) ✅
@@ -251,8 +251,9 @@
 ### C7. Badges / Achievements (`ui/profile/badges/`) ✅
 
 - [x] Read-only display of `users/{uid}/badges/{achievementId}`
-- [x] Filter by `AchievementCatalog` in-code (shipped iOS catalog; unknown ids filtered out)
-- [x] Catalog rarity/awardKind embedded in app - not in Firestore
+- [x] Read top-level `badges/{achievementId}` catalog display data with the shipped in-code `AchievementCatalog` as fallback; unknown earned ids are filtered out
+- [x] Decode Firestore catalog `localizations.en/fr/pt-BR` display copy, with legacy flat-field fallback
+- [x] Catalog rarity/awardKind come from Firestore when present, falling back to the in-code mirror
 - [x] `campingID` and `note` are explicit Firestore `null` when absent (not omitted)
 - [x] Manual award: gate `canAwardAchievements`; write to `users/{targetUid}/badges/{achievementId}` (RBAC asserts `request.auth.uid != uid`)
 

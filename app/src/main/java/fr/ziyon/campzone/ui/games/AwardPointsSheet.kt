@@ -42,6 +42,7 @@ import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.Game
+import fr.ziyon.campzone.data.model.PointRuleTarget
 import fr.ziyon.campzone.data.model.PointRuleVisibility
 import fr.ziyon.campzone.data.model.Team
 import kotlinx.coroutines.launch
@@ -78,27 +79,47 @@ fun AwardPointsSheet(
 
     val allMembers = remember(teams) { teams.flatMap { t -> t.members.map { t to it } } }
 
+    fun targetKindsFor(appliesTo: PointRuleTarget?): List<AwardTargetKind> = when (appliesTo) {
+        PointRuleTarget.Team -> listOf(AwardTargetKind.Team)
+        PointRuleTarget.User -> listOf(AwardTargetKind.User)
+        PointRuleTarget.Any, null -> AwardTargetKind.entries
+    }
+
+    fun enforceTarget(appliesTo: PointRuleTarget?) {
+        val allowedKinds = targetKindsFor(appliesTo)
+        if (targetKind !in allowedKinds) {
+            targetKind = allowedKinds.first()
+        }
+        when (targetKind) {
+            AwardTargetKind.Team -> selectedUserId = null
+            AwardTargetKind.User -> selectedTeamId = null
+        }
+    }
+
     fun applyRule(ruleId: String?) {
         selectedRuleId = ruleId
-        val rule = game.pointRules.firstOrNull { it.id == ruleId } ?: return
+        val rule = game.pointRules.firstOrNull { it.id == ruleId }
+        if (rule == null) {
+            enforceTarget(null)
+            return
+        }
         name = rule.name
         pointsText = rule.points.toString()
         reason = rule.reason
         visibility = rule.visibility
-        if (selectedTeamId == null && selectedUserId == null) {
-            when (rule.appliesTo) {
-                fr.ziyon.campzone.data.model.PointRuleTarget.User -> targetKind = AwardTargetKind.User
-                else -> targetKind = AwardTargetKind.Team
-            }
-        }
+        enforceTarget(rule.appliesTo)
     }
 
     LaunchedEffect(preselectedRuleId) {
         applyRule(preselectedRuleId ?: game.pointRules.firstOrNull()?.id)
     }
 
+    val selectedRule = game.pointRules.firstOrNull { it.id == selectedRuleId }
+    val availableTargetKinds = targetKindsFor(selectedRule?.appliesTo)
+
     val canSubmit = pointsText.toIntOrNull() != null &&
         name.isNotBlank() &&
+        targetKind in availableTargetKinds &&
         when (targetKind) {
             AwardTargetKind.Team -> selectedTeamId != null
             AwardTargetKind.User -> selectedUserId != null
@@ -156,7 +177,7 @@ fun AwardPointsSheet(
                             )
                             scope.launch {
                                 camping?.let { c ->
-                                    val result = viewModel.awardPoints(request, c, teams, authenticatedUser)
+                                    val result = viewModel.awardPoints(request, c, teams, authenticatedUser, game)
                                     if (result != null) { sheetState.hide(); onDismiss() }
                                 }
                             }
@@ -181,7 +202,7 @@ fun AwardPointsSheet(
 
             Text(stringResource(R.string.games_award_target), style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                AwardTargetKind.entries.forEachIndexed { index, kind ->
+                availableTargetKinds.forEachIndexed { index, kind ->
                     SegmentedButton(
                         selected = targetKind == kind,
                         onClick = {
@@ -189,7 +210,7 @@ fun AwardPointsSheet(
                             selectedTeamId = null
                             selectedUserId = null
                         },
-                        shape = SegmentedButtonDefaults.itemShape(index, AwardTargetKind.entries.size),
+                        shape = SegmentedButtonDefaults.itemShape(index, availableTargetKinds.size),
                         label = {
                             Text(
                                 when (kind) {

@@ -111,6 +111,9 @@ import fr.ziyon.campzone.ui.lodging.MyLodgingViewModel
 import fr.ziyon.campzone.ui.payments.CzPaymentButton
 import fr.ziyon.campzone.ui.transportation.BusTicketCard
 import fr.ziyon.campzone.ui.transportation.TransportationViewModel
+import fr.ziyon.campzone.ui.vehicle.MyVehicleCard
+import fr.ziyon.campzone.ui.vehicle.VehicleUiState
+import fr.ziyon.campzone.ui.vehicle.VehicleViewModel
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -276,20 +279,24 @@ fun CheckInQrPassesRoute(
     state: CampingDetailUiState,
     authenticatedUser: AuthenticatedUser,
     onBack: () -> Unit,
+    onOpenTransport: () -> Unit = {},
     modifier: Modifier = Modifier,
     transportationViewModel: TransportationViewModel = hiltViewModel(),
     lodgingViewModel: MyLodgingViewModel = hiltViewModel(),
+    vehicleViewModel: VehicleViewModel = hiltViewModel(),
 ) {
     // Bus boarding tickets + the "My Lodging" card live alongside the arrival
     // check-in QR codes here, mirroring the iOS "My QR Passes" view - the
     // passenger no longer needs a separate Transportation screen.
     val bookings by transportationViewModel.bookings.collectAsState()
     val lodgingUnits by lodgingViewModel.units.collectAsState()
+    val vehicleState by vehicleViewModel.uiState.collectAsState()
     val campingId = state.camping?.id
     LaunchedEffect(campingId, authenticatedUser.uid) {
         if (campingId != null) {
             transportationViewModel.loadTickets(campingId, authenticatedUser)
             lodgingViewModel.load(campingId)
+            vehicleViewModel.load(campingId, authenticatedUser)
         }
     }
     Scaffold(
@@ -340,9 +347,12 @@ fun CheckInQrPassesRoute(
                 else -> CheckInQrPassesContent(
                     camping = state.camping,
                     userId = authenticatedUser.uid,
+                    authenticatedUser = authenticatedUser,
                     bookings = bookings,
                     lodgingUnits = lodgingUnits,
+                    vehicleState = vehicleState,
                     onFarePaid = transportationViewModel::reloadTickets,
+                    onOpenTransport = onOpenTransport,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -918,9 +928,12 @@ private fun CheckInRecordRow(record: CheckInRecord) {
 private fun CheckInQrPassesContent(
     camping: Camping,
     userId: String,
+    authenticatedUser: AuthenticatedUser,
     bookings: List<TransportationBooking>,
     lodgingUnits: List<LodgingUnit>,
+    vehicleState: VehicleUiState,
     onFarePaid: () -> Unit,
+    onOpenTransport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val approved = remember(camping.attendees, userId) {
@@ -937,6 +950,13 @@ private fun CheckInQrPassesContent(
     ) {
         item("status") {
             QrStatusBanner(approvedCount = approved.size, pendingCount = pending.size)
+        }
+        item("vehicle") {
+            MyVehicleCard(
+                state = vehicleState,
+                user = authenticatedUser,
+                onOpenTransport = onOpenTransport,
+            )
         }
         when {
             approved.isNotEmpty() -> {

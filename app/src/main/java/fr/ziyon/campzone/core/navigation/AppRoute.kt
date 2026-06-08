@@ -63,6 +63,23 @@ sealed interface AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.FamilyParticipants}"
     }
 
+    data object MyVehicles : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.MyVehicles}"
+    }
+
+    data class UserVehicleEditor(val vehicleId: String? = null) : AppRoute {
+        override val route = buildString {
+            append(MyVehicles.route)
+            append("/")
+            append(AppRoutePath.UserVehicleEditor)
+            val resolved = vehicleId?.takeUnless { it.isBlank() }
+            if (resolved != null) {
+                append("/")
+                append(resolved.asRouteSegment())
+            }
+        }
+    }
+
     data object AdminTools : AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}"
     }
@@ -184,6 +201,50 @@ sealed interface AppRoute {
 
     data class TransportationHistory(val campingId: String) : AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.TransportationHistory}"
+    }
+
+    data class MyTransportation(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.MyTransportation}"
+    }
+
+    data class VehicleForm(
+        val campingId: String,
+        val vehicleId: String? = null,
+    ) : AppRoute {
+        override val route = buildString {
+            append(CampingDetail(campingId).route)
+            append("/")
+            append(AppRoutePath.VehicleForm)
+            val resolved = vehicleId?.takeUnless { it.isBlank() }
+            if (resolved != null) {
+                append("/")
+                append(resolved.asRouteSegment())
+            }
+        }
+    }
+
+    data class VehicleQr(
+        val campingId: String,
+        val vehicleId: String,
+    ) : AppRoute {
+        override val route =
+            "${CampingDetail(campingId).route}/${AppRoutePath.VehicleQr}/${vehicleId.asRouteSegment()}"
+    }
+
+    data class CampingVehicles(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Vehicles}"
+    }
+
+    data class VehicleScanner(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.VehicleScanner}"
+    }
+
+    data class VehicleArrival(
+        val campingId: String,
+        val vehicleId: String,
+    ) : AppRoute {
+        override val route =
+            "${CampingDetail(campingId).route}/${AppRoutePath.VehicleArrival}/${vehicleId.asRouteSegment()}"
     }
 
     data class CampingBadgeAward(val campingId: String) : AppRoute {
@@ -405,6 +466,8 @@ internal object AppRouteArgs {
     const val ProgramId = "programId"
     const val SongId = "songId"
     const val GameId = "gameId"
+    const val VehicleId = "vehicleId"
+    const val UserVehicleId = "userVehicleId"
 }
 
 internal object AppRoutePath {
@@ -419,6 +482,8 @@ internal object AppRoutePath {
     const val ChannelCampings = "channel-campings"
     const val ChannelTeams = "channel-teams"
     const val FamilyParticipants = "family"
+    const val MyVehicles = "vehicles"
+    const val UserVehicleEditor = "vehicle-editor"
     const val AdminTools = "admin"
     const val ModerationQueue = "moderation"
     const val RoleManagement = "roles"
@@ -437,6 +502,12 @@ internal object AppRoutePath {
     const val TransportationScanner = "transportation-scanner"
     const val TransportationDashboard = "transportation-dashboard"
     const val TransportationHistory = "transportation-history"
+    const val MyTransportation = "my-transportation"
+    const val VehicleForm = "vehicle-form"
+    const val VehicleQr = "vehicle-qr"
+    const val Vehicles = "vehicles"
+    const val VehicleScanner = "vehicle-scanner"
+    const val VehicleArrival = "vehicle-arrival"
     const val Award = "award"
     const val PollEditor = "poll-editor"
     const val Registration = "register"
@@ -479,6 +550,9 @@ internal object AppRoutePattern {
     const val TeamPointHistory = "$PointHistory/{${AppRouteArgs.TeamId}}"
     const val CampingPolls = "$CampingDetail/${AppRoutePath.Polls}"
     const val CampingAlbum = "$CampingDetail/${AppRoutePath.Album}"
+    const val MyVehicles = "${AppRoutePath.Profile}/${AppRoutePath.MyVehicles}"
+    const val UserVehicleEditor = "$MyVehicles/${AppRoutePath.UserVehicleEditor}"
+    const val UserVehicleEdit = "$UserVehicleEditor/{${AppRouteArgs.UserVehicleId}}"
     const val CheckInScanner = "$CampingDetail/${AppRoutePath.CheckInScanner}"
     const val CheckInRecords = "$CampingDetail/${AppRoutePath.CheckInRecords}"
     const val CheckInQrPasses = "$CampingDetail/${AppRoutePath.CheckInQrPasses}"
@@ -486,6 +560,13 @@ internal object AppRoutePattern {
     const val TransportationScanner = "$CampingDetail/${AppRoutePath.TransportationScanner}"
     const val TransportationDashboard = "$CampingDetail/${AppRoutePath.TransportationDashboard}"
     const val TransportationHistory = "$CampingDetail/${AppRoutePath.TransportationHistory}"
+    const val MyTransportation = "$CampingDetail/${AppRoutePath.MyTransportation}"
+    const val VehicleForm = "$CampingDetail/${AppRoutePath.VehicleForm}"
+    const val VehicleEdit = "$VehicleForm/{${AppRouteArgs.VehicleId}}"
+    const val VehicleQr = "$CampingDetail/${AppRoutePath.VehicleQr}/{${AppRouteArgs.VehicleId}}"
+    const val CampingVehicles = "$CampingDetail/${AppRoutePath.Vehicles}"
+    const val VehicleScanner = "$CampingDetail/${AppRoutePath.VehicleScanner}"
+    const val VehicleArrival = "$CampingDetail/${AppRoutePath.VehicleArrival}/{${AppRouteArgs.VehicleId}}"
     const val CampingBadgeAward = "$CampingDetail/${AppRoutePath.Achievements}/${AppRoutePath.Award}"
     const val PollEditor = "$CampingPolls/${AppRoutePath.PollEditor}"
     const val PollEdit = "$PollEditor/{${AppRouteArgs.PollId}}"

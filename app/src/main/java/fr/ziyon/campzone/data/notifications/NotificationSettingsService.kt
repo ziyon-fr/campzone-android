@@ -15,6 +15,10 @@ import fr.ziyon.campzone.data.notifications.NotificationSettingsRules.normalized
 import fr.ziyon.campzone.data.notifications.NotificationSettingsRules.sanitized
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -32,6 +36,7 @@ class FirestoreNotificationSettingsService @Inject constructor(
     private val db: FirebaseFirestore,
     private val api: NotificationApi,
 ) : NotificationSettingsService {
+    private val backendSyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override suspend fun load(uid: String, role: UserRole): NotificationSettings {
         val snapshot = settingsDoc(uid).get().await()
@@ -63,7 +68,9 @@ class FirestoreNotificationSettingsService @Inject constructor(
             )
             .await()
 
-        api.syncSettings(sanitized, uid)
+        backendSyncScope.launch {
+            runCatching { api.syncSettings(sanitized, uid) }
+        }
         return sanitized
     }
 

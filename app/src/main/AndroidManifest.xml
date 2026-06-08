@@ -13,6 +13,15 @@
         android:name="android.hardware.camera.any"
         android:required="false" />
 
+    <queries>
+        <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.waze" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+    </queries>
+
     <application
         android:name=".CampzoneApp"
         android:allowBackup="true"

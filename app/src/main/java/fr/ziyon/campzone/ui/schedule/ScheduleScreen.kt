@@ -372,7 +372,7 @@ fun ProgramTimelineCard(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
-    val accent = program.type.accentColor
+    val accent = program.resolvedAccentColor
 
     Surface(
         modifier = modifier
@@ -425,7 +425,7 @@ fun ProgramTimelineCard(
                 horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
             ) {
                 Icon(
-                    imageVector = program.type.icon,
+                    imageVector = program.resolvedIcon,
                     contentDescription = null,
                     tint = accent,
                     modifier = Modifier.size(20.dp),

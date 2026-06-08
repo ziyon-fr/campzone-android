@@ -86,13 +86,15 @@ endpoints in `04-backend-api.md`; gates in `03-rbac-and-security.md`.
 
 ---
 
-## AchievementCatalog (in-code, mirror exactly - NOT in Firestore)
+## Achievement badge catalog (Firestore display source + in-code fallback)
 
 `users/{uid}/badges/{id}` only stores earned badges (backend-written);
-the catalog (id, rarity, award kind) is in-app and **must match the iOS
-`AchievementCatalog` + backend `badge-evaluator`**. Only ids in this
-catalog are shown (unknown ids filtered out). `rarity` ∈
-`common,uncommon,rare,epic,legendary`; `awardKind` ∈ `manual,automatic`.
+the display catalog now lives in top-level `badges/{id}` and includes
+localized copy at `localizations.{en,fr,pt-BR}.{title,summary,detail}`.
+The in-app `AchievementCatalog` remains the required fallback mirror and
+unknown-ID filter, and must stay aligned with iOS + backend
+`badge-evaluator`. `rarity` in `common,uncommon,rare,epic,legendary`;
+`awardKind` in `manual,automatic`.
 
 **Automatic** (backend `badge-evaluator`, see `04` §6): `first-adventure`
 (common), `camp-check-in` (common), `team-roster` (common),
@@ -113,7 +115,7 @@ catalog are shown (unknown ids filtered out). `rarity` ∈
 **Legendary (manual)**: `grand-camp-champion`, `servant-leader`,
 `season-shepherd`, `campfire-legend`.
 
-(50 total: 10 common, 10 uncommon, 10 rare, 10 epic, 5 legendary -
+(45 total: 10 common, 10 uncommon, 10 rare, 10 epic, 5 legendary -
 `first-adventure`/`camp-check-in`/`team-roster` common,
 `trail-veteran`/`score-spark` uncommon, `team-captain` rare,
 `perfect-attendance` legendary are the automatic ones.) `BadgeTint`

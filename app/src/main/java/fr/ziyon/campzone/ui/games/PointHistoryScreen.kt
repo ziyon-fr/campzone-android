@@ -276,6 +276,9 @@ private fun PointHistoryScreenPreview() {
                 FakeTeamService(),
                 PreviewCampingService(),
                 fr.ziyon.campzone.data.teams.FakeTeamNotificationDispatcher(),
+                fr.ziyon.campzone.data.media.PreviewMediaUploader,
+                fr.ziyon.campzone.data.media.PreviewMediaUploader,
+                fr.ziyon.campzone.data.venuemap.FakeVenueMapService(),
             ),
             onBack = {},
         )

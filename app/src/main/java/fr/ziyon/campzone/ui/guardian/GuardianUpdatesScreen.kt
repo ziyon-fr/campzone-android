@@ -58,8 +58,9 @@ import fr.ziyon.campzone.data.model.CheckInMethod
 import fr.ziyon.campzone.data.model.Program
 import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.TeamMemberRole
-import fr.ziyon.campzone.ui.schedule.icon
 import fr.ziyon.campzone.ui.schedule.programTimeText
+import fr.ziyon.campzone.ui.schedule.resolvedAccentColor
+import fr.ziyon.campzone.ui.schedule.resolvedIcon
 import fr.ziyon.campzone.ui.teams.symbolIcon
 import java.text.DateFormat
 
@@ -381,8 +382,9 @@ private fun ProgramSectionLabel(text: String) {
 
 @Composable
 private fun ProgramRow(program: Program, highlighted: Boolean) {
+    val accent = program.resolvedAccentColor
     Surface(
-        color = if (highlighted) MaterialTheme.czColors.ember.copy(alpha = 0.08f) else MaterialTheme.czColors.background,
+        color = if (highlighted) accent.copy(alpha = 0.08f) else MaterialTheme.czColors.background,
         shape = RoundedCornerShape(CzRadius.lg),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -392,9 +394,9 @@ private fun ProgramRow(program: Program, highlighted: Boolean) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = program.type.icon,
+                imageVector = program.resolvedIcon,
                 contentDescription = null,
-                tint = if (highlighted) MaterialTheme.czColors.ember else MaterialTheme.czColors.textSecondary,
+                tint = if (highlighted) accent else MaterialTheme.czColors.textSecondary,
                 modifier = Modifier.size(22.dp),
             )
             Column(modifier = Modifier.weight(1f)) {

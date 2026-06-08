@@ -18,8 +18,8 @@ android {
         applicationId = "fr.ziyon.campzone"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -53,6 +53,7 @@ android {
         compose = true
         buildConfig = true
     }
+    buildToolsVersion = "37.0.0"
 }
 
 dependencies {
@@ -106,6 +107,7 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
+    implementation(libs.play.services.location)
 
     // CameraX + ML Kit (QR check-in scanner)
     implementation(libs.androidx.camera.core)

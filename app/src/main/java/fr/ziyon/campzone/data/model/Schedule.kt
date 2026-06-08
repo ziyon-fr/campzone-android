@@ -24,6 +24,7 @@ data class CampDay(
     val programs: List<Program> = emptyList(),
     val createdAt: Date? = null,
     val updatedAt: Date? = null,
+    val hasCustomTitle: Boolean = false,
 )
 
 /** In-memory aggregate combining schedule config + days (each holding programs). */
@@ -37,6 +38,29 @@ data class CampingSchedule(
 
     val allPrograms: List<Program>
         get() = days.flatMap { it.programs }
+
+    val customProgramTypes: List<CustomProgramType>
+        get() {
+            val seen = mutableSetOf<String>()
+            return allPrograms
+                .mapNotNull { it.customType }
+                .filter { seen.add(it.id) }
+        }
+}
+
+data class CustomProgramType(
+    val name: String,
+    val symbol: String = FallbackSymbol,
+    val colorHex: String = FallbackColorHex,
+) {
+    val trimmedName: String get() = name.trim()
+    val isValid: Boolean get() = trimmedName.isNotEmpty()
+    val id: String get() = "${trimmedName.lowercase()}|$symbol|${colorHex.uppercase()}"
+
+    companion object {
+        const val FallbackSymbol = "sparkles"
+        const val FallbackColorHex = "#8D6E63"
+    }
 }
 
 data class Program(
@@ -50,9 +74,23 @@ data class Program(
     val location: String = "",
     val description: String = "",
     val venuePointId: String? = null,
+    val linkedGameId: String? = null,
+    val customTypeName: String? = null,
+    val customTypeSymbol: String? = null,
+    val customTypeColorHex: String? = null,
     val createdAt: Date? = null,
     val updatedAt: Date? = null,
-)
+) {
+    val customType: CustomProgramType?
+        get() {
+            val name = customTypeName?.trim()?.takeUnless { it.isBlank() } ?: return null
+            return CustomProgramType(
+                name = name,
+                symbol = customTypeSymbol?.takeUnless { it.isBlank() } ?: CustomProgramType.FallbackSymbol,
+                colorHex = customTypeColorHex?.takeUnless { it.isBlank() } ?: CustomProgramType.FallbackColorHex,
+            ).takeIf { type == ProgramType.Custom }
+        }
+}
 
 // region decode
 
@@ -90,6 +128,10 @@ internal fun Map<String, Any?>.toProgramOrNull(documentId: String): Program? {
         location = rawStringValue("location").orEmpty(),
         description = rawStringValue("description").orEmpty(),
         venuePointId = stringValue("venuePointID"),
+        linkedGameId = stringValue("linkedGameID"),
+        customTypeName = stringValue("customTypeName"),
+        customTypeSymbol = stringValue("customTypeSymbol"),
+        customTypeColorHex = stringValue("customTypeColorHex"),
         createdAt = dateValue("createdAt"),
         updatedAt = dateValue("updatedAt"),
     )
@@ -115,7 +157,11 @@ fun CampingSchedule.normalizedForCamping(
     var dayNumber = 0
     val titled = calendarDays.map { day ->
         dayNumber++
-        if (day.title.isBlank()) day.copy(title = defaultDayTitle(dayNumber)) else day
+        if (day.title.isBlank()) {
+            day.copy(title = defaultDayTitle(dayNumber), hasCustomTitle = false)
+        } else {
+            day.copy(hasCustomTitle = true)
+        }
     }
     val rangeDayIds = titled.map { it.id }.toSet()
     val orphanDays = existingById.values.filter { it.id !in rangeDayIds }
@@ -212,6 +258,17 @@ internal object SchedulePayload {
             "updatedAt" to serverTimestamp,
         )
         payload["venuePointID"] = program.venuePointId?.trim()?.takeUnless { it.isBlank() } ?: deleteField
+        payload["linkedGameID"] = program.linkedGameId?.trim()?.takeUnless { it.isBlank() } ?: deleteField
+        val customType = program.customType
+        if (customType != null) {
+            payload["customTypeName"] = customType.trimmedName
+            payload["customTypeSymbol"] = customType.symbol
+            payload["customTypeColorHex"] = customType.colorHex
+        } else {
+            payload["customTypeName"] = deleteField
+            payload["customTypeSymbol"] = deleteField
+            payload["customTypeColorHex"] = deleteField
+        }
         if (includeCreatedAt) payload["createdAt"] = serverTimestamp
         return payload
     }

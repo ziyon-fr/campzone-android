@@ -31,7 +31,12 @@ data class CzColorPalette(
     val leaf: Color,
     val night: Color,
     val twilight: Color,
-    val textTertiary: Color
+    val textTertiary: Color,
+    val card: Color,
+    val cream: Color,
+    val gold: Color,
+    val espresso: Color,
+    val espressoDeep: Color,
 )
 
 object CzColors {
@@ -65,6 +70,20 @@ object CzColors {
     val AmberDark = Color(0xFFFFC266)
     val PineLight = Color(0xFF243824)
     val PineDark = Color(0xFF2F4A2F)
+    val SiennaLight = Color(0xFFC2552F)
+    val SiennaDark = Color(0xFFD9663D)
+    val ChampagneLight = Color(0xFFB5793A)
+    val ChampagneDark = Color(0xFFD4A373)
+    val EspressoLight = Color(0xFF2A2118)
+    val EspressoDark = Color(0xFF30261C)
+    val EspressoDeepLight = Color(0xFF1B140D)
+    val EspressoDeepDark = Color(0xFF201810)
+    val GoldLight = Color(0xFFCC9A4E)
+    val GoldDark = Color(0xFFD8AC68)
+    val CreamLight = Color(0xFFFFF4E0)
+    val CreamDark = Color(0xFFFFEBD2)
+    val CardLight = Color(0xFFFBF7EF)
+    val CardDark = Color(0xFF111B30)
 
     // Added FF to make these visible
     val LeafDark = Color(0xFF5F9A72)
@@ -103,7 +122,12 @@ object CzColors {
         leaf = LeafLight,
         night = NightLight,
         twilight = TwilightLight,
-        textTertiary = TextTertiary
+        textTertiary = TextTertiary,
+        card = CardLight,
+        cream = CreamLight,
+        gold = GoldLight,
+        espresso = EspressoLight,
+        espressoDeep = EspressoDeepLight,
     )
 
     val Dark = CzColorPalette(
@@ -129,10 +153,24 @@ object CzColors {
         leaf = LeafDark,
         night = NightDeep,
         twilight = TwilightDark,
-        textTertiary = TextTertiary
+        textTertiary = TextTertiary,
+        card = CardDark,
+        cream = CreamDark,
+        gold = GoldDark,
+        espresso = EspressoDark,
+        espressoDeep = EspressoDeepDark,
     )
 
-    fun palette(darkTheme: Boolean): CzColorPalette = if (darkTheme) Dark else Light
+    fun palette(darkTheme: Boolean, appTheme: AppTheme = AppTheme.Default): CzColorPalette {
+        val base = if (darkTheme) Dark else Light
+        val accent = appTheme.color(darkTheme)
+        return base.copy(
+            primary = accent,
+            accent = accent,
+            onPrimary = if (darkTheme) BackgroundDark else TextPrimaryDark,
+            onAccent = if (darkTheme) BackgroundDark else TextPrimaryDark,
+        )
+    }
 }
 
 val LocalCzColors = staticCompositionLocalOf { CzColors.Light }

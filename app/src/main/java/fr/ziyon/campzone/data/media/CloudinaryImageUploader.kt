@@ -46,6 +46,13 @@ interface AudioUploader {
     ): CloudinaryUploadResult
 }
 
+interface CloudinaryAssetDeleter {
+    suspend fun deleteAsset(
+        publicId: String,
+        resourceType: String = "image",
+    )
+}
+
 /**
  * Backend-signed Cloudinary upload (`POST /cloudinary/sign` → multipart upload),
  * generic over folder/tags so avatars, participant photos, etc. can share one
@@ -54,7 +61,7 @@ interface AudioUploader {
 @Singleton
 class CloudinaryImageUploader @Inject constructor(
     private val auth: FirebaseAuth,
-) : ImageUploader, AudioUploader {
+) : ImageUploader, AudioUploader, CloudinaryAssetDeleter {
     override suspend fun uploadImage(
         assetIdPrefix: String,
         folder: String,
@@ -115,6 +122,26 @@ class CloudinaryImageUploader @Inject constructor(
                 bytes = bytes,
                 mimeType = mimeType,
                 fileName = "$assetId.$fileExtension",
+            )
+        }
+    }
+
+    override suspend fun deleteAsset(publicId: String, resourceType: String) {
+        val token = auth.currentUser
+            ?.getIdToken(false)
+            ?.await()
+            ?.token
+            ?: error("There is no signed-in user.")
+
+        withContext(Dispatchers.IO) {
+            val body = JSONObject()
+                .put("publicID", publicId)
+                .put("resourceType", resourceType)
+                .put("invalidate", true)
+            postJson(
+                url = "${BuildConfig.BACKEND_BASE_URL}/cloudinary/destroy",
+                bearerToken = token,
+                body = body,
             )
         }
     }

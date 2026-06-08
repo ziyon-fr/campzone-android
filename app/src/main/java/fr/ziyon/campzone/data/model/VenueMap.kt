@@ -19,6 +19,8 @@ data class VenuePoint(
     val id: String,
     val name: String,
     val category: VenueCategory = VenueCategory.Other,
+    val customCategoryName: String? = null,
+    val customIconName: String? = null,
     val note: String = "",
     val imageX: Double? = null,
     val imageY: Double? = null,
@@ -30,6 +32,20 @@ data class VenuePoint(
 
     /** True when the pin carries a real-world coordinate (map / directions). */
     val hasCoordinate: Boolean get() = latitude != null && longitude != null
+
+    val resolvedDisplayName: String
+        get() = if (category == VenueCategory.Custom) {
+            customCategoryName?.trim()?.takeUnless { it.isBlank() } ?: category.wireValue
+        } else {
+            category.wireValue
+        }
+
+    val resolvedIconName: String
+        get() = if (category == VenueCategory.Custom) {
+            customIconName?.takeUnless { it.isBlank() } ?: VenueIconCatalog.defaultIconName
+        } else {
+            VenueIconCatalog.categoryIconName(category)
+        }
 }
 
 /** Whether the camp has uploaded a site illustration. */
@@ -60,6 +76,8 @@ internal fun Map<String, Any?>.toVenuePointOrNull(): VenuePoint? {
         id = id,
         name = name,
         category = VenueCategory.fromWire(stringValue("category")),
+        customCategoryName = stringValue("customCategoryName"),
+        customIconName = stringValue("customIconName"),
         note = rawStringValue("note").orEmpty(),
         imageX = doubleValue("imageX"),
         imageY = doubleValue("imageY"),
@@ -91,10 +109,78 @@ internal object VenueMapPayload {
             "category" to point.category.wireValue,
             "note" to point.note,
         )
+        if (point.category == VenueCategory.Custom) {
+            point.customCategoryName?.trim()?.takeUnless { it.isBlank() }?.let { map["customCategoryName"] = it }
+            point.customIconName?.trim()?.takeUnless { it.isBlank() }?.let { map["customIconName"] = it }
+        }
         point.imageX?.let { map["imageX"] = it }
         point.imageY?.let { map["imageY"] = it }
         point.latitude?.let { map["latitude"] = it }
         point.longitude?.let { map["longitude"] = it }
         return map
+    }
+}
+
+object VenueIconCatalog {
+    const val defaultIconName = "mappin.circle"
+
+    data class Section(
+        val id: String,
+        val title: String,
+        val icons: List<String>,
+    )
+
+    val sections: List<Section> = listOf(
+        Section(
+            id = "places",
+            title = "Places & shelter",
+            icons = listOf(
+                "tent.fill", "house.fill", "building.2.fill", "signpost.right.fill",
+                "mappin.and.ellipse", "flag.fill", "star.fill", "fireplace.fill",
+            ),
+        ),
+        Section(
+            id = "facilities",
+            title = "Facilities",
+            icons = listOf(
+                "toilet.fill", "shower.fill", "drop.fill", "fork.knife",
+                "cup.and.saucer.fill", "cart.fill", "trash.fill", "bolt.fill",
+                "wifi", "phone.fill", "powerplug.fill", "spigot.fill",
+            ),
+        ),
+        Section(
+            id = "activity",
+            title = "Activities & sport",
+            icons = listOf(
+                "figure.run", "figure.pool.swim", "figure.hiking", "sportscourt.fill",
+                "soccerball", "volleyball.fill", "music.mic", "guitars.fill",
+                "theatermasks.fill", "paintpalette.fill", "book.fill", "gamecontroller.fill",
+            ),
+        ),
+        Section(
+            id = "safety",
+            title = "Safety & service",
+            icons = listOf(
+                "cross.case.fill", "staroflife.fill", "shield.lefthalf.filled", "bell.fill",
+                "exclamationmark.triangle.fill", "car.fill", "bus.fill", "parkingsign",
+                "figure.wave", "person.2.fill", "hands.sparkles.fill", "leaf.fill",
+            ),
+        ),
+    )
+
+    val allIconNames: List<String> = sections.flatMap { it.icons }.distinct()
+
+    fun categoryIconName(category: VenueCategory): String = when (category) {
+        VenueCategory.Tent -> "tent.fill"
+        VenueCategory.Stage -> "music.mic"
+        VenueCategory.Dining -> "fork.knife"
+        VenueCategory.FirstAid -> "cross.case.fill"
+        VenueCategory.Restroom -> "toilet.fill"
+        VenueCategory.Parking -> "parkingsign"
+        VenueCategory.Water -> "drop.fill"
+        VenueCategory.Program -> "calendar"
+        VenueCategory.Info -> "info.circle.fill"
+        VenueCategory.Other -> "mappin"
+        VenueCategory.Custom -> defaultIconName
     }
 }

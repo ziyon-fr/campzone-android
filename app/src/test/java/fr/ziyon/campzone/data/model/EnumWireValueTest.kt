@@ -83,7 +83,7 @@ class EnumWireValueTest {
         assertEquals(listOf("tent", "cabin", "room", "dorm"), LodgingKind.entries.map { it.wireValue })
         assertEquals(listOf("any", "male", "female", "family"), LodgingGenderPolicy.entries.map { it.wireValue })
         assertEquals(
-            listOf("tent", "stage", "dining", "firstAid", "restroom", "parking", "water", "program", "info", "other"),
+            listOf("tent", "stage", "dining", "firstAid", "restroom", "parking", "water", "program", "info", "other", "custom"),
             VenueCategory.entries.map { it.wireValue },
         )
         assertEquals(listOf("photo", "video"), MediaKind.entries.map { it.wireValue })

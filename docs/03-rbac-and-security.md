@@ -94,8 +94,8 @@ below the table.
 
 ¹ Raw announcement create/edit permissions are role-level. Camping-scoped
 announcement management uses `canManageAnnouncements(for:)`, which scopes
-non-admin leadership to own-church campings and also allows the camping
-creator.
+non-admin leadership to own-church campings. Camping ownership alone does
+not grant announcement publishing access.
 
 Derived helpers are **not** enum cases:
 
@@ -109,7 +109,7 @@ Derived helpers are **not** enum cases:
   `canEditCamping` for the current camp and, unless the user is the camp
   creator, `canCreateCamping` for the proposed organizer.
 - `canEditCamping`, `canManageSchedule`, `canManageTeams`,
-  `canManageAnnouncements`, `canApproveRegistrations`, and
+  `canApproveRegistrations`, and
   `canViewParticipantProfiles` allow `createdByUID == auth.uid`, matching
   iOS creator-owned camping behavior.
 

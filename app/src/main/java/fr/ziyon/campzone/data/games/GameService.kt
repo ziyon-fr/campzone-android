@@ -5,9 +5,12 @@ import com.google.firebase.firestore.Query
 import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.ActivityPayload
 import fr.ziyon.campzone.data.model.Game
+import fr.ziyon.campzone.data.model.GameInstructions
+import fr.ziyon.campzone.data.model.GameInstructionsPayload
 import fr.ziyon.campzone.data.model.GamePayload
 import fr.ziyon.campzone.data.model.toActivityOrNull
 import fr.ziyon.campzone.data.model.toGameOrNull
+import fr.ziyon.campzone.data.model.toGameInstructions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +37,13 @@ interface GameService {
     suspend fun loadActivitiesForGame(gameId: String, campingId: String): List<Activity>
     suspend fun recordActivity(activity: Activity): Activity
     suspend fun deleteActivities(ids: List<String>, campingId: String)
+    suspend fun loadInstructions(gameId: String, campingId: String): GameInstructions?
+    suspend fun saveInstructions(
+        instructions: GameInstructions,
+        gameId: String,
+        campingId: String,
+    ): GameInstructions
+    suspend fun deleteInstructions(gameId: String, campingId: String)
 }
 
 class FirestoreGameService @Inject constructor(
@@ -133,20 +143,48 @@ class FirestoreGameService @Inject constructor(
         }
     }
 
+    override suspend fun loadInstructions(gameId: String, campingId: String): GameInstructions? {
+        val snapshot = instructionsDocument(campingId, gameId).get().await()
+        return snapshot.data?.toGameInstructions()
+    }
+
+    override suspend fun saveInstructions(
+        instructions: GameInstructions,
+        gameId: String,
+        campingId: String,
+    ): GameInstructions {
+        instructionsDocument(campingId, gameId)
+            .set(GameInstructionsPayload.instructionsPayload(instructions))
+            .await()
+        return instructions
+    }
+
+    override suspend fun deleteInstructions(gameId: String, campingId: String) {
+        instructionsDocument(campingId, gameId).delete().await()
+    }
+
     private fun gamesCollection(campingId: String) =
         db.collection("campings").document(campingId).collection("games")
 
     private fun activitiesCollection(campingId: String) =
         db.collection("campings").document(campingId).collection("activities")
+
+    private fun instructionsDocument(campingId: String, gameId: String) =
+        gamesCollection(campingId)
+            .document(gameId)
+            .collection("staffInstructions")
+            .document("config")
 }
 
 class FakeGameService(
     games: List<Game> = emptyList(),
     activities: List<Activity> = emptyList(),
+    instructions: Map<Pair<String, String>, GameInstructions> = emptyMap(),
     var shouldFail: Boolean = false,
 ) : GameService {
     private val gamesByCampingId = MutableStateFlow(games.groupBy { it.campingId })
     private val activitiesByCampingId = MutableStateFlow(activities.groupBy { it.campingId })
+    private val instructionsByKey = MutableStateFlow(instructions)
 
     private fun check() { if (shouldFail) throw Exception("FakeGameService configured to fail.") }
 
@@ -217,6 +255,26 @@ class FakeGameService(
         activitiesByCampingId.update { map ->
             map + (campingId to (map[campingId] ?: emptyList()).filterNot { it.id in idSet })
         }
+    }
+
+    override suspend fun loadInstructions(gameId: String, campingId: String): GameInstructions? {
+        check()
+        return instructionsByKey.value[campingId to gameId]
+    }
+
+    override suspend fun saveInstructions(
+        instructions: GameInstructions,
+        gameId: String,
+        campingId: String,
+    ): GameInstructions {
+        check()
+        instructionsByKey.update { it + ((campingId to gameId) to instructions) }
+        return instructions
+    }
+
+    override suspend fun deleteInstructions(gameId: String, campingId: String) {
+        check()
+        instructionsByKey.update { it - (campingId to gameId) }
     }
 }
 

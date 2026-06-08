@@ -8,11 +8,15 @@ import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.camping.CampingService
+import fr.ziyon.campzone.data.games.GameService
 import fr.ziyon.campzone.data.media.ImageUploader
 import fr.ziyon.campzone.data.model.VenueCategory
+import fr.ziyon.campzone.data.model.VenueIconCatalog
 import fr.ziyon.campzone.data.model.VenueMap
 import fr.ziyon.campzone.data.model.VenuePoint
+import fr.ziyon.campzone.data.model.visibleForGameLocationRules
 import fr.ziyon.campzone.data.venuemap.VenueMapService
+import fr.ziyon.campzone.data.venuemap.ParsedGpxPoint
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -28,16 +32,40 @@ import kotlinx.coroutines.launch
 data class VenuePointForm(
     val name: String = "",
     val category: VenueCategory = VenueCategory.Other,
+    val customCategoryName: String = "",
+    val customIconName: String = VenueIconCatalog.defaultIconName,
     val note: String = "",
+    val latitudeText: String = "",
+    val longitudeText: String = "",
 ) {
     val trimmedName: String get() = name.trim()
-    val isValid: Boolean get() = trimmedName.isNotEmpty()
+    val trimmedCustomCategoryName: String get() = customCategoryName.trim()
+    val hasCoordinateInput: Boolean
+        get() = latitudeText.isNotBlank() || longitudeText.isNotBlank()
+    val parsedCoordinate: Pair<Double, Double>?
+        get() {
+            val lat = latitudeText.trim().toDoubleOrNull()
+            val lon = longitudeText.trim().toDoubleOrNull()
+            return if (lat != null && lon != null && lat in -90.0..90.0 && lon in -180.0..180.0) {
+                lat to lon
+            } else {
+                null
+            }
+        }
+    val isValid: Boolean
+        get() = trimmedName.isNotEmpty() &&
+            (category != VenueCategory.Custom || trimmedCustomCategoryName.isNotEmpty()) &&
+            (!hasCoordinateInput || parsedCoordinate != null)
 
     companion object {
         fun of(point: VenuePoint) = VenuePointForm(
             name = point.name,
             category = point.category,
+            customCategoryName = point.customCategoryName.orEmpty(),
+            customIconName = point.customIconName ?: VenueIconCatalog.defaultIconName,
             note = point.note,
+            latitudeText = point.latitude?.toString().orEmpty(),
+            longitudeText = point.longitude?.toString().orEmpty(),
         )
     }
 }
@@ -77,6 +105,7 @@ sealed interface VenueMapUiState {
 class VenueMapViewModel @Inject constructor(
     private val service: VenueMapService,
     private val campingService: CampingService,
+    private val gameService: GameService,
     private val imageUploader: ImageUploader,
 ) : ViewModel() {
 
@@ -88,8 +117,10 @@ class VenueMapViewModel @Inject constructor(
     private var campingId: String = ""
     private var user: AuthenticatedUser? = null
     private var canManage: Boolean = false
+    private var canManageGames: Boolean = false
     private var campLatitude: Double? = null
     private var campLongitude: Double? = null
+    private var gamesForVisibility = emptyList<fr.ziyon.campzone.data.model.Game>()
     private var observeJob: Job? = null
     private var loadedKey: Pair<String, String>? = null
 
@@ -112,8 +143,11 @@ class VenueMapViewModel @Inject constructor(
                     val permissionUser = PermissionUser(user.role, user.uid, user.church)
                     canManage = permissions.canManageTeams(permissionUser, context) ||
                         permissions.canManageSchedule(permissionUser, context)
+                    canManageGames = permissions.canManageGames(permissionUser, context)
                     campLatitude = camping.locationLatitude
                     campLongitude = camping.locationLongitude
+                    gamesForVisibility = runCatching { gameService.loadGames(campingId) }
+                        .getOrDefault(emptyList())
                     observeMap()
                 }
                 .onFailure {
@@ -121,8 +155,10 @@ class VenueMapViewModel @Inject constructor(
                     // a transient failure there must not hide a published map, so fall
                     // back to a read-only (non-managing) view and still stream the map.
                     canManage = false
+                    canManageGames = false
                     campLatitude = null
                     campLongitude = null
+                    gamesForVisibility = emptyList()
                     observeMap()
                 }
         }
@@ -142,11 +178,15 @@ class VenueMapViewModel @Inject constructor(
                     _uiState.value = VenueMapUiState.Error(error.message ?: DEFAULT_ERROR)
                 }
                 .collect { map ->
+                    val visibleMap = map.visibleForGameLocationRules(
+                        games = gamesForVisibility,
+                        canSeeHiddenGameLocations = canManage || canManageGames,
+                    )
                     _uiState.update { current ->
                         val ready = current as? VenueMapUiState.Ready
                         VenueMapUiState.Ready(
                             campingId = campingId,
-                            map = map,
+                            map = visibleMap,
                             canManage = canManage,
                             campLatitude = campLatitude,
                             campLongitude = campLongitude,
@@ -188,19 +228,42 @@ class VenueMapViewModel @Inject constructor(
             points[index] = points[index].copy(
                 name = form.trimmedName,
                 category = form.category,
+                customCategoryName = form.resolvedCustomCategoryName(),
+                customIconName = form.resolvedCustomIconName(),
                 note = form.note.trim(),
+                latitude = form.parsedCoordinate?.first,
+                longitude = form.parsedCoordinate?.second,
             )
         } else {
             points += VenuePoint(
                 id = UUID.randomUUID().toString(),
                 name = form.trimmedName,
                 category = form.category,
+                customCategoryName = form.resolvedCustomCategoryName(),
+                customIconName = form.resolvedCustomIconName(),
                 note = form.note.trim(),
                 imageX = imageX?.coerceIn(0.0, 1.0),
                 imageY = imageY?.coerceIn(0.0, 1.0),
+                latitude = form.parsedCoordinate?.first,
+                longitude = form.parsedCoordinate?.second,
             )
         }
         persist(ready.map.copy(points = points), MSG_SAVED)
+    }
+
+    fun importGpxPoints(parsedPoints: List<ParsedGpxPoint>) {
+        if (parsedPoints.isEmpty()) return
+        val ready = _uiState.value as? VenueMapUiState.Ready ?: return
+        val imported = parsedPoints.map { point ->
+            VenuePoint(
+                id = UUID.randomUUID().toString(),
+                name = point.name,
+                category = VenueCategory.Other,
+                latitude = point.latitude,
+                longitude = point.longitude,
+            )
+        }
+        persist(ready.map.copy(points = ready.map.points + imported), MSG_IMPORTED)
     }
 
     fun deletePoint(id: String) {
@@ -317,7 +380,14 @@ class VenueMapViewModel @Inject constructor(
         const val MSG_MOVED = "Pin moved."
         const val MSG_COORD_SET = "Map location set."
         const val MSG_COORD_CLEARED = "Map location cleared."
+        const val MSG_IMPORTED = "GPX locations imported."
         const val MSG_IMAGE_UPDATED = "Site map updated."
         const val MSG_IMAGE_REMOVED = "Site map removed."
     }
 }
+
+private fun VenuePointForm.resolvedCustomCategoryName(): String? =
+    if (category == VenueCategory.Custom) trimmedCustomCategoryName.takeUnless { it.isBlank() } else null
+
+private fun VenuePointForm.resolvedCustomIconName(): String? =
+    if (category == VenueCategory.Custom) customIconName.takeUnless { it.isBlank() } else null

@@ -71,7 +71,10 @@
       "Bash(git commit *)",
       "Bash(echo \"gradle_exit=$?\")",
       "Bash(git merge *)",
-      "Bash(./gradlew :app:testDebugUnitTest --tests \"fr.ziyon.campzone.data.model.CheckInQrTest\" --tests \"fr.ziyon.campzone.data.model.CheckInRecordPayloadTest\" --tests \"fr.ziyon.campzone.ui.checkin.CheckInViewModelTest\")"
+      "Bash(./gradlew :app:testDebugUnitTest --tests \"fr.ziyon.campzone.data.model.CheckInQrTest\" --tests \"fr.ziyon.campzone.data.model.CheckInRecordPayloadTest\" --tests \"fr.ziyon.campzone.ui.checkin.CheckInViewModelTest\")",
+      "Read(//tmp/**)",
+      "Bash(cd /Users/leon/AndroidStudioProjects/Campzone; export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"; ./gradlew :app:assembleDebug --console=plain > /tmp/rt_assemble2.log 2>&1; echo \"EXIT=$?\"; tail -n 20 /tmp/rt_assemble2.log)",
+      "Bash(cd /Users/leon/AndroidStudioProjects/Campzone; sed -n '/data class Activity\\(/,/^\\)/p' app/src/main/java/fr/ziyon/campzone/data/model/*.kt | head -40)"
     ]
   }
 }

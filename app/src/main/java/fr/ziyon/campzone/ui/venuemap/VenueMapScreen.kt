@@ -34,6 +34,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -41,6 +42,8 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -75,6 +78,9 @@ import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.data.venuemap.DirectionsTarget
+import fr.ziyon.campzone.data.venuemap.ExternalMapsApp
+import fr.ziyon.campzone.data.venuemap.ExternalNavigationLauncher
 import fr.ziyon.campzone.data.model.VenueMap
 import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.model.hasContent
@@ -217,6 +223,14 @@ private fun VenueMapContent(
 ) {
     val context = LocalContext.current
     var mode by rememberSaveable { mutableStateOf(VenueMapMode.Illustration) }
+    var directionsTarget by remember { mutableStateOf<DirectionsTarget?>(null) }
+
+    directionsTarget?.let { target ->
+        ExternalDirectionsSheet(
+            target = target,
+            onDismiss = { directionsTarget = null },
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -240,7 +254,11 @@ private fun VenueMapContent(
             ) {
                 when (mode) {
                     VenueMapMode.Illustration -> IllustrationMode(state, onSelectPoint)
-                    VenueMapMode.Map -> MapMode(state, onSelectPoint)
+                    VenueMapMode.Map -> MapMode(
+                        state = state,
+                        onSelectPoint = onSelectPoint,
+                        onRouteTo = { directionsTarget = it },
+                    )
                 }
             }
         }
@@ -256,8 +274,15 @@ private fun VenueMapContent(
                 footer = if (selected.hasCoordinate) {
                     {
                         CzButton(
-                            text = stringResource(R.string.venue_open_in_maps),
-                            onClick = { openInMaps(context, selected) },
+                            text = stringResource(R.string.venue_route),
+                            onClick = {
+                                directionsTarget = DirectionsTarget(
+                                    id = selected.id,
+                                    name = selected.name,
+                                    latitude = selected.latitude!!,
+                                    longitude = selected.longitude!!,
+                                )
+                            },
                             variant = CzButtonVariant.Outline,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -357,6 +382,7 @@ private fun IllustrationMode(
 private fun MapMode(
     state: VenueMapUiState.Ready,
     onSelectPoint: (String?) -> Unit,
+    onRouteTo: (DirectionsTarget) -> Unit,
 ) {
     val context = LocalContext.current
     val map = state.map
@@ -436,7 +462,20 @@ private fun MapMode(
         VenueOsmMap(
             center = center,
             markers = markers,
-            onMarkerClick = { id -> if (id != CAMP_MARKER_ID) onSelectPoint(id) },
+            onMarkerClick = { id ->
+                if (id == CAMP_MARKER_ID && campLat != null && campLon != null) {
+                    onRouteTo(
+                        DirectionsTarget(
+                            id = CAMP_MARKER_ID,
+                            name = campMarkerLabel,
+                            latitude = campLat,
+                            longitude = campLon,
+                        ),
+                    )
+                } else {
+                    onSelectPoint(id)
+                }
+            },
             controller = controller,
             userLocationEnabled = locationGranted,
             routePoints = route?.points ?: emptyList(),
@@ -616,20 +655,139 @@ private fun NoImageNotice() {
     }
 }
 
-/** Hands the pin's coordinate to the user's installed maps app (native Android
- *  stand-in for the iOS in-app MapKit overlay + directions). */
-private fun openInMaps(context: android.content.Context, point: VenuePoint) {
-    val lat = point.latitude ?: return
-    val lon = point.longitude ?: return
-    val label = Uri.encode(point.name)
-    val uri = "geo:$lat,$lon?q=$lat,$lon($label)".toUri()
-    val intent = Intent(Intent.ACTION_VIEW, uri)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExternalDirectionsSheet(
+    target: DirectionsTarget,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val apps = remember(target) { availableDirectionsApps(context, target) }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.czColors.background,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = CzSpacing.lg)
+                .padding(bottom = CzSpacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.venue_directions_title),
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            }
+            apps.forEach { app ->
+                Surface(
+                    onClick = {
+                        openExternalDirections(context, target, app)
+                        onDismiss()
+                    },
+                    color = MaterialTheme.czColors.surface,
+                    shape = RoundedCornerShape(CzRadius.lg),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(CzSpacing.md),
+                        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = when (app) {
+                                ExternalMapsApp.GoogleMaps,
+                                ExternalMapsApp.GoogleMapsWeb,
+                                ExternalMapsApp.Geo -> Icons.Filled.Map
+                                ExternalMapsApp.Waze -> Icons.Filled.DirectionsCar
+                            },
+                            contentDescription = null,
+                            tint = MaterialTheme.czColors.ember,
+                            modifier = Modifier.size(28.dp),
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = app.displayName(),
+                                color = MaterialTheme.czColors.textPrimary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = stringResource(R.string.venue_route_to, target.name),
+                                color = MaterialTheme.czColors.textSecondary,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun availableDirectionsApps(
+    context: android.content.Context,
+    target: DirectionsTarget,
+): List<ExternalMapsApp> {
+    val packageManager = context.packageManager
+    val googleNative = Intent(
+        Intent.ACTION_VIEW,
+        ExternalNavigationLauncher.uriFor(target, ExternalMapsApp.GoogleMaps),
+    ).setPackage("com.google.android.apps.maps")
+    val waze = Intent(
+        Intent.ACTION_VIEW,
+        ExternalNavigationLauncher.uriFor(target, ExternalMapsApp.Waze),
+    ).setPackage("com.waze")
+    return buildList {
+        if (googleNative.resolveActivity(packageManager) != null) add(ExternalMapsApp.GoogleMaps)
+        add(ExternalMapsApp.GoogleMapsWeb)
+        if (waze.resolveActivity(packageManager) != null) add(ExternalMapsApp.Waze)
+        add(ExternalMapsApp.Geo)
+    }
+}
+
+private fun openExternalDirections(
+    context: android.content.Context,
+    target: DirectionsTarget,
+    app: ExternalMapsApp,
+) {
+    val intent = Intent(Intent.ACTION_VIEW, ExternalNavigationLauncher.uriFor(target, app)).apply {
+        when (app) {
+            ExternalMapsApp.GoogleMaps -> setPackage("com.google.android.apps.maps")
+            ExternalMapsApp.Waze -> setPackage("com.waze")
+            else -> Unit
+        }
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
     runCatching { context.startActivity(intent) }
         .onFailure {
             context.startActivity(
-                Intent(Intent.ACTION_VIEW, "https://www.google.com/maps/search/?api=1&query=$lat,$lon".toUri()),
+                Intent(
+                    Intent.ACTION_VIEW,
+                    ExternalNavigationLauncher.uriFor(target, ExternalMapsApp.GoogleMapsWeb),
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }
+}
+
+@Composable
+private fun ExternalMapsApp.displayName(): String = when (this) {
+    ExternalMapsApp.GoogleMaps -> stringResource(R.string.venue_directions_google_maps)
+    ExternalMapsApp.GoogleMapsWeb -> stringResource(R.string.venue_directions_google_maps_web)
+    ExternalMapsApp.Waze -> stringResource(R.string.venue_directions_waze)
+    ExternalMapsApp.Geo -> stringResource(R.string.venue_directions_other)
 }
 
 @Preview
@@ -655,8 +813,31 @@ internal fun previewMap(): VenueMap = VenueMap(
     campingId = "c1",
     imageUrl = "https://example.com/site.jpg",
     points = listOf(
-        VenuePoint("p1", "Main Stage", fr.ziyon.campzone.data.model.VenueCategory.Stage, "Evening worship", 0.5, 0.32, 45.9, 6.13),
-        VenuePoint("p2", "Dining Hall", fr.ziyon.campzone.data.model.VenueCategory.Dining, "Meals", 0.28, 0.6),
-        VenuePoint("p3", "Medic Tent", fr.ziyon.campzone.data.model.VenueCategory.FirstAid, "24h", 0.72, 0.58),
+        VenuePoint(
+            id = "p1",
+            name = "Main Stage",
+            category = fr.ziyon.campzone.data.model.VenueCategory.Stage,
+            note = "Evening worship",
+            imageX = 0.5,
+            imageY = 0.32,
+            latitude = 45.9,
+            longitude = 6.13,
+        ),
+        VenuePoint(
+            id = "p2",
+            name = "Dining Hall",
+            category = fr.ziyon.campzone.data.model.VenueCategory.Dining,
+            note = "Meals",
+            imageX = 0.28,
+            imageY = 0.6,
+        ),
+        VenuePoint(
+            id = "p3",
+            name = "Medic Tent",
+            category = fr.ziyon.campzone.data.model.VenueCategory.FirstAid,
+            note = "24h",
+            imageX = 0.72,
+            imageY = 0.58,
+        ),
     ),
 )

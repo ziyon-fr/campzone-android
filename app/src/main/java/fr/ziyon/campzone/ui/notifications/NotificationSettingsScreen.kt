@@ -74,11 +74,16 @@ fun NotificationSettingsRoute(
     val uiState by viewModel.uiState.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
     val operationMessage by viewModel.operationMessage.collectAsState()
+    val channels by viewModel.channels.collectAsState()
 
-    LaunchedEffect(uid) { viewModel.load(uid, role) }
+    LaunchedEffect(uid, role) {
+        viewModel.load(uid, role)
+        viewModel.loadChannelsIfNeeded()
+    }
 
     NotificationSettingsScreen(
         uiState = uiState,
+        channels = channels,
         isSaving = isSaving,
         operationMessage = operationMessage,
         onBack = onBack,
@@ -96,6 +101,7 @@ fun NotificationSettingsRoute(
 @Composable
 fun NotificationSettingsScreen(
     uiState: NotificationSettingsUiState,
+    channels: NotificationChannelsState,
     isSaving: Boolean,
     operationMessage: NotificationOpMessage?,
     onBack: () -> Unit,
@@ -172,6 +178,7 @@ fun NotificationSettingsScreen(
                 is NotificationSettingsUiState.Loaded -> NotificationSettingsContent(
                     settings = uiState.settings,
                     roleOptions = uiState.roleOptions,
+                    channels = channels,
                     onSetMaster = onSetMaster,
                     onSetCategory = onSetCategory,
                     onToggleRole = onToggleRole,
@@ -188,6 +195,7 @@ fun NotificationSettingsScreen(
 private fun NotificationSettingsContent(
     settings: NotificationSettings,
     roleOptions: List<UserRole>,
+    channels: NotificationChannelsState,
     onSetMaster: (Boolean) -> Unit,
     onSetCategory: (NotificationCategory, Boolean) -> Unit,
     onToggleRole: (UserRole, Boolean) -> Unit,
@@ -196,6 +204,12 @@ private fun NotificationSettingsContent(
     onOpenTeamChannels: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
+    val activeCampingChannelCount = settings.subscribedCampingIds.count { subscribedId ->
+        channels.campings.any { it.id == subscribedId }
+    }
+    val activeTeamChannelCount = settings.subscribedTeamIds.count { subscribedId ->
+        channels.personalTeams.any { it.team.id == subscribedId }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -307,20 +321,34 @@ private fun NotificationSettingsContent(
                     icon = Icons.Rounded.Cabin,
                     title = stringResource(R.string.notif_chan_camping_title),
                     description = stringResource(R.string.notif_chan_camping_desc),
-                    value = channelValueText(settings.subscribedCampingIds.size),
-                    enabled = settings.isEnabled,
+                    value = campingChannelValueText(
+                        selectedCount = activeCampingChannelCount,
+                        availableCount = channels.campings.size,
+                    ),
+                    enabled = settings.isEnabled && channels.campings.isNotEmpty(),
                     onClick = onOpenCampingChannels,
                 )
                 NotificationNavRow(
                     icon = Icons.Rounded.Groups,
                     title = stringResource(R.string.notif_chan_team_title),
                     description = stringResource(R.string.notif_chan_team_desc),
-                    value = channelValueText(settings.subscribedTeamIds.size),
-                    enabled = settings.isEnabled,
+                    value = teamChannelValueText(
+                        selectedCount = activeTeamChannelCount,
+                        availableCount = channels.personalTeams.size,
+                    ),
+                    enabled = settings.isEnabled &&
+                        channels.campings.isNotEmpty() &&
+                        channels.personalTeams.isNotEmpty(),
                     onClick = onOpenTeamChannels,
                 )
                 Text(
-                    text = stringResource(R.string.notif_channels_footer),
+                    text = stringResource(
+                        if (channels.campings.isEmpty()) {
+                            R.string.notif_channels_footer_empty
+                        } else {
+                            R.string.notif_channels_footer
+                        },
+                    ),
                     color = colors.textSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -332,9 +360,19 @@ private fun NotificationSettingsContent(
 }
 
 @Composable
-private fun channelValueText(selectedCount: Int): String =
-    if (selectedCount == 0) {
+private fun campingChannelValueText(selectedCount: Int, availableCount: Int): String =
+    if (availableCount == 0) {
+        stringResource(R.string.notif_value_not_attending)
+    } else if (selectedCount == 0) {
         stringResource(R.string.notif_value_all)
+    } else {
+        stringResource(R.string.notif_value_selected, selectedCount)
+    }
+
+@Composable
+private fun teamChannelValueText(selectedCount: Int, availableCount: Int): String =
+    if (availableCount == 0 || selectedCount == 0) {
+        stringResource(R.string.notif_value_none)
     } else {
         stringResource(R.string.notif_value_selected, selectedCount)
     }
@@ -435,6 +473,7 @@ private fun NotificationSettingsScreenPreview() {
                 settings = NotificationSettings(subscribedRoles = listOf(UserRole.Admin)),
                 roleOptions = UserRole.allWireRoles.toList(),
             ),
+            channels = NotificationChannelsState(),
             isSaving = false,
             operationMessage = null,
             onBack = {},

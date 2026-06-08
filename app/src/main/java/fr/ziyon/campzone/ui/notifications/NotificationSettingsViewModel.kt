@@ -74,6 +74,7 @@ class NotificationSettingsViewModel @Inject constructor(
                 .onSuccess { settings ->
                     loadedUid = uid
                     emitLoaded(settings)
+                    pruneUnavailableChannelsIfNeeded()
                 }
                 .onFailure { error ->
                     _uiState.value = NotificationSettingsUiState.Error(
@@ -118,7 +119,7 @@ class NotificationSettingsViewModel @Inject constructor(
 
     /** Lazily loads camping/team channel options the first time a picker opens. */
     fun loadChannelsIfNeeded() {
-        if (channelsLoadedUid == uid && _channels.value.campings.isNotEmpty()) return
+        if (channelsLoadedUid == uid) return
         if (_channels.value.isLoading) return
         viewModelScope.launch {
             _channels.value = _channels.value.copy(isLoading = true)
@@ -130,6 +131,7 @@ class NotificationSettingsViewModel @Inject constructor(
                 campings = campings,
                 personalTeams = teams,
             )
+            pruneUnavailableChannelsIfNeeded()
         }
     }
 
@@ -137,9 +139,16 @@ class NotificationSettingsViewModel @Inject constructor(
         _operationMessage.value = null
     }
 
-    private fun update(mutation: (NotificationSettings) -> NotificationSettings) {
+    private fun update(
+        showFeedback: Boolean = true,
+        mutation: (NotificationSettings) -> NotificationSettings,
+    ) {
         val current = (_uiState.value as? NotificationSettingsUiState.Loaded)?.settings ?: return
         val mutated = mutation(current)
+        if (mutated == current) {
+            emitLoaded(mutated)
+            return
+        }
         // Optimistically reflect the change, then persist.
         emitLoaded(mutated)
         viewModelScope.launch {
@@ -147,14 +156,31 @@ class NotificationSettingsViewModel @Inject constructor(
             runCatching { service.save(mutated, uid, role) }
                 .onSuccess { saved ->
                     emitLoaded(saved)
-                    _operationMessage.value = NotificationOpMessage.Saved
+                    if (showFeedback) {
+                        _operationMessage.value = NotificationOpMessage.Saved
+                    }
                 }
                 .onFailure {
                     // Revert to the last known-good server state.
                     emitLoaded(current)
-                    _operationMessage.value = NotificationOpMessage.SaveFailed
+                    if (showFeedback) {
+                        _operationMessage.value = NotificationOpMessage.SaveFailed
+                    }
                 }
             _isSaving.value = false
+        }
+    }
+
+    private fun pruneUnavailableChannelsIfNeeded() {
+        if (channelsLoadedUid != uid) return
+        val availableCampingIds = _channels.value.campings.map { it.id }.toSet()
+        val availableTeamIds = _channels.value.personalTeams.map { it.team.id }.toSet()
+
+        update(showFeedback = false) { settings ->
+            settings.copy(
+                subscribedCampingIds = settings.subscribedCampingIds.filter { it in availableCampingIds },
+                subscribedTeamIds = settings.subscribedTeamIds.filter { it in availableTeamIds },
+            )
         }
     }
 

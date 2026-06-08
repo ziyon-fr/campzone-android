@@ -46,6 +46,7 @@ class SchedulePayloadTest {
             endDate = Date(start.time + 3_600_000),
             location = "Chapel",
             venuePointId = null,
+            linkedGameId = null,
         )
         val payload = SchedulePayload.programPayload(program, TS, DEL, includeCreatedAt = true)
 
@@ -54,6 +55,7 @@ class SchedulePayloadTest {
         assertFalse(payload["campDayID"] == "STALE-INBOUND-VALUE")
         assertEquals("prayer", payload["type"])
         assertEquals(DEL, payload["venuePointID"]) // delete-when-empty
+        assertEquals(DEL, payload["linkedGameID"]) // delete-when-empty
         assertEquals(TS, payload["createdAt"])
     }
 
@@ -71,6 +73,7 @@ class SchedulePayloadTest {
             location = "Field",
             description = "Capture the flag",
             venuePointId = "pin-3",
+            linkedGameId = "game-7",
         )
         val payload = SchedulePayload.programPayload(original, Date(8), DEL, includeCreatedAt = false)
         val decoded = payload.toProgramOrNull(documentId = "p1")!!
@@ -81,7 +84,77 @@ class SchedulePayloadTest {
         assertEquals(original.location, decoded.location)
         assertEquals(original.description, decoded.description)
         assertEquals("pin-3", decoded.venuePointId)
+        assertEquals("game-7", decoded.linkedGameId)
         assertEquals(original.campDayId, decoded.campDayId)
+    }
+
+    @Test
+    fun customProgramWritesPersonalizedTypeFields() {
+        val start = Date(1_700_000_000_000L)
+        val program = Program(
+            id = "p-custom",
+            campingId = "camp-1",
+            campDayId = DateKeys.campDayId("camp-1", start),
+            title = "Campfire Stories",
+            type = ProgramType.Custom,
+            startDate = start,
+            endDate = Date(start.time + 3_600_000),
+            location = "Fire ring",
+            customTypeName = "  Campfire  ",
+            customTypeSymbol = "flame.fill",
+            customTypeColorHex = "#E2582B",
+        )
+
+        val payload = SchedulePayload.programPayload(program, TS, DEL, includeCreatedAt = false)
+        val decoded = payload.toProgramOrNull(documentId = "p-custom")!!
+
+        assertEquals("Campfire", payload["customTypeName"])
+        assertEquals("flame.fill", payload["customTypeSymbol"])
+        assertEquals("#E2582B", payload["customTypeColorHex"])
+        assertEquals(ProgramType.Custom, decoded.type)
+        assertEquals("Campfire", decoded.customType?.trimmedName)
+        assertEquals("flame.fill", decoded.customType?.symbol)
+        assertEquals("#E2582B", decoded.customType?.colorHex)
+    }
+
+    @Test
+    fun builtInProgramDeletesPersonalizedTypeFields() {
+        val start = Date(1_700_000_000_000L)
+        val program = Program(
+            id = "p-built-in",
+            campingId = "camp-1",
+            campDayId = DateKeys.campDayId("camp-1", start),
+            title = "Prayer",
+            type = ProgramType.Prayer,
+            startDate = start,
+            endDate = Date(start.time + 1_800_000),
+            location = "Chapel",
+            customTypeName = "Stale custom",
+            customTypeSymbol = "sparkles",
+            customTypeColorHex = "#8D6E63",
+        )
+
+        val payload = SchedulePayload.programPayload(program, TS, DEL, includeCreatedAt = false)
+
+        assertEquals(DEL, payload["customTypeName"])
+        assertEquals(DEL, payload["customTypeSymbol"])
+        assertEquals(DEL, payload["customTypeColorHex"])
+    }
+
+    @Test
+    fun unknownProgramTypeFallsBackToOther() {
+        val start = Date(1_700_000_000_000L)
+        val decoded = mapOf(
+            "campingID" to "camp-1",
+            "campDayID" to DateKeys.campDayId("camp-1", start),
+            "title" to "Mystery",
+            "type" to "some-future-ios-type",
+            "startDate" to start,
+            "endDate" to Date(start.time + 3_600_000),
+            "location" to "Field",
+        ).toProgramOrNull(documentId = "p-future")!!
+
+        assertEquals(ProgramType.Other, decoded.type)
     }
 
     @Test
