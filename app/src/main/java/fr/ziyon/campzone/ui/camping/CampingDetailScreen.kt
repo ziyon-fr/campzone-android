@@ -89,6 +89,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -950,12 +951,14 @@ private fun DescriptionCard(
         contentPadding = PaddingValues(CzSpacing.lg),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
-            Text(
-                text = camping.description,
-                color = MaterialTheme.czColors.textSecondary,
-                style = MaterialTheme.typography.bodyMedium,
-                lineHeight = MaterialTheme.typography.bodyMedium.lineHeight,
-            )
+            if (camping.description.isNotBlank()) {
+                CampingMarkdownText(
+                    text = camping.description,
+                    textColor = MaterialTheme.czColors.textSecondary.toArgb(),
+                    modifier = Modifier.fillMaxWidth(),
+                    textSizeSp = 16f,
+                )
+            }
             TextButton(
                 onClick = { onOpenGuidelines(camping.id) },
                 contentPadding = PaddingValues(0.dp),

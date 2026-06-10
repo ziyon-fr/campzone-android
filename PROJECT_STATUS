@@ -3,6 +3,21 @@
 Updated: 2026-06-10
 
 - Branch: `venue-map-games-locations-instructions`
+- Follow-up completed: Android now renders camping descriptions as Markdown
+  in the Camping Detail overview and the Campings event-sheet preview, matching
+  iOS `CampingDetailView`'s `Markdown(camping.description)` behavior while
+  leaving the editor as a normal multiline text field like iOS.
+- Implementation: added a small shared `CampingMarkdownText` Markwon wrapper
+  for camping surfaces and reused the existing app markdown dependency.
+- Verification (JBR): `:app:lintDebug :app:assembleDebug` green.
+
+---
+
+# Project Status - Camping editor/list iOS parity follow-up
+
+Updated: 2026-06-10
+
+- Branch: `venue-map-games-locations-instructions`
 - Follow-up completed: Camping editor/list are aligned with the latest
   iOS camping UI changes after reviewing the current SwiftUI
   `CampingEditorView`, `CampingObserver`, `CampingDetailView`, `CampingsView`,

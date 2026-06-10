@@ -68,6 +68,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
@@ -751,12 +752,11 @@ private fun CampingEventSheet(
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.czColors.textPrimary,
                     )
-                    Text(
+                    CampingMarkdownText(
                         text = camping.description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.czColors.textSecondary,
+                        textColor = MaterialTheme.czColors.textSecondary.toArgb(),
+                        modifier = Modifier.fillMaxWidth(),
                         maxLines = 4,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
