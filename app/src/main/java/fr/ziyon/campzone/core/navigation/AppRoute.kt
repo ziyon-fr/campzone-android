@@ -282,6 +282,11 @@ sealed interface AppRoute {
         override val route = "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.CampingEdit}"
     }
 
+    data class CampingTemplateClone(val campingId: String) : AppRoute {
+        override val route =
+            "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.CampingTemplateClone}"
+    }
+
     data class CampingRegistration(val campingId: String) : AppRoute {
         override val route =
             "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.Registration}"
@@ -360,6 +365,22 @@ sealed interface AppRoute {
     ) : AppRoute {
         override val route =
             "${CampingSchedule(campingId).route}/${programId.asRouteSegment()}"
+    }
+
+    data class ProgramAttendance(
+        val campingId: String,
+        val programId: String,
+    ) : AppRoute {
+        override val route =
+            "${CampingScheduleProgram(campingId, programId).route}/${AppRoutePath.ProgramAttendance}"
+    }
+
+    data class ProgramAttendanceScanner(
+        val campingId: String,
+        val programId: String,
+    ) : AppRoute {
+        override val route =
+            "${CampingScheduleProgram(campingId, programId).route}/${AppRoutePath.ProgramAttendanceScanner}"
     }
 
     data class CampingScheduleProgramEditor(val campingId: String) : AppRoute {
@@ -523,8 +544,11 @@ internal object AppRoutePath {
     const val Attendees = "attendees"
     const val CampingCreate = "create"
     const val CampingEdit = "edit"
+    const val CampingTemplateClone = "template-clone"
     const val Schedule = "schedule"
     const val ProgramEditor = "program-editor"
+    const val ProgramAttendance = "attendance"
+    const val ProgramAttendanceScanner = "attendance-scanner"
     const val FoodMenu = "food-menu"
     const val Songbook = "songbook"
     const val SongEditor = "song-editor"
@@ -585,10 +609,15 @@ internal object AppRoutePattern {
     const val AttendeeProfile = "$CampingAttendees/{${AppRouteArgs.AttendeeId}}"
     const val CampingCreate = "${AppRoutePath.Campings}/${AppRoutePath.CampingCreate}"
     const val CampingEdit = "$CampingDetail/${AppRoutePath.CampingEdit}"
+    const val CampingTemplateClone = "$CampingDetail/${AppRoutePath.CampingTemplateClone}"
     const val CampingSchedule = "$CampingDetail/${AppRoutePath.Schedule}"
     const val CampingScheduleEditor = "$CampingSchedule/${AppRoutePath.CampingEdit}"
-    const val CampingScheduleProgram = "$CampingSchedule/{${AppRouteArgs.ProgramId}}"
     const val CampingScheduleProgramEditor = "$CampingSchedule/${AppRoutePath.ProgramEditor}"
+    const val ProgramAttendance =
+        "$CampingSchedule/{${AppRouteArgs.ProgramId}}/${AppRoutePath.ProgramAttendance}"
+    const val ProgramAttendanceScanner =
+        "$CampingSchedule/{${AppRouteArgs.ProgramId}}/${AppRoutePath.ProgramAttendanceScanner}"
+    const val CampingScheduleProgram = "$CampingSchedule/{${AppRouteArgs.ProgramId}}"
     const val CampingFoodMenu = "$CampingDetail/${AppRoutePath.FoodMenu}"
     const val CampingFoodMenuEditor = "$CampingFoodMenu/${AppRoutePath.CampingEdit}"
     const val CampingSongbook = "$CampingDetail/${AppRoutePath.Songbook}"

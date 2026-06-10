@@ -8,6 +8,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.i18n.StringProvider
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
+import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.data.analytics.AnalyticsService
 import fr.ziyon.campzone.data.analytics.NoOpAnalyticsService
@@ -167,11 +168,12 @@ class SongbookViewModel @Inject constructor(
     private var loadedCampingIds = mutableSetOf<String>()
     private var songsByCampingId = mutableMapOf<String, List<Song>>()
     private var campingTitleById = mutableMapOf<String, String>()
+    private var campingContextById = mutableMapOf<String, CampingPermissionContext>()
     private var mediaPlayer: MediaPlayer? = null
 
     fun loadIfNeeded(campingId: String, user: AuthenticatedUser? = null) {
-        updateCanManage(user)
         if (loadedCampingIds.contains(campingId) && _uiState.value !is SongbookUiState.Loading) {
+            updateCanManage(user, campingContextById[campingId])
             publish(campingId)
             return
         }
@@ -179,14 +181,21 @@ class SongbookViewModel @Inject constructor(
     }
 
     fun load(campingId: String, user: AuthenticatedUser? = null) {
-        updateCanManage(user)
         viewModelScope.launch {
             _uiState.value = SongbookUiState.Loading
             _operationError.value = null
             runCatching {
-                campingTitleById[campingId] = runCatching {
-                    campingService.fetchCamping(campingId).title
-                }.getOrDefault(stringProvider.get(R.string.common_camping))
+                val camping = runCatching { campingService.fetchCamping(campingId) }.getOrNull()
+                campingTitleById[campingId] = camping?.title ?: stringProvider.get(R.string.common_camping)
+                val campingContext = camping?.let {
+                    CampingPermissionContext(
+                        organizerLevelType = it.organizerLevel.type.wireValue,
+                        organizerLevelValue = it.organizerLevel.value,
+                        createdByUid = it.createdByUid,
+                    )
+                }
+                if (campingContext != null) campingContextById[campingId] = campingContext
+                updateCanManage(user, campingContext)
                 songsByCampingId[campingId] = songbookService.loadSongs(campingId)
                 loadedCampingIds.add(campingId)
                 publish(campingId)
@@ -598,11 +607,11 @@ class SongbookViewModel @Inject constructor(
         else SongbookUiState.Loaded(songs, title)
     }
 
-    private fun updateCanManage(user: AuthenticatedUser?) {
+    private fun updateCanManage(user: AuthenticatedUser?, camping: CampingPermissionContext?) {
         val permissionUser = user?.let {
             PermissionUser(role = it.role, userId = it.uid, church = it.church)
         }
-        _canManageSongbook.value = permissions.canManageSongs(permissionUser)
+        _canManageSongbook.value = permissions.canManageSongbook(permissionUser, camping)
     }
 
     private fun canManageOrWarn(): Boolean {

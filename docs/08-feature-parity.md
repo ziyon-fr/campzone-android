@@ -66,7 +66,7 @@ endpoints in `04-backend-api.md`; gates in `03-rbac-and-security.md`.
 | Venue map (illustration + MapKit/Map overlay, pins) + program↔venue link | `campings/{id}/venueMap/config`; program `venuePointID` |
 | Guardian “Family at Camp” live updates (read-only aggregate) | composes `registrations`+`checkIns`+`teams`+schedule (no new collection) |
 | Admin tools hub / onboarding checklist / moderation queue | - (UI over the above) |
-| F3 backlog (not yet on iOS) | analytics dashboard, camp templates, offline write queue, per-program attendance, sponsor surface, calendar export (EventKit→ICS on web), emergency hub, GDPR export |
+| F3 shipped / backlog | Shipped on iOS + Android: recurring camp templates and per-program attendance. Remaining backlog: analytics dashboard, offline write queue, sponsor surface, calendar export (EventKit→ICS on web), emergency hub, GDPR export |
 
 ## Cross-cutting (every phase)
 

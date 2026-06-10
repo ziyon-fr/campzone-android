@@ -173,7 +173,8 @@
 - [x] List screen: read `campings/{id}/songs`, ordered by `orderIndex`; highlight `isPinnedTheme`
 - [x] Detail screen: lyrics + chords render (ChordPro-ish); audio player; YouTube link; PDF link
 - [x] Favorites: `arrayUnion`/`arrayRemove` on `favoriteUserIDs`
-- [x] Admin writes only: `canManageSongs` (admin role only per `03`); create/edit/delete songs
+- [x] Scoped writes: `canManageSongbook` (admin, camp creator, or own-church
+  youth director/leader with the songbook permission); create/edit/delete songs
 - [x] Reorder: update `orderIndex` on drag
 - [x] Pin theme: set `isPinnedTheme: true` on selected song, batch-clear others
 - [x] Audio upload: `POST /cloudinary/sign` with `resourceType: "video"` → upload → write `audio` + `audioFiles[]`; `audio` delete-when-empty
@@ -357,6 +358,15 @@
 - [x] `id` field written on `users` doc for admin list decoder compatibility — stamped on the **admin** role-update only (`writeIdField`); the self-profile allowlist and `validChurchRoleAssignment` (affectedOnly role+updatedAt) forbid `id` on every other write path, so this is the only RBAC-compliant place
 - [x] Hub expanded (`AdminToolsScreen`): Operations (Setup Guide / Registration Review / Role Assignment) + Moderation + Infrastructure; restricted unless moderator OR admin-tools OR any-role-assigner; typed routes `RoleManagement`/`AdminOnboarding`; EN/FR/PT strings; build + unit tests (7 `RoleManagementViewModelTest`) + lint green
 
+### D8. F3 Recurring Camps + Program Attendance (`ui/camping/template/`, `ui/attendance/`) ✅
+
+- [x] Recurring camps/templates: camp-detail management exposes "Create recurring camp" for users who can create the target camp and copy at least one scoped section. The clone form defaults title/dates one year forward, registration status `closed`, validates title/date/content, and writes a fresh camping with live data reset.
+- [x] Template clone service: `CampingService.cloneCampingTemplate` writes the new camping doc with a client UUID, clears attendees/featured state/creator timestamps, shifts registration deadline, optionally copies guidelines, schedule config/days/programs, team shells, and songbook order/content. Schedule dates shift by day offset; venue/game links are cleared; team members/scores/penalties and song favorites are reset.
+- [x] Per-program attendance: program detail exposes attendance for `canManageCheckIns`; records live under `campings/{campingID}/programAttendance/{programID}/records/{attendeeID}` with doc ID = attendee ID. Scanner reuses the canonical check-in QR payload, validates camp, attendee/user id, approval status, duplicate state, and reports save failures distinctly.
+- [x] Attendance management UI: records screen shows present/missing counts, searchable present records, approved-but-missing attendee rows, manual mark-present, correction timestamp, and removal. Scanner route uses the shared camera preview and links back to records.
+- [x] RBAC parity: songbook writes now use the scoped iOS rule (`canManageSongbook`) so recurring templates can offer songbook copy only to admin, creator, or own-church youth director/leader. Localized EN/FR/PT/PT-BR strings added.
+- [x] Tests: `CampingTemplateCloneTest`, `CampingTemplateCloneViewModelTest`, `ProgramAttendanceViewModelTest`, and updated `AppPermissionEvaluatorTest` cover clone defaults/validation/live-state reset, scoped clone creation, QR success/duplicate/reject/save-failure retry, restricted users, and scoped songbook writes.
+
 ---
 
 ## Cross-Cutting (All Phases)
@@ -452,4 +462,5 @@ D4 Post-camp feedback ✅
 D5 Venue map ✅
 D6 Family at camp ✅
 D7 Admin hub ✅
+D8 F3 recurring camps + program attendance ✅
 ```

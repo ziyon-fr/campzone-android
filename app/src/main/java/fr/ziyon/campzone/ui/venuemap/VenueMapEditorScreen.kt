@@ -157,6 +157,10 @@ private fun VenueMapEditorScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val gpxReadError = stringResource(R.string.venue_gpx_read_error)
+    val gpxParseError = stringResource(R.string.venue_gpx_parse_error)
+    val locationDenied = stringResource(R.string.venue_location_denied)
+    val currentLocationError = stringResource(R.string.venue_current_location_error)
 
     var placement by remember { mutableStateOf<Placement?>(null) }
     var editorTarget by remember { mutableStateOf<PointEditorTarget?>(null) }
@@ -192,12 +196,12 @@ private fun VenueMapEditorScreen(
         scope.launch(Dispatchers.IO) {
             runCatching {
                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    ?: error(context.getString(R.string.venue_gpx_read_error))
+                    ?: error(gpxReadError)
                 GPXParser.parse(bytes)
             }.onSuccess { points ->
                 onImportGpxPoints(points)
             }.onFailure {
-                snackbar.showSnackbar(context.getString(R.string.venue_gpx_parse_error))
+                snackbar.showSnackbar(gpxParseError)
             }
         }
     }
@@ -207,13 +211,13 @@ private fun VenueMapEditorScreen(
         val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (!granted) {
-            scope.launch { snackbar.showSnackbar(context.getString(R.string.venue_location_denied)) }
+            scope.launch { snackbar.showSnackbar(locationDenied) }
             return@rememberLauncherForActivityResult
         }
         scope.launch {
             val location = runCatching { currentLocation(context) }.getOrNull()
             if (location == null) {
-                snackbar.showSnackbar(context.getString(R.string.venue_current_location_error))
+                snackbar.showSnackbar(currentLocationError)
             } else {
                 editorTarget = PointEditorTarget(
                     editingId = null,

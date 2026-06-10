@@ -32,9 +32,12 @@ import java.util.Calendar
 import java.util.Date
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 sealed interface ScheduleUiState {
@@ -119,37 +122,56 @@ class ScheduleViewModel @Inject constructor(
     private val schedules = mutableMapOf<String, CampingSchedule>()
     private val normalizedIds = mutableSetOf<String>()
     private var lastUser: AuthenticatedUser? = null
+    private var observeJob: Job? = null
+    private var observedCampingId: String? = null
 
     fun load(campingId: String, user: AuthenticatedUser? = null) {
         if (user != null) lastUser = user
-        viewModelScope.launch {
-            _uiState.value = ScheduleUiState.Loading
-            _operationError.value = null
-            runCatching {
-                val schedule = scheduleService.loadSchedule(campingId)
-                val camping = runCatching { campingService.fetchCamping(campingId) }.getOrNull()
-                val normalized = if (camping != null) schedule.normalizedForCamping(camping, ::defaultDayTitle) else schedule
-                schedules[campingId] = normalized
-                updateCanManage(lastUser, camping)
-                _venuePoints.value = runCatching { venueMapService.loadMap(campingId).points }
-                    .getOrDefault(emptyList())
-                _games.value = runCatching { gameService.loadGames(campingId) }
-                    .getOrDefault(emptyList())
-                publishSchedule(campingId)
-            }.onFailure { e ->
-                _uiState.value = ScheduleUiState.Error(
-                    e.message ?: stringProvider.get(R.string.schedule_load_error)
-                )
-            }
-        }
+        observeSchedule(campingId, showLoading = true)
     }
 
     fun loadIfNeeded(campingId: String, user: AuthenticatedUser? = null) {
         if (user != null) lastUser = user
-        if (schedules.containsKey(campingId)) {
+        if (observedCampingId == campingId && observeJob?.isActive == true) {
             publishSchedule(campingId)
-        } else {
-            load(campingId, user)
+            return
+        }
+        observeSchedule(campingId, showLoading = !schedules.containsKey(campingId))
+    }
+
+    private fun observeSchedule(campingId: String, showLoading: Boolean) {
+        observedCampingId = campingId
+        observeJob?.cancel()
+        observeJob = viewModelScope.launch {
+            if (showLoading) _uiState.value = ScheduleUiState.Loading
+            _operationError.value = null
+            runCatching {
+                _venuePoints.value = runCatching { venueMapService.loadMap(campingId).points }
+                    .getOrDefault(emptyList())
+                _games.value = runCatching { gameService.loadGames(campingId) }
+                    .getOrDefault(emptyList())
+            }.onFailure { e ->
+                _operationError.value = e.message
+            }
+            try {
+                combine(
+                    scheduleService.observeSchedule(campingId),
+                    campingService.observeCamping(campingId),
+                ) { schedule, camping ->
+                    val normalized = schedule.normalizedForCamping(camping, ::defaultDayTitle)
+                    camping to normalized
+                }.collect { (camping, schedule) ->
+                    schedules[campingId] = schedule
+                    updateCanManage(lastUser, camping)
+                    publishSchedule(campingId)
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (e: Exception) {
+                _uiState.value = ScheduleUiState.Error(
+                    e.message ?: stringProvider.get(R.string.schedule_load_error),
+                )
+            }
         }
     }
 
@@ -173,6 +195,11 @@ class ScheduleViewModel @Inject constructor(
                 loadIfNeeded(campingId, user)
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        observeJob?.cancel()
     }
 
     fun setSelectedDayId(dayId: String?) {

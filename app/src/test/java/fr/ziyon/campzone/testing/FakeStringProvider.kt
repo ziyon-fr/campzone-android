@@ -51,6 +51,15 @@ class FakeStringProvider : StringProvider {
             R.string.songbook_audio_play_error -> "This song could not be played."
             R.string.songbook_audio_missing -> "This song does not have playable audio yet."
             R.string.songbook_restricted_message -> "Only admins can manage the songbook."
+            R.string.program_not_found_message -> "The selected schedule program could not be loaded."
+            R.string.program_attendance_load_failed -> "Program attendance could not be loaded."
+            R.string.program_attendance_recorded -> "Attendance recorded."
+            R.string.program_attendance_corrected -> "Attendance corrected."
+            R.string.program_attendance_removed -> "Attendance removed."
+            R.string.program_attendance_save_failed -> "Attendance could not be saved."
+            R.string.program_attendance_remove_failed -> "Attendance could not be removed."
+            R.string.camping_template_load_failed -> "Template camp could not be loaded."
+            R.string.camping_template_create_failed -> "Template camp could not be created."
             else -> ""
         }
         return if (args.isEmpty()) value else value.format(*args)

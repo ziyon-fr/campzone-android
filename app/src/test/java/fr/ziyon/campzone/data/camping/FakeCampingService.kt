@@ -7,10 +7,14 @@ import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.RegistrationSubmission
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
+import fr.ziyon.campzone.data.model.CampingTemplateCloneRequest
 import fr.ziyon.campzone.data.model.TransportationMode
+import fr.ziyon.campzone.data.model.templateClone
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 /** In-memory [CampingService] for ViewModel tests and previews. */
@@ -22,6 +26,7 @@ class FakeCampingService(
 ) : CampingService {
 
     private val campings = MutableStateFlow(initial)
+    private val attendeesVersion = MutableStateFlow(0)
     private val attendeeStore = attendeesByCamping
         .mapValues { it.value.toMutableList() }
         .toMutableMap()
@@ -31,12 +36,13 @@ class FakeCampingService(
     val reviewed = mutableListOf<Pair<String, RegistrationApprovalStatus>>()
     val deletedAttendees = mutableListOf<String>()
     val featuredUpdates = mutableListOf<Pair<String, Boolean>>()
+    val templateCloneRequests = mutableListOf<CampingTemplateCloneRequest>()
 
     override fun observeCampings(): Flow<List<Camping>> =
         if (shouldFail) {
             flow { throw RuntimeException("Stream failed") }
         } else {
-            campings.map { list -> list.map(::withAttendees) }
+            combine(campings, attendeesVersion) { list, _ -> list.map(::withAttendees) }
         }
 
     override fun approvedCampingIds(forUserId: String?): Set<String> =
@@ -44,6 +50,25 @@ class FakeCampingService(
             .map(::withAttendees)
             .filter { camping -> camping.hasApprovedRegistrationForUser(forUserId) }
             .mapTo(mutableSetOf()) { it.id }
+
+    override fun observeApprovedCampingIds(forUserId: String?): Flow<Set<String>> {
+        if (forUserId.isNullOrBlank()) return flowOf(emptySet())
+        return combine(campings, attendeesVersion) { _, _ -> approvedCampingIds(forUserId) }
+    }
+
+    override fun observeUserAttendees(campingId: String, userId: String?): Flow<List<CampingAttendee>> {
+        if (userId.isNullOrBlank()) return flowOf(emptyList())
+        return combine(campings, attendeesVersion) { _, _ ->
+            attendeesFor(campingId)
+                .filter { attendee ->
+                    attendee.userId == userId ||
+                        attendee.guardianId == userId ||
+                        attendee.id == userId
+                }
+                .distinctBy { it.id }
+                .sortedBy { it.displayName.lowercase() }
+        }
+    }
 
     override fun cachedCamping(id: String): Camping? =
         campings.value.firstOrNull { it.id == id }?.let(::withAttendees)
@@ -60,7 +85,7 @@ class FakeCampingService(
 
     override suspend fun loadAttendees(campingId: String): List<CampingAttendee> {
         if (attendeesFail) throw RuntimeException("Attendees denied")
-        return attendeeStore[campingId].orEmpty()
+        return attendeesFor(campingId)
     }
 
     override suspend fun saveCamping(camping: Camping): Camping {
@@ -93,6 +118,17 @@ class FakeCampingService(
         val updated = fetchCamping(campingId).copy(isFeatured = isFeatured)
         campings.value = campings.value.map { if (it.id == campingId) updated else it }
         return updated
+    }
+
+    override suspend fun cloneCampingTemplate(request: CampingTemplateCloneRequest): Camping {
+        if (shouldFail) error("Template clone failed")
+        templateCloneRequests += request
+        val source = fetchCamping(request.sourceCampingId)
+        val cloned = source.templateClone(request)
+        campings.value = campings.value + cloned
+        attendeeStore[cloned.id] = mutableListOf()
+        bumpAttendees()
+        return cloned
     }
 
     override suspend fun updateWinnerReveal(campingId: String, policy: WinnerRevealPolicy): Camping {
@@ -156,6 +192,7 @@ class FakeCampingService(
                     photoUrl = if (isSelf) user.photoUrl ?: participant.photoUrl else participant.photoUrl,
                 )
             }
+        bumpAttendees()
         return fetchCamping(campingId)
     }
 
@@ -172,6 +209,7 @@ class FakeCampingService(
                 if (attendee.id == attendeeId) attendee.copy(registrationStatus = status) else attendee
             }
             .toMutableList()
+        bumpAttendees()
         return fetchCamping(campingId)
     }
 
@@ -201,6 +239,7 @@ class FakeCampingService(
                 }
             }
             .toMutableList()
+        bumpAttendees()
         return fetchCamping(campingId)
     }
 
@@ -229,9 +268,19 @@ class FakeCampingService(
                 }
             }
         }
+        bumpAttendees()
         return fetchCamping(campingId)
     }
 
+    private fun bumpAttendees() {
+        attendeesVersion.value += 1
+    }
+
+    private fun attendeesFor(campingId: String): List<CampingAttendee> =
+        attendeeStore[campingId]
+            ?: campings.value.firstOrNull { it.id == campingId }?.attendees
+            ?: emptyList()
+
     private fun withAttendees(camping: Camping): Camping =
-        camping.copy(attendees = attendeeStore[camping.id] ?: camping.attendees)
+        camping.copy(attendees = attendeesFor(camping.id))
 }

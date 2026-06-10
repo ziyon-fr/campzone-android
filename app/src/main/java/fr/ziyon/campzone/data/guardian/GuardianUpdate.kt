@@ -16,8 +16,9 @@ import java.util.Date
  * Read-only "how is my child doing at camp" surface for guardians. Nothing here
  * is persisted — it is aggregated from collections the guardian can already
  * read (their children's check-in docs, the camp's teams, the public schedule),
- * mirroring the iOS `GuardianUpdate`. There is no per-program attendance model,
- * so the program section is honestly the live camp schedule.
+ * mirroring the iOS `GuardianUpdate`. Per-program attendance is a leader-facing
+ * operational record; the guardian program section intentionally remains the
+ * live camp schedule.
  */
 data class GuardianUpdatesData(
     /** Fetched child registration docs (per-doc reads), a fallback when the broad

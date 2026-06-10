@@ -87,12 +87,15 @@ class TeamViewModel @Inject constructor(
 
     private val _allTeams = MutableStateFlow<Map<String, List<Team>>>(emptyMap())
     private var observeJob: Job? = null
+    private var observingCampingId: String? = null
     private var loadedCampingIds = mutableSetOf<String>()
 
     // ── Load / observe ────────────────────────────────────────────────────────
 
     fun startObserving(campingId: String) {
-        if (observeJob?.isActive == true) return
+        if (observeJob?.isActive == true && observingCampingId == campingId) return
+        observeJob?.cancel()
+        observingCampingId = campingId
         _uiState.value = TeamsUiState.Loading
         observeJob = viewModelScope.launch {
             try {
@@ -110,6 +113,7 @@ class TeamViewModel @Inject constructor(
     fun stopObserving() {
         observeJob?.cancel()
         observeJob = null
+        observingCampingId = null
     }
 
     fun loadIfNeeded(campingId: String) {

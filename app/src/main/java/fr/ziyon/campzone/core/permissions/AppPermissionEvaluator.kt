@@ -132,6 +132,13 @@ class AppPermissionEvaluator {
     fun canManageSongs(user: PermissionUser?): Boolean =
         can(user, AppPermission.ManageSongbook)
 
+    fun canManageSongbook(
+        user: PermissionUser?,
+        camping: CampingPermissionContext?,
+    ): Boolean = user.isCampingCreator(camping) ||
+        can(user, AppPermission.ManageSongbook) &&
+        (user?.role == UserRole.Admin || user.isOwnChurchCamping(camping))
+
     fun canManageTeams(
         user: PermissionUser?,
         camping: CampingPermissionContext?,
@@ -344,6 +351,7 @@ class AppPermissionEvaluator {
                 AppPermission.AssignOwnChurchRoles,
                 AppPermission.ViewParticipantProfiles,
                 AppPermission.EditOwnChurchGuidelines,
+                AppPermission.ManageSongbook,
                 AppPermission.ManageFamilyRegistrations
             )
 
@@ -394,6 +402,7 @@ class AppPermissionEvaluator {
                 AppPermission.ManageTeams,
                 AppPermission.ManageGames,
                 AppPermission.AssignPoints,
+                AppPermission.ManageSongbook,
                 AppPermission.AwardAchievements,
                 AppPermission.ManageOwnChurchCheckIns,
                 AppPermission.ManageOwnChurchTransportation,

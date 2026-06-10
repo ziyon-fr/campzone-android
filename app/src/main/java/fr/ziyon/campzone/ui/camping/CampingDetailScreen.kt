@@ -143,6 +143,7 @@ fun CampingDetailRoute(
     onOpenChat: (String) -> Unit = {},
     onOpenPolls: (String) -> Unit = {},
     onOpenEditCamping: (String) -> Unit = {},
+    onOpenTemplateClone: (String) -> Unit = {},
     onOpenRegistration: (String) -> Unit = {},
     onOpenRegistrationReview: () -> Unit = {},
     onOpenAttendees: (String) -> Unit = {},
@@ -216,6 +217,7 @@ fun CampingDetailRoute(
         onOpenChat = onOpenChat,
         onOpenPolls = onOpenPolls,
         onOpenEditCamping = onOpenEditCamping,
+        onOpenTemplateClone = onOpenTemplateClone,
         onOpenRegistration = onOpenRegistration,
         onOpenRegistrationReview = onOpenRegistrationReview,
         onOpenAttendees = onOpenAttendees,
@@ -263,6 +265,7 @@ fun CampingDetailScreen(
     modifier: Modifier = Modifier,
     onShareCamping: (Camping) -> Unit = {},
     onOpenEditCamping: (String) -> Unit = {},
+    onOpenTemplateClone: (String) -> Unit = {},
     onOpenGuidelines: (String) -> Unit = {},
     onOpenSchedule: (String) -> Unit = {},
     onOpenTeams: (String) -> Unit = {},
@@ -390,6 +393,7 @@ fun CampingDetailScreen(
                     onOpenLodging = onOpenLodging,
                     onOpenFeedbackSurvey = onOpenFeedbackSurvey,
                     onOpenFeedbackResults = onOpenFeedbackResults,
+                    onOpenTemplateClone = onOpenTemplateClone,
                     onOpenFamilyAtCamp = onOpenFamilyAtCamp,
                     onOpenCheckInScanner = onOpenCheckInScanner,
                     onOpenCheckInRecords = onOpenCheckInRecords,
@@ -475,6 +479,7 @@ private fun CampingDetailContent(
     onOpenLodging: (String) -> Unit = {},
     onOpenFeedbackSurvey: (String) -> Unit = {},
     onOpenFeedbackResults: (String) -> Unit = {},
+    onOpenTemplateClone: (String) -> Unit = {},
     onOpenFamilyAtCamp: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
@@ -500,6 +505,7 @@ private fun CampingDetailContent(
     val showFeedbackSurvey = feedbackWindowOpen &&
         (state.isApprovedParticipant || state.canManageAnyCamping || state.canEditCamping)
     val showFeedbackResults = state.canManageAnyCamping && campEnded
+    val showTemplateClone = state.canCreateRecurringCamp
     val showHomePinAction = state.canManageAnyCamping &&
         camping.registrationStatus != CampingRegistrationStatus.Cancelled
 
@@ -611,6 +617,7 @@ private fun CampingDetailContent(
                 onOpenVehicles = onOpenVehicles,
                 onOpenBadgeAward = onOpenBadgeAward,
                 onOpenAlbum = onOpenAlbum,
+                onOpenSchedule = onOpenSchedule,
                 onRecordQuickAction = quickActionUsageStore::record,
             )
         }
@@ -643,15 +650,17 @@ private fun CampingDetailContent(
             }
         }
 
-        if (showHomePinAction || showFeedbackResults) {
+        if (showHomePinAction || showFeedbackResults || showTemplateClone) {
             item(key = "management") {
                 ManagementSection(
                     camping = camping,
                     showHomePinAction = showHomePinAction,
                     isSettingFeatured = state.isSettingFeatured,
                     showFeedbackResults = showFeedbackResults,
+                    showTemplateClone = showTemplateClone,
                     onSetFeatured = { onSetFeatured(camping.id, !camping.isFeatured) },
                     onOpenFeedbackResults = { onOpenFeedbackResults(camping.id) },
+                    onOpenTemplateClone = { onOpenTemplateClone(camping.id) },
                 )
             }
         }
@@ -1552,6 +1561,7 @@ private fun ResourcesSection(
     onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
+    onOpenSchedule: (String) -> Unit = {},
     onRecordQuickAction: (QuickActionKind) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
@@ -1662,6 +1672,16 @@ private fun ResourcesSection(
                         icon = Icons.Filled.CheckCircle,
                         accent = MaterialTheme.czColors.ember,
                         onClick = { onOpenCheckInRecords(camping.id) },
+                    ),
+                )
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.program_attendance_title),
+                        subtitle = stringResource(R.string.program_attendance_entry_subtitle),
+                        icon = Icons.Filled.CalendarMonth,
+                        accent = MaterialTheme.czColors.twilight,
+                        quickActionKind = QuickActionKind.Schedule,
+                        onClick = { onOpenSchedule(camping.id) },
                     ),
                 )
             }
@@ -1970,8 +1990,10 @@ private fun ManagementSection(
     showHomePinAction: Boolean,
     isSettingFeatured: Boolean,
     showFeedbackResults: Boolean,
+    showTemplateClone: Boolean,
     onSetFeatured: () -> Unit,
     onOpenFeedbackResults: () -> Unit,
+    onOpenTemplateClone: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
@@ -1995,6 +2017,13 @@ private fun ManagementSection(
                 title = stringResource(R.string.camping_feedback_results),
                 icon = Icons.Filled.Poll,
                 onClick = onOpenFeedbackResults,
+            )
+        }
+        if (showTemplateClone) {
+            AdminActionButton(
+                title = stringResource(R.string.camping_template_create_recurring),
+                icon = Icons.Filled.CalendarMonth,
+                onClick = onOpenTemplateClone,
             )
         }
     }

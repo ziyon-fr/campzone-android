@@ -45,10 +45,13 @@ import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import androidx.hilt.navigation.compose.hiltViewModel
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
+import fr.ziyon.campzone.ui.attendance.ProgramAttendanceRecordsRoute
+import fr.ziyon.campzone.ui.attendance.ProgramAttendanceScannerRoute
 import fr.ziyon.campzone.ui.camping.CampingDetailRoute
 import fr.ziyon.campzone.ui.camping.CampingDetailViewModel
 import fr.ziyon.campzone.ui.camping.CampingsRoute
 import fr.ziyon.campzone.ui.camping.admin.CampingEditorRoute
+import fr.ziyon.campzone.ui.camping.template.CampingTemplateCloneRoute
 import fr.ziyon.campzone.ui.camping.registrations.AttendeeProfileRoute
 import fr.ziyon.campzone.ui.camping.registrations.CampingAttendeesRoute
 import fr.ziyon.campzone.ui.camping.registrations.RegistrationReviewRoute
@@ -496,6 +499,9 @@ fun CampzoneNavigationShell(
                     },
                     onOpenEditCamping = { campingId ->
                         navController.navigate(AppRoute.CampingEdit(campingId).route)
+                    },
+                    onOpenTemplateClone = { campingId ->
+                        navController.navigate(AppRoute.CampingTemplateClone(campingId).route)
                     },
                     onOpenRegistration = { campingId ->
                         navController.navigate(AppRoute.CampingRegistration(campingId).route)
@@ -986,6 +992,24 @@ fun CampzoneNavigationShell(
                         if (!dismissedDetail) {
                             navController.navigate(AppRoute.Campings.route) {
                                 launchSingleTop = true
+                            }
+                        }
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingTemplateClone,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val sourceCampingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                CampingTemplateCloneRoute(
+                    sourceCampingId = sourceCampingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onCreated = { clonedCampingId ->
+                        navController.navigate(AppRoute.CampingDetail(clonedCampingId).route) {
+                            popUpTo(AppRoute.CampingTemplateClone(sourceCampingId).route) {
+                                inclusive = true
                             }
                         }
                     },
@@ -1583,6 +1607,44 @@ fun CampzoneNavigationShell(
                 )
             }
             composable(
+                route = AppRoutePattern.ProgramAttendance,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.ProgramId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val programId = backStackEntry.stringArg(AppRouteArgs.ProgramId)
+                ProgramAttendanceRecordsRoute(
+                    campingId = campingId,
+                    programId = programId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenScanner = {
+                        navController.navigate(AppRoute.ProgramAttendanceScanner(campingId, programId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.ProgramAttendanceScanner,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.ProgramId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val programId = backStackEntry.stringArg(AppRouteArgs.ProgramId)
+                ProgramAttendanceScannerRoute(
+                    campingId = campingId,
+                    programId = programId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenRecords = {
+                        navController.navigate(AppRoute.ProgramAttendance(campingId, programId).route)
+                    },
+                )
+            }
+            composable(
                 route = AppRoutePattern.CampingScheduleProgram,
                 arguments = listOf(
                     navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
@@ -1601,16 +1663,31 @@ fun CampzoneNavigationShell(
                 } else {
                     hiltViewModel()
                 }
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                LaunchedEffect(campingId, authenticatedUser.uid) {
+                    campingDetailVm.load(campingId, authenticatedUser)
+                }
+                val campingDetailState by campingDetailVm.uiState.collectAsState()
                 ProgramDetailScreen(
                     viewModel = viewModel,
                     campingId = campingId,
                     programId = programId,
+                    canManageAttendance = campingDetailState.canManageCheckIns,
                     onBack = { navController.popBackStack() },
                     onOpenFoodMenu = {
                         navController.navigate(AppRoute.CampingFoodMenu(campingId).route)
                     },
                     onOpenGame = { gameId ->
                         navController.navigate(AppRoute.GameDetail(campingId, gameId).route)
+                    },
+                    onOpenAttendance = {
+                        navController.navigate(AppRoute.ProgramAttendance(campingId, programId).route)
                     },
                 )
             }

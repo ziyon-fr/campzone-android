@@ -68,6 +68,7 @@ data class CampingDetailUiState(
     val canManageTransportation: Boolean = false,
     val canAwardAchievements: Boolean = false,
     val canManageAnyCamping: Boolean = false,
+    val canCreateRecurringCamp: Boolean = false,
     val wasCreatedByCurrentUser: Boolean = false,
     val isApprovedParticipant: Boolean = false,
     val hasManagedRegistration: Boolean = false,
@@ -141,7 +142,8 @@ data class CampingDetailUiState(
 
     val showManagementSection: Boolean
         get() = canManageAnyCamping || canManageTransportation || wasCreatedByCurrentUser ||
-            canManageTeams || canManageSchedule || canManageCheckIns || canManageAlbumMedia
+            canManageTeams || canManageSchedule || canManageCheckIns || canManageAlbumMedia ||
+            canCreateRecurringCamp
 
     private fun matchesFilters(attendee: CampingAttendee): Boolean {
         if (filters.church.isNotBlank() && !attendee.church.contains(filters.church, ignoreCase = true)) {
@@ -256,6 +258,13 @@ class CampingDetailViewModel @Inject constructor(
                     val canManageSchedule = permissions.canManageSchedule(permissionUser, context)
                     val canManageTeams = permissions.canManageTeams(permissionUser, context)
                     val canManageGames = permissions.canManageGames(permissionUser, context)
+                    val canCreateRecurringCamp = permissions.canCreateCamping(permissionUser, context) &&
+                        (
+                            canManageSchedule ||
+                                canManageTeams ||
+                                permissions.canManageSongbook(permissionUser, context) ||
+                                permissions.canEditGuidelines(permissionUser, context)
+                            )
                     val visibleVenueMap = venueMap
                         ?.visibleForGameLocationRules(
                             games = games,
@@ -292,6 +301,7 @@ class CampingDetailViewModel @Inject constructor(
                             context,
                         ),
                         canManageAnyCamping = permissions.canManageAnyCamping(permissionUser),
+                        canCreateRecurringCamp = canCreateRecurringCamp,
                         wasCreatedByCurrentUser = camping.createdByUid == user.uid,
                         isApprovedParticipant = isApproved,
                         hasManagedRegistration = userRegistrations.isNotEmpty(),

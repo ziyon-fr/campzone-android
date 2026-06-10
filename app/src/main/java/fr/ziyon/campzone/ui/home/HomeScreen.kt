@@ -111,6 +111,7 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import okhttp3.internal.userAgent
 import kotlin.math.max
 
 @Composable
@@ -283,6 +284,7 @@ private fun HomeDashboard(
         modifier = modifier.fillMaxSize(),
     ) {
         DashboardHeader(
+            authenticatedUser = authenticatedUser,
             onOpenNotifications = onOpenNotifications,
             modifier = Modifier.padding(horizontal = CzSpacing.lg, vertical = CzSpacing.lg),
         )
@@ -370,6 +372,7 @@ private fun HomeDashboard(
 
 @Composable
 private fun DashboardHeader(
+    authenticatedUser: AuthenticatedUser,
     onOpenNotifications: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -392,21 +395,40 @@ private fun DashboardHeader(
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.czColors.leaf,
                 )
+
+                    Text(
+                        text = stringResource(R.string.home_slogan)
+                            .uppercase(Locale.forLanguageTag(ComposeLocale.current.toLanguageTag())),
+                        color = MaterialTheme.czColors.textSecondary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+
+            }
+            if (authenticatedUser.displayName.isEmpty() || authenticatedUser.preferredDisplayName.isEmpty()) {
                 Text(
-                    text = stringResource(R.string.home_slogan)
-                        .uppercase(Locale.forLanguageTag(ComposeLocale.current.toLanguageTag())),
-                    color = MaterialTheme.czColors.textSecondary,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    text = stringResource(R.string.home_title),
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+            } else {
+                val firstName = authenticatedUser.preferredDisplayName
+                    .takeIf { it.isNotBlank() }
+                    ?: authenticatedUser.displayName.takeIf { it.isNotBlank() }
+                    ?: stringResource(R.string.home_title)
+
+                Text(
+                    text = firstName
+                        .trim()
+                        .split(Regex("\\s+"))
+                        .firstOrNull()
+                        ?: stringResource(R.string.home_title),
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
                 )
             }
-
-            Text(
-                text = stringResource(R.string.home_title),
-                color = MaterialTheme.czColors.textPrimary,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
         }
 
         IconButton(

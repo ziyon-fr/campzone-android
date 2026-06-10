@@ -183,10 +183,24 @@ class AppPermissionEvaluatorTest {
     }
 
     @Test
-    fun songbookWritesAreAdminOnly() {
+    fun songbookWritesMatchScopedIosRule() {
         assertTrue(evaluator.canManageSongs(PermissionUser(role = UserRole.Admin)))
+        assertTrue(evaluator.canManageSongs(PermissionUser(role = UserRole.YouthDirector)))
+        assertTrue(evaluator.canManageSongs(PermissionUser(role = UserRole.Leader)))
         assertFalse(evaluator.canManageSongs(PermissionUser(role = UserRole.Pastor)))
-        assertFalse(evaluator.canManageSongs(PermissionUser(role = UserRole.User, userId = "creator-user")))
+
+        val ownChurchLeader = PermissionUser(
+            role = UserRole.Leader,
+            church = "Paris Central SDA",
+        )
+        val creator = PermissionUser(role = UserRole.User, userId = "creator-user")
+        val otherUser = PermissionUser(role = UserRole.User, userId = "other-user")
+
+        assertTrue(evaluator.canManageSongbook(PermissionUser(role = UserRole.Admin), regionalCamping))
+        assertTrue(evaluator.canManageSongbook(ownChurchLeader, ownChurchCamping))
+        assertFalse(evaluator.canManageSongbook(ownChurchLeader, otherChurchCamping))
+        assertTrue(evaluator.canManageSongbook(creator, creatorCamping))
+        assertFalse(evaluator.canManageSongbook(otherUser, creatorCamping))
     }
 
     @Test

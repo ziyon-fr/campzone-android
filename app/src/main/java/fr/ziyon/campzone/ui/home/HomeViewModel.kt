@@ -24,6 +24,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.shareIn
@@ -57,6 +59,11 @@ sealed interface HomePhase {
 
 data class HomeUiState(
     val phase: HomePhase = HomePhase.Loading,
+)
+
+private data class HomeDashboardFrame(
+    val featuredCamping: Camping?,
+    val announcements: List<Announcement>,
 )
 
 @HiltViewModel
@@ -98,8 +105,8 @@ class HomeViewModel @Inject constructor(
                 // context, matching iOS' separate CampingObserver dependency.
                 .catch { emit(emptyList()) }
                 .shareIn(this, SharingStarted.Eagerly, replay = 1)
-            val registeredCampingIds = localCampings
-                .map { campings -> campings.approvedCampingIds(forUserId) }
+            val registeredCampingIds = campingService.observeApprovedCampingIds(forUserId)
+                .catch { emit(campingService.approvedCampingIds(forUserId)) }
                 .onStart { emit(campingService.approvedCampingIds(forUserId)) }
                 .distinctUntilChanged()
             val featuredCampings = registeredCampingIds
@@ -109,36 +116,64 @@ class HomeViewModel @Inject constructor(
                 localCampings.onStart { emit(emptyList()) },
                 announcementService.loadAnnouncements(),
             ) { featuredCamping, campings, announcements ->
-                Triple(featuredCamping, campings, announcements)
+                val displayCamping = featuredCamping
+                    ?.let { camping ->
+                        campings.firstOrNull { it.id == camping.id }
+                            ?: campingService.cachedCamping(camping.id)
+                            ?: camping
+                    }
+                HomeDashboardFrame(
+                    featuredCamping = displayCamping,
+                    announcements = announcements.homePreviews(),
+                )
             }
+                .flatMapLatest { frame ->
+                    observeLoadedPhase(
+                        featuredCamping = frame.featuredCamping,
+                        announcementPreviews = frame.announcements,
+                        forUserId = forUserId,
+                    )
+                }
                 .catch { error ->
                     _uiState.update { it.copy(phase = HomePhase.Error(error.message)) }
                 }
-                .collect { (featuredCamping, campings, announcements) ->
-                    val displayCamping = featuredCamping
-                        ?.let { camping ->
-                            campings.firstOrNull { it.id == camping.id }
-                                ?: campingService.cachedCamping(camping.id)
-                                ?: camping
-                        }
-                    val upcomingPrograms = displayCamping
-                        ?.let { camping -> loadUpcomingPrograms(camping.id) }
-                        .orEmpty()
-                    val livePassInfo = displayCamping
-                        ?.let { camping -> loadLivePassInfo(camping, forUserId) }
-                        ?: HomeLivePassInfo()
-                    val announcementPreviews = announcements.homePreviews()
+                .collect { loaded ->
                     _uiState.update {
-                        it.copy(
-                            phase = HomePhase.Loaded(
-                                featuredCamping = displayCamping,
-                                livePassInfo = livePassInfo,
-                                upcomingPrograms = upcomingPrograms,
-                                announcements = announcementPreviews,
-                            ),
-                        )
+                        it.copy(phase = loaded)
                     }
                 }
+        }
+    }
+
+    private fun observeLoadedPhase(
+        featuredCamping: Camping?,
+        announcementPreviews: List<Announcement>,
+        forUserId: String?,
+    ): Flow<HomePhase.Loaded> {
+        if (featuredCamping == null) {
+            return flowOf(
+                HomePhase.Loaded(
+                    featuredCamping = null,
+                    announcements = announcementPreviews,
+                ),
+            )
+        }
+
+        val upcomingPrograms = scheduleService.observeSchedule(featuredCamping.id)
+            .map { schedule -> upcomingPrograms(schedule.allPrograms) }
+            .onStart { emit(loadUpcomingPrograms(featuredCamping.id)) }
+            .catch { emit(emptyList()) }
+
+        return combine(
+            upcomingPrograms,
+            observeLivePassInfo(featuredCamping, forUserId),
+        ) { programs, livePassInfo ->
+            HomePhase.Loaded(
+                featuredCamping = featuredCamping,
+                livePassInfo = livePassInfo,
+                upcomingPrograms = programs,
+                announcements = announcementPreviews,
+            )
         }
     }
 
@@ -146,6 +181,15 @@ class HomeViewModel @Inject constructor(
         campingId: String,
         now: Date = Date(),
     ): List<Program> = runCatching {
+        scheduleService.loadSchedule(campingId)
+            .allPrograms
+            .let { upcomingPrograms(it, now) }
+    }.getOrDefault(emptyList())
+
+    private fun upcomingPrograms(
+        programs: List<Program>,
+        now: Date = Date(),
+    ): List<Program> {
         val dayStart = Calendar.getInstance().apply {
             time = now
             set(Calendar.HOUR_OF_DAY, 0)
@@ -153,48 +197,61 @@ class HomeViewModel @Inject constructor(
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }.time
-        scheduleService.loadSchedule(campingId)
-            .allPrograms
+        return programs
             .filter { program -> program.endDate >= dayStart }
             .sortedBy { it.endDate }
             .take(6)
-    }.getOrDefault(emptyList())
+    }
 
-    private suspend fun loadLivePassInfo(
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeLivePassInfo(
         camping: Camping,
         forUserId: String?,
         now: Date = Date(),
-    ): HomeLivePassInfo {
-        if (camping.startDate.after(now) || camping.endDate.before(now)) return HomeLivePassInfo()
-        val attendee = camping.homePassAttendee(forUserId)
-            ?.takeIf { it.registrationStatus == RegistrationApprovalStatus.Approved }
-            ?: return HomeLivePassInfo()
+    ): Flow<HomeLivePassInfo> {
+        if (camping.startDate.after(now) || camping.endDate.before(now)) {
+            return flowOf(HomeLivePassInfo())
+        }
+        val uid = forUserId?.takeUnless { it.isBlank() } ?: return flowOf(HomeLivePassInfo())
 
-        val checkInRecord = runCatching {
-            checkInService.loadRecord(camping.id, attendee.id)
-        }.getOrNull()
-        val teamName = runCatching {
-            teamService.loadTeams(camping.id)
-                .firstOrNull { team ->
-                    team.members.any { member ->
-                        member.userId == attendee.userId || member.id == attendee.id
+        return campingService.observeUserAttendees(camping.id, uid)
+            .map { attendees ->
+                attendees.homePassAttendee(uid)
+                    ?.takeIf { it.registrationStatus == RegistrationApprovalStatus.Approved }
+            }
+            .distinctUntilChanged()
+            .flatMapLatest { attendee ->
+                if (attendee == null) {
+                    flowOf(HomeLivePassInfo())
+                } else {
+                    combine(
+                        checkInService.observeRecord(camping.id, attendee.id)
+                            .catch { emit(null) },
+                        teamService.observeTeams(camping.id)
+                            .map { teams ->
+                                teams.firstOrNull { team ->
+                                    team.members.any { member ->
+                                        member.userId == attendee.userId || member.id == attendee.id
+                                    }
+                                }?.name?.takeUnless { it.isBlank() }
+                            }
+                            .catch { emit(null) },
+                        lodgingService.observeUnits(camping.id)
+                            .map { units ->
+                                units.firstOrNull { unit ->
+                                    unit.contains(attendee.id) || unit.contains(attendee.userId)
+                                }?.name?.takeUnless { it.isBlank() }
+                            }
+                            .catch { emit(null) },
+                    ) { checkInRecord, teamName, lodgingName ->
+                        HomeLivePassInfo(
+                            checkInRecord = checkInRecord,
+                            teamName = teamName,
+                            lodgingName = lodgingName,
+                        )
                     }
                 }
-                ?.name
-                ?.takeUnless { it.isBlank() }
-        }.getOrNull()
-        val lodgingName = runCatching {
-            lodgingService.loadUnits(camping.id)
-                .firstOrNull { unit -> unit.contains(attendee.id) || unit.contains(attendee.userId) }
-                ?.name
-                ?.takeUnless { it.isBlank() }
-        }.getOrNull()
-
-        return HomeLivePassInfo(
-            checkInRecord = checkInRecord,
-            teamName = teamName,
-            lodgingName = lodgingName,
-        )
+            }
     }
 
     private fun List<Announcement>.homePreviews(): List<Announcement> =
@@ -209,11 +266,10 @@ class HomeViewModel @Inject constructor(
         filter { camping -> camping.hasApprovedRegistrationForUser(forUserId) }
             .mapTo(mutableSetOf()) { it.id }
 
-    private fun Camping.homePassAttendee(userId: String?): CampingAttendee? {
-        val uid = userId?.takeUnless { it.isBlank() } ?: return null
-        return attendees.firstOrNull { attendee ->
-            attendee.userId == uid &&
+    private fun List<CampingAttendee>.homePassAttendee(userId: String): CampingAttendee? {
+        return firstOrNull { attendee ->
+            attendee.userId == userId &&
                 attendee.participantKind == RegistrationParticipantKind.SelfParticipant
-        } ?: attendees.firstOrNull { attendee -> attendee.id == uid }
+        } ?: firstOrNull { attendee -> attendee.id == userId }
     }
 }

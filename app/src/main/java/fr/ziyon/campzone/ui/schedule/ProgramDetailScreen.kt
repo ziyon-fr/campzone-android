@@ -73,9 +73,11 @@ fun ProgramDetailScreen(
     viewModel: ScheduleViewModel,
     campingId: String,
     programId: String,
+    canManageAttendance: Boolean,
     onBack: () -> Unit,
     onOpenFoodMenu: () -> Unit,
     onOpenGame: (String) -> Unit,
+    onOpenAttendance: () -> Unit,
     modifier: Modifier = Modifier,
     foodMenuViewModel: FoodMenuViewModel = hiltViewModel(),
 ) {
@@ -102,9 +104,11 @@ fun ProgramDetailScreen(
         program = program,
         foodMenuEntry = foodMenuEntry,
         linkedGame = linkedGame,
+        canManageAttendance = canManageAttendance,
         onBack = onBack,
         onOpenFoodMenu = onOpenFoodMenu,
         onOpenGame = onOpenGame,
+        onOpenAttendance = onOpenAttendance,
         modifier = modifier,
     )
 }
@@ -115,9 +119,11 @@ private fun ProgramDetailContent(
     program: Program?,
     foodMenuEntry: FoodMenuEntry?,
     linkedGame: Game?,
+    canManageAttendance: Boolean,
     onBack: () -> Unit,
     onOpenFoodMenu: () -> Unit,
     onOpenGame: (String) -> Unit,
+    onOpenAttendance: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
@@ -190,6 +196,11 @@ private fun ProgramDetailContent(
                             game = linkedGame,
                             onOpenGame = { onOpenGame(linkedGame.id) },
                         )
+                    }
+                }
+                if (canManageAttendance) {
+                    item {
+                        ProgramAttendanceSection(onOpenAttendance = onOpenAttendance)
                     }
                 }
             }
@@ -417,6 +428,48 @@ private fun ProgramGameSection(
     }
 }
 
+@Composable
+private fun ProgramAttendanceSection(onOpenAttendance: () -> Unit) {
+    val colors = MaterialTheme.czColors
+    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        ProgramSectionHeader(
+            title = stringResource(R.string.program_attendance_section),
+            icon = Icons.Rounded.CheckCircle,
+        )
+        Surface(
+            onClick = onOpenAttendance,
+            modifier = Modifier.fillMaxWidth(),
+            color = colors.surface,
+            shape = RoundedCornerShape(CzRadius.xl),
+        ) {
+            Row(
+                modifier = Modifier.padding(CzSpacing.base),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = null,
+                    tint = colors.ember,
+                    modifier = Modifier.size(32.dp),
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.program_attendance_title),
+                        style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
+                        color = colors.textPrimary,
+                    )
+                    Text(
+                        text = stringResource(R.string.program_attendance_entry_subtitle),
+                        style = CzTypeScale.caption,
+                        color = colors.textSecondary,
+                    )
+                }
+            }
+        }
+    }
+}
+
 private val fullDateTimeFormatter = SimpleDateFormat("EEEE, MMMM d · HH:mm", Locale.getDefault())
 
 private fun fullDateTimeText(date: Date): String = fullDateTimeFormatter.format(date)
@@ -441,9 +494,11 @@ private fun ProgramDetailNotFoundPreview() {
             program = null,
             foodMenuEntry = null,
             linkedGame = null,
+            canManageAttendance = false,
             onBack = {},
             onOpenFoodMenu = {},
             onOpenGame = {},
+            onOpenAttendance = {},
         )
     }
 }

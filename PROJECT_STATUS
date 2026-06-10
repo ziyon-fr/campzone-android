@@ -1,3 +1,36 @@
+# Project Status - F3 recurring camps and program attendance
+
+Updated: 2026-06-10
+
+- Branch: `venue-map-games-locations-instructions`
+- Change completed: Android now mirrors the completed iOS F3 work for recurring
+  camp templates and per-program attendance.
+- Recurring camps: camp-detail management opens a clone flow for authorized
+  users, defaulting title/dates one year forward and registration closed. The
+  clone service writes a fresh camping, resets live camp state, shifts the
+  deadline, and optionally copies schedule, team shells, songbook, and
+  guidelines while clearing venue/game links, team members/scores, and song
+  favorites.
+- Program attendance: schedule program detail opens records/scanner routes for
+  check-in managers. Records live at
+  `campings/{campingID}/programAttendance/{programID}/records/{attendeeID}`;
+  QR scanning reuses the existing check-in payload and rejects wrong camp,
+  unknown attendee, pending attendee, duplicates, malformed codes, and save
+  failures.
+- Parity cleanup: songbook management now uses the scoped iOS rule (admin,
+  creator, or own-church youth director/leader) instead of a global admin-only
+  gate, and EN/FR/PT/PT-BR resources cover the new UI.
+- Verification (JBR): focused `:app:testDebugUnitTest --tests
+  fr.ziyon.campzone.ui.attendance.* --tests
+  fr.ziyon.campzone.ui.camping.template.* --tests
+  fr.ziyon.campzone.data.model.CampingTemplateCloneTest --tests
+  fr.ziyon.campzone.core.permissions.AppPermissionEvaluatorTest` green; full
+  `:app:testDebugUnitTest` green; final `:app:lintDebug :app:assembleDebug`
+  green. The prior unrelated Venue Map `LocalContext.getString(...)` Compose
+  lint blocker is also resolved.
+
+---
+
 # Project Status - Badge award notifications
 
 Updated: 2026-06-10
@@ -611,3 +644,46 @@ report model were already shipped; D7 reuses them.
   - Device/emulator QA for CameraX + ML Kit scanning, permission-denied state,
     and real Firestore RBAC writes.
   - Broader ViewModel/UI test matrix from the request remains to be added.
+
+---
+
+# Project Status - Android Realtime Sync Parity Pass
+
+- Updated: 2026-06-10 15:08 CEST
+- Branch/worktree: continued on existing dirty checkout
+  `venue-map-games-locations-instructions`; unrelated venue-map/templates/
+  localization/status changes were preserved.
+- Scope shipped: audited iOS Home/Main dashboard, TeamObserver, GameObserver,
+  and ScheduleObserver patterns, then added Android realtime streams for the
+  missing Home/Schedule paths.
+- Home realtime:
+  - `HomeViewModel` now uses a live approved-registration-id stream for the
+    current user instead of relying only on parent camping document snapshots.
+  - Home upcoming-program previews now collect `ScheduleService.observeSchedule`
+    for the featured camp, so schedule edits from another device update the
+    Home timeline.
+  - Home live pass now composes live user-registration, check-in, team, and
+    lodging streams, so check-in state plus team/room assignment changes update
+    without a manual refresh.
+- Shared service realtime:
+  - `CampingService.observeCampings()` now keeps per-camp registration listeners
+    and re-emits parent camping models when registration subcollections change,
+    while falling back through the existing RBAC-safe `loadAttendees` path on
+    restricted reads.
+  - Added `observeApprovedCampingIds` and `observeUserAttendees` to keep Home
+    scoped to the current user's registration context without listening to every
+    registration row globally.
+  - Added `CheckInService.observeRecord` for single check-in pass updates.
+  - Added `ScheduleService.observeSchedule`, watching the schedule config, days,
+    and day program subcollections.
+- Schedule/Teams realtime:
+  - `ScheduleViewModel` now owns one live schedule/camping observer job and
+    cancels it in `onCleared`.
+  - `TeamViewModel.startObserving` now keys the active observer by camping id,
+    so reused ViewModels switch streams correctly.
+  - Fakes for camping, schedule, check-in, and teams now emit mutation updates
+    so tests/previews exercise the same realtime contract.
+- Verification (JAVA_HOME = Android Studio JBR):
+  - `./gradlew testDebugUnitTest --tests fr.ziyon.campzone.ui.home.HomeViewModelTest` SUCCESSFUL
+  - `./gradlew testDebugUnitTest` SUCCESSFUL
+  - `./gradlew lintDebug assembleDebug` SUCCESSFUL

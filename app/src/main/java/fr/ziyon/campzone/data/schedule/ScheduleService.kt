@@ -3,6 +3,7 @@ package fr.ziyon.campzone.data.schedule
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -24,7 +25,13 @@ import java.net.URL
 import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -35,6 +42,7 @@ import org.json.JSONObject
 
 
 interface ScheduleService {
+    fun observeSchedule(campingId: String): Flow<CampingSchedule>
     suspend fun loadSchedule(campingId: String): CampingSchedule
     suspend fun saveReminderTiming(timing: ScheduleReminderTiming, campingId: String): CampingSchedule
     suspend fun saveProgram(program: Program): CampingSchedule
@@ -51,6 +59,80 @@ class FirestoreScheduleService @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth,
 ) : ScheduleService {
+
+    override fun observeSchedule(campingId: String): Flow<CampingSchedule> = callbackFlow {
+        val scheduleDoc = scheduleDoc(campingId)
+        val dayStates = linkedMapOf<String, CampDay>()
+        val programStates = mutableMapOf<String, List<Program>>()
+        val programListeners = mutableMapOf<String, ListenerRegistration>()
+        var reminderTiming = ScheduleReminderTiming.None
+
+        fun emitLatest() {
+            val days = dayStates.values.map { day ->
+                day.copy(programs = programStates[day.id].orEmpty().sortedBy { it.startDate })
+            }
+            trySend(
+                CampingSchedule(
+                    campingId = campingId,
+                    reminderTiming = reminderTiming,
+                    days = days,
+                ),
+            )
+        }
+
+        val configListener = scheduleDoc.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+            reminderTiming = ScheduleReminderTiming.fromWire(snapshot?.data?.get(REMINDER_TIMING) as? String)
+            emitLatest()
+        }
+
+        val daysListener = scheduleDoc.collection(DAYS).addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+
+            val documents = snapshot?.documents.orEmpty()
+            val activeDayIds = documents.mapTo(mutableSetOf()) { it.id }
+            val removedDayIds = dayStates.keys - activeDayIds
+            removedDayIds.forEach { dayId ->
+                dayStates.remove(dayId)
+                programStates.remove(dayId)
+                programListeners.remove(dayId)?.remove()
+            }
+
+            documents.forEach { daySnapshot ->
+                val data = daySnapshot.data ?: return@forEach
+                val day = data.toCampDayOrNull(daySnapshot.id) ?: return@forEach
+                dayStates[day.id] = day
+                if (programListeners[day.id] == null) {
+                    programListeners[day.id] = daySnapshot.reference
+                        .collection(PROGRAMS)
+                        .addSnapshotListener { programSnapshot, programError ->
+                            if (programError != null) {
+                                close(programError)
+                                return@addSnapshotListener
+                            }
+                            programStates[day.id] = programSnapshot?.documents
+                                ?.mapNotNull { it.data?.toProgramOrNull(it.id) }
+                                ?.sortedBy { it.startDate }
+                                .orEmpty()
+                            emitLatest()
+                        }
+                }
+            }
+            emitLatest()
+        }
+
+        awaitClose {
+            configListener.remove()
+            daysListener.remove()
+            programListeners.values.forEach { it.remove() }
+        }
+    }
 
     override suspend fun loadSchedule(campingId: String): CampingSchedule {
         val scheduleDoc = scheduleDoc(campingId)
@@ -305,6 +387,14 @@ class FakeScheduleService(
     private val schedules: MutableMap<String, CampingSchedule> = mutableMapOf(),
     var shouldFail: Boolean = false,
 ) : ScheduleService {
+    private val scheduleState = MutableStateFlow(schedules.toMap())
+
+    override fun observeSchedule(campingId: String): Flow<CampingSchedule> =
+        if (shouldFail) {
+            flow { throw IllegalStateException("FakeScheduleService: simulated failure") }
+        } else {
+            scheduleState.map { it[campingId] ?: CampingSchedule(campingId) }
+        }
 
     override suspend fun loadSchedule(campingId: String): CampingSchedule =
         check().let { schedules[campingId] ?: CampingSchedule(campingId) }
@@ -315,7 +405,7 @@ class FakeScheduleService(
     ): CampingSchedule {
         check()
         val updated = loadSchedule(campingId).copy(reminderTiming = timing)
-        schedules[campingId] = updated
+        store(campingId, updated)
         return updated
     }
 
@@ -347,7 +437,7 @@ class FakeScheduleService(
 
         val pruned = days.filter { it.programs.isNotEmpty() || it.title.isNotBlank() }
         val updated = schedule.copy(days = pruned)
-        schedules[program.campingId] = updated
+        store(program.campingId, updated)
         return updated
     }
 
@@ -378,7 +468,7 @@ class FakeScheduleService(
             )
         }
         val updated = schedule.copy(days = days.filter { it.programs.isNotEmpty() || it.title.isNotBlank() })
-        schedules[campingId] = updated
+        store(campingId, updated)
         return updated
     }
 
@@ -389,7 +479,7 @@ class FakeScheduleService(
             day.copy(programs = day.programs.filter { it.id != programId })
         }.filter { it.programs.isNotEmpty() || it.title.isNotBlank() }
         val updated = schedule.copy(days = days)
-        schedules[campingId] = updated
+        store(campingId, updated)
         return updated
     }
 
@@ -397,6 +487,11 @@ class FakeScheduleService(
 
     private fun check() {
         if (shouldFail) throw IllegalStateException("FakeScheduleService: simulated failure")
+    }
+
+    private fun store(campingId: String, schedule: CampingSchedule) {
+        schedules[campingId] = schedule
+        scheduleState.value = schedules.toMap()
     }
 
     private fun CampingSchedule.toMutable() = this

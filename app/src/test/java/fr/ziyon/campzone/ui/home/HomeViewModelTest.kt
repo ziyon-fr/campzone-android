@@ -13,9 +13,12 @@ import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.CheckInMethod
 import fr.ziyon.campzone.data.model.CheckInRecord
+import fr.ziyon.campzone.data.model.DateKeys
 import fr.ziyon.campzone.data.model.LodgingUnit
 import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
+import fr.ziyon.campzone.data.model.Program
+import fr.ziyon.campzone.data.model.ProgramType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.Team
@@ -177,6 +180,130 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         val loaded = viewModel.uiState.value.phase as HomePhase.Loaded
+        assertEquals("user-1", loaded.livePassInfo.checkInRecord?.attendeeId)
+        assertEquals("Trail Group 4", loaded.livePassInfo.teamName)
+        assertEquals("Cabin 7", loaded.livePassInfo.lodgingName)
+    }
+
+    @Test
+    fun dashboardUpdatesUpcomingProgramsWhenScheduleChanges() = runTest {
+        val activeCamping = camping(
+            id = "active",
+            start = Date(Date().time - 86_400_000),
+            end = Date(Date().time + 86_400_000),
+        )
+        val scheduleService = FakeScheduleService()
+        val viewModel = HomeViewModel(
+            campingService = FakeCampingService(initial = listOf(activeCamping)),
+            dashboardRepository = FakeMainDashboardRepository(featuredCamping = activeCamping),
+            scheduleService = scheduleService,
+            announcementService = FakeAnnouncementService(mutableListOf()),
+            checkInService = FakeCheckInService(),
+            teamService = FakeTeamService(mutableListOf()),
+            lodgingService = FakeLodgingService(),
+        )
+
+        viewModel.loadHome(forUserId = null)
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), (viewModel.uiState.value.phase as HomePhase.Loaded).upcomingPrograms.map { it.title })
+
+        val start = Date(Date().time + 3_600_000)
+        scheduleService.saveProgram(
+            Program(
+                id = "program-1",
+                campingId = activeCamping.id,
+                campDayId = DateKeys.campDayId(activeCamping.id, start),
+                title = "Evening worship",
+                type = ProgramType.Preaching,
+                startDate = start,
+                endDate = Date(start.time + 3_600_000),
+                location = "Main tent",
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("Evening worship"),
+            (viewModel.uiState.value.phase as HomePhase.Loaded).upcomingPrograms.map { it.title },
+        )
+    }
+
+    @Test
+    fun livePassInfoUpdatesWhenAssignmentsAndCheckInChange() = runTest {
+        val activeCamping = camping(
+            id = "active",
+            start = Date(Date().time - 86_400_000),
+            end = Date(Date().time + 86_400_000),
+            attendees = listOf(
+                attendee(
+                    id = "user-1",
+                    userId = "user-1",
+                    status = RegistrationApprovalStatus.Approved,
+                ),
+            ),
+        )
+        val checkInService = FakeCheckInService()
+        val teamService = FakeTeamService(
+            mutableListOf(
+                Team(
+                    id = "team-1",
+                    campingId = activeCamping.id,
+                    name = "Trail Group 4",
+                ),
+            ),
+        )
+        val lodgingService = FakeLodgingService(
+            initial = listOf(
+                LodgingUnit(
+                    id = "cabin-7",
+                    campingId = activeCamping.id,
+                    name = "Cabin 7",
+                ),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            campingService = FakeCampingService(initial = listOf(activeCamping)),
+            dashboardRepository = FakeMainDashboardRepository(featuredCamping = activeCamping),
+            scheduleService = FakeScheduleService(),
+            announcementService = FakeAnnouncementService(mutableListOf()),
+            checkInService = checkInService,
+            teamService = teamService,
+            lodgingService = lodgingService,
+        )
+
+        viewModel.loadHome(forUserId = "user-1")
+        advanceUntilIdle()
+
+        var loaded = viewModel.uiState.value.phase as HomePhase.Loaded
+        assertNull(loaded.livePassInfo.checkInRecord)
+        assertNull(loaded.livePassInfo.teamName)
+        assertNull(loaded.livePassInfo.lodgingName)
+
+        teamService.assignMember(
+            TeamMember(
+                id = "user-1",
+                userId = "user-1",
+                displayName = "Camper",
+                church = "Paris Central",
+            ),
+            toTeamId = "team-1",
+            campingId = activeCamping.id,
+        )
+        lodgingService.setOccupants("cabin-7", activeCamping.id, listOf("user-1"))
+        checkInService.recordCheckIn(
+            CheckInRecord(
+                campingId = activeCamping.id,
+                attendeeId = "user-1",
+                userId = "user-1",
+                displayName = "Camper",
+                method = CheckInMethod.Manual,
+                checkedInBy = "leader-1",
+            ),
+        )
+        advanceUntilIdle()
+
+        loaded = viewModel.uiState.value.phase as HomePhase.Loaded
         assertEquals("user-1", loaded.livePassInfo.checkInRecord?.attendeeId)
         assertEquals("Trail Group 4", loaded.livePassInfo.teamName)
         assertEquals("Cabin 7", loaded.livePassInfo.lodgingName)

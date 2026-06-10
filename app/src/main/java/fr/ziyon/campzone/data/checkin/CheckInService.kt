@@ -13,6 +13,10 @@ import fr.ziyon.campzone.data.model.toCheckInRecordOrNull
 import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -24,6 +28,9 @@ import kotlinx.coroutines.tasks.await
 interface CheckInService {
     /** All check-ins for a camping, newest first. */
     suspend fun loadRecords(campingId: String): List<CheckInRecord>
+
+    /** Live single-record stream for surfaces such as the Home pass card. */
+    fun observeRecord(campingId: String, attendeeId: String): Flow<CheckInRecord?>
 
     /**
      * Fetches a single attendee's check-in by document id. Used where a blanket
@@ -50,6 +57,21 @@ class FirestoreCheckInService @Inject constructor(
             @Suppress("UNCHECKED_CAST")
             (document.data as? Map<String, Any?>)?.toCheckInRecordOrNull(document.id)
         }
+    }
+
+    override fun observeRecord(campingId: String, attendeeId: String): Flow<CheckInRecord?> = callbackFlow {
+        val listener = checkInDocument(campingId, attendeeId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                @Suppress("UNCHECKED_CAST")
+                val record = (snapshot?.data as? Map<String, Any?>)
+                    ?.toCheckInRecordOrNull(snapshot.id)
+                trySend(record)
+            }
+        awaitClose { listener.remove() }
     }
 
     override suspend fun loadRecord(campingId: String, attendeeId: String): CheckInRecord? {
@@ -88,8 +110,9 @@ class FakeCheckInService(
     records: List<CheckInRecord> = emptyList(),
     var shouldFail: Boolean = false,
 ) : CheckInService {
-    private val recordsByCamping = records.groupBy { it.campingId }
+    private val recordsByCamping = MutableStateFlow(records.groupBy { it.campingId }
         .mapValues { it.value.toMutableList() }.toMutableMap()
+    )
 
     private fun check() {
         if (shouldFail) throw IllegalStateException("FakeCheckInService configured to fail.")
@@ -97,20 +120,30 @@ class FakeCheckInService(
 
     override suspend fun loadRecords(campingId: String): List<CheckInRecord> {
         check()
-        return (recordsByCamping[campingId] ?: emptyList())
+        return (recordsByCamping.value[campingId] ?: emptyList())
             .sortedByDescending { it.checkedInAt ?: Date(0) }
     }
 
+    override fun observeRecord(campingId: String, attendeeId: String): Flow<CheckInRecord?> =
+        kotlinx.coroutines.flow.flow {
+            if (shouldFail) throw IllegalStateException("FakeCheckInService configured to fail.")
+            recordsByCamping.collect { map ->
+                emit(map[campingId]?.firstOrNull { it.attendeeId == attendeeId })
+            }
+        }
+
     override suspend fun loadRecord(campingId: String, attendeeId: String): CheckInRecord? {
         check()
-        return recordsByCamping[campingId]?.firstOrNull { it.attendeeId == attendeeId }
+        return recordsByCamping.value[campingId]?.firstOrNull { it.attendeeId == attendeeId }
     }
 
     override suspend fun recordCheckIn(record: CheckInRecord) {
         check()
-        val list = recordsByCamping.getOrPut(record.campingId) { mutableListOf() }
+        val store = recordsByCamping.value.toMutableMap()
+        val list = store.getOrPut(record.campingId) { mutableListOf() }
         list.removeAll { it.attendeeId == record.attendeeId }
         list.add(record)
+        recordsByCamping.value = store
     }
 }
 
