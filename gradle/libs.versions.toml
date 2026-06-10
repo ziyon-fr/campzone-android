@@ -71,6 +71,7 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 osmdroid-android = { group = "org.osmdroid", name = "osmdroid-android", version.ref = "osmdroid" }
 # Markwon (Markdown rendering in TextView / AndroidView)
 markwon-core = { group = "io.noties.markwon", name = "core", version.ref = "markwon" }
+markwon-ext-tables = { group = "io.noties.markwon", name = "ext-tables", version.ref = "markwon" }
 # Stripe
 stripe-android = { group = "com.stripe", name = "stripe-android", version.ref = "stripe" }
 # Lifecycle

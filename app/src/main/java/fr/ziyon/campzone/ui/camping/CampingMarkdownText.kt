@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import io.noties.markwon.Markwon
+import io.noties.markwon.ext.tables.TablePlugin
 
 @Composable
 internal fun CampingMarkdownText(
@@ -18,7 +19,11 @@ internal fun CampingMarkdownText(
     maxLines: Int? = null,
 ) {
     val context = LocalContext.current
-    val markwon = remember { Markwon.create(context) }
+    val markwon = remember {
+        Markwon.builder(context)
+            .usePlugin(TablePlugin.create(context))
+            .build()
+    }
     val spanned = remember(text) { markwon.toMarkdown(text) }
 
     AndroidView(

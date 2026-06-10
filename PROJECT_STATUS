@@ -3,6 +3,18 @@
 Updated: 2026-06-10
 
 - Branch: `venue-map-games-locations-instructions`
+- Follow-up completed: camping-description Markdown now explicitly supports
+  GitHub/CommonMark-style tables by adding Markwon's `ext-tables` dependency
+  and registering `TablePlugin` in the shared camping Markdown renderer.
+- Verification (JBR): `:app:lintDebug :app:assembleDebug` green.
+
+---
+
+# Project Status - Camping editor/list iOS parity follow-up
+
+Updated: 2026-06-10
+
+- Branch: `venue-map-games-locations-instructions`
 - Follow-up completed: Android now renders camping descriptions as Markdown
   in the Camping Detail overview and the Campings event-sheet preview, matching
   iOS `CampingDetailView`'s `Markdown(camping.description)` behavior while

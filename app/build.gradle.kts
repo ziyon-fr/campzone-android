@@ -98,8 +98,9 @@ dependencies {
     // osmdroid (OpenStreetMap — key-free in-app venue map preview)
     implementation(libs.osmdroid.android)
 
-    // Markwon (Markdown → Spanned for announcement body)
+    // Markwon (Markdown → Spanned for announcement/camping body, including tables)
     implementation(libs.markwon.core)
+    implementation(libs.markwon.ext.tables)
 
     // Stripe PaymentSheet
     implementation(libs.stripe.android)
