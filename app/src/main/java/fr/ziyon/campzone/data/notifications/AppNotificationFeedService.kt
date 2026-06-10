@@ -37,7 +37,7 @@ class FirestoreAppNotificationFeedService @Inject constructor(
         callbackFlow {
             val settings = runCatching { settingsService.load(uid, role) }
                 .getOrElse { NotificationSettingsRules.defaultSettings(role) }
-            val topics = NotificationTopics.visibleTopics(role, settings)
+            val topics = NotificationTopics.visibleTopics(role, settings, userId = uid)
 
             if (topics.isEmpty()) {
                 trySend(emptyList())
@@ -45,7 +45,11 @@ class FirestoreAppNotificationFeedService @Inject constructor(
                 return@callbackFlow
             }
 
-            val byId = HashMap<String, AppNotification>()
+            val store = NotificationFeedSnapshotStore(
+                userId = uid,
+                role = role,
+                visibleTopics = topics,
+            )
             val lock = Any()
 
             val registrations = topics.map { topic ->
@@ -55,17 +59,14 @@ class FirestoreAppNotificationFeedService @Inject constructor(
                     .addSnapshotListener { snapshot, error ->
                         if (error != null || snapshot == null) return@addSnapshotListener
                         val merged = synchronized(lock) {
-                            snapshot.documents.forEach { doc ->
+                            val notifications = snapshot.documents.mapNotNull { doc ->
                                 @Suppress("UNCHECKED_CAST")
-                                val data = doc.data as? Map<String, Any?> ?: return@forEach
-                                val notification = data.toAppNotificationOrNull(doc.id) ?: return@forEach
-                                if (notification.concerns(uid, role, topics)) {
-                                    byId[notification.id] = notification
-                                }
+                                val data = doc.data as? Map<String, Any?> ?: return@mapNotNull null
+                                data.toAppNotificationOrNull(doc.id)
                             }
-                            byId.values.sortedForFeed()
+                            store.update(topic, notifications)
                         }
-                        trySend(merged)
+                        if (merged != null) trySend(merged)
                     }
             }
 
@@ -76,6 +77,43 @@ class FirestoreAppNotificationFeedService @Inject constructor(
         const val Notifications = "ziyon_notifications"
         const val TopicField = "topic"
         const val PerTopicLimit = 200L
+    }
+}
+
+internal class NotificationFeedSnapshotStore(
+    private val userId: String,
+    private val role: UserRole,
+    private val visibleTopics: Set<String>,
+) {
+    private val byId = HashMap<String, AppNotification>()
+    private val idsByTopic = HashMap<String, Set<String>>()
+    private val initializedTopics = mutableSetOf<String>()
+    private var lastEmittedNotifications: List<AppNotification> = emptyList()
+
+    fun update(topic: String, notifications: List<AppNotification>): List<AppNotification>? {
+        val filtered = notifications
+            .filter { it.concerns(userId, role, visibleTopics) }
+
+        val nextIds = filtered.mapTo(mutableSetOf()) { it.id }
+        idsByTopic[topic]
+            .orEmpty()
+            .subtract(nextIds)
+            .forEach { byId.remove(it) }
+
+        idsByTopic[topic] = nextIds
+        initializedTopics += topic
+
+        filtered.forEach { notification ->
+            byId[notification.id] = notification
+        }
+
+        if (!initializedTopics.containsAll(visibleTopics)) return null
+
+        val sorted = byId.values.sortedForFeed()
+        if (sorted == lastEmittedNotifications) return null
+
+        lastEmittedNotifications = sorted
+        return sorted
     }
 }
 

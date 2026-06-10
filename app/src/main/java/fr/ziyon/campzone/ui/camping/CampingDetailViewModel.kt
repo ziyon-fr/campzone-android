@@ -43,6 +43,11 @@ data class CampingAttendeeFilters(
         get() = church.isBlank() && ageGroup == null && language.isBlank()
 }
 
+enum class CampingDetailOperationMessage {
+    PinnedToHome,
+    UnpinnedFromHome,
+}
+
 data class CampingDetailUiState(
     val isLoading: Boolean = true,
     val camping: Camping? = null,
@@ -75,6 +80,9 @@ data class CampingDetailUiState(
     val guardianChildAttendeeIds: List<String> = emptyList(),
     val attendeeSearch: String = "",
     val filters: CampingAttendeeFilters = CampingAttendeeFilters(),
+    val isSettingFeatured: Boolean = false,
+    val operationMessage: CampingDetailOperationMessage? = null,
+    val operationError: String? = null,
     val errorMessage: String? = null,
 ) {
     val canViewAttendees: Boolean
@@ -254,6 +262,7 @@ class CampingDetailViewModel @Inject constructor(
                             canSeeHiddenGameLocations = canManageGames || canManageTeams || canManageSchedule,
                         )
                         ?.takeIf { it.hasContent }
+                    val previousState = _uiState.value
                     _uiState.value = CampingDetailUiState(
                         isLoading = false,
                         camping = camping.copy(attendees = attendees),
@@ -294,6 +303,9 @@ class CampingDetailViewModel @Inject constructor(
                         hasPayablePriceItems = camping.priceItems.any { it.amountCents > 0 },
                         venueMap = visibleVenueMap,
                         guardianChildAttendeeIds = guardianChildIds,
+                        isSettingFeatured = previousState.isSettingFeatured,
+                        operationMessage = previousState.operationMessage,
+                        operationError = previousState.operationError,
                     )
                 }
             } catch (cancellation: CancellationException) {
@@ -322,4 +334,44 @@ class CampingDetailViewModel @Inject constructor(
     fun trackSongbookView(campingId: String) = analyticsService.viewSongbook(campingId)
 
     fun trackTeamsView(campingId: String) = analyticsService.viewTeams(campingId)
+
+    fun setFeatured(campingId: String, isFeatured: Boolean) {
+        _uiState.update {
+            it.copy(isSettingFeatured = true, operationMessage = null, operationError = null)
+        }
+        viewModelScope.launch {
+            try {
+                val updated = service.setFeatured(campingId, isFeatured)
+                _uiState.update { state ->
+                    state.copy(
+                        camping = updated.copy(attendees = state.attendees),
+                        isSettingFeatured = false,
+                        operationMessage = if (isFeatured) {
+                            CampingDetailOperationMessage.PinnedToHome
+                        } else {
+                            CampingDetailOperationMessage.UnpinnedFromHome
+                        },
+                        operationError = null,
+                    )
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isSettingFeatured = false,
+                        operationError = error.message.orEmpty(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun consumeOperationMessage() {
+        _uiState.update { it.copy(operationMessage = null) }
+    }
+
+    fun consumeOperationError() {
+        _uiState.update { it.copy(operationError = null) }
+    }
 }

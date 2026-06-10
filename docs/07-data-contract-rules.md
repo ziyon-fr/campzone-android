@@ -112,8 +112,8 @@ duplicate/ghost record and (often) a denied read.
 
 `campings/{id}` is written via a hand-built payload, not the model
 encoder. It never contains `attendees` (use the `registrations`
-subcollection), and `guidelines`/`winnerRevealPolicy` are written only
-by their dedicated paths. `priceItems`/`agePrices`/
+subcollection), and `guidelines`/`winnerRevealPolicy`/`isFeatured` are
+written only by their dedicated paths. `priceItems`/`agePrices`/
 `transportationOptions` are **always** written (empty array if none);
 `organizerLevel` is a `{type,value}` **map** (not a string);
 `location` is a flat **string** (not a `CampingLocation` map).

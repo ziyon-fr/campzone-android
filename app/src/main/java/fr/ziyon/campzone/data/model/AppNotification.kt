@@ -31,6 +31,9 @@ data class AppNotification(
     val senderId: String? = null,
     val messageId: String? = null,
     val event: String? = null,
+    val recipientUserId: String? = null,
+    val registrationId: String? = null,
+    val deepLinkUrl: String? = null,
     val mentionedUserIds: List<String> = emptyList(),
 ) {
     val feedDeduplicationKey: String
@@ -59,6 +62,10 @@ data class AppNotification(
             if (!mentionedUserIds.contains(userId)) return false
         }
 
+        recipientUserId?.let { recipient ->
+            if (recipient != userId) return false
+        }
+
         return visibleTopics.contains(topic)
     }
 
@@ -66,29 +73,47 @@ data class AppNotification(
      * The deep-link destination for a tapped feed row, derived from the
      * notification's kind + ids. Mirrors iOS `AppNotification.deepLink`.
      */
-    fun deepLink(): CampzoneDeepLink? = when (kind) {
-        AppNotificationKind.Announcement ->
-            announcementId?.let(CampzoneDeepLink::Announcement)
+    fun deepLink(): CampzoneDeepLink? {
+        CampzoneDeepLink.fromCampzoneUrl(deepLinkUrl)?.let { return it }
 
-        AppNotificationKind.ChatMessage, AppNotificationKind.ChatMention -> campingId?.let {
-            if (teamId != null) CampzoneDeepLink.TeamChat(it, teamId) else CampzoneDeepLink.CampingChat(it)
-        }
+        return when (kind) {
+            AppNotificationKind.Announcement ->
+                announcementId?.let(CampzoneDeepLink::Announcement)
 
-        AppNotificationKind.Poll ->
-            campingId?.let { CampzoneDeepLink.Poll(campingId = it, pollId = pollId) }
-
-        AppNotificationKind.Registration ->
-            campingId?.let(CampzoneDeepLink::RegistrationReview)
-
-        AppNotificationKind.TeamUpdate -> campingId?.let {
-            when {
-                isPointEvent(event) -> CampzoneDeepLink.TeamPoints(campingId = it, teamId = teamId)
-                teamId != null -> CampzoneDeepLink.TeamUpdate(campingId = it, teamId = teamId)
-                else -> CampzoneDeepLink.Camping(it)
+            AppNotificationKind.Badge -> recipientUserId?.let {
+                CampzoneDeepLink.Achievements(
+                    userId = it,
+                    displayName = null,
+                    photoUrl = null,
+                    campingId = campingId,
+                )
             }
-        }
 
-        AppNotificationKind.ScheduleReminder, AppNotificationKind.Unknown -> null
+            AppNotificationKind.ChatMessage, AppNotificationKind.ChatMention -> campingId?.let {
+                if (teamId != null) CampzoneDeepLink.TeamChat(it, teamId) else CampzoneDeepLink.CampingChat(it)
+            }
+
+            AppNotificationKind.Poll ->
+                campingId?.let { CampzoneDeepLink.Poll(campingId = it, pollId = pollId) }
+
+            AppNotificationKind.Registration -> campingId?.let {
+                if (event.equals("approved", ignoreCase = true)) {
+                    CampzoneDeepLink.Camping(it)
+                } else {
+                    CampzoneDeepLink.RegistrationReview(it)
+                }
+            }
+
+            AppNotificationKind.TeamUpdate -> campingId?.let {
+                when {
+                    isPointEvent(event) -> CampzoneDeepLink.TeamPoints(campingId = it, teamId = teamId)
+                    teamId != null -> CampzoneDeepLink.TeamUpdate(campingId = it, teamId = teamId)
+                    else -> CampzoneDeepLink.Camping(it)
+                }
+            }
+
+            AppNotificationKind.ScheduleReminder, AppNotificationKind.Unknown -> null
+        }
     }
 
     companion object {
@@ -143,6 +168,9 @@ internal fun Map<String, Any?>.toAppNotificationOrNull(documentId: String): AppN
         senderId = stringValue("senderId"),
         messageId = stringValue("messageId"),
         event = stringValue("event"),
+        recipientUserId = stringValue("recipientUserID"),
+        registrationId = stringValue("registrationID"),
+        deepLinkUrl = firstStringValue("deepLink", "deeplink", "deep_link", "deepLinkURL", "deepLinkUrl", "url", "link"),
         mentionedUserIds = stringListValue("mentionedUserIDs"),
     )
 }
@@ -172,3 +200,6 @@ private fun parseIso8601(raw: String): Date? {
     }
     return null
 }
+
+private fun Map<String, Any?>.firstStringValue(vararg keys: String): String? =
+    keys.firstNotNullOfOrNull { key -> stringValue(key) }

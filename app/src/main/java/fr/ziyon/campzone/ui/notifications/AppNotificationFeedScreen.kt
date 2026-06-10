@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.WorkspacePremium
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -260,6 +261,7 @@ private fun AppNotification.audienceText(): String {
 
 private fun AppNotificationKind.icon(): ImageVector = when (this) {
     AppNotificationKind.Announcement -> Icons.Rounded.Campaign
+    AppNotificationKind.Badge -> Icons.Rounded.WorkspacePremium
     AppNotificationKind.ChatMessage -> Icons.AutoMirrored.Rounded.Chat
     AppNotificationKind.ChatMention -> Icons.Rounded.AlternateEmail
     AppNotificationKind.Poll -> Icons.Rounded.BarChart
@@ -271,6 +273,7 @@ private fun AppNotificationKind.icon(): ImageVector = when (this) {
 
 private fun AppNotificationKind.labelRes(): Int = when (this) {
     AppNotificationKind.Announcement -> R.string.notif_cat_announcements_title
+    AppNotificationKind.Badge -> R.string.badges_badge
     AppNotificationKind.ChatMessage, AppNotificationKind.ChatMention -> R.string.notif_cat_chat_title
     AppNotificationKind.Poll -> R.string.notif_channel_poll
     AppNotificationKind.Registration -> R.string.notif_channel_registration

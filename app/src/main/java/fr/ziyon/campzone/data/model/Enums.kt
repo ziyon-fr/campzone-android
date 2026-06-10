@@ -343,6 +343,7 @@ enum class ContentReportStatus(val wireValue: String) {
 /** `ziyon_notifications` `kind`/`type` (tolerant; accepts legacy spellings). */
 enum class AppNotificationKind(val wireValue: String) {
     Announcement("announcement"),
+    Badge("badge"),
     ChatMessage("chat_message"),
     ChatMention("chat_mention"),
     Poll("poll"),
@@ -355,6 +356,7 @@ enum class AppNotificationKind(val wireValue: String) {
         fun fromWire(value: String?): AppNotificationKind? =
             when (value?.trim()?.lowercase()) {
                 "announcement" -> Announcement
+                "badge", "achievement", "achievement_badge" -> Badge
                 "chat_message", "chatmessage" -> ChatMessage
                 "chat_mention", "chatmention" -> ChatMention
                 "poll" -> Poll

@@ -7,7 +7,8 @@ import java.util.Date
  * client-supplied [id]. The camping doc is written via a hand-built payload
  * ([CampingPayload]) - never an auto-encoder - and never carries `attendees`
  * (those live in the `registrations` subcollection). `guidelines` and
- * `winnerRevealPolicy` are written only by their dedicated paths.
+ * `winnerRevealPolicy` are written only by their dedicated paths; `isFeatured`
+ * is likewise written only by the dedicated Home pin path.
  */
 data class Camping(
     val id: String,
@@ -42,6 +43,11 @@ data class Camping(
      * timestamp on the wire (`02-firestore-schema.md` §3).
      */
     val registrationDeadline: Date? = null,
+    /**
+     * Admin-selected Home pin. Missing legacy docs decode as false and regular
+     * camping saves never write it, so edits cannot accidentally clear the pin.
+     */
+    val isFeatured: Boolean = false,
     val attendees: List<CampingAttendee> = emptyList(),
 ) {
     val isPaid: Boolean
@@ -106,6 +112,19 @@ data class Camping(
 
     fun transportationOption(id: String?): CampingTransportationOption? =
         id?.let { optionId -> transportationOptions.firstOrNull { it.id == optionId } }
+
+    fun registrationsForAuthenticatedUser(userId: String?): List<CampingAttendee> {
+        val uid = userId?.takeUnless { it.isBlank() } ?: return emptyList()
+        return attendees.filter { attendee ->
+            attendee.userId == uid ||
+                attendee.guardianId == uid ||
+                (attendee.participantKind == RegistrationParticipantKind.SelfParticipant && attendee.id == uid)
+        }
+    }
+
+    fun hasApprovedRegistrationForUser(userId: String?): Boolean =
+        registrationsForAuthenticatedUser(userId)
+            .any { it.registrationStatus == RegistrationApprovalStatus.Approved }
 }
 
 data class OrganizerLevel(
@@ -218,6 +237,7 @@ internal fun Map<String, Any?>.toCampingOrNull(documentId: String): Camping? {
         createdAt = dateValue("createdAt"),
         updatedAt = dateValue("updatedAt"),
         registrationDeadline = dateValue("registrationDeadline"),
+        isFeatured = boolValue("isFeatured") ?: false,
     )
 }
 

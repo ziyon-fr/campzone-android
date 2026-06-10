@@ -264,7 +264,7 @@ filter; earned badge docs only store the user-specific award instance.
 ## 3. `campings/{campingId}` - Camping
 
 - **Doc ID**: client-supplied `camping.id` (human slug or UUID, **not** Firestore auto-id).
-- **Write path bypasses Codable** - the spec is the manual `payload(for:)`. Fields the Swift model has but the payload does **not** write: `attendees` (never on wire), `guidelines` (only via the guidelines update path), `winnerRevealPolicy` (only via the reveal path).
+- **Write path bypasses Codable** - the spec is the manual `payload(for:)`. Fields the Swift model has but the payload does **not** write: `attendees` (never on wire), `guidelines` (only via the guidelines update path), `winnerRevealPolicy` (only via the reveal path), `isFeatured` (only via the Home pin path).
 
 | Wire key | Type | Req/Opt | Default | Notes |
 | --- | --- | --- | --- | --- |
@@ -284,6 +284,7 @@ filter; earned badge docs only store the user-specific award instance.
 | `logoURL` | string | opt | `nil` | **delete-when-empty** |
 | `logoPublicID` | string | opt | `nil` | **delete-when-empty** |
 | `guidelines` | string | opt | `""` | markdown; written only by the guidelines update path |
+| `isFeatured` | bool | opt | `false` | Home featured pin. Read with default `false`; written only by the dedicated merge path `{ isFeatured, updatedAt }`, never by regular camping save |
 | `registrationFeeCents` | int | opt | `nil` | **cents/minor units**. delete-when-`<=0` |
 | `feeCurrency` | string | opt | `nil` | e.g. `usd`/`eur`. delete-when-blank |
 | `priceItems` | array\<map> | opt | `[]` | always written (may be `[]`). § 3.3 |
@@ -292,7 +293,7 @@ filter; earned badge docs only store the user-specific award instance.
 | `createdByUID` | string | opt | `nil` | creator signature; stamped once on create; omit-when-empty. Authorizes delete |
 | `createdByName` | string | opt | `nil` | omit-when-empty |
 | `createdAt` | timestamp | server | - | `serverTimestamp()`, create only |
-| `updatedAt` | timestamp | server | - | `serverTimestamp()`, every save/cancel/guidelines write |
+| `updatedAt` | timestamp | server | - | `serverTimestamp()`, every save/cancel/guidelines/featured write |
 
 ### 3.1 `organizerLevel` map (required)
 
@@ -687,18 +688,25 @@ decoder. **`appID` MUST be `"campzone"`** or the doc is ignored client-side.
 | `kind` | string | inferred | backend writes **`kind`**; decoder also accepts `type` |
 | `title` | string | `"Notification"` | |
 | `body` | string | `""` | |
-| `topic` | string | `""` | audience routing (§ 04-backend-api topics) |
+| `topic` | string | `""` | audience routing (§ 04-backend-api topics), including direct user topics `campzone_user_<uid>` |
 | `sentAt` | **iso-string** | `.distantPast` | backend writes `new Date().toISOString()` → `2026-05-16T09:00:00.000Z`. Decoder also accepts Timestamp/Date |
 | `createdAt` | iso-string | - | fallback for `sentAt` |
 | `announcementID` | string | `nil` | kind inference: → `announcement` |
 | `campingID` | string | `nil` | → `chatMessage` if no other |
 | `pollID` | string | `nil` | → `poll` |
 | `teamID` | string | `nil` | team-scoped |
+| `achievementID` | string | `nil` | badge/achievement id for earned-badge notifications |
+| `achievementTitle` | string | `nil` | display title sent by the backend for badge notifications |
 | `role` | string | from topic | derived from topic prefix `campzone_role_` |
+| `recipientUserID` | string | `nil` | direct-user feed recipient for `campzone_user_<uid>` rows |
+| `registrationID` | string | `nil` | registration attendee doc id for registration request/approval rows |
+| `event` | string | `nil` | registration uses `request` or `approved`; team updates use event values from §04 |
+| `deepLink` | string | `nil` | optional direct app/web URL; clients prefer it over kind/id inference |
 | `senderId` | string | - | backend writes `senderId` (note casing) |
 | `messageId` | string | - | FCM message id |
 
-`AppNotificationKind` raw: `announcement`, `chat_message` (also accepts
+`AppNotificationKind` raw: `announcement`, `badge` (also accepts
+`achievement`/`achievement_badge`), `chat_message` (also accepts
 `chatmessage`), `poll`, `schedule_reminder` (also `schedulereminder`),
 `unknown`. Kind inference order: explicit kind → `type` →
 `announcementID`→announcement → `pollID`→poll → `campingID`→chatMessage →

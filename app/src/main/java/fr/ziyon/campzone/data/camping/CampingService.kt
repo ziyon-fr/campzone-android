@@ -42,6 +42,12 @@ interface CampingService {
     /** Live `campings` collection ordered by `startDate` (camping docs only, no attendees). */
     fun observeCampings(): Flow<List<Camping>>
 
+    /** IDs where the currently cached camping data says [userId] is approved. No Firestore query. */
+    fun approvedCampingIds(forUserId: String?): Set<String>
+
+    /** Cached camping from an already-running observer/fetch, if present. No Firestore query. */
+    fun cachedCamping(id: String): Camping?
+
     /** One-shot fetch of a single camping document. */
     suspend fun fetchCamping(id: String): Camping
 
@@ -71,6 +77,9 @@ interface CampingService {
 
     /** Guidelines update path - writes only `{ guidelines, updatedAt }`. */
     suspend fun updateGuidelines(campingId: String, body: String): Camping
+
+    /** Home pin path - writes only `{ isFeatured, updatedAt }` as a merge. */
+    suspend fun setFeatured(campingId: String, isFeatured: Boolean): Camping
 
     /** Winner-reveal path - writes only `{ winnerRevealPolicy, updatedAt }`. Gated by `canRevealWinners`. */
     suspend fun updateWinnerReveal(campingId: String, policy: WinnerRevealPolicy): Camping
@@ -120,6 +129,8 @@ class FirebaseCampingService @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth,
 ) : CampingService {
+    @Volatile
+    private var latestCampings: List<Camping> = emptyList()
 
     override fun observeCampings(): Flow<List<Camping>> = callbackFlow {
         val registration = campings()
@@ -133,18 +144,29 @@ class FirebaseCampingService @Inject constructor(
                     ?.mapNotNull { document -> document.data?.toCampingOrNull(document.id) }
                     .orEmpty()
                 launch {
-                    trySend(campings.map { camping ->
+                    val loaded = campings.map { camping ->
                         camping.copy(attendees = loadAttendees(camping.id))
-                    })
+                    }
+                    cacheCampings(loaded)
+                    trySend(loaded)
                 }
             }
         awaitClose { registration.remove() }
     }
 
+    override fun approvedCampingIds(forUserId: String?): Set<String> =
+        latestCampings
+            .filter { camping -> camping.hasApprovedRegistrationForUser(forUserId) }
+            .mapTo(mutableSetOf()) { it.id }
+
+    override fun cachedCamping(id: String): Camping? =
+        latestCampings.firstOrNull { it.id == id }
+
     override suspend fun fetchCamping(id: String): Camping {
         val snapshot = campings().document(id).get().await()
         return snapshot.data?.toCampingOrNull(snapshot.id)
             ?.let { it.copy(attendees = loadAttendees(it.id)) }
+            ?.also(::cacheCamping)
             ?: error("Camping could not be found.")
     }
 
@@ -237,6 +259,16 @@ class FirebaseCampingService @Inject constructor(
         campings().document(campingId)
             .set(
                 CampingPayload.guidelinesPayload(body, FieldValue.serverTimestamp()),
+                SetOptions.merge(),
+            )
+            .await()
+        return fetchCamping(campingId)
+    }
+
+    override suspend fun setFeatured(campingId: String, isFeatured: Boolean): Camping {
+        campings().document(campingId)
+            .set(
+                CampingPayload.featuredPayload(isFeatured, FieldValue.serverTimestamp()),
                 SetOptions.merge(),
             )
             .await()
@@ -532,6 +564,16 @@ class FirebaseCampingService @Inject constructor(
 
     private fun campings() = firestore.collection(Campings)
 
+    private fun cacheCampings(campings: List<Camping>) {
+        latestCampings = campings
+    }
+
+    private fun cacheCamping(camping: Camping) {
+        latestCampings = latestCampings
+            .filterNot { it.id == camping.id }
+            .plus(camping)
+    }
+
     private companion object {
         const val Campings = "campings"
         const val Registrations = "registrations"
@@ -554,14 +596,21 @@ abstract class CampingBindings {
 /** Minimal in-memory [CampingService] for Compose previews and fakes in the main source set. */
 class PreviewCampingService(private val camping: Camping? = null) : CampingService {
     override fun observeCampings() = kotlinx.coroutines.flow.flowOf(listOfNotNull(camping))
+    override fun approvedCampingIds(forUserId: String?) =
+        listOfNotNull(camping)
+            .filter { it.hasApprovedRegistrationForUser(forUserId) }
+            .mapTo(mutableSetOf()) { it.id }
+    override fun cachedCamping(id: String) = camping?.takeIf { it.id == id }
     override suspend fun fetchCamping(id: String) = camping ?: error("No camping")
     override fun observeCamping(id: String) = kotlinx.coroutines.flow.flowOf(camping ?: error("No camping"))
     override suspend fun loadAttendees(campingId: String) = emptyList<fr.ziyon.campzone.data.model.CampingAttendee>()
-    override suspend fun saveCamping(c: Camping) = c
+    override suspend fun saveCamping(camping: Camping) = camping
     override suspend fun cancelCamping(id: String) = camping ?: error("No camping")
     override suspend fun deleteCamping(id: String) = Unit
     override suspend fun updateGuidelines(campingId: String, body: String) =
         camping?.copy(guidelines = body) ?: error("No camping")
+    override suspend fun setFeatured(campingId: String, isFeatured: Boolean) =
+        camping?.copy(isFeatured = isFeatured) ?: error("No camping")
     override suspend fun updateWinnerReveal(campingId: String, policy: WinnerRevealPolicy) =
         camping?.copy(winnerRevealPolicy = policy) ?: error("No camping")
     override suspend fun submitRegistrations(

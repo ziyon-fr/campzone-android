@@ -32,9 +32,17 @@ sealed interface CampzoneDeepLink {
 
     data class RegistrationReview(val campingId: String) : CampzoneDeepLink
 
+    data class Achievements(
+        val userId: String,
+        val displayName: String?,
+        val photoUrl: String?,
+        val campingId: String?,
+    ) : CampzoneDeepLink
+
     fun canonicalShareUrlOrNull(): String? = when (this) {
         is Announcement -> "https://${Companion.WebHost}/announcements/${id.asUrlSegment()}"
         is Camping -> "https://${Companion.WebHost}/campings/${id.asUrlSegment()}"
+        is Achievements,
         is CampingChat,
         is Poll,
         is RegistrationReview,
@@ -153,6 +161,18 @@ sealed interface CampzoneDeepLink {
                     RegistrationReview(campingId)
                 }
 
+                "achievement", "achievements", "badge", "badges" -> {
+                    val userId = pathId
+                        ?: query.firstValue("id", "userID", "uid")
+                        ?: return null
+                    Achievements(
+                        userId = userId,
+                        displayName = query.firstValue("displayName", "name"),
+                        photoUrl = query.firstValue("photoURLString", "photoURL"),
+                        campingId = query.firstValue("campingID", "c"),
+                    )
+                }
+
                 else -> null
             }
         }
@@ -166,6 +186,14 @@ sealed interface CampzoneDeepLink {
             val pollId = payload.firstValue("pollID")
             val announcementId = payload.firstValue("announcementID")
             val event = payload.firstValue("event")?.lowercase(Locale.ROOT)
+            val recipientUserId = payload.firstValue("recipientUserID", "userID", "uid")
+            val recipientDisplayName = payload.firstValue("recipientDisplayName", "displayName", "name")
+            val recipientPhotoUrl = payload.firstValue(
+                "recipientPhotoURLString",
+                "recipientPhotoURL",
+                "photoURLString",
+                "photoURL",
+            )
 
             return when (type) {
                 "announcement" -> announcementId?.let(::Announcement)
@@ -174,7 +202,17 @@ sealed interface CampzoneDeepLink {
                 }
 
                 "poll" -> campingId?.let { Poll(it, pollId) }
-                "registration", "registration_request" -> campingId?.let(::RegistrationReview)
+                "registration", "registration_request" -> campingId?.let {
+                    if (event == "approved") Camping(it) else RegistrationReview(it)
+                }
+                "badge", "achievement", "achievement_badge" -> recipientUserId?.let {
+                    Achievements(
+                        userId = it,
+                        displayName = recipientDisplayName,
+                        photoUrl = recipientPhotoUrl,
+                        campingId = campingId,
+                    )
+                }
                 "team_update", "teamupdate" -> campingId?.let {
                     when {
                         event.isPointEvent() -> TeamPoints(campingId = it, teamId = teamId)

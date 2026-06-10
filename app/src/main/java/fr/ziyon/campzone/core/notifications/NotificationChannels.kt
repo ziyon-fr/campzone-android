@@ -46,7 +46,7 @@ object NotificationChannels {
         "poll" -> Poll
         "schedule_reminder", "schedulereminder" -> ScheduleReminder
         "team_update", "teamupdate" -> TeamUpdate
-        "registration", "registration_request" -> Registration
+        "registration", "registration_request", "registration_approved" -> Registration
         else -> General
     }
 

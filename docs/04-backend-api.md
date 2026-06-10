@@ -51,6 +51,7 @@
 | POST | `/notifications/dispatch/poll` | push + feed: poll event (leadership) |
 | POST | `/notifications/dispatch/team` | push + feed: team update (leadership) |
 | POST | `/notifications/dispatch/registration` | push + feed: registration request (any registrant) |
+| POST | `/notifications/dispatch/badge` | push + feed: badge award (leadership/system) |
 | POST | `/cloudinary/sign` | signed Cloudinary upload descriptor |
 | POST | `/cloudinary/destroy` | delete a Cloudinary asset |
 | GET | `/api/badges/evaluate` | cron: bounded badge sweep (`CRON_SECRET`) |
@@ -135,9 +136,23 @@ to any signed-in registrant.
   scoreChanged,memberScoreChanged,penaltyApplied`. Topic
   `campzone_team_<teamID>`.
 - `dispatch/registration` - `{ campingID, title, body,
-  participantName?, requestedByName?, participantCount? }`. Fans out to
-  **leadership role topics** `campzone_role_{leader,pastor,
-  youth_director,admin}` so leadership sees the pending request.
+  participantName?, requestedByName?, participantCount? }`. The backend
+  resolves eligible approvers (admin, own-church leader/youth director,
+  and the camping creator) and sends direct-user notifications while
+  preserving the existing response envelope/fields.
+- `dispatch/badge` - `{ recipientUserID, achievementID,
+  achievementTitle, campingID?, awardedByUserID?, recipientDisplayName?,
+  recipientPhotoURLString? }`. The backend sends a direct-user
+  notification to `campzone_user_<recipientUserID>`, writes a feed row
+  with `kind:"badge"`, and includes a `campzone://achievements/<uid>`
+  deep link so tapping opens the badges view. Privileged leaders/game
+  masters and backend `system` callers can dispatch it.
+- Registration approval notifications are **backend-triggered** from
+  registration status transitions into `approved` (including Stripe
+  payment auto-approval). Clients do not call a new endpoint. Payloads
+  use `type:"registration"`, `event:"approved"`, `registrationID`,
+  `recipientUserID`, and a camping deep link so old clients still open
+  the camping detail.
 
 ### 3.5 Topic naming
 
@@ -148,6 +163,8 @@ topics the in-app feed filters on:
 - Global announcements: **`campzone_announcements`**
 - Role: **`campzone_role_<roleRaw>`** (e.g. `campzone_role_admin`).
   Admins effectively see all role topics; non-admins only their own.
+- Direct user: **`campzone_user_<uid>`** for personal backend-written
+  feed rows such as registration approvals and earned badges.
 - Camping: `campzone_camping_<id>`; camping chat
   `campzone_camping_chat_<id>`; camping reminders
   `campzone_camping_reminders_<id>`; team `campzone_team_<id>`; team chat
@@ -162,8 +179,8 @@ and `/notifications/settings`.
 ### 3.6 In-app feed records
 
 Backend writes to `ziyon_notifications` with: `appID`, `kind`
-(`announcement`/`chat_message`/`poll`/`team_update`/`registration`),
-ids (`announcementID`/`campingID`/`pollID`/`teamID` as relevant),
+(`announcement`/`badge`/`chat_message`/`poll`/`team_update`/`registration`),
+ids (`announcementID`/`achievementID`/`campingID`/`pollID`/`teamID` as relevant),
 `topic`, `messageId`, `title`, `body`, `role?`, `senderId`, `sentAt`
 (**ISO-8601 string** `…SSSZ`). Clients are **readers only** (RBAC
 forbids client writes). See `02` §6.5 for the read schema + tolerant

@@ -33,10 +33,11 @@ class NotificationTopicsTest {
 
     @Test
     fun nonAdminSeesOnlyOwnRoleTopic() {
-        val topics = NotificationTopics.visibleTopics(UserRole.Leader, settings = null)
+        val topics = NotificationTopics.visibleTopics(UserRole.Leader, settings = null, userId = "leader-1")
         assertTrue(topics.contains("campzone_role_leader"))
         assertFalse(topics.contains("campzone_role_admin"))
         assertTrue(topics.contains(NotificationTopics.globalAnnouncement))
+        assertTrue(topics.contains("campzone_user_leader-1"))
     }
 
     @Test
@@ -74,5 +75,12 @@ class NotificationTopicsTest {
         val topics = NotificationTopics.visibleTopics(UserRole.User, settings)
         assertTrue(topics.contains("campzone_team_t1"))
         assertTrue(topics.contains("campzone_team_chat_t1"))
+    }
+
+    @Test
+    fun directUserTopicIsSuppressedWhenNotificationsAreDisabled() {
+        val settings = NotificationSettings(isEnabled = false)
+        val topics = NotificationTopics.visibleTopics(UserRole.User, settings, userId = "u1")
+        assertFalse(topics.contains("campzone_user_u1"))
     }
 }

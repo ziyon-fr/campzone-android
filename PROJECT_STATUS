@@ -1,3 +1,96 @@
+# Project Status - Badge award notifications
+
+Updated: 2026-06-10
+
+- Branch: `venue-map-games-locations-instructions`
+- Change completed: Android now mirrors iOS/backend badge-award notification
+  behavior. Manual badge awards dispatch a best-effort
+  `/notifications/dispatch/badge` request after the Firestore award succeeds,
+  with recipient/user/achievement/camping context.
+- Notification feed: `AppNotificationKind.Badge` decodes `badge`,
+  `achievement`, and `achievement_badge`, direct-user badge rows deep-link to
+  achievements, and the feed UI renders badge rows with the existing localized
+  badge label.
+- Deep links/docs: Android parses `campzone://achievements/<uid>` and
+  `/badges/<uid>` web links plus badge FCM payloads, then routes to the Profile
+  achievements screen. `docs/02`, `docs/04`, and `docs/05` now include the
+  badge notification/deep-link contract.
+- Verification (JBR): focused `:app:testDebugUnitTest --tests
+  fr.ziyon.campzone.ui.profile.badges.AchievementViewModelTest --tests
+  fr.ziyon.campzone.data.model.AppNotificationDeepLinkTest --tests
+  fr.ziyon.campzone.data.model.AppNotificationTest --tests
+  fr.ziyon.campzone.data.model.EnumWireValueTest --tests
+  fr.ziyon.campzone.core.navigation.CampzoneDeepLinkTest` green;
+  `:app:assembleDebug` green.
+
+---
+
+# Project Status - Home iOS parity refresh
+
+Updated: 2026-06-08
+
+- Branch: `venue-map-games-locations-instructions`
+- Change completed: Android Home now mirrors the current iOS HomeView structure
+  with the fixed Basecamp header, featured/live hero area, quick-action rail,
+  schedule timeline, and announcement carousel.
+- Featured hero: added the Featured tag, registration-close countdown chip,
+  Secure my spot / Join waitlist / Registration closed CTA, split detail vs
+  registration actions, and the updated "spots taken" capacity copy. Active
+  approved campings now show a pass-style hero with the real check-in QR
+  payload, the iOS-style right-side accent glow, checked-in day status,
+  team/lodging chips, and a local full-screen pass overlay instead of
+  navigating away from Home.
+- Featured selection: Home now keeps the local camping observer alive and
+  restarts the dashboard featured stream when the approved-camping ID set
+  changes, so tier 1 activates after cold-launch camping data arrives just like
+  iOS.
+- Quick actions: Android now mirrors iOS `QuickActionUsageStore` with a local
+  SharedPreferences-backed usage store, ranks the eligible Home tile pool by
+  descending tap count with default-order tie breaking, and records matching
+  Camping Detail resource taps (venue map, guidelines, schedule, teams, games,
+  QR pass, songbook, chat, polls, album, food menu, pricing, scanner,
+  transportation, and vehicles).
+- Data/windowing: HomeViewModel now loads the schedule window from the start of
+  today and surfaces six programs plus six recent app-wide announcements for
+  the Home timeline/carousel.
+- Verification (JBR): focused `:app:testDebugUnitTest --tests
+  fr.ziyon.campzone.ui.home.HomeViewModelTest` green; `:app:assembleDebug`
+  green. `:app:lintDebug` remains blocked only by the existing
+  `VenueMapEditorScreen.kt` `LocalContext.getString(...)` errors at lines 195,
+  200, 210, and 216; the final lint text has no Home, HomeViewModel,
+  CampingDetailScreen, or QuickActionUsageStore entries.
+
+---
+
+# Project Status - Featured camping priority system
+
+Updated: 2026-06-08
+
+- Branch: `venue-map-games-locations-instructions`
+- Change completed: Android now decodes camping `isFeatured` as a
+  legacy-safe boolean defaulting to false, keeps the regular camping save
+  payload from writing it, and exposes a dedicated merge-only `setFeatured`
+  path writing `{ isFeatured, updatedAt }`.
+- Home: added a dashboard repository using the iOS query shape (`endDate >=
+  now`, ordered by `endDate`, limit 12) and the four-tier selection chain:
+  active approved registration, first admin-pinned, open registration with the
+  soonest start, then the end-date fallback. The signed-in user's approved
+  camping IDs are captured from already cached camping data with no
+  registration query.
+- Camping detail: admins with `canManageAnyCamping` see Pin/Unpin from Home for
+  non-cancelled campings, with localized snackbar feedback.
+- Verification (JBR): focused `:app:testDebugUnitTest --tests
+  fr.ziyon.campzone.data.dashboard.MainDashboardRepositoryTest --tests
+  fr.ziyon.campzone.data.model.CampingPayloadTest --tests
+  fr.ziyon.campzone.ui.home.HomeViewModelTest --tests
+  fr.ziyon.campzone.ui.camping.CampingDetailViewModelTest` green;
+  `:app:assembleDebug` green.
+  `:app:lintDebug` remains blocked by pre-existing
+  `VenueMapEditorScreen.kt` `LocalContext.getString(...)` resource errors at
+  lines 195, 200, 210, and 216, not by this feature.
+
+---
+
 # Project Status - Venue map, games locations, and leadership instructions parity
 
 Updated: 2026-06-08

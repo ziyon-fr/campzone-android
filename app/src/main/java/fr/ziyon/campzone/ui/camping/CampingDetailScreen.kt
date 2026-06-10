@@ -1,6 +1,7 @@
 package fr.ziyon.campzone.ui.camping
 
 import android.content.Intent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -57,6 +58,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.FabPosition
@@ -66,6 +68,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -81,8 +85,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -118,6 +124,8 @@ import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.WinnerRevealPolicy
+import fr.ziyon.campzone.ui.home.QuickActionKind
+import fr.ziyon.campzone.ui.home.rememberQuickActionUsageStore
 import fr.ziyon.campzone.ui.teams.TeamBadgeView
 import fr.ziyon.campzone.ui.teams.TeamViewModel
 import fr.ziyon.campzone.ui.teams.TeamsUiState
@@ -238,6 +246,9 @@ fun CampingDetailRoute(
         onOpenVehicles = onOpenVehicles,
         onOpenBadgeAward = onOpenBadgeAward,
         onOpenAlbum = onOpenAlbum,
+        onSetFeatured = viewModel::setFeatured,
+        onOperationMessageShown = viewModel::consumeOperationMessage,
+        onOperationErrorShown = viewModel::consumeOperationError,
         modifier = modifier,
     )
 }
@@ -282,12 +293,38 @@ fun CampingDetailScreen(
     onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
+    onSetFeatured: (String, Boolean) -> Unit = { _, _ -> },
+    onOperationMessageShown: () -> Unit = {},
+    onOperationErrorShown: () -> Unit = {},
 ) {
     val camping = state.camping
+    val snackbarHostState = remember { SnackbarHostState() }
+    val pinnedMessage = stringResource(R.string.camping_pinned_to_home)
+    val unpinnedMessage = stringResource(R.string.camping_unpinned_from_home)
+    val homePinUpdateFailedMessage = stringResource(R.string.camping_home_pin_update_failed)
+    LaunchedEffect(state.operationMessage) {
+        val message = when (state.operationMessage) {
+            CampingDetailOperationMessage.PinnedToHome -> pinnedMessage
+            CampingDetailOperationMessage.UnpinnedFromHome -> unpinnedMessage
+            null -> null
+        }
+        if (message != null) {
+            snackbarHostState.showSnackbar(message)
+            onOperationMessageShown()
+        }
+    }
+    LaunchedEffect(state.operationError) {
+        val message = state.operationError
+        if (message != null) {
+            snackbarHostState.showSnackbar(message.ifBlank { homePinUpdateFailedMessage })
+            onOperationErrorShown()
+        }
+    }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(),
         containerColor = MaterialTheme.czColors.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (camping != null && state.showRegisterCta) {
                 RegistrationBottomBar(
@@ -362,6 +399,7 @@ fun CampingDetailScreen(
                     onOpenVehicles = onOpenVehicles,
                     onOpenBadgeAward = onOpenBadgeAward,
                     onOpenAlbum = onOpenAlbum,
+                    onSetFeatured = onSetFeatured,
                 )
             }
         }
@@ -446,8 +484,10 @@ private fun CampingDetailContent(
     onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
+    onSetFeatured: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(CampingDetailTab.Overview) }
+    val quickActionUsageStore = rememberQuickActionUsageStore()
     val disabledAlpha = if (camping.registrationStatus == CampingRegistrationStatus.Cancelled) 0.5f else 1f
 
     // Post-camp feedback gating (mirrors iOS CampingDetailView): the survey
@@ -460,6 +500,8 @@ private fun CampingDetailContent(
     val showFeedbackSurvey = feedbackWindowOpen &&
         (state.isApprovedParticipant || state.canManageAnyCamping || state.canEditCamping)
     val showFeedbackResults = state.canManageAnyCamping && campEnded
+    val showHomePinAction = state.canManageAnyCamping &&
+        camping.registrationStatus != CampingRegistrationStatus.Cancelled
 
     LazyColumn(
         modifier = Modifier
@@ -477,7 +519,10 @@ private fun CampingDetailContent(
         item(key = "header") {
             HeaderSection(
                 camping = camping,
-                onOpenVenueMap = onOpenVenueMap,
+                onOpenVenueMap = {
+                    quickActionUsageStore.record(QuickActionKind.VenueMap)
+                    onOpenVenueMap(it)
+                },
             )
         }
 
@@ -493,7 +538,10 @@ private fun CampingDetailContent(
                 item(key = "description") {
                     DescriptionCard(
                         camping = camping,
-                        onOpenGuidelines = onOpenGuidelines,
+                        onOpenGuidelines = {
+                            quickActionUsageStore.record(QuickActionKind.Guidelines)
+                            onOpenGuidelines(it)
+                        },
                     )
                 }
                 item(key = "event-info") {
@@ -519,7 +567,10 @@ private fun CampingDetailContent(
                 item(key = "schedule") {
                     ScheduleSection(
                         camping = camping,
-                        onOpenSchedule = onOpenSchedule,
+                        onOpenSchedule = {
+                            quickActionUsageStore.record(QuickActionKind.Schedule)
+                            onOpenSchedule(it)
+                        },
                     )
                 }
             }
@@ -535,6 +586,7 @@ private fun CampingDetailContent(
                         onOpenGames = onOpenGames,
                         onOpenTeamDetail = onOpenTeamDetail,
                         onOpenTeamEditor = onOpenTeamEditor,
+                        onRecordQuickAction = quickActionUsageStore::record,
                     )
                 }
             }
@@ -559,6 +611,7 @@ private fun CampingDetailContent(
                 onOpenVehicles = onOpenVehicles,
                 onOpenBadgeAward = onOpenBadgeAward,
                 onOpenAlbum = onOpenAlbum,
+                onRecordQuickAction = quickActionUsageStore::record,
             )
         }
 
@@ -576,7 +629,10 @@ private fun CampingDetailContent(
             item(key = "venue-map") {
                 VenueMapEntryCard(
                     pointCount = venueMap.points.size,
-                    onClick = { onOpenVenueMap(camping.id) },
+                    onClick = {
+                        quickActionUsageStore.record(QuickActionKind.VenueMap)
+                        onOpenVenueMap(camping.id)
+                    },
                 )
             }
         }
@@ -587,9 +643,16 @@ private fun CampingDetailContent(
             }
         }
 
-        if (showFeedbackResults) {
+        if (showHomePinAction || showFeedbackResults) {
             item(key = "management") {
-                ManagementSection(onOpenFeedbackResults = { onOpenFeedbackResults(camping.id) })
+                ManagementSection(
+                    camping = camping,
+                    showHomePinAction = showHomePinAction,
+                    isSettingFeatured = state.isSettingFeatured,
+                    showFeedbackResults = showFeedbackResults,
+                    onSetFeatured = { onSetFeatured(camping.id, !camping.isFeatured) },
+                    onOpenFeedbackResults = { onOpenFeedbackResults(camping.id) },
+                )
             }
         }
     }
@@ -1358,6 +1421,7 @@ private fun TeamsSection(
     onOpenGames: (String) -> Unit,
     onOpenTeamDetail: (String, String) -> Unit,
     onOpenTeamEditor: (String, String?) -> Unit,
+    onRecordQuickAction: (QuickActionKind) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
         DetailSectionHeader(
@@ -1368,20 +1432,29 @@ private fun TeamsSection(
             MyTeamShortcut(
                 team = myTeam,
                 scoresHidden = teamScoresHidden,
-                onClick = { onOpenTeamDetail(camping.id, myTeam.id) },
+                onClick = {
+                    onRecordQuickAction(QuickActionKind.Teams)
+                    onOpenTeamDetail(camping.id, myTeam.id)
+                },
             )
         }
         DetailResourceButton(
             title = stringResource(R.string.camping_teams_ranking),
             subtitle = stringResource(R.string.camping_teams_ranking_subtitle),
             icon = Icons.Filled.Groups,
-            onClick = { onOpenTeams(camping.id) },
+            onClick = {
+                onRecordQuickAction(QuickActionKind.Teams)
+                onOpenTeams(camping.id)
+            },
         )
         DetailResourceButton(
             title = stringResource(R.string.camping_games_points),
             subtitle = stringResource(R.string.camping_games_points_subtitle),
             icon = Icons.Filled.SportsEsports,
-            onClick = { onOpenGames(camping.id) },
+            onClick = {
+                onRecordQuickAction(QuickActionKind.Games)
+                onOpenGames(camping.id)
+            },
         )
         if (state.canManageTeams) {
             DetailResourceButton(
@@ -1479,6 +1552,7 @@ private fun ResourcesSection(
     onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
+    onRecordQuickAction: (QuickActionKind) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
@@ -1487,7 +1561,12 @@ private fun ResourcesSection(
         )
 
         if (state.hasManagedRegistration) {
-            PrimaryPassResource(onClick = { onOpenQrPasses(camping.id) })
+            PrimaryPassResource(
+                onClick = {
+                    onRecordQuickAction(QuickActionKind.QrPass)
+                    onOpenQrPasses(camping.id)
+                },
+            )
         }
 
         val campLifeResources = buildList {
@@ -1497,6 +1576,7 @@ private fun ResourcesSection(
                     subtitle = stringResource(R.string.camping_songbook_subtitle),
                     icon = Icons.Filled.MusicNote,
                     accent = MaterialTheme.czColors.ember,
+                    quickActionKind = QuickActionKind.Songbook,
                     onClick = { onOpenSongbook(camping.id) },
                 ),
             )
@@ -1507,6 +1587,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_album_subtitle),
                         icon = Icons.Filled.PhotoLibrary,
                         accent = MaterialTheme.czColors.twilight,
+                        quickActionKind = QuickActionKind.Album,
                         onClick = { onOpenAlbum(camping.id) },
                     ),
                 )
@@ -1516,6 +1597,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_chat_subtitle),
                         icon = Icons.AutoMirrored.Filled.Chat,
                         accent = MaterialTheme.czColors.pine,
+                        quickActionKind = QuickActionKind.Chat,
                         onClick = { onOpenChat(camping.id) },
                     ),
                 )
@@ -1525,6 +1607,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_polls_subtitle),
                         icon = Icons.Filled.Poll,
                         accent = MaterialTheme.czColors.amber,
+                        quickActionKind = QuickActionKind.Polls,
                         onClick = { onOpenPolls(camping.id) },
                     ),
                 )
@@ -1534,6 +1617,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_food_menu_subtitle),
                         icon = Icons.Filled.Restaurant,
                         accent = MaterialTheme.czColors.success,
+                        quickActionKind = QuickActionKind.FoodMenu,
                         onClick = { onOpenFoodMenu(camping.id) },
                     ),
                 )
@@ -1545,6 +1629,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_fees_payments_subtitle),
                         icon = Icons.Filled.CreditCard,
                         accent = MaterialTheme.czColors.twilight,
+                        quickActionKind = QuickActionKind.Pricing,
                         onClick = { onOpenPricing(camping.id) },
                     ),
                 )
@@ -1555,6 +1640,7 @@ private fun ResourcesSection(
             title = stringResource(R.string.camping_camp_life),
             icon = Icons.Filled.EmojiEvents,
             resources = campLifeResources,
+            onRecordQuickAction = onRecordQuickAction,
         )
 
         val operationsResources = buildList {
@@ -1565,6 +1651,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_check_in_scanner_subtitle),
                         icon = Icons.Filled.QrCode,
                         accent = MaterialTheme.czColors.success,
+                        quickActionKind = QuickActionKind.CheckInScanner,
                         onClick = { onOpenCheckInScanner(camping.id) },
                     ),
                 )
@@ -1585,6 +1672,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.vehicle_dashboard_entry_subtitle),
                         icon = Icons.Filled.DirectionsCar,
                         accent = MaterialTheme.czColors.accent,
+                        quickActionKind = QuickActionKind.Vehicles,
                         onClick = { onOpenVehicles(camping.id) },
                     ),
                 )
@@ -1594,6 +1682,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.transportation_dashboard_entry_subtitle),
                         icon = Icons.Filled.DirectionsBus,
                         accent = MaterialTheme.czColors.pine,
+                        quickActionKind = QuickActionKind.Transportation,
                         onClick = { onOpenTransportationDashboard(camping.id) },
                     ),
                 )
@@ -1626,6 +1715,7 @@ private fun ResourcesSection(
             title = stringResource(R.string.camping_operations),
             icon = Icons.Filled.Security,
             resources = operationsResources,
+            onRecordQuickAction = onRecordQuickAction,
         )
     }
 }
@@ -1693,6 +1783,7 @@ private fun ResourceGroup(
     title: String,
     icon: ImageVector,
     resources: List<DetailResource>,
+    onRecordQuickAction: (QuickActionKind) -> Unit,
 ) {
     if (resources.isEmpty()) return
 
@@ -1731,7 +1822,10 @@ private fun ResourceGroup(
             }
 
             resources.forEachIndexed { index, resource ->
-                ResourceRow(resource)
+                ResourceRow(
+                    resource = resource,
+                    onRecordQuickAction = onRecordQuickAction,
+                )
                 if (index < resources.lastIndex) {
                     DetailDivider()
                 }
@@ -1741,11 +1835,17 @@ private fun ResourceGroup(
 }
 
 @Composable
-private fun ResourceRow(resource: DetailResource) {
+private fun ResourceRow(
+    resource: DetailResource,
+    onRecordQuickAction: (QuickActionKind) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { resource.onClick() }
+            .clickable {
+                resource.quickActionKind?.let(onRecordQuickAction)
+                resource.onClick()
+            }
             .padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
@@ -1865,17 +1965,38 @@ private fun DetailResourceButton(
 }
 
 @Composable
-private fun ManagementSection(onOpenFeedbackResults: () -> Unit) {
+private fun ManagementSection(
+    camping: Camping,
+    showHomePinAction: Boolean,
+    isSettingFeatured: Boolean,
+    showFeedbackResults: Boolean,
+    onSetFeatured: () -> Unit,
+    onOpenFeedbackResults: () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
             title = stringResource(R.string.camping_management),
             icon = Icons.Filled.Security,
         )
-        AdminActionButton(
-            title = stringResource(R.string.camping_feedback_results),
-            icon = Icons.Filled.Poll,
-            onClick = onOpenFeedbackResults,
-        )
+        if (showHomePinAction) {
+            AdminActionButton(
+                title = stringResource(
+                    if (camping.isFeatured) R.string.camping_unpin_from_home else R.string.camping_pin_to_home,
+                ),
+                icon = Icons.Filled.Star,
+                slashedIcon = camping.isFeatured,
+                enabled = !isSettingFeatured,
+                showChevron = false,
+                onClick = onSetFeatured,
+            )
+        }
+        if (showFeedbackResults) {
+            AdminActionButton(
+                title = stringResource(R.string.camping_feedback_results),
+                icon = Icons.Filled.Poll,
+                onClick = onOpenFeedbackResults,
+            )
+        }
     }
 }
 
@@ -1883,13 +2004,17 @@ private fun ManagementSection(onOpenFeedbackResults: () -> Unit) {
 private fun AdminActionButton(
     title: String,
     icon: ImageVector,
+    slashedIcon: Boolean = false,
+    enabled: Boolean = true,
+    showChevron: Boolean = true,
     onClick: () -> Unit,
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 50.dp)
-            .clickable(onClick = onClick),
+            .alpha(if (enabled) 1f else 0.56f)
+            .clickable(enabled = enabled, onClick = onClick),
         color = MaterialTheme.czColors.surface,
         shape = RoundedCornerShape(CzRadius.md),
         tonalElevation = 0.dp,
@@ -1899,11 +2024,7 @@ private fun AdminActionButton(
             horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.czColors.ember,
-            )
+            AdminActionIcon(icon = icon, slashed = slashedIcon)
             Text(
                 text = title,
                 color = MaterialTheme.czColors.textPrimary,
@@ -1911,11 +2032,42 @@ private fun AdminActionButton(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.czColors.textSecondary,
-            )
+            if (showChevron) {
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.textSecondary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminActionIcon(
+    icon: ImageVector,
+    slashed: Boolean,
+) {
+    val tint = MaterialTheme.czColors.ember
+    Box(
+        modifier = Modifier.size(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+        )
+        if (slashed) {
+            Canvas(modifier = Modifier.matchParentSize()) {
+                drawLine(
+                    color = tint,
+                    start = Offset(size.width * 0.18f, size.height * 0.82f),
+                    end = Offset(size.width * 0.82f, size.height * 0.18f),
+                    strokeWidth = 2.4.dp.toPx(),
+                    cap = StrokeCap.Round,
+                )
+            }
         }
     }
 }
@@ -2081,6 +2233,7 @@ private data class DetailResource(
     val icon: ImageVector,
     val accent: Color,
     val showsBadge: Boolean = false,
+    val quickActionKind: QuickActionKind? = null,
     val onClick: () -> Unit,
 )
 

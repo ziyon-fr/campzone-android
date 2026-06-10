@@ -175,6 +175,7 @@ fun CampzoneNavigationShell(
             ) {
             composable(AppRoute.Home.route) {
                 HomeRoute(
+                    authenticatedUser = authenticatedUser,
                     onOpenCamping = { campingId ->
                         navController.navigate(AppRoute.CampingDetail(campingId).route)
                     },
@@ -186,6 +187,42 @@ fun CampzoneNavigationShell(
                     },
                     onOpenNotifications = {
                         navController.navigate(AppRoute.NotificationFeed.route)
+                    },
+                    onOpenRegistration = { campingId ->
+                        navController.navigate(AppRoute.CampingRegistration(campingId).route)
+                    },
+                    onOpenSchedule = { campingId ->
+                        navController.navigate(AppRoute.CampingSchedule(campingId).route)
+                    },
+                    onOpenVenueMap = { campingId ->
+                        navController.navigate(AppRoute.CampingVenueMap(campingId).route)
+                    },
+                    onOpenGuidelines = { campingId ->
+                        navController.navigate(AppRoute.CampingGuidelines(campingId).route)
+                    },
+                    onOpenTeams = { campingId ->
+                        navController.navigate(AppRoute.CampingTeams(campingId).route)
+                    },
+                    onOpenQrPasses = { campingId ->
+                        navController.navigate(AppRoute.CheckInQrPasses(campingId).route)
+                    },
+                    onOpenFoodMenu = { campingId ->
+                        navController.navigate(AppRoute.CampingFoodMenu(campingId).route)
+                    },
+                    onOpenSongbook = { campingId ->
+                        navController.navigate(AppRoute.CampingSongbook(campingId).route)
+                    },
+                    onOpenGames = { campingId ->
+                        navController.navigate(AppRoute.CampingGames(campingId).route)
+                    },
+                    onOpenChat = { campingId ->
+                        navController.navigate(AppRoute.CampingChat(campingId).route)
+                    },
+                    onOpenPolls = { campingId ->
+                        navController.navigate(AppRoute.CampingPolls(campingId).route)
+                    },
+                    onOpenAlbum = { campingId ->
+                        navController.navigate(AppRoute.CampingAlbum(campingId).route)
                     },
                 )
             }

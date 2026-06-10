@@ -69,6 +69,26 @@ class CampzoneDeepLinkTest {
                 "https://campzone-web.vercel.app/registration-review/summer-camp-2026",
             ),
         )
+        assertEquals(
+            CampzoneDeepLink.Achievements(
+                userId = "user-1",
+                displayName = "Lea",
+                photoUrl = null,
+                campingId = "camp-2026",
+            ),
+            CampzoneDeepLink.fromCampzoneUrl(
+                "https://campzone-web.vercel.app/badges/user-1?displayName=Lea&campingID=camp-2026",
+            ),
+        )
+        assertEquals(
+            CampzoneDeepLink.Achievements(
+                userId = "user-2",
+                displayName = "Noah",
+                photoUrl = null,
+                campingId = null,
+            ),
+            CampzoneDeepLink.fromCampzoneUrl("campzone://achievements/user-2?displayName=Noah"),
+        )
     }
 
     @Test
@@ -102,6 +122,29 @@ class CampzoneDeepLinkTest {
             CampzoneDeepLink.RegistrationReview("c1"),
             CampzoneDeepLink.fromPayload(
                 mapOf("type" to "registration_request", "campingID" to "c1"),
+            ),
+        )
+        assertEquals(
+            CampzoneDeepLink.Camping("c1"),
+            CampzoneDeepLink.fromPayload(
+                mapOf("type" to "registration", "event" to "approved", "campingID" to "c1"),
+            ),
+        )
+        assertEquals(
+            CampzoneDeepLink.Achievements(
+                userId = "u1",
+                displayName = "Lea",
+                photoUrl = "https://example.com/lea.png",
+                campingId = "c1",
+            ),
+            CampzoneDeepLink.fromPayload(
+                mapOf(
+                    "type" to "badge",
+                    "recipientUserID" to "u1",
+                    "recipientDisplayName" to "Lea",
+                    "recipientPhotoURLString" to "https://example.com/lea.png",
+                    "campingID" to "c1",
+                ),
             ),
         )
         assertEquals(
@@ -180,6 +223,14 @@ class CampzoneDeepLinkTest {
         )
         assertNull(CampzoneDeepLink.CampingChat("camp-1").canonicalShareUrlOrNull())
         assertNull(CampzoneDeepLink.Poll("camp-1", "poll-1").canonicalShareUrlOrNull())
+        assertNull(
+            CampzoneDeepLink.Achievements(
+                userId = "u1",
+                displayName = null,
+                photoUrl = null,
+                campingId = null,
+            ).canonicalShareUrlOrNull(),
+        )
         assertNull(CampzoneDeepLink.RegistrationReview("camp-1").canonicalShareUrlOrNull())
         assertNull(CampzoneDeepLink.TeamChat("camp-1", "team-1").canonicalShareUrlOrNull())
         assertNull(CampzoneDeepLink.TeamUpdate("camp-1", "team-1").canonicalShareUrlOrNull())

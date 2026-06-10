@@ -22,6 +22,8 @@ object NotificationTopics {
 
     fun roleTopic(roleRawValue: String): String = topic(scope = "role", value = roleRawValue)
 
+    fun userTopic(userId: String): String = topic(scope = "user", value = userId)
+
     fun campingAnnouncement(campingId: String): String =
         topic(scope = "camping", value = campingId)
 
@@ -62,6 +64,7 @@ object NotificationTopics {
     fun visibleTopics(
         role: UserRole,
         settings: NotificationSettings? = null,
+        userId: String? = null,
     ): Set<String> {
         if (settings?.isEnabled == false) return emptySet()
 
@@ -101,7 +104,12 @@ object NotificationTopics {
         }
 
         val globalTopics = if (announcementsEnabled) listOf(globalAnnouncement) else emptyList()
-        return (globalTopics + roleTopics + campingTopics + teamTopics).toSet()
+        val directUserTopics = userId
+            ?.trim()
+            ?.takeUnless { it.isBlank() }
+            ?.let { listOf(userTopic(it)) }
+            ?: emptyList()
+        return (directUserTopics + globalTopics + roleTopics + campingTopics + teamTopics).toSet()
     }
 
     private fun sanitizePart(value: String): String =

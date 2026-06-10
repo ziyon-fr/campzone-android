@@ -30,6 +30,7 @@ class FakeCampingService(
     val submitted = mutableListOf<RegistrationSubmission>()
     val reviewed = mutableListOf<Pair<String, RegistrationApprovalStatus>>()
     val deletedAttendees = mutableListOf<String>()
+    val featuredUpdates = mutableListOf<Pair<String, Boolean>>()
 
     override fun observeCampings(): Flow<List<Camping>> =
         if (shouldFail) {
@@ -37,6 +38,15 @@ class FakeCampingService(
         } else {
             campings.map { list -> list.map(::withAttendees) }
         }
+
+    override fun approvedCampingIds(forUserId: String?): Set<String> =
+        campings.value
+            .map(::withAttendees)
+            .filter { camping -> camping.hasApprovedRegistrationForUser(forUserId) }
+            .mapTo(mutableSetOf()) { it.id }
+
+    override fun cachedCamping(id: String): Camping? =
+        campings.value.firstOrNull { it.id == id }?.let(::withAttendees)
 
     override suspend fun fetchCamping(id: String): Camping =
         campings.value.firstOrNull { it.id == id }?.let(::withAttendees) ?: error("Camping not found")
@@ -73,6 +83,14 @@ class FakeCampingService(
 
     override suspend fun updateGuidelines(campingId: String, body: String): Camping {
         val updated = fetchCamping(campingId).copy(guidelines = body)
+        campings.value = campings.value.map { if (it.id == campingId) updated else it }
+        return updated
+    }
+
+    override suspend fun setFeatured(campingId: String, isFeatured: Boolean): Camping {
+        if (shouldFail) error("Featured update failed")
+        featuredUpdates += campingId to isFeatured
+        val updated = fetchCamping(campingId).copy(isFeatured = isFeatured)
         campings.value = campings.value.map { if (it.id == campingId) updated else it }
         return updated
     }

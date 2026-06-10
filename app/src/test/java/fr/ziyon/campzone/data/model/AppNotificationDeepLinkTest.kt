@@ -19,6 +19,8 @@ class AppNotificationDeepLinkTest {
         teamId: String? = null,
         event: String? = null,
         role: String? = null,
+        recipientUserId: String? = null,
+        deepLinkUrl: String? = null,
         mentionedUserIds: List<String> = emptyList(),
     ) = AppNotification(
         id = "n1",
@@ -34,6 +36,8 @@ class AppNotificationDeepLinkTest {
         teamId = teamId,
         role = role,
         event = event,
+        recipientUserId = recipientUserId,
+        deepLinkUrl = deepLinkUrl,
         mentionedUserIds = mentionedUserIds,
     )
 
@@ -43,6 +47,7 @@ class AppNotificationDeepLinkTest {
         assertEquals(AppNotificationKind.TeamUpdate, AppNotificationKind.fromWire("teamupdate"))
         assertEquals(AppNotificationKind.Registration, AppNotificationKind.fromWire("registration_request"))
         assertEquals(AppNotificationKind.ChatMention, AppNotificationKind.fromWire("chatmention"))
+        assertEquals(AppNotificationKind.Badge, AppNotificationKind.fromWire("achievement_badge"))
     }
 
     @Test
@@ -68,6 +73,47 @@ class AppNotificationDeepLinkTest {
     @Test
     fun registrationDeepLinkGoesToReview() {
         val link = notification(AppNotificationKind.Registration, campingId = "c1").deepLink()
+        assertEquals(CampzoneDeepLink.RegistrationReview("c1"), link)
+    }
+
+    @Test
+    fun approvedRegistrationDeepLinkGoesToCampingDetail() {
+        val link = notification(
+            AppNotificationKind.Registration,
+            campingId = "c1",
+            event = "approved",
+        ).deepLink()
+        assertEquals(CampzoneDeepLink.Camping("c1"), link)
+    }
+
+    @Test
+    fun badgeDeepLinkGoesToAchievements() {
+        val link = notification(
+            AppNotificationKind.Badge,
+            topic = "campzone_user_u1",
+            campingId = "camp-1",
+            recipientUserId = "u1",
+        ).deepLink()
+
+        assertEquals(
+            CampzoneDeepLink.Achievements(
+                userId = "u1",
+                displayName = null,
+                photoUrl = null,
+                campingId = "camp-1",
+            ),
+            link,
+        )
+    }
+
+    @Test
+    fun explicitRegistrationDeepLinkOverridesApprovedEvent() {
+        val link = notification(
+            AppNotificationKind.Registration,
+            campingId = "c1",
+            event = "approved",
+            deepLinkUrl = "campzone://registration-review/c1",
+        ).deepLink()
         assertEquals(CampzoneDeepLink.RegistrationReview("c1"), link)
     }
 
@@ -127,6 +173,19 @@ class AppNotificationDeepLinkTest {
             mentionedUserIds = listOf("u2"),
         )
         val topics = setOf("campzone_camping_chat_c1")
+        assertTrue(n.concerns("u2", UserRole.User, topics))
+        assertFalse(n.concerns("u1", UserRole.User, topics))
+    }
+
+    @Test
+    fun directUserRowIsScopedToRecipientUser() {
+        val n = notification(
+            AppNotificationKind.Registration,
+            topic = "campzone_user_u2",
+            campingId = "c1",
+            recipientUserId = "u2",
+        )
+        val topics = setOf("campzone_user_u2")
         assertTrue(n.concerns("u2", UserRole.User, topics))
         assertFalse(n.concerns("u1", UserRole.User, topics))
     }

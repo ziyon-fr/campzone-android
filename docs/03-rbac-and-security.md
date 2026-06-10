@@ -143,8 +143,11 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
     duplicate detection) stays `adult`/`admin`; for other roles that read is
     denied and the client skips cross-guardian duplicate detection gracefully.
 - **`ziyon_notifications`**: `read` if signed-in and the doc’s `topic`
-  is `campzone_announcements`, the user’s own role topic, or (admin) any
-  role topic. `create/update/delete: false` (backend-only).
+  is `campzone_announcements`, the user’s own role topic, the user’s
+  direct topic `campzone_user_<uid>`, or (admin) any role topic. Camping
+  and team topics are readable only when the user’s notification settings
+  include the corresponding camping/team id. `create/update/delete: false`
+  (backend-only).
 - **`campings/{id}`**: `read` public (`true`). `create` by admin or
   own-church youth_director/pastor whose proposed `organizerLevel`
   matches their church. `update`: admin any; own-church editor **except**
@@ -154,7 +157,10 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
   creator signature) OR own-church canceller. Android camping detail/edit
   views use the same iOS gates: the edit affordance is
   `canEditCamping(current)`, while Save also validates the proposed
-  organizer through `canSaveCamping`.
+  organizer through `canSaveCamping`. The Home featured pin writes only
+  `{ isFeatured, updatedAt }` through a dedicated merge path and is surfaced
+  only behind `canManageAnyCamping`; regular camping saves never include
+  `isFeatured`.
   - `schedule/**`, `days/**`, `programs/**`: `read` public; write
     `canManageSchedule`.
   - `songs`: `read` public; write **admin only**.

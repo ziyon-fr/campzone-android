@@ -41,6 +41,7 @@ class CampingPayloadTest {
         // never write guidelines or winnerRevealPolicy on the normal path
         assertFalse(payload.containsKey("guidelines"))
         assertFalse(payload.containsKey("winnerRevealPolicy"))
+        assertFalse(payload.containsKey("isFeatured"))
         assertFalse(payload.containsKey("attendees"))
     }
 
@@ -119,6 +120,11 @@ class CampingPayloadTest {
         assertEquals("cancelled", cancel["registrationStatus"])
         assertEquals(setOf("registrationStatus", "updatedAt"), cancel.keys)
 
+        val featured = CampingPayload.featuredPayload(isFeatured = true, serverTimestamp = TS)
+        assertEquals(true, featured["isFeatured"])
+        assertEquals(TS, featured["updatedAt"])
+        assertEquals(setOf("isFeatured", "updatedAt"), featured.keys)
+
         val reveal = CampingPayload.winnerRevealPolicyPayload(
             WinnerRevealPolicy(isRevealed = true, revealedBy = "admin-1"),
             TS,
@@ -148,7 +154,17 @@ class CampingPayloadTest {
         assertEquals(CampingPaymentOption.CardOneTime, decoded.priceItems.first().paymentOptions.first())
         assertEquals(1, decoded.agePrices.size)
         assertEquals(TransportationMode.Bus, decoded.transportationOptions.first().mode)
+        assertFalse(decoded.isFeatured)
         assertTrue(decoded.isPaid)
+    }
+
+    @Test
+    fun decoderReadsFeaturedFlagWhenPresent() {
+        val payload = CampingPayload.campingPayload(fullCamping(), Date(1), DEL, includeCreatedAt = false)
+            .toMutableMap()
+            .apply { put("isFeatured", true) }
+
+        assertTrue(payload.toCampingOrNull("summer-2026")!!.isFeatured)
     }
 
     @Test

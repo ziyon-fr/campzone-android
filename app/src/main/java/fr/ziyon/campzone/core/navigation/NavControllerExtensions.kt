@@ -15,6 +15,11 @@ fun NavHostController.navigateToTab(tab: AppRoute.Tab) {
 
 fun NavHostController.navigateToDeepLink(deepLink: CampzoneDeepLink) {
     when (deepLink) {
+        is CampzoneDeepLink.Achievements -> {
+            selectTabForDeepLink(AppRoute.Profile)
+            navigateTyped(AppRoute.ProfileAchievements)
+        }
+
         is CampzoneDeepLink.Announcement -> {
             selectTabForDeepLink(AppRoute.Announcements)
             navigateTyped(AppRoute.AnnouncementDetail(deepLink.id))

@@ -14,6 +14,7 @@ import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.TeamMember
+import fr.ziyon.campzone.data.notifications.FakeBadgeNotificationDispatcher
 import fr.ziyon.campzone.data.teams.FakeTeamService
 import fr.ziyon.campzone.testing.FakeStringProvider
 import fr.ziyon.campzone.testing.MainDispatcherRule
@@ -42,6 +43,7 @@ class AchievementViewModelTest {
             ),
             campingService = campingService(emptyList()),
             teamService = FakeTeamService(mutableListOf()),
+            badgeNotificationDispatcher = FakeBadgeNotificationDispatcher(),
             strings = FakeStringProvider(),
         )
 
@@ -68,6 +70,7 @@ class AchievementViewModelTest {
             ),
             campingService = campingService(emptyList()),
             teamService = FakeTeamService(mutableListOf()),
+            badgeNotificationDispatcher = FakeBadgeNotificationDispatcher(),
             strings = FakeStringProvider(),
         )
 
@@ -82,6 +85,7 @@ class AchievementViewModelTest {
     @Test
     fun manualAwardWritesSelectedTeamRecipientsAndRejectsSelfAward() = runTest {
         val badges = FakeAchievementService()
+        val dispatcher = FakeBadgeNotificationDispatcher()
         val viewModel = AchievementViewModel(
             achievementService = badges,
             campingService = campingService(listOf(approved("a1", "Maria"), approved("a2", "Joao"))),
@@ -98,6 +102,7 @@ class AchievementViewModelTest {
                     ),
                 ),
             ),
+            badgeNotificationDispatcher = dispatcher,
             strings = FakeStringProvider(),
         )
 
@@ -109,6 +114,12 @@ class AchievementViewModelTest {
 
         assertEquals(listOf("a1"), badges.loadEarned("a1").map { it.userId })
         assertEquals(listOf("a2"), badges.loadEarned("a2").map { it.userId })
+        assertEquals(listOf("a1", "a2"), dispatcher.dispatched.map { it.recipientUserId }.sorted())
+        assertEquals(setOf("Maria", "Joao"), dispatcher.dispatched.mapNotNull { it.recipientDisplayName }.toSet())
+        assertEquals(setOf("tent-ready"), dispatcher.dispatched.map { it.achievementId }.toSet())
+        assertEquals(setOf("Tent Ready"), dispatcher.dispatched.map { it.achievementTitle }.toSet())
+        assertEquals(setOf("camp-1"), dispatcher.dispatched.mapNotNull { it.campingId }.toSet())
+        assertEquals(setOf("admin-1"), dispatcher.dispatched.mapNotNull { it.awardedByUserId }.toSet())
 
         viewModel.awardSelected(currentUserId = "a1")
         advanceUntilIdle()
@@ -121,6 +132,7 @@ class AchievementViewModelTest {
             achievementService = FakeAchievementService(),
             campingService = campingService(emptyList()),
             teamService = FakeTeamService(mutableListOf()),
+            badgeNotificationDispatcher = FakeBadgeNotificationDispatcher(),
             strings = FakeStringProvider(),
         )
 

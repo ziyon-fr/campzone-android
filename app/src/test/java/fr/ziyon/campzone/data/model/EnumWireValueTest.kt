@@ -71,6 +71,8 @@ class EnumWireValueTest {
 
     @Test
     fun notificationKindAcceptsSnakeAndLegacySpellings() {
+        assertEquals("badge", AppNotificationKind.Badge.wireValue)
+        assertEquals(AppNotificationKind.Badge, AppNotificationKind.fromWire("achievement_badge"))
         assertEquals("chat_message", AppNotificationKind.ChatMessage.wireValue)
         assertEquals(AppNotificationKind.ChatMessage, AppNotificationKind.fromWire("chatmessage"))
         assertEquals(AppNotificationKind.ScheduleReminder, AppNotificationKind.fromWire("schedulereminder"))

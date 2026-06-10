@@ -21,6 +21,7 @@ poll(campingID, pollID?)
 teamUpdate(campingID, teamID)
 teamPoints(campingID, teamID?)
 registrationReview(campingID)   // leadership: pending registrations
+achievements(userID, displayName?, photoURLString?, campingID?)
 camping(id)
 ```
 
@@ -42,7 +43,11 @@ A tapped push carries a `data` map (see `04-backend-api.md` §3). Resolve
    - `chat_mention` / `chatmention` → same as chat message.
    - `poll` → requires `campingID` → `poll(campingID, pollID?)`.
    - `registration` / `registration_request` → requires `campingID` →
-     `registrationReview(campingID)`.
+     `registrationReview(campingID)` unless `event == "approved"`, which
+     routes to `camping(campingID)`.
+   - `badge` / `achievement` / `achievement_badge` → requires
+     `recipientUserID` (or `userID`/`uid`) →
+     `achievements(userID, displayName?, photoURLString?, campingID?)`.
    - `team_update` / `teamupdate` → requires `campingID`; if `event` is
      `scoreChanged`, `memberScoreChanged`, or `penaltyApplied`, route to
      `teamPoints(campingID, teamID?)`; otherwise route to
@@ -55,9 +60,11 @@ A tapped push carries a `data` map (see `04-backend-api.md` §3). Resolve
 Backend dispatch `data` keys you can rely on: `type`, `appID`,
 `campingID`, `teamID`, `pollID`, `announcementID`, `messageID`,
 `senderID`, `senderUid`, `event`, `role`, `participantName`,
-`requestedByName`, `participantCount`, and optional direct deep-link URL
-keys listed above. (All values are strings - the backend stringifies the
-FCM `data` map.)
+`requestedByName`, `participantCount`, `achievementID`,
+`achievementTitle`, `recipientUserID`, `recipientDisplayName`,
+`recipientPhotoURLString`, and optional direct deep-link URL keys listed
+above. (All values are strings - the backend stringifies the FCM `data`
+map.)
 
 Cold-start: park the link until the router/auth is ready, then consume
 once (iOS uses a `DeepLinkInbox`; web = a query param / `sessionStorage`
@@ -68,8 +75,8 @@ handoff after auth; Android = an `Intent` extra processed post-auth).
 The legacy custom scheme is `campzone`. iOS also parses HTTPS Universal
 Links on `https://campzone-web.vercel.app/...`. Only **camping** and
 **announcement** are meaningfully shareable from the app; chat, polls,
-team updates, point history, and registration review links are deep-link
-destinations only and have **no** canonical share URL.
+team updates, point history, registration review, and achievements links
+are deep-link destinations only and have **no** canonical share URL.
 
 | Link | Inbound parse | Canonical share URL |
 | --- | --- | --- |
@@ -81,6 +88,7 @@ destinations only and have **no** canonical share URL.
 | team points | route/host `points`/`point-history`, camping id = first path component or `?id`/`?c`/`?campingID`, optional `?teamID`/`?t` | none |
 | poll | route/host `poll`/`polls`, camping id = `?c`/`?campingID` or first path component, optional `?pollID`/`?p` | none |
 | registration review | route/host `registration`/`registration-review`, camping id = first path component or `?id`/`?c`/`?campingID` | none |
+| achievements/badge | route/host `achievement`/`achievements`/`badge`/`badges`, user id = first path component or `?id`/`?userID`/`?uid`, optional `?displayName`/`?name`, `?photoURLString`/`?photoURL`, `?campingID`/`?c` | none |
 
 iOS registers both the `campzone` scheme in `Info.plist` and the
 `applinks:campzone-web.vercel.app` Associated Domain entitlement.
@@ -104,6 +112,7 @@ work in a browser. Recommended structure:
 | `teamPoints(campingID, teamID?)` | `/campings/[id]/teams/[teamId]` or `/campings/[id]` |
 | `poll(campingID, pollID)` | `/campings/[id]/polls/[pollId]` (or `/campings/[id]/polls` when no id) |
 | `registrationReview(campingID)` | `/campings/[id]` (admin section shows pending) |
+| `achievements(userID, ...)` | `/badges/[userId]` |
 | Home / Campings / Announcements / Profile | `/`, `/campings`, `/announcements`, `/profile` |
 
 Android: a single-Activity Compose nav graph mirroring the same logical
@@ -124,6 +133,7 @@ lands sensibly. Mirror this:
 - `poll(id?)` → `[campingDetail, pollDetail]` or
   `[campingDetail, campingPolls]`
 - `registrationReview` → `[campingDetail]` (admin section)
+- `achievements` → tab Profile → `[achievements]`
 
 Tabs: **Home, Campings, Announcements, Profile/Settings** (same four on
 every platform).

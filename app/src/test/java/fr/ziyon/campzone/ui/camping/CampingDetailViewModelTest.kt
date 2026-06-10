@@ -20,6 +20,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -183,6 +184,20 @@ class CampingDetailViewModelTest {
 
         viewModel.updateAttendeeSearch("maria")
         assertEquals(1, viewModel.uiState.value.visibleAttendees.size)
+    }
+
+    @Test
+    fun setFeaturedCallsDedicatedServiceAndSurfacesSuccess() = runTest {
+        val service = service(attendees = emptyList())
+        val viewModel = CampingDetailViewModel(service)
+        viewModel.load("camp-1", user(role = UserRole.Admin, church = church, uid = "admin-1"))
+
+        viewModel.setFeatured("camp-1", true)
+        advanceUntilIdle()
+
+        assertEquals(listOf("camp-1" to true), service.featuredUpdates)
+        assertTrue(viewModel.uiState.value.camping?.isFeatured == true)
+        assertEquals(CampingDetailOperationMessage.PinnedToHome, viewModel.uiState.value.operationMessage)
     }
 
     @Test
