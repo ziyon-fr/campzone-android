@@ -1219,9 +1219,9 @@
     <string name="camping_editor_location_change">Modifier</string>
     <string name="camping_editor_location_nearby">À proximité</string>
     <string name="camping_editor_location_recents">Récents</string>
-    <string name="camping_editor_date_start">Date de début</string>
-    <string name="camping_editor_date_end">Date de fin</string>
-    <string name="camping_editor_due_date_toggle">Définir une date limite d’inscription</string>
+    <string name="camping_editor_date_start">Début</string>
+    <string name="camping_editor_date_end">Fin</string>
+    <string name="camping_editor_due_date_toggle">Date limite d’inscription ?</string>
     <string name="camping_editor_due_date_label">Clôture le</string>
     <string name="camping_editor_due_date_caption">Les inscriptions se ferment automatiquement à cette date. Un administrateur ou le créateur du camp peut la prolonger.</string>
     <string name="camping_editor_organizer_level">Type d\'organisateur</string>

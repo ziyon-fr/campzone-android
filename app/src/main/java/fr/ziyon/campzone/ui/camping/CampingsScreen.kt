@@ -294,7 +294,7 @@ private fun AdminActionsCard(
                 AdminActionRow(
                     icon = Icons.Filled.AddCircle,
                     label = stringResource(R.string.camping_editor_create_title),
-                    color = MaterialTheme.czColors.ember,
+                    color = MaterialTheme.czColors.accent,
                     onClick = onCreateCamping,
                 )
             }
@@ -368,7 +368,7 @@ private fun MonthSectionHeader(title: String) {
             imageVector = Icons.Filled.CalendarMonth,
             contentDescription = null,
             modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.czColors.ember,
+            tint = MaterialTheme.czColors.accent,
         )
         Text(
             text = title.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
@@ -519,7 +519,7 @@ private fun CampingCardBanner(
                 imageVector = Icons.Filled.LocationOn,
                 contentDescription = null,
                 modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.czColors.ember,
+                tint = MaterialTheme.czColors.accent,
             )
             Text(
                 text = camping.location,
@@ -557,7 +557,7 @@ private fun CampingCardContent(
         Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
             CampingInfoChipRow(
                 icon = Icons.Filled.CalendarMonth,
-                iconTint = MaterialTheme.czColors.ember,
+                iconTint = MaterialTheme.czColors.accent,
             ) {
                 Text(
                     text = campingDateRange(camping.startDate, camping.endDate),
@@ -569,11 +569,11 @@ private fun CampingCardContent(
                 Text("•", color = MaterialTheme.czColors.textSecondary.copy(alpha = 0.4f))
                 Text(
                     text = campingDurationText(camping.startDate, camping.endDate),
-                    color = MaterialTheme.czColors.ember,
+                    color = MaterialTheme.czColors.accent,
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(MaterialTheme.czColors.amber.copy(alpha = 0.15f))
+                        .background(MaterialTheme.czColors.accent.copy(alpha = 0.12f))
                         .padding(horizontal = CzSpacing.xs, vertical = 2.dp),
                 )
             }
@@ -681,7 +681,7 @@ private fun CampingCapacityView(
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = stringResource(R.string.camping_capacity_percent, (fillRatio * 100).toInt()),
-                    color = MaterialTheme.czColors.ember,
+                    color = MaterialTheme.czColors.accent,
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
                 )
                 if (showAdminInfo && camping.pendingAttendees.isNotEmpty()) {

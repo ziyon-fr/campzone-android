@@ -1225,9 +1225,9 @@
     <string name="camping_editor_location_change">Change</string>
     <string name="camping_editor_location_nearby">Nearby</string>
     <string name="camping_editor_location_recents">Recent</string>
-    <string name="camping_editor_date_start">Start date</string>
-    <string name="camping_editor_date_end">End date</string>
-    <string name="camping_editor_due_date_toggle">Set a registration deadline</string>
+    <string name="camping_editor_date_start">Start</string>
+    <string name="camping_editor_date_end">End</string>
+    <string name="camping_editor_due_date_toggle">Registration due date?</string>
     <string name="camping_editor_due_date_label">Closes on</string>
     <string name="camping_editor_due_date_caption">Registration closes automatically on this date. An admin or the camp creator can extend it.</string>
     <string name="camping_editor_organizer_level">Organizer type</string>

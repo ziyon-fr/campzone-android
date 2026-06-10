@@ -8,15 +8,18 @@ import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -72,6 +75,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.intl.Locale as ComposeLocale
@@ -955,6 +959,8 @@ private fun HomeAnnouncementsCarousel(
     modifier: Modifier = Modifier,
 ) {
     val newCount = announcements.count { it.isNewForHome() }
+    val colors = MaterialTheme.czColors
+    val listState = rememberLazyListState()
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
@@ -969,14 +975,14 @@ private fun HomeAnnouncementsCarousel(
             Icon(
                 imageVector = Icons.Filled.Campaign,
                 contentDescription = null,
-                tint = MaterialTheme.czColors.ember,
+                tint = colors.accent,
                 modifier = Modifier.size(18.dp),
             )
             Text(
                 text = stringResource(R.string.home_announcements_title),
-                color = MaterialTheme.czColors.textPrimary,
+                color = colors.textPrimary,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f),
             )
             if (newCount > 0) {
@@ -987,15 +993,17 @@ private fun HomeAnnouncementsCarousel(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(MaterialTheme.czColors.ember)
+                        .background(colors.accent)
                         .padding(horizontal = CzSpacing.sm, vertical = 3.dp),
                 )
             }
         }
 
         LazyRow(
+            state = listState,
             contentPadding = PaddingValues(horizontal = CzSpacing.lg),
             horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            flingBehavior = rememberSnapFlingBehavior(lazyListState = listState),
         ) {
             items(announcements, key = { it.id }) { announcement ->
                 HomeAnnouncementCard(
@@ -1014,18 +1022,23 @@ private fun HomeAnnouncementCard(
     modifier: Modifier = Modifier,
 ) {
     val isDarkMode = isSystemInDarkTheme()
+    val colors = MaterialTheme.czColors
+    val haptics = LocalHapticFeedback.current
     Column(
         modifier = modifier
             .width(248.dp)
             .height(160.dp)
             .clip(RoundedCornerShape(CzRadius.xxl))
-            .background(if (isDarkMode) MaterialTheme.czColors.card else Color.White)
+            .background(if (isDarkMode) colors.card else Color.White)
             .border(
                 width = 0.5.dp,
-                color = MaterialTheme.czColors.divider.copy(alpha = 0.5f),
+                color = colors.divider.copy(alpha = 0.5f),
                 shape = RoundedCornerShape(CzRadius.xxl),
             )
-            .clickable(onClick = onClick)
+            .clickable {
+                haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                onClick()
+            }
             .padding(CzSpacing.md),
         verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
     ) {
@@ -1038,13 +1051,13 @@ private fun HomeAnnouncementCard(
                 modifier = Modifier
                     .size(30.dp)
                     .clip(RoundedCornerShape(CzRadius.sm))
-                    .background(MaterialTheme.czColors.ember.copy(alpha = 0.14f)),
+                    .background(colors.accent.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Filled.Campaign,
                     contentDescription = null,
-                    tint = MaterialTheme.czColors.ember,
+                    tint = colors.accent,
                     modifier = Modifier.size(15.dp),
                 )
             }
@@ -1053,14 +1066,14 @@ private fun HomeAnnouncementCard(
                     modifier = Modifier
                         .size(7.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.czColors.ember),
+                        .background(colors.accent),
                 )
             }
             Box(modifier = Modifier.weight(1f))
             announcement.createdAt?.let { createdAt ->
                 Text(
                     text = createdAt.shortRelativeText(),
-                    color = MaterialTheme.czColors.textTertiary,
+                    color = colors.textTertiary,
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
@@ -1068,20 +1081,24 @@ private fun HomeAnnouncementCard(
 
         Text(
             text = announcement.title.ifBlank { stringResource(R.string.home_announcement_fallback_title) },
-            color = MaterialTheme.czColors.textPrimary,
+            color = colors.textPrimary,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.fillMaxWidth(),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
 
         Text(
             text = announcement.summary,
-            color = MaterialTheme.czColors.textSecondary,
+            color = colors.textSecondary,
             style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.fillMaxWidth(),
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
+
+        Spacer(modifier = Modifier.weight(1f))
     }
 }
 

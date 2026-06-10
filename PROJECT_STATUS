@@ -1,3 +1,23 @@
+# Project Status - Camping editor/list iOS parity follow-up
+
+Updated: 2026-06-10
+
+- Branch: `venue-map-games-locations-instructions`
+- Follow-up completed: Camping editor/list are aligned with the latest
+  iOS camping UI changes after reviewing the current SwiftUI
+  `CampingEditorView`, `CampingObserver`, `CampingDetailView`, `CampingsView`,
+  and `CampingCard` sources.
+- Editor timing: start, end, and registration due-date fields now open Android
+  date + time pickers and display the selected hour/minute instead of
+  truncating edited values to date-only.
+- Campings list: create/date/location/capacity accents now use the shared
+  accent token to match iOS, while review-registration actions keep the amber
+  treatment.
+- Localization: EN/FR/PT/PT-BR timing labels now mirror the shorter iOS copy.
+- Verification (JBR): `:app:lintDebug :app:assembleDebug` green.
+
+---
+
 # Project Status - F3 recurring camps and program attendance
 
 Updated: 2026-06-10
@@ -686,4 +706,30 @@ report model were already shipped; D7 reuses them.
 - Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew testDebugUnitTest --tests fr.ziyon.campzone.ui.home.HomeViewModelTest` SUCCESSFUL
   - `./gradlew testDebugUnitTest` SUCCESSFUL
+  - `./gradlew lintDebug assembleDebug` SUCCESSFUL
+
+---
+
+# Project Status - Home Announcement Carousel iOS Parity
+
+- Updated: 2026-06-10 15:32 CEST
+- Branch/worktree: `venue-map-games-locations-instructions`; clean before this
+  parity patch.
+- Source of truth checked:
+  - Android handoff/docs: `CLAUDE.md`, `docs/00`, `docs/07`, `docs/02`,
+    `docs/03`, `docs/04`, `docs/01`, `docs/09`, `docs/05`, `docs/06`,
+    `docs/08`.
+  - iOS Home announcement references:
+    `Features/Home/View/HomeView.swift`,
+    `Features/Home/Components/HomeAnnouncementsCarousel.swift`, and
+    `Features/Main/Model/MainDashboardContent.swift`.
+- Scope shipped:
+  - Updated Android `HomeAnnouncementsCarousel` to use the same accent token as
+    iOS for the header icon, new-count chip, card icon well, and unread dot.
+  - Added leading-edge snap behavior to the horizontal announcement carousel,
+    matching iOS `scrollTargetBehavior(.viewAligned)`.
+  - Matched the iOS card spacing more closely with fixed 248dp x 160dp cards,
+    full-width title/summary text, bottom spacer, subtle border, and tap haptic
+    feedback before opening announcement detail.
+- Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew lintDebug assembleDebug` SUCCESSFUL

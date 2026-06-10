@@ -1219,9 +1219,9 @@
     <string name="camping_editor_location_change">Alterar</string>
     <string name="camping_editor_location_nearby">Próximo</string>
     <string name="camping_editor_location_recents">Recentes</string>
-    <string name="camping_editor_date_start">Data de início</string>
-    <string name="camping_editor_date_end">Data de término</string>
-    <string name="camping_editor_due_date_toggle">Definir prazo de inscrição</string>
+    <string name="camping_editor_date_start">Início</string>
+    <string name="camping_editor_date_end">Fim</string>
+    <string name="camping_editor_due_date_toggle">Prazo de inscrição?</string>
     <string name="camping_editor_due_date_label">Encerra em</string>
     <string name="camping_editor_due_date_caption">As inscrições encerram automaticamente nesta data. Um administrador ou o criador do acampamento pode estendê-la.</string>
     <string name="camping_editor_organizer_level">Tipo de organizador</string>
