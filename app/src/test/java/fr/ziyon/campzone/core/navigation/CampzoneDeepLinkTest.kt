@@ -99,6 +99,12 @@ class CampzoneDeepLinkTest {
             ),
         )
         assertEquals(
+            CampzoneDeepLink.TransportationJoin("camp-1", "ABC123"),
+            CampzoneDeepLink.fromCampzoneUrl(
+                "https://campzone-web.vercel.app/transportation-join/camp-1?code=ABC123.",
+            ),
+        )
+        assertEquals(
             CampzoneDeepLink.TransportationInvitation("camp-1", "car-1", "reg-1"),
             CampzoneDeepLink.fromCampzoneUrl(
                 "campzone://transportation-invitation/car-1?campingID=camp-1&registrationID=reg-1",

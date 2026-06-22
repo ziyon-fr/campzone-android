@@ -231,7 +231,10 @@ sealed interface CampzoneDeepLink {
 
                 "transportation-join" -> {
                     val campingId = pathId ?: query.firstValue("campingID", "c") ?: return null
-                    val code = query.firstValue("code", "invitationCode", "i") ?: return null
+                    val code = query.firstValue("code", "invitationCode", "i")
+                        ?.trimEnd('.', ',', ';', ':', '!', '?')
+                        ?.takeUnless { it.isBlank() }
+                        ?: return null
                     TransportationJoin(campingId, code)
                 }
 
