@@ -5,6 +5,7 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.UserGender
 import fr.ziyon.campzone.data.church.FakeChurchDirectory
 import fr.ziyon.campzone.data.family.FakeFamilyRepository
+import fr.ziyon.campzone.data.family.FamilyParticipantDuplicateMatch
 import fr.ziyon.campzone.data.family.sampleChild
 import fr.ziyon.campzone.data.media.FakeImageUploader
 import fr.ziyon.campzone.testing.MainDispatcherRule
@@ -71,10 +72,10 @@ class FamilyViewModelTest {
     }
 
     @Test
-    fun basicUserCanManageFamily() = runTest {
+    fun basicUserCannotManageFamily() = runTest {
         val viewModel = viewModel(FakeFamilyRepository(mapOf("guardian-1" to listOf(sampleChild()))))
         viewModel.load(adultUser.copy(role = UserRole.User))
-        assertTrue(viewModel.uiState.value.canManageFamily)
+        assertFalse(viewModel.uiState.value.canManageFamily)
     }
 
     @Test
@@ -154,6 +155,40 @@ class FamilyViewModelTest {
         viewModel.confirmDuplicateSave(adultUser, onSaved = {})
         assertNull(viewModel.uiState.value.editor)
         assertEquals(2, repository.store["guardian-1"]?.size)
+    }
+
+    @Test
+    fun saveDetectsCrossGuardianDuplicate() = runTest {
+        val repository = FakeFamilyRepository(
+            crossGuardianMatch = FamilyParticipantDuplicateMatch(
+                displayName = "Ana Santos",
+                age = 10,
+                guardianDisplayName = "Uncle Mateo",
+            ),
+        )
+        val viewModel = viewModel(repository)
+        viewModel.load(adultUser)
+        viewModel.openEditor(childId = null, user = adultUser)
+        fillValidForm(viewModel)
+
+        viewModel.save(adultUser, onSaved = {})
+
+        assertEquals("Uncle Mateo", viewModel.uiState.value.editor?.pendingDuplicate?.guardianDisplayName)
+        assertTrue(repository.store[adultUser.uid].isNullOrEmpty())
+    }
+
+    @Test
+    fun duplicateLookupFailureBlocksSave() = runTest {
+        val repository = FakeFamilyRepository(duplicateLookupShouldFail = true)
+        val viewModel = viewModel(repository)
+        viewModel.load(adultUser)
+        viewModel.openEditor(childId = null, user = adultUser)
+        fillValidForm(viewModel)
+
+        viewModel.save(adultUser, onSaved = {})
+
+        assertNotNull(viewModel.uiState.value.editor?.errorMessage)
+        assertTrue(repository.store[adultUser.uid].isNullOrEmpty())
     }
 
     @Test

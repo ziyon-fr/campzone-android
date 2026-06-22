@@ -350,6 +350,7 @@ enum class AppNotificationKind(val wireValue: String) {
     Registration("registration"),
     ScheduleReminder("schedule_reminder"),
     TeamUpdate("team_update"),
+    Transportation("transportation"),
     Unknown("unknown");
 
     companion object {
@@ -363,6 +364,7 @@ enum class AppNotificationKind(val wireValue: String) {
                 "registration", "registration_request" -> Registration
                 "schedule_reminder", "schedulereminder" -> ScheduleReminder
                 "team_update", "teamupdate" -> TeamUpdate
+                "transportation", "transportation_invitation", "transportation_request" -> Transportation
                 "unknown" -> Unknown
                 else -> null
             }

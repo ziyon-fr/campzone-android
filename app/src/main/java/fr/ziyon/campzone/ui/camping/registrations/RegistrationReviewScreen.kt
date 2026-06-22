@@ -67,6 +67,7 @@ import fr.ziyon.campzone.ui.camping.campingDateRange
 @Composable
 fun RegistrationReviewRoute(
     authenticatedUser: AuthenticatedUser,
+    focusedCampingId: String? = null,
     onBack: () -> Unit,
     onOpenCamping: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -75,8 +76,8 @@ fun RegistrationReviewRoute(
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(authenticatedUser) {
-        viewModel.load(authenticatedUser)
+    LaunchedEffect(authenticatedUser, focusedCampingId) {
+        viewModel.load(authenticatedUser, focusedCampingId)
     }
     LaunchedEffect(state.operationMessage) {
         state.operationMessage?.let {
@@ -95,7 +96,7 @@ fun RegistrationReviewRoute(
         state = state,
         snackbarHostState = snackbarHostState,
         onBack = onBack,
-        onRetry = { viewModel.retry(authenticatedUser) },
+        onRetry = { viewModel.load(authenticatedUser, focusedCampingId) },
         onOpenCamping = onOpenCamping,
         onApprove = { campingId, attendeeId ->
             viewModel.updateRegistration(campingId, attendeeId, RegistrationApprovalStatus.Approved)

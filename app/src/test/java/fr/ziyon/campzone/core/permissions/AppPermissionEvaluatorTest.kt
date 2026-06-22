@@ -157,12 +157,8 @@ class AppPermissionEvaluatorTest {
     }
 
     @Test
-    fun familyManagementIsOpenToEveryOnboardedRole() {
-        // Managing one's own family/children is open to every signed-in role
-        // except guest. This matches the shipped iOS `UserRole.permissions` map
-        // (the source of truth); Android had wrongly restricted it to adult/admin.
+    fun familyManagementMatchesIosAdultAndLeadershipRoles() {
         val managing = listOf(
-            UserRole.User,
             UserRole.Adult,
             UserRole.YouthDirector,
             UserRole.Pastor,
@@ -179,6 +175,9 @@ class AppPermissionEvaluatorTest {
         }
         assertFalse(
             evaluator.can(PermissionUser(role = UserRole.Guest), AppPermission.ManageFamilyRegistrations),
+        )
+        assertFalse(
+            evaluator.can(PermissionUser(role = UserRole.User), AppPermission.ManageFamilyRegistrations),
         )
     }
 

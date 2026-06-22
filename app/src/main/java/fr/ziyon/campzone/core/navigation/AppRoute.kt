@@ -43,6 +43,14 @@ sealed interface AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.Achievements}"
     }
 
+    data class ProfileAchievementsFor(val userId: String) : AppRoute {
+        override val route = "${ProfileAchievements.route}/${userId.asRouteSegment()}"
+    }
+
+    data class ProfileAchievementDetail(val userId: String, val achievementId: String) : AppRoute {
+        override val route = "${ProfileAchievementsFor(userId).route}/${achievementId.asRouteSegment()}"
+    }
+
     data object NotificationSettings : AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.NotificationSettings}"
     }
@@ -207,6 +215,19 @@ sealed interface AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.MyTransportation}"
     }
 
+    data class MyTransportationJoin(val campingId: String, val invitationCode: String) : AppRoute {
+        override val route = "${MyTransportation(campingId).route}/join/${invitationCode.asRouteSegment()}"
+    }
+
+    data class TransportationDecision(
+        val campingId: String,
+        val kind: String,
+        val vehicleId: String,
+        val registrationId: String,
+    ) : AppRoute {
+        override val route = "${MyTransportation(campingId).route}/${kind.asRouteSegment()}/${vehicleId.asRouteSegment()}/${registrationId.asRouteSegment()}"
+    }
+
     data class VehicleForm(
         val campingId: String,
         val vehicleId: String? = null,
@@ -334,6 +355,10 @@ sealed interface AppRoute {
 
     data object RegistrationReview : AppRoute {
         override val route = AppRoutePath.RegistrationReview
+    }
+
+    data class CampingRegistrationReview(val campingId: String) : AppRoute {
+        override val route = "${RegistrationReview.route}/${campingId.asRouteSegment()}"
     }
 
     data class CampingAttendees(val campingId: String) : AppRoute {
@@ -489,6 +514,11 @@ internal object AppRouteArgs {
     const val GameId = "gameId"
     const val VehicleId = "vehicleId"
     const val UserVehicleId = "userVehicleId"
+    const val AchievementId = "achievementId"
+    const val UserId = "userId"
+    const val InvitationCode = "invitationCode"
+    const val DecisionKind = "decisionKind"
+    const val RegistrationId = "registrationId"
 }
 
 internal object AppRoutePath {
@@ -585,6 +615,8 @@ internal object AppRoutePattern {
     const val TransportationDashboard = "$CampingDetail/${AppRoutePath.TransportationDashboard}"
     const val TransportationHistory = "$CampingDetail/${AppRoutePath.TransportationHistory}"
     const val MyTransportation = "$CampingDetail/${AppRoutePath.MyTransportation}"
+    const val MyTransportationJoin = "$MyTransportation/join/{${AppRouteArgs.InvitationCode}}"
+    const val TransportationDecision = "$MyTransportation/{${AppRouteArgs.DecisionKind}}/{${AppRouteArgs.VehicleId}}/{${AppRouteArgs.RegistrationId}}"
     const val VehicleForm = "$CampingDetail/${AppRoutePath.VehicleForm}"
     const val VehicleEdit = "$VehicleForm/{${AppRouteArgs.VehicleId}}"
     const val VehicleQr = "$CampingDetail/${AppRoutePath.VehicleQr}/{${AppRouteArgs.VehicleId}}"
@@ -605,6 +637,7 @@ internal object AppRoutePattern {
     const val CampingVenueMapEditor = "$CampingDetail/${AppRoutePath.VenueMapEditor}"
     const val CampingGuardianUpdates = "$CampingDetail/${AppRoutePath.GuardianUpdates}"
     const val RegistrationReview = AppRoutePath.RegistrationReview
+    const val CampingRegistrationReview = "$RegistrationReview/{${AppRouteArgs.CampingId}}"
     const val CampingAttendees = "$CampingDetail/${AppRoutePath.Attendees}"
     const val AttendeeProfile = "$CampingAttendees/{${AppRouteArgs.AttendeeId}}"
     const val CampingCreate = "${AppRoutePath.Campings}/${AppRoutePath.CampingCreate}"
@@ -632,6 +665,8 @@ internal object AppRoutePattern {
     const val WinnerReveal = "$CampingGames/${AppRoutePath.WinnerReveal}"
     const val GameDetail = "$CampingGames/{${AppRouteArgs.GameId}}"
     const val ModerationQueue = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.ModerationQueue}"
+    const val ProfileAchievementsFor = "${AppRoutePath.Profile}/${AppRoutePath.Achievements}/{${AppRouteArgs.UserId}}"
+    const val ProfileAchievementDetail = "$ProfileAchievementsFor/{${AppRouteArgs.AchievementId}}"
 }
 
 private fun String.asRouteSegment(): String =

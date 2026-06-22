@@ -557,8 +557,9 @@ private fun ChildEditorContent(
                 Text(
                     stringResource(
                         R.string.family_duplicate_message,
-                        duplicate.existing.displayName,
-                        duplicate.existing.age,
+                        duplicate.displayName,
+                        duplicate.age,
+                        duplicate.guardianDisplayName,
                     ),
                 )
             },

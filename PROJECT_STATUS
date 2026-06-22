@@ -45,6 +45,24 @@ Updated: 2026-06-10
 
 ---
 
+# Project Status - Shared links, notification actions, and family duplicates
+
+Updated: 2026-06-22
+
+- Achievement shares now use Universal Links and exact badge notifications open
+  the badge detail sheet.
+- Transportation code shares open the prefilled join flow; invitation and seat
+  request notifications open the corresponding accept/decline or approve/decline
+  bottom sheet.
+- Registration notifications now focus the relevant camping review queue.
+- Cross-guardian child duplicate checks use the authenticated backend and fail
+  closed; the warning includes the existing guardian and local matching is
+  accent/case/spacing tolerant.
+- Verification (JBR): full `testDebugUnitTest` and combined
+  `lintDebug assembleDebug` passed.
+
+---
+
 # Project Status - F3 recurring camps and program attendance
 
 Updated: 2026-06-10

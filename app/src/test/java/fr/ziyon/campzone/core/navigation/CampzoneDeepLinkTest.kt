@@ -64,6 +64,12 @@ class CampzoneDeepLinkTest {
             ),
         )
         assertEquals(
+            CampzoneDeepLink.ScheduleProgram("summer-camp-2026", "evening-worship"),
+            CampzoneDeepLink.fromCampzoneUrl(
+                "https://campzone-web.vercel.app/program/evening-worship?campingID=summer-camp-2026",
+            ),
+        )
+        assertEquals(
             CampzoneDeepLink.RegistrationReview("summer-camp-2026"),
             CampzoneDeepLink.fromCampzoneUrl(
                 "https://campzone-web.vercel.app/registration-review/summer-camp-2026",
@@ -78,6 +84,24 @@ class CampzoneDeepLinkTest {
             ),
             CampzoneDeepLink.fromCampzoneUrl(
                 "https://campzone-web.vercel.app/badges/user-1?displayName=Lea&campingID=camp-2026",
+            ),
+        )
+        assertEquals(
+            CampzoneDeepLink.Achievement("user-1", null, null, null, "badge-1"),
+            CampzoneDeepLink.fromCampzoneUrl(
+                "https://campzone-web.vercel.app/badges/user-1?achievementID=badge-1",
+            ),
+        )
+        assertEquals(
+            CampzoneDeepLink.TransportationJoin("camp-1", "ABC123"),
+            CampzoneDeepLink.fromCampzoneUrl(
+                "https://campzone-web.vercel.app/transportation-join/camp-1?code=ABC123",
+            ),
+        )
+        assertEquals(
+            CampzoneDeepLink.TransportationInvitation("camp-1", "car-1", "reg-1"),
+            CampzoneDeepLink.fromCampzoneUrl(
+                "campzone://transportation-invitation/car-1?campingID=camp-1&registrationID=reg-1",
             ),
         )
         assertEquals(
@@ -122,6 +146,12 @@ class CampzoneDeepLinkTest {
             CampzoneDeepLink.RegistrationReview("c1"),
             CampzoneDeepLink.fromPayload(
                 mapOf("type" to "registration_request", "campingID" to "c1"),
+            ),
+        )
+        assertEquals(
+            CampzoneDeepLink.ScheduleProgram("c1", "p1"),
+            CampzoneDeepLink.fromPayload(
+                mapOf("type" to "schedule_reminder", "campingID" to "c1", "programID" to "p1"),
             ),
         )
         assertEquals(
@@ -181,6 +211,10 @@ class CampzoneDeepLinkTest {
             CampzoneDeepLink.fromPayload(mapOf("pollID" to "p1", "campingID" to "c1")),
         )
         assertEquals(
+            CampzoneDeepLink.ScheduleProgram("c1", "program-1"),
+            CampzoneDeepLink.fromPayload(mapOf("programID" to "program-1", "campingID" to "c1")),
+        )
+        assertEquals(
             CampzoneDeepLink.Camping("c1"),
             CampzoneDeepLink.fromPayload(mapOf("campingID" to "c1")),
         )
@@ -223,13 +257,19 @@ class CampzoneDeepLinkTest {
         )
         assertNull(CampzoneDeepLink.CampingChat("camp-1").canonicalShareUrlOrNull())
         assertNull(CampzoneDeepLink.Poll("camp-1", "poll-1").canonicalShareUrlOrNull())
-        assertNull(
+        assertNull(CampzoneDeepLink.ScheduleProgram("camp-1", "program-1").canonicalShareUrlOrNull())
+        assertEquals(
+            "https://campzone-web.vercel.app/badges/u1",
             CampzoneDeepLink.Achievements(
                 userId = "u1",
                 displayName = null,
                 photoUrl = null,
                 campingId = null,
             ).canonicalShareUrlOrNull(),
+        )
+        assertEquals(
+            "https://campzone-web.vercel.app/transportation-join/camp-1?code=ABC123",
+            CampzoneDeepLink.TransportationJoin("camp-1", "ABC123").canonicalShareUrlOrNull(),
         )
         assertNull(CampzoneDeepLink.RegistrationReview("camp-1").canonicalShareUrlOrNull())
         assertNull(CampzoneDeepLink.TeamChat("camp-1", "team-1").canonicalShareUrlOrNull())

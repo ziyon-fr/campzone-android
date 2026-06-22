@@ -21,6 +21,8 @@ import fr.ziyon.campzone.data.model.VehicleCheckInPayload
 import fr.ziyon.campzone.data.model.VehicleScanResult
 import fr.ziyon.campzone.data.model.VehicleStatus
 import fr.ziyon.campzone.data.model.VehicleTokenFactory
+import fr.ziyon.campzone.data.notifications.NotificationApi
+import fr.ziyon.campzone.data.notifications.TransportationNotification
 import fr.ziyon.campzone.data.vehicle.UserVehicleService
 import fr.ziyon.campzone.data.vehicle.VehicleService
 import fr.ziyon.campzone.ui.checkin.permissionContext
@@ -139,6 +141,7 @@ class VehicleViewModel @Inject constructor(
     private val userVehicleService: UserVehicleService,
     private val campingService: CampingService,
     private val stringProvider: StringProvider,
+    private val notificationApi: NotificationApi,
 ) : ViewModel() {
     private val permissions = AppPermissionEvaluator()
     private val _uiState = MutableStateFlow(VehicleUiState())
@@ -405,11 +408,20 @@ class VehicleViewModel @Inject constructor(
 
     fun requestJoin(vehicle: CampingVehicle, attendee: CampingAttendee) {
         viewModelScope.launch {
-            performVehicleAction(
-                action = { vehicleService.requestJoin(vehicle.campingId, vehicle.id, attendee.id, attendee.displayName) },
-                success = "Request sent to the driver.",
-            )
+            _uiState.update { it.copy(isUpdating = true, operationError = null) }
             runCatching {
+                val updated = vehicleService.requestJoin(vehicle.campingId, vehicle.id, attendee.id, attendee.displayName)
+                upsert(updated)
+                notificationApi.dispatchTransportation(
+                    TransportationNotification(
+                        event = "join_request",
+                        campingId = vehicle.campingId,
+                        vehicleId = vehicle.id,
+                        registrationId = attendee.id,
+                        participantName = attendee.displayName,
+                        driverName = vehicle.driverName,
+                    ),
+                )
                 campingService.updateRegistrationTransport(
                     campingId = vehicle.campingId,
                     attendeeId = attendee.id,
@@ -419,8 +431,12 @@ class VehicleViewModel @Inject constructor(
                     needsTransportHelp = false,
                     notes = null,
                 )
+            }.onSuccess {
+                _uiState.update { it.copy(isUpdating = false, operationMessage = "Request sent to the driver.") }
+                refreshCamping(vehicle.campingId)
+            }.onFailure { error ->
+                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: "Could not request this ride.") }
             }
-            refreshCamping(vehicle.campingId)
         }
     }
 
@@ -435,7 +451,18 @@ class VehicleViewModel @Inject constructor(
             runCatching {
                 val vehicle = vehicleService.vehicleByInvitationCode(campingId, trimmed)
                     ?: error("No car matches that code.")
-                vehicleService.requestJoin(campingId, vehicle.id, attendee.id, attendee.displayName)
+                val updated = vehicleService.requestJoin(campingId, vehicle.id, attendee.id, attendee.displayName)
+                notificationApi.dispatchTransportation(
+                    TransportationNotification(
+                        event = "join_request",
+                        campingId = campingId,
+                        vehicleId = vehicle.id,
+                        registrationId = attendee.id,
+                        participantName = attendee.displayName,
+                        driverName = vehicle.driverName,
+                    ),
+                )
+                updated
             }.onSuccess { updated ->
                 upsert(updated)
                 campingService.updateRegistrationTransport(
@@ -497,10 +524,51 @@ class VehicleViewModel @Inject constructor(
 
     fun addPassenger(vehicle: CampingVehicle, attendee: CampingAttendee) {
         viewModelScope.launch {
-            performVehicleAction(
-                action = { vehicleService.addPassenger(vehicle.campingId, vehicle.id, attendee.id, attendee.displayName) },
-                success = "Passenger added.",
-            )
+            _uiState.update { it.copy(isUpdating = true, operationError = null) }
+            runCatching {
+                notificationApi.dispatchTransportation(
+                    TransportationNotification(
+                        event = "invitation",
+                        campingId = vehicle.campingId,
+                        vehicleId = vehicle.id,
+                        registrationId = attendee.id,
+                        participantName = attendee.displayName,
+                        driverName = vehicle.driverName,
+                    ),
+                )
+            }.onSuccess {
+                _uiState.update { it.copy(isUpdating = false, operationMessage = "Invitation sent to ${attendee.displayName}.") }
+            }.onFailure { error ->
+                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: "Could not send the invitation.") }
+            }
+        }
+    }
+
+    fun respondToInvitation(vehicle: CampingVehicle, attendee: CampingAttendee, accept: Boolean) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUpdating = true, operationError = null) }
+            runCatching {
+                notificationApi.dispatchTransportation(
+                    TransportationNotification(
+                        event = if (accept) "invitation_accepted" else "invitation_declined",
+                        campingId = vehicle.campingId,
+                        vehicleId = vehicle.id,
+                        registrationId = attendee.id,
+                        participantName = attendee.displayName,
+                        driverName = vehicle.driverName,
+                    ),
+                )
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isUpdating = false,
+                        operationMessage = if (accept) "Ride invitation accepted." else "Ride invitation declined.",
+                    )
+                }
+                refreshCamping(vehicle.campingId)
+            }.onFailure { error ->
+                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: "Could not respond to the invitation.") }
+            }
         }
     }
 

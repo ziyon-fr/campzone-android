@@ -17,7 +17,12 @@ fun NavHostController.navigateToDeepLink(deepLink: CampzoneDeepLink) {
     when (deepLink) {
         is CampzoneDeepLink.Achievements -> {
             selectTabForDeepLink(AppRoute.Profile)
-            navigateTyped(AppRoute.ProfileAchievements)
+            navigateTyped(AppRoute.ProfileAchievementsFor(deepLink.userId))
+        }
+
+        is CampzoneDeepLink.Achievement -> {
+            selectTabForDeepLink(AppRoute.Profile)
+            navigateTyped(AppRoute.ProfileAchievementDetail(deepLink.userId, deepLink.achievementId))
         }
 
         is CampzoneDeepLink.Announcement -> {
@@ -67,7 +72,37 @@ fun NavHostController.navigateToDeepLink(deepLink: CampzoneDeepLink) {
 
         is CampzoneDeepLink.RegistrationReview -> {
             selectTabForDeepLink(AppRoute.Campings)
-            navigateTyped(AppRoute.RegistrationReview)
+            navigateTyped(AppRoute.CampingRegistrationReview(deepLink.campingId))
+        }
+
+        is CampzoneDeepLink.ScheduleProgram -> {
+            selectTabForDeepLink(AppRoute.Campings)
+            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.CampingScheduleProgram(deepLink.campingId, deepLink.programId))
+        }
+
+        is CampzoneDeepLink.Transportation -> {
+            selectTabForDeepLink(AppRoute.Campings)
+            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.MyTransportation(deepLink.campingId))
+        }
+
+        is CampzoneDeepLink.TransportationJoin -> {
+            selectTabForDeepLink(AppRoute.Campings)
+            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.MyTransportationJoin(deepLink.campingId, deepLink.invitationCode))
+        }
+
+        is CampzoneDeepLink.TransportationInvitation -> {
+            selectTabForDeepLink(AppRoute.Campings)
+            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.TransportationDecision(deepLink.campingId, "invitation", deepLink.vehicleId, deepLink.registrationId))
+        }
+
+        is CampzoneDeepLink.TransportationRequest -> {
+            selectTabForDeepLink(AppRoute.Campings)
+            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.TransportationDecision(deepLink.campingId, "request", deepLink.vehicleId, deepLink.registrationId))
         }
     }
 }

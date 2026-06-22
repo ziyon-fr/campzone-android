@@ -4,7 +4,6 @@ import fr.ziyon.campzone.core.navigation.CampzoneDeepLink
 import fr.ziyon.campzone.core.permissions.UserRole
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -15,11 +14,15 @@ class AppNotificationDeepLinkTest {
         topic: String = "campzone_announcements",
         announcementId: String? = null,
         campingId: String? = null,
+        programId: String? = null,
         pollId: String? = null,
         teamId: String? = null,
         event: String? = null,
         role: String? = null,
         recipientUserId: String? = null,
+        achievementId: String? = null,
+        vehicleId: String? = null,
+        registrationId: String? = null,
         deepLinkUrl: String? = null,
         mentionedUserIds: List<String> = emptyList(),
     ) = AppNotification(
@@ -32,11 +35,15 @@ class AppNotificationDeepLinkTest {
         sentAt = java.util.Date(),
         announcementId = announcementId,
         campingId = campingId,
+        programId = programId,
         pollId = pollId,
         teamId = teamId,
         role = role,
         event = event,
         recipientUserId = recipientUserId,
+        achievementId = achievementId,
+        vehicleId = vehicleId,
+        registrationId = registrationId,
         deepLinkUrl = deepLinkUrl,
         mentionedUserIds = mentionedUserIds,
     )
@@ -48,6 +55,29 @@ class AppNotificationDeepLinkTest {
         assertEquals(AppNotificationKind.Registration, AppNotificationKind.fromWire("registration_request"))
         assertEquals(AppNotificationKind.ChatMention, AppNotificationKind.fromWire("chatmention"))
         assertEquals(AppNotificationKind.Badge, AppNotificationKind.fromWire("achievement_badge"))
+        assertEquals(AppNotificationKind.Transportation, AppNotificationKind.fromWire("transportation"))
+    }
+
+    @Test
+    fun badgeDeepLinkOpensExactAchievement() {
+        val link = notification(
+            AppNotificationKind.Badge,
+            recipientUserId = "u1",
+            achievementId = "badge-1",
+        ).deepLink()
+        assertEquals(CampzoneDeepLink.Achievement("u1", null, null, null, "badge-1"), link)
+    }
+
+    @Test
+    fun transportationInvitationOpensDecisionSheet() {
+        val link = notification(
+            AppNotificationKind.Transportation,
+            campingId = "camp-1",
+            event = "invitation",
+            vehicleId = "car-1",
+            registrationId = "reg-1",
+        ).deepLink()
+        assertEquals(CampzoneDeepLink.TransportationInvitation("camp-1", "car-1", "reg-1"), link)
     }
 
     @Test
@@ -140,8 +170,20 @@ class AppNotificationDeepLinkTest {
     }
 
     @Test
-    fun scheduleReminderHasNoDeepLink() {
-        assertNull(notification(AppNotificationKind.ScheduleReminder).deepLink())
+    fun scheduleReminderDeepLinkOpensProgramWhenProgramIdIsPresent() {
+        val link = notification(
+            AppNotificationKind.ScheduleReminder,
+            campingId = "c1",
+            programId = "program-1",
+        ).deepLink()
+
+        assertEquals(CampzoneDeepLink.ScheduleProgram("c1", "program-1"), link)
+    }
+
+    @Test
+    fun scheduleReminderWithoutProgramFallsBackToCampingDetail() {
+        val link = notification(AppNotificationKind.ScheduleReminder, campingId = "c1").deepLink()
+        assertEquals(CampzoneDeepLink.Camping("c1"), link)
     }
 
     @Test

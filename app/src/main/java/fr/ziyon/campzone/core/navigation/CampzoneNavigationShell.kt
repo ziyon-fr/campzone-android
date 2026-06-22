@@ -364,6 +364,30 @@ fun CampzoneNavigationShell(
                     onBack = { navController.popBackStack() },
                 )
             }
+            composable(
+                route = AppRoutePattern.ProfileAchievementsFor,
+                arguments = listOf(navArgument(AppRouteArgs.UserId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                AchievementsRoute(
+                    authenticatedUser = authenticatedUser,
+                    targetUserId = backStackEntry.stringArg(AppRouteArgs.UserId),
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.ProfileAchievementDetail,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.UserId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.AchievementId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                AchievementsRoute(
+                    authenticatedUser = authenticatedUser,
+                    targetUserId = backStackEntry.stringArg(AppRouteArgs.UserId),
+                    initialAchievementId = backStackEntry.stringArg(AppRouteArgs.AchievementId),
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable(AppRoute.NotificationSettings.route) {
                 NotificationSettingsRoute(
                     uid = authenticatedUser.uid,
@@ -718,6 +742,44 @@ fun CampzoneNavigationShell(
                 )
             }
             composable(
+                route = AppRoutePattern.MyTransportationJoin,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.InvitationCode) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                MyTransportationRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    initialJoinCode = backStackEntry.stringArg(AppRouteArgs.InvitationCode),
+                    onBack = { navController.popBackStack() },
+                    onOpenVehicleForm = { navController.navigate(AppRoute.VehicleForm(campingId, it).route) },
+                    onOpenVehicleQr = { navController.navigate(AppRoute.VehicleQr(campingId, it).route) },
+                )
+            }
+            composable(
+                route = AppRoutePattern.TransportationDecision,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.DecisionKind) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.VehicleId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.RegistrationId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                MyTransportationRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    initialDecisionKind = backStackEntry.stringArg(AppRouteArgs.DecisionKind),
+                    initialVehicleId = backStackEntry.stringArg(AppRouteArgs.VehicleId),
+                    initialRegistrationId = backStackEntry.stringArg(AppRouteArgs.RegistrationId),
+                    onBack = { navController.popBackStack() },
+                    onOpenVehicleForm = { navController.navigate(AppRoute.VehicleForm(campingId, it).route) },
+                    onOpenVehicleQr = { navController.navigate(AppRoute.VehicleQr(campingId, it).route) },
+                )
+            }
+            composable(
                 route = AppRoutePattern.VehicleForm,
                 arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
             ) { backStackEntry ->
@@ -832,6 +894,17 @@ fun CampzoneNavigationShell(
                     onOpenCamping = { campingId ->
                         navController.navigate(AppRoute.CampingDetail(campingId).route)
                     },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingRegistrationReview,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                RegistrationReviewRoute(
+                    authenticatedUser = authenticatedUser,
+                    focusedCampingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    onBack = { navController.popBackStack() },
+                    onOpenCamping = { navController.navigate(AppRoute.CampingDetail(it).route) },
                 )
             }
             composable(

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.AlternateEmail
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PersonAdd
@@ -268,6 +269,7 @@ private fun AppNotificationKind.icon(): ImageVector = when (this) {
     AppNotificationKind.Registration -> Icons.Rounded.PersonAdd
     AppNotificationKind.ScheduleReminder -> Icons.Rounded.Schedule
     AppNotificationKind.TeamUpdate -> Icons.Rounded.Groups
+    AppNotificationKind.Transportation -> Icons.Rounded.DirectionsCar
     AppNotificationKind.Unknown -> Icons.Rounded.Notifications
 }
 
@@ -279,6 +281,7 @@ private fun AppNotificationKind.labelRes(): Int = when (this) {
     AppNotificationKind.Registration -> R.string.notif_channel_registration
     AppNotificationKind.ScheduleReminder -> R.string.notif_cat_reminders_title
     AppNotificationKind.TeamUpdate -> R.string.notif_cat_team_title
+    AppNotificationKind.Transportation -> R.string.camping_transportation
     AppNotificationKind.Unknown -> R.string.notif_feed_title
 }
 

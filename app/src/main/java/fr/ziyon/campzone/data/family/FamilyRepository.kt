@@ -1,8 +1,16 @@
 package fr.ziyon.campzone.data.family
 
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import fr.ziyon.campzone.BuildConfig
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.Normalizer
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,7 +20,8 @@ import javax.inject.Singleton
  * `FamilyParticipantDuplicateMatch`.
  */
 data class FamilyParticipantDuplicateMatch(
-    val existing: ChildParticipant,
+    val displayName: String,
+    val age: Int,
     val guardianDisplayName: String,
 )
 
@@ -22,9 +31,8 @@ interface FamilyRepository {
     suspend fun deleteChild(id: String, userId: String)
 
     /**
-     * Best-effort lookup for the same participant under a *different* guardian
-     * (collection-group read; needs the `children (displayName, age)` index and
-     * adult/admin rules). Callers treat a thrown error as "no match".
+     * Privacy-preserving backend lookup for the same participant under a
+     * different guardian. Only the fields required by the warning are returned.
      */
     suspend fun findSimilarParticipant(
         displayName: String,
@@ -36,6 +44,7 @@ interface FamilyRepository {
 @Singleton
 class FirebaseFamilyRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
+    private val auth: FirebaseAuth,
 ) : FamilyRepository {
     override suspend fun loadChildren(userId: String): List<ChildParticipant> =
         childrenCollection(userId)
@@ -79,34 +88,37 @@ class FirebaseFamilyRepository @Inject constructor(
         val trimmed = displayName.trim()
         if (trimmed.isEmpty()) return null
 
-        val snapshot = firestore
-            .collectionGroup(ChildrenCollection)
-            .whereEqualTo("displayName", trimmed)
-            .whereEqualTo("age", age)
-            .limit(10)
-            .get()
-            .await()
+        val token = auth.currentUser?.getIdToken(false)?.await()?.token
+            ?: error("Sign in again before checking family participants.")
+        return withContext(Dispatchers.IO) {
+            val connection = (
+                URL("${BuildConfig.BACKEND_BASE_URL}/family/duplicate-check")
+                    .openConnection() as HttpURLConnection
+                ).apply {
+                requestMethod = "POST"
+                doOutput = true
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("Content-Type", "application/json")
+            }
+            val body = JSONObject()
+                .put("displayName", trimmed)
+                .put("age", age)
+                .put("excludingGuardianID", excludingGuardianId)
+            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
 
-        for (document in snapshot.documents) {
-            val participant = document.data?.toChildParticipantOrNull(documentId = document.id)
-                ?: continue
-            if (participant.guardianId == excludingGuardianId) continue
+            val success = connection.responseCode in 200..299
+            val stream = if (success) connection.inputStream else connection.errorStream
+            val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (!success) error(response.ifBlank { "Could not check for an existing participant." })
 
-            return FamilyParticipantDuplicateMatch(
-                existing = participant,
-                guardianDisplayName = guardianDisplayName(participant.guardianId),
+            val match = JSONObject(response).optJSONObject("data")?.optJSONObject("match")
+                ?: return@withContext null
+            FamilyParticipantDuplicateMatch(
+                displayName = match.optString("displayName", trimmed),
+                age = match.optInt("age", age),
+                guardianDisplayName = match.optString("guardianDisplayName", AnotherGuardianFallback),
             )
         }
-        return null
-    }
-
-    private suspend fun guardianDisplayName(uid: String): String {
-        val name = runCatching {
-            firestore.collection(UsersCollection).document(uid).get().await()
-                .getString("displayName")
-                ?.trim()
-        }.getOrNull()
-        return name?.takeUnless { it.isBlank() } ?: AnotherGuardianFallback
     }
 
     private fun childrenCollection(userId: String) =
@@ -121,3 +133,10 @@ class FirebaseFamilyRepository @Inject constructor(
         const val AnotherGuardianFallback = "another guardian"
     }
 }
+
+internal fun normalizeFamilyParticipantName(value: String): String =
+    Normalizer.normalize(value, Normalizer.Form.NFKD)
+        .replace(Regex("\\p{M}+"), "")
+        .trim()
+        .replace(Regex("\\s+"), " ")
+        .lowercase()

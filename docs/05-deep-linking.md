@@ -22,6 +22,12 @@ teamUpdate(campingID, teamID)
 teamPoints(campingID, teamID?)
 registrationReview(campingID)   // leadership: pending registrations
 achievements(userID, displayName?, photoURLString?, campingID?)
+achievement(userID, achievementID, ...)
+scheduleProgram(campingID, programID)
+transportation(campingID)
+transportationJoin(campingID, invitationCode)
+transportationInvitation(campingID, vehicleID, registrationID)
+transportationRequest(campingID, vehicleID, registrationID)
 camping(id)
 ```
 
@@ -47,7 +53,13 @@ A tapped push carries a `data` map (see `04-backend-api.md` §3). Resolve
      routes to `camping(campingID)`.
    - `badge` / `achievement` / `achievement_badge` → requires
      `recipientUserID` (or `userID`/`uid`) →
-     `achievements(userID, displayName?, photoURLString?, campingID?)`.
+     `achievement(...)` when `achievementID`/`badgeID` is present,
+     otherwise `achievements(...)`.
+   - `schedule_reminder` → `scheduleProgram(campingID, programID)` when
+     both ids exist, otherwise `camping(campingID)`.
+   - `transportation` → invitation events open the passenger
+     accept/decline sheet; join requests open the driver's
+     approve/decline sheet; other events open My Transportation.
    - `team_update` / `teamupdate` → requires `campingID`; if `event` is
      `scoreChanged`, `memberScoreChanged`, or `penaltyApplied`, route to
      `teamPoints(campingID, teamID?)`; otherwise route to
@@ -73,9 +85,9 @@ handoff after auth; Android = an `Intent` extra processed post-auth).
 ## 3. URL parsing + share links
 
 The legacy custom scheme is `campzone`. iOS also parses HTTPS Universal
-Links on `https://campzone-web.vercel.app/...`. Only **camping** and
-**announcement** are meaningfully shareable from the app; chat, polls,
-team updates, point history, registration review, and achievements links
+Links on `https://campzone-web.vercel.app/...`. Camping, announcement,
+achievement, and transportation invitation-code links are shareable; chat, polls,
+team updates, point history, and registration review links
 are deep-link destinations only and have **no** canonical share URL.
 
 | Link | Inbound parse | Canonical share URL |
@@ -88,7 +100,9 @@ are deep-link destinations only and have **no** canonical share URL.
 | team points | route/host `points`/`point-history`, camping id = first path component or `?id`/`?c`/`?campingID`, optional `?teamID`/`?t` | none |
 | poll | route/host `poll`/`polls`, camping id = `?c`/`?campingID` or first path component, optional `?pollID`/`?p` | none |
 | registration review | route/host `registration`/`registration-review`, camping id = first path component or `?id`/`?c`/`?campingID` | none |
-| achievements/badge | route/host `achievement`/`achievements`/`badge`/`badges`, user id = first path component or `?id`/`?userID`/`?uid`, optional `?displayName`/`?name`, `?photoURLString`/`?photoURL`, `?campingID`/`?c` | none |
+| achievements/badge | route/host `achievement`/`achievements`/`badge`/`badges`, user id = first path component, optional `?achievementID`/`?badgeID`/`?a` | `https://campzone-web.vercel.app/badges/<userID>?achievementID=<id>` |
+| transportation join | route/host `transportation-join`, camping id = first path component, code = `?code`/`?invitationCode`/`?i` | `https://campzone-web.vercel.app/transportation-join/<campingID>?code=<code>` |
+| transportation decision | route/host `transportation-invitation` or `transportation-request`, vehicle id = first path component, camping/registration ids in query | none |
 
 iOS registers both the `campzone` scheme in `Info.plist` and the
 `applinks:campzone-web.vercel.app` Associated Domain entitlement.
@@ -113,6 +127,8 @@ work in a browser. Recommended structure:
 | `poll(campingID, pollID)` | `/campings/[id]/polls/[pollId]` (or `/campings/[id]/polls` when no id) |
 | `registrationReview(campingID)` | `/campings/[id]` (admin section shows pending) |
 | `achievements(userID, ...)` | `/badges/[userId]` |
+| `scheduleProgram(campingID, programID)` | `/campings/[id]?programID=...` |
+| `transportation(campingID)` | `/campings/[id]?transportation=true` |
 | Home / Campings / Announcements / Profile | `/`, `/campings`, `/announcements`, `/profile` |
 
 Android: a single-Activity Compose nav graph mirroring the same logical
@@ -132,8 +148,11 @@ lands sensibly. Mirror this:
 - `teamPoints` → `[campingDetail, pointHistory]`
 - `poll(id?)` → `[campingDetail, pollDetail]` or
   `[campingDetail, campingPolls]`
-- `registrationReview` → `[campingDetail]` (admin section)
-- `achievements` → tab Profile → `[achievements]`
+- `registrationReview` → focused registration review for that camping
+- `achievements` → tab Profile → `[achievements]`; exact badge links open its detail sheet
+- `scheduleProgram` → `[campingDetail, scheduleProgram]`
+- `transportation` → `[campingDetail, myTransportation]`; invitation and
+  request links additionally open the relevant decision bottom sheet
 
 Tabs: **Home, Campings, Announcements, Profile/Settings** (same four on
 every platform).

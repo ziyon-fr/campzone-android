@@ -93,6 +93,7 @@
     <string name="profile_appearance">Appearance</string>
     <string name="profile_theme_footer">Choose your accent color. It applies across the app.</string>
     <string name="profile_my_achievements">My Achievements</string>
+    <string name="common_share">Share</string>
     <string name="profile_notifications">Notifications</string>
     <string name="profile_family_participants">Family Participants</string>
     <string name="profile_my_vehicles">My Vehicles</string>
@@ -322,7 +323,7 @@
     <string name="family_photo_upload_failed">Photo could not be uploaded. Please try again.</string>
     <string name="family_fix_following">Please fix the following:</string>
     <string name="family_duplicate_title">Possible duplicate</string>
-    <string name="family_duplicate_message">A similar participant already exists: %1$s, age %2$d. Add anyway?</string>
+    <string name="family_duplicate_message">%1$s, age %2$d, is already registered by %3$s. Add anyway?</string>
     <string name="family_duplicate_add_anyway">Add anyway</string>
     <string name="family_error_name_required">Participant name is required.</string>
     <string name="family_error_age_required">Participant age is required.</string>

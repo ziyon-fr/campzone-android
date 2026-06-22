@@ -17,6 +17,7 @@ internal object ChildParticipantPayload {
             "id" to child.id,
             "guardianID" to child.guardianId,
             "displayName" to child.displayName,
+            "normalizedDisplayName" to normalizeFamilyParticipantName(child.displayName),
             "age" to child.age,
             "ageGroup" to child.ageGroup.wireValue,
             "gender" to child.gender.wireValue,

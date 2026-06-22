@@ -84,6 +84,7 @@
     <string name="profile_appearance">Apparence</string>
     <string name="profile_theme_footer">Choisissez votre couleur d accent. Elle s applique dans toute l app.</string>
     <string name="profile_my_achievements">Mes succes</string>
+    <string name="common_share">Partager</string>
     <string name="profile_notifications">Notifications</string>
     <string name="profile_family_participants">Participants famille</string>
     <string name="profile_my_vehicles">Mes véhicules</string>
@@ -312,7 +313,7 @@
     <string name="family_photo_upload_failed">Impossible d’envoyer la photo. Veuillez réessayer.</string>
     <string name="family_fix_following">Veuillez corriger les points suivants :</string>
     <string name="family_duplicate_title">Doublon possible</string>
-    <string name="family_duplicate_message">Un participant similaire existe déjà : %1$s, %2$d ans. Ajouter quand même ?</string>
+    <string name="family_duplicate_message">%1$s, %2$d ans, est déjà inscrit(e) par %3$s. Ajouter quand même ?</string>
     <string name="family_duplicate_add_anyway">Ajouter quand même</string>
     <string name="family_error_name_required">Le nom du participant est requis.</string>
     <string name="family_error_age_required">L’âge du participant est requis.</string>

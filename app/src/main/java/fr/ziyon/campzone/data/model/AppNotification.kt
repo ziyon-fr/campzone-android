@@ -25,6 +25,7 @@ data class AppNotification(
     val createdAt: Date? = null,
     val announcementId: String? = null,
     val campingId: String? = null,
+    val programId: String? = null,
     val pollId: String? = null,
     val teamId: String? = null,
     val role: String? = null,
@@ -33,6 +34,8 @@ data class AppNotification(
     val event: String? = null,
     val recipientUserId: String? = null,
     val registrationId: String? = null,
+    val achievementId: String? = null,
+    val vehicleId: String? = null,
     val deepLinkUrl: String? = null,
     val mentionedUserIds: List<String> = emptyList(),
 ) {
@@ -80,13 +83,12 @@ data class AppNotification(
             AppNotificationKind.Announcement ->
                 announcementId?.let(CampzoneDeepLink::Announcement)
 
-            AppNotificationKind.Badge -> recipientUserId?.let {
-                CampzoneDeepLink.Achievements(
-                    userId = it,
-                    displayName = null,
-                    photoUrl = null,
-                    campingId = campingId,
-                )
+            AppNotificationKind.Badge -> recipientUserId?.let { userId ->
+                if (achievementId == null) {
+                    CampzoneDeepLink.Achievements(userId, null, null, campingId)
+                } else {
+                    CampzoneDeepLink.Achievement(userId, null, null, campingId, achievementId)
+                }
             }
 
             AppNotificationKind.ChatMessage, AppNotificationKind.ChatMention -> campingId?.let {
@@ -112,7 +114,23 @@ data class AppNotification(
                 }
             }
 
-            AppNotificationKind.ScheduleReminder, AppNotificationKind.Unknown -> null
+            AppNotificationKind.ScheduleReminder -> campingId?.let {
+                if (programId.isNullOrBlank()) CampzoneDeepLink.Camping(it) else CampzoneDeepLink.ScheduleProgram(it, programId)
+            }
+
+            AppNotificationKind.Transportation -> campingId?.let {
+                when (event?.trim()?.lowercase()) {
+                    "invitation", "invited" -> if (vehicleId != null && registrationId != null) {
+                        CampzoneDeepLink.TransportationInvitation(it, vehicleId, registrationId)
+                    } else CampzoneDeepLink.Transportation(it)
+                    "join_request", "request" -> if (vehicleId != null && registrationId != null) {
+                        CampzoneDeepLink.TransportationRequest(it, vehicleId, registrationId)
+                    } else CampzoneDeepLink.Transportation(it)
+                    else -> CampzoneDeepLink.Transportation(it)
+                }
+            }
+
+            AppNotificationKind.Unknown -> null
         }
     }
 
@@ -140,12 +158,14 @@ internal fun Map<String, Any?>.toAppNotificationOrNull(documentId: String): AppN
 
     val announcementId = stringValue("announcementID")
     val campingId = stringValue("campingID")
+    val programId = stringValue("programID")
     val pollId = stringValue("pollID")
     val createdAt = isoOrTimestamp("createdAt")
     val explicitKind = AppNotificationKind.fromWire(stringValue("kind"))
         ?: AppNotificationKind.fromWire(stringValue("type"))
     val kind = explicitKind ?: when {
         announcementId != null -> AppNotificationKind.Announcement
+        programId != null -> AppNotificationKind.ScheduleReminder
         pollId != null -> AppNotificationKind.Poll
         campingId != null -> AppNotificationKind.ChatMessage
         else -> AppNotificationKind.Unknown
@@ -162,6 +182,7 @@ internal fun Map<String, Any?>.toAppNotificationOrNull(documentId: String): AppN
         createdAt = createdAt,
         announcementId = announcementId,
         campingId = campingId,
+        programId = programId,
         pollId = pollId,
         teamId = stringValue("teamID"),
         role = stringValue("role") ?: NotificationTopics.roleFromTopic(rawStringValue("topic").orEmpty()),
@@ -170,6 +191,8 @@ internal fun Map<String, Any?>.toAppNotificationOrNull(documentId: String): AppN
         event = stringValue("event"),
         recipientUserId = stringValue("recipientUserID"),
         registrationId = stringValue("registrationID"),
+        achievementId = firstStringValue("achievementID", "badgeID"),
+        vehicleId = stringValue("vehicleID"),
         deepLinkUrl = firstStringValue("deepLink", "deeplink", "deep_link", "deepLinkURL", "deepLinkUrl", "url", "link"),
         mentionedUserIds = stringListValue("mentionedUserIDs"),
     )

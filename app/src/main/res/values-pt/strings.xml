@@ -88,6 +88,7 @@
     <string name="profile_appearance">Aparencia</string>
     <string name="profile_theme_footer">Escolha sua cor de destaque. Ela se aplica em todo o app.</string>
     <string name="profile_my_achievements">Minhas conquistas</string>
+    <string name="common_share">Partilhar</string>
     <string name="profile_notifications">Notificacoes</string>
     <string name="profile_family_participants">Participantes da familia</string>
     <string name="profile_my_vehicles">Meus veículos</string>
@@ -312,7 +313,7 @@
     <string name="family_photo_upload_failed">Não foi possível enviar a foto. Tente novamente.</string>
     <string name="family_fix_following">Corrija o seguinte:</string>
     <string name="family_duplicate_title">Possível duplicata</string>
-    <string name="family_duplicate_message">Já existe um participante semelhante: %1$s, %2$d anos. Adicionar mesmo assim?</string>
+    <string name="family_duplicate_message">%1$s, %2$d anos, já está inscrito(a) por %3$s. Adicionar mesmo assim?</string>
     <string name="family_duplicate_add_anyway">Adicionar mesmo assim</string>
     <string name="family_error_name_required">O nome do participante é obrigatório.</string>
     <string name="family_error_age_required">A idade do participante é obrigatória.</string>

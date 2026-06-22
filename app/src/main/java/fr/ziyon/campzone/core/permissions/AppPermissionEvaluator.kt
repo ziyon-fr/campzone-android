@@ -319,7 +319,6 @@ class AppPermissionEvaluator {
                 AppPermission.RegisterForCampings,
                 AppPermission.ViewAnnouncements,
                 AppPermission.ViewSongbook,
-                AppPermission.ManageFamilyRegistrations
             )
 
             UserRole.Adult -> setOf(

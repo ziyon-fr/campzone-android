@@ -57,6 +57,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -120,6 +121,10 @@ fun MyTransportationRoute(
     onBack: () -> Unit,
     onOpenVehicleForm: (String?) -> Unit,
     onOpenVehicleQr: (String) -> Unit,
+    initialJoinCode: String? = null,
+    initialDecisionKind: String? = null,
+    initialVehicleId: String? = null,
+    initialRegistrationId: String? = null,
     modifier: Modifier = Modifier,
     viewModel: VehicleViewModel = hiltViewModel(),
 ) {
@@ -161,6 +166,11 @@ fun MyTransportationRoute(
                     onDeny = viewModel::denyPassenger,
                     onRemovePassenger = viewModel::removePassenger,
                     onAddPassenger = { vehicle, passenger -> viewModel.addPassenger(vehicle, passenger) },
+                    onRespondToInvitation = { vehicle, accept -> viewModel.respondToInvitation(vehicle, attendee, accept) },
+                    initialJoinCode = initialJoinCode,
+                    initialDecisionKind = initialDecisionKind,
+                    initialVehicleId = initialVehicleId,
+                    initialRegistrationId = initialRegistrationId,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -544,13 +554,21 @@ private fun MyTransportationContent(
     onDeny: (CampingVehicle, String) -> Unit,
     onRemovePassenger: (CampingVehicle, String) -> Unit,
     onAddPassenger: (CampingVehicle, CampingAttendee) -> Unit,
+    onRespondToInvitation: (CampingVehicle, Boolean) -> Unit,
+    initialJoinCode: String? = null,
+    initialDecisionKind: String? = null,
+    initialVehicleId: String? = null,
+    initialRegistrationId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val driven = state.vehicleDriven(attendee.id)
     val ridden = state.vehicleRidden(attendee.id)
     val pending = state.pendingVehicle(attendee.id)
     var showFindRide by remember { mutableStateOf(false) }
-    var showJoinCode by remember { mutableStateOf(false) }
+    var showJoinCode by remember(initialJoinCode) { mutableStateOf(initialJoinCode != null) }
+    var showDecision by remember(initialDecisionKind, initialVehicleId, initialRegistrationId) {
+        mutableStateOf(initialDecisionKind != null && initialVehicleId != null && initialRegistrationId != null)
+    }
 
     LazyColumn(
         modifier = modifier,
@@ -678,10 +696,42 @@ private fun MyTransportationContent(
 
     if (showJoinCode) {
         JoinCodeDialog(
+            initialCode = initialJoinCode.orEmpty(),
             onDismiss = { showJoinCode = false },
             onJoin = {
                 showJoinCode = false
                 onJoinByCode(it)
+            },
+        )
+    }
+
+    if (showDecision) {
+        val decisionVehicle = state.vehicle(initialVehicleId.orEmpty())
+        TransportationDecisionSheet(
+            kind = initialDecisionKind.orEmpty(),
+            vehicle = decisionVehicle,
+            registrationId = initialRegistrationId.orEmpty(),
+            isUpdating = state.isUpdating,
+            onDismiss = { showDecision = false },
+            onAccept = {
+                if (decisionVehicle != null) {
+                    if (initialDecisionKind == "invitation") {
+                        onRespondToInvitation(decisionVehicle, true)
+                    } else {
+                        onApprove(decisionVehicle, initialRegistrationId.orEmpty())
+                    }
+                    showDecision = false
+                }
+            },
+            onDecline = {
+                if (decisionVehicle != null) {
+                    if (initialDecisionKind == "invitation") {
+                        onRespondToInvitation(decisionVehicle, false)
+                    } else {
+                        onDeny(decisionVehicle, initialRegistrationId.orEmpty())
+                    }
+                    showDecision = false
+                }
             },
         )
     }
@@ -739,7 +789,7 @@ private fun DriverVehicleSection(
             if (vehicle.availableSeats > 0) {
                 TextButton(onClick = { showPassengerPicker = true }) {
                     Icon(Icons.Filled.Add, contentDescription = null)
-                    Text("Add passenger")
+                    Text("Invite passenger")
                 }
             }
         }
@@ -1043,7 +1093,10 @@ private fun VehicleQrContent(vehicle: CampingVehicle, modifier: Modifier = Modif
                         append("Campzone vehicle code: ")
                         append(vehicle.invitationCode.orEmpty())
                         append("\n")
-                        append(VehicleCheckInPayload(vehicle.qrToken).webUrl())
+                        append("https://campzone-web.vercel.app/transportation-join/")
+                        append(vehicle.campingId)
+                        append("?code=")
+                        append(vehicle.invitationCode.orEmpty())
                     }
                     context.startActivity(
                         Intent.createChooser(
@@ -1628,8 +1681,8 @@ private fun PassengerPickerDialog(
 }
 
 @Composable
-private fun JoinCodeDialog(onDismiss: () -> Unit, onJoin: (String) -> Unit) {
-    var code by remember { mutableStateOf("") }
+private fun JoinCodeDialog(initialCode: String = "", onDismiss: () -> Unit, onJoin: (String) -> Unit) {
+    var code by remember(initialCode) { mutableStateOf(initialCode) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Invitation code") },
@@ -1648,6 +1701,60 @@ private fun JoinCodeDialog(onDismiss: () -> Unit, onJoin: (String) -> Unit) {
             TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TransportationDecisionSheet(
+    kind: String,
+    vehicle: CampingVehicle?,
+    registrationId: String,
+    isUpdating: Boolean,
+    onDismiss: () -> Unit,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        val isInvitation = kind == "invitation"
+        val participantName = vehicle?.pendingPassengers
+            ?.firstOrNull { it.id == registrationId }
+            ?.name
+            .orEmpty()
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = CzSpacing.xl, vertical = CzSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            Text(
+                if (isInvitation) "Ride invitation" else "Transportation request",
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            Text(
+                when {
+                    vehicle == null -> "Loading the vehicle details…"
+                    isInvitation -> "${vehicle.driverName} invited you to ride in ${vehicle.plateNumber}."
+                    else -> "${participantName.ifBlank { "A participant" }} requested a seat in ${vehicle.plateNumber}."
+                },
+                color = MaterialTheme.czColors.textSecondary,
+            )
+            CzButton(
+                text = if (isInvitation) "Accept" else "Approve",
+                onClick = onAccept,
+                enabled = vehicle != null && !isUpdating,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            CzButton(
+                text = "Decline",
+                onClick = onDecline,
+                enabled = vehicle != null && !isUpdating,
+                variant = CzButtonVariant.Destructive,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Text("View transportation")
+            }
+            Spacer(Modifier.height(CzSpacing.lg))
+        }
+    }
 }
 
 @Composable
