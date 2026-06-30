@@ -1,6 +1,5 @@
 package fr.ziyon.campzone.data.schedule
 
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -8,7 +7,6 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import fr.ziyon.campzone.BuildConfig
 import fr.ziyon.campzone.data.model.CampDay
 import fr.ziyon.campzone.data.model.CampingSchedule
 import fr.ziyon.campzone.data.model.DateKeys
@@ -20,21 +18,16 @@ import fr.ziyon.campzone.data.model.rawStringValue
 import fr.ziyon.campzone.data.model.stringValue
 import fr.ziyon.campzone.data.model.toCampDayOrNull
 import fr.ziyon.campzone.data.model.toProgramOrNull
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
 
  //* Read/write access to `campings/{id}/schedule/**` (`02-firestore-schema.md` §4).
@@ -57,7 +50,6 @@ interface ScheduleService {
 @Singleton
 class FirestoreScheduleService @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val auth: FirebaseAuth,
 ) : ScheduleService {
 
     override fun observeSchedule(campingId: String): Flow<CampingSchedule> = callbackFlow {
@@ -171,7 +163,6 @@ class FirestoreScheduleService @Inject constructor(
         )
         if (!snap.exists()) payload[CREATED_AT] = ts
         doc.set(payload, com.google.firebase.firestore.SetOptions.merge()).await()
-        dispatchScheduleReminders(campingId, timing)
         return loadSchedule(campingId)
     }
 
@@ -342,31 +333,6 @@ class FirestoreScheduleService @Inject constructor(
         firestore.collection(CAMPINGS).document(campingId)
             .collection(SCHEDULE).document(CONFIG)
 
-    /** Best-effort - does not throw on failure. */
-    private suspend fun dispatchScheduleReminders(
-        campingId: String,
-        timing: ScheduleReminderTiming,
-    ) {
-        try {
-            val token = auth.currentUser?.getIdToken(false)?.await()?.token ?: return
-            withContext(Dispatchers.IO) {
-                val body = JSONObject()
-                    .put("appID", APP_ID)
-                    .put("campingID", campingId)
-                    .put("reminderTiming", timing.wireValue)
-                val conn = (URL("${BuildConfig.BACKEND_BASE_URL}/notifications/reminders")
-                    .openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    doOutput = true
-                    setRequestProperty("Authorization", "Bearer $token")
-                    setRequestProperty("Content-Type", "application/json")
-                }
-                conn.outputStream.use { it.write(body.toString().toByteArray()) }
-                conn.inputStream.use { } // consume
-            }
-        } catch (_: Exception) { /* best-effort */ }
-    }
-
     private companion object {
         const val CAMPINGS = "campings"
         const val SCHEDULE = "schedule"
@@ -377,7 +343,6 @@ class FirestoreScheduleService @Inject constructor(
         const val REMINDER_TIMING = "reminderTiming"
         const val CREATED_AT = "createdAt"
         const val UPDATED_AT = "updatedAt"
-        const val APP_ID = "campzone"
     }
 }
 

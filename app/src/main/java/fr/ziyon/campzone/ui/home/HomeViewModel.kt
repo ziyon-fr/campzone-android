@@ -3,6 +3,10 @@ package fr.ziyon.campzone.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
+import fr.ziyon.campzone.core.permissions.CampingPermissionContext
+import fr.ziyon.campzone.core.permissions.PermissionUser
+import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.announcements.AnnouncementService
 import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.checkin.CheckInService
@@ -39,11 +43,20 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class HomeLivePassInfo(
-    val checkInRecord: CheckInRecord? = null,
+data class HomeCampPassInfo(
+    val attendee: CampingAttendee,
     val teamName: String? = null,
     val lodgingName: String? = null,
 )
+
+data class HomeLivePassInfo(
+    val passes: List<HomeCampPassInfo> = emptyList(),
+    val checkInRecord: CheckInRecord? = null,
+) {
+    val primaryPass: HomeCampPassInfo? get() = passes.firstOrNull()
+    val teamName: String? get() = primaryPass?.teamName
+    val lodgingName: String? get() = primaryPass?.lodgingName
+}
 
 sealed interface HomePhase {
     data object Loading : HomePhase
@@ -76,27 +89,38 @@ class HomeViewModel @Inject constructor(
     private val teamService: TeamService,
     private val lodgingService: LodgingService,
 ) : ViewModel() {
+    private val permissions = AppPermissionEvaluator()
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     private var observeJob: Job? = null
     private var currentUserId: String? = null
+    private var currentUser: AuthenticatedUser? = null
 
     fun retry() {
         _uiState.update { it.copy(phase = HomePhase.Loading) }
-        observeDashboard(currentUserId)
+        observeDashboard(currentUserId, currentUser)
     }
 
     fun loadHome(forUserId: String?) {
+        loadHome(forUserId, user = null)
+    }
+
+    fun loadHome(user: AuthenticatedUser) {
+        loadHome(user.uid, user)
+    }
+
+    private fun loadHome(forUserId: String?, user: AuthenticatedUser?) {
         if (observeJob?.isActive == true && currentUserId == forUserId) return
         currentUserId = forUserId
+        currentUser = user
         _uiState.update { it.copy(phase = HomePhase.Loading) }
-        observeDashboard(forUserId)
+        observeDashboard(forUserId, user)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun observeDashboard(forUserId: String?) {
+    private fun observeDashboard(forUserId: String?, user: AuthenticatedUser?) {
         observeJob?.cancel()
         observeJob = viewModelScope.launch {
             val localCampings = campingService.observeCampings()
@@ -115,16 +139,28 @@ class HomeViewModel @Inject constructor(
                 featuredCampings,
                 localCampings.onStart { emit(emptyList()) },
                 announcementService.loadAnnouncements(),
-            ) { featuredCamping, campings, announcements ->
+                registeredCampingIds,
+            ) { featuredCamping, campings, announcements, registeredIds ->
                 val displayCamping = featuredCamping
                     ?.let { camping ->
                         campings.firstOrNull { it.id == camping.id }
                             ?: campingService.cachedCamping(camping.id)
                             ?: camping
                     }
+                val visibleCampingIds = campings
+                    .filter { camping ->
+                        camping.id in registeredIds || canManageScopedResources(user, camping)
+                    }
+                    .mapTo(registeredIds.toMutableSet()) { it.id }
                 HomeDashboardFrame(
                     featuredCamping = displayCamping,
-                    announcements = announcements.homePreviews(),
+                    announcements = announcements.homePreviews(
+                        roleRawValue = user?.role?.rawValue,
+                        visibleCampingIds = visibleCampingIds,
+                        canViewAll = user?.role?.isAdmin == true,
+                        featuredCampingId = displayCamping?.id,
+                        registeredCampingIds = registeredIds,
+                    ),
                 )
             }
                 .flatMapLatest { frame ->
@@ -216,51 +252,86 @@ class HomeViewModel @Inject constructor(
 
         return campingService.observeUserAttendees(camping.id, uid)
             .map { attendees ->
-                attendees.homePassAttendee(uid)
-                    ?.takeIf { it.registrationStatus == RegistrationApprovalStatus.Approved }
+                attendees
+                    .filter { it.registrationStatus == RegistrationApprovalStatus.Approved }
+                    .sortedWith(
+                        compareBy<CampingAttendee> {
+                            if (it.participantKind == RegistrationParticipantKind.SelfParticipant) 0 else 1
+                        }.thenBy { it.displayName.lowercase() },
+                    )
             }
             .distinctUntilChanged()
-            .flatMapLatest { attendee ->
-                if (attendee == null) {
+            .flatMapLatest { attendees ->
+                if (attendees.isEmpty()) {
                     flowOf(HomeLivePassInfo())
                 } else {
-                    combine(
+                    val primaryAttendee = attendees.homePassAttendee(uid)
+                    val checkInRecord = primaryAttendee?.let { attendee ->
                         checkInService.observeRecord(camping.id, attendee.id)
-                            .catch { emit(null) },
-                        teamService.observeTeams(camping.id)
-                            .map { teams ->
-                                teams.firstOrNull { team ->
-                                    team.members.any { member ->
-                                        member.userId == attendee.userId || member.id == attendee.id
-                                    }
-                                }?.name?.takeUnless { it.isBlank() }
-                            }
-                            .catch { emit(null) },
-                        lodgingService.observeUnits(camping.id)
-                            .map { units ->
-                                units.firstOrNull { unit ->
-                                    unit.contains(attendee.id) || unit.contains(attendee.userId)
-                                }?.name?.takeUnless { it.isBlank() }
-                            }
-                            .catch { emit(null) },
-                    ) { checkInRecord, teamName, lodgingName ->
+                            .catch { emit(null) }
+                    } ?: flowOf(null)
+                    combine(
+                        checkInRecord,
+                        teamService.observeTeams(camping.id).catch { emit(emptyList()) },
+                        lodgingService.observeUnits(camping.id).catch { emit(emptyList()) },
+                    ) { ownCheckInRecord, teams, units ->
                         HomeLivePassInfo(
-                            checkInRecord = checkInRecord,
-                            teamName = teamName,
-                            lodgingName = lodgingName,
+                            passes = attendees.map { attendee ->
+                                HomeCampPassInfo(
+                                    attendee = attendee,
+                                    teamName = teams.firstOrNull { team ->
+                                        team.members.any { member ->
+                                            member.userId == attendee.userId || member.id == attendee.id
+                                        }
+                                    }?.name?.takeUnless { it.isBlank() },
+                                    lodgingName = units.firstOrNull { unit ->
+                                        unit.contains(attendee.id) || unit.contains(attendee.userId)
+                                    }?.name?.takeUnless { it.isBlank() },
+                                )
+                            },
+                            checkInRecord = ownCheckInRecord,
                         )
                     }
                 }
             }
     }
 
-    private fun List<Announcement>.homePreviews(): List<Announcement> =
-        filter { announcement ->
-            announcement.audienceScope == AnnouncementAudienceScope.App &&
-                announcement.notificationTargetRole == null
-        }
-            .sortedByDescending { it.createdAt?.time ?: 0L }
+    private fun List<Announcement>.homePreviews(
+        roleRawValue: String?,
+        visibleCampingIds: Set<String>,
+        canViewAll: Boolean,
+        featuredCampingId: String?,
+        registeredCampingIds: Set<String>,
+    ): List<Announcement> =
+        filter { it.isVisible(roleRawValue, visibleCampingIds, canViewAll) }
+            .sortedWith(
+                compareBy<Announcement> { announcement ->
+                    when (announcement.targetCampingId) {
+                        featuredCampingId -> 0
+                        in registeredCampingIds -> 1
+                        null -> 3
+                        else -> 2
+                    }
+                }.thenByDescending { it.createdAt?.time ?: 0L },
+            )
             .take(6)
+
+    private fun canManageScopedResources(user: AuthenticatedUser?, camping: Camping): Boolean {
+        user ?: return false
+        val permissionUser = PermissionUser(user.role, user.uid, user.church)
+        val context = CampingPermissionContext(
+            organizerLevelType = camping.organizerLevel.type.wireValue,
+            organizerLevelValue = camping.organizerLevel.value,
+            createdByUid = camping.createdByUid,
+        )
+        return permissions.canManageAnnouncements(permissionUser, context) ||
+            permissions.canManageSchedule(permissionUser, context) ||
+            permissions.canManageTeams(permissionUser, context) ||
+            permissions.canManagePolls(permissionUser, context) ||
+            permissions.canManageTransportation(permissionUser, context) ||
+            permissions.canManageCheckIns(permissionUser, context) ||
+            permissions.canManageAlbumMedia(permissionUser, context)
+    }
 
     private fun List<Camping>.approvedCampingIds(forUserId: String?): Set<String> =
         filter { camping -> camping.hasApprovedRegistrationForUser(forUserId) }

@@ -66,6 +66,87 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun replySendPersistsReplyReferenceAndDispatchFields() = runTest {
+        val service = FakeChatService(initialMessages = emptyList())
+        val dispatcher = FakeChatNotificationDispatcher()
+        val vm = viewModel(service, dispatcher)
+        val original = message(id = "orig", senderId = "u-lea", senderName = "Lea").copy(text = "The original")
+
+        vm.beginReply(original)
+        vm.updateDraft("Replying now", emptyList())
+        vm.send("camp-1", null, user(), mentionableUserIds = emptyList())
+        advanceUntilIdle()
+
+        val sent = (vm.uiState.value as ChatUiState.Loaded).messages.single()
+        assertEquals("orig", sent.replyTo?.messageId)
+        assertEquals("u-lea", sent.replyTo?.senderId)
+        assertEquals("The original", sent.replyTo?.textPreview)
+        assertEquals(null, vm.replyingTo.value)
+
+        val dispatch = dispatcher.dispatched.single()
+        assertEquals("orig", dispatch.replyToMessageId)
+        assertEquals("u-lea", dispatch.replyToSenderId)
+        assertEquals("Lea", dispatch.replyToSenderName)
+    }
+
+    @Test
+    fun failedSendRollsBackOptimisticMessageAndRestoresDraftAndReply() = runTest {
+        val service = FakeChatService(initialMessages = emptyList(), shouldFail = true)
+        val vm = viewModel(service, FakeChatNotificationDispatcher())
+        val original = message(id = "orig", senderId = "u-lea", senderName = "Lea").copy(text = "The original")
+
+        vm.beginReply(original)
+        vm.updateDraft("This should come back", emptyList())
+        vm.send("camp-1", null, user(), mentionableUserIds = emptyList())
+        advanceUntilIdle()
+
+        val state = vm.uiState.value as ChatUiState.Loaded
+        assertTrue(state.messages.isEmpty())
+        assertEquals("This should come back", vm.draft.value.text)
+        assertEquals("orig", vm.replyingTo.value?.id)
+        assertTrue(vm.operationError.value?.contains("FakeChatService") == true)
+    }
+
+    @Test
+    fun toggleReactionSetsReplacesAndRemovesOwnReaction() = runTest {
+        val service = FakeChatService(initialMessages = listOf(message(id = "m1")))
+        val vm = viewModel(service, FakeChatNotificationDispatcher())
+        vm.start("camp-1", null, "me")
+        advanceUntilIdle()
+
+        val original = (vm.uiState.value as ChatUiState.Loaded).messages.single()
+        vm.toggleReaction(original, "\u2764\uFE0F", "me")
+        advanceUntilIdle()
+        assertEquals("\u2764\uFE0F", (vm.uiState.value as ChatUiState.Loaded).messages.single().reactions["me"])
+
+        val reacted = (vm.uiState.value as ChatUiState.Loaded).messages.single()
+        vm.toggleReaction(reacted, "\uD83D\uDD25", "me")
+        advanceUntilIdle()
+        assertEquals("\uD83D\uDD25", (vm.uiState.value as ChatUiState.Loaded).messages.single().reactions["me"])
+
+        val replaced = (vm.uiState.value as ChatUiState.Loaded).messages.single()
+        vm.toggleReaction(replaced, "\uD83D\uDD25", "me")
+        advanceUntilIdle()
+        assertFalse((vm.uiState.value as ChatUiState.Loaded).messages.single().reactions.containsKey("me"))
+    }
+
+    @Test
+    fun failedReactionWriteRollsBackOptimisticUpdate() = runTest {
+        val service = FakeChatService(initialMessages = listOf(message(id = "m1")))
+        val vm = viewModel(service, FakeChatNotificationDispatcher())
+        vm.start("camp-1", null, "me")
+        advanceUntilIdle()
+        service.shouldFail = true
+
+        val original = (vm.uiState.value as ChatUiState.Loaded).messages.single()
+        vm.toggleReaction(original, "\u2764\uFE0F", "me")
+        advanceUntilIdle()
+
+        assertFalse((vm.uiState.value as ChatUiState.Loaded).messages.single().reactions.containsKey("me"))
+        assertTrue(vm.operationError.value?.contains("FakeChatService") == true)
+    }
+
+    @Test
     fun mentionSendsOnlyTheMentionDispatch() = runTest {
         val service = FakeChatService(initialMessages = emptyList())
         val dispatcher = FakeChatNotificationDispatcher()

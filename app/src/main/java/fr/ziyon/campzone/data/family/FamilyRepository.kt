@@ -109,7 +109,12 @@ class FirebaseFamilyRepository @Inject constructor(
             val success = connection.responseCode in 200..299
             val stream = if (success) connection.inputStream else connection.errorStream
             val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (!success) error(response.ifBlank { "Could not check for an existing participant." })
+            if (!success) error(
+                familyBackendErrorMessage(
+                    response = response,
+                    fallback = "Could not check for an existing participant.",
+                ),
+            )
 
             val match = JSONObject(response).optJSONObject("data")?.optJSONObject("match")
                 ?: return@withContext null
@@ -140,3 +145,45 @@ internal fun normalizeFamilyParticipantName(value: String): String =
         .trim()
         .replace(Regex("\\s+"), " ")
         .lowercase()
+
+internal fun familyBackendErrorMessage(response: String, fallback: String): String =
+    BackendMessageRegex.find(response)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.let(::decodeJsonStringContent)
+        ?.takeUnless { it.isBlank() }
+        ?: response.trim().takeUnless { it.isBlank() || it.startsWith("{") || it.startsWith("[") }
+        ?: fallback
+
+private val BackendMessageRegex = Regex(""""message"\s*:\s*"((?:\\.|[^"\\])*)"""")
+
+private fun decodeJsonStringContent(value: String): String = buildString(value.length) {
+    var index = 0
+    while (index < value.length) {
+        val character = value[index++]
+        if (character != '\\' || index >= value.length) {
+            append(character)
+            continue
+        }
+
+        when (val escaped = value[index++]) {
+            '"', '\\', '/' -> append(escaped)
+            'b' -> append('\b')
+            'f' -> append('\u000C')
+            'n' -> append('\n')
+            'r' -> append('\r')
+            't' -> append('\t')
+            'u' -> {
+                val end = (index + 4).coerceAtMost(value.length)
+                val codePoint = value.substring(index, end).takeIf { it.length == 4 }?.toIntOrNull(16)
+                if (codePoint != null) {
+                    append(codePoint.toChar())
+                    index = end
+                } else {
+                    append("\\u")
+                }
+            }
+            else -> append(escaped)
+        }
+    }
+}

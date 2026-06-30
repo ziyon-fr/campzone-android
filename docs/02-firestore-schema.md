@@ -139,6 +139,7 @@ Attendees live exclusively in the `registrations` subcollection.
 | `gender` | string | opt | `nil` | **delete-when-nil**. `UserGender`: `female`/`male`/`prefer_not_to_say` |
 | `church` | string | opt | `""` | trimmed; RBAC scope key for leadership |
 | `skills` | array\<string> | opt | `[]` | trimmed, empties dropped |
+| `allergies` | array\<string> | opt | `[]` | stable preset tokens or trimmed custom labels; empties and case-insensitive duplicates dropped |
 | `profession` | string | opt | `""` | |
 | `education` | string | opt | `""` | |
 | `pathfinderRank` | string | opt | `""` | |
@@ -185,6 +186,7 @@ admins will manage, also set `id == uid`.
 | `emergencyContactName` | string | **req** | - | |
 | `emergencyContactPhone` | string | **req** | - | |
 | `medicalNotes` | string | opt | `""` | |
+| `allergies` | array\<string> | opt | `[]` | stable preset tokens or custom labels; copied into registration snapshots |
 | `relationship` | string | opt | `parent` | `FamilyRelationship` (§ Enums) |
 | `customRelationshipLabel` | string | opt | `""` | only when `relationship == other` |
 | `guardianConsentAt` | timestamp | opt | `nil` | presence == consent; **delete-when-nil** |
@@ -382,6 +384,7 @@ is the fallback for uncovered ages.
 | `emergencyContactName` | string | opt | `""` | |
 | `emergencyContactPhone` | string | opt | `""` | |
 | `medicalNotes` | string | opt | `""` | |
+| `allergies` | array\<string> | opt | `[]` | denormalized from the self profile or child participant at registration time |
 | `guardianConsentAt` | timestamp | opt | `nil` | omit-when-nil |
 | `transportationChoice` | string | opt | `own_car` | `own_car` / `provided_bus` |
 | `transportationBookingID` | string | opt | `nil` | omit-when-nil; form `"{participant.id}-bus"` |
@@ -468,8 +471,14 @@ docs. `normalizeDays` re-files mis-keyed programs idempotently.
 | `campingID` | string | - | path arg | |
 | `date` | timestamp | **req** | drop | entry dropped if neither Timestamp nor Date |
 | `meal` | string | **req** | drop | `FoodMealKind`: `breakfast`/`lunch`/`dinner`/`snack` |
-| `dishes` | array\<string> | opt | `[]` | |
+| `items` | array\<map> | opt | `[]` | Structured dishes; each map has required `id`, `name`, `allergens[]` and optional `details`, `note` |
+| `dishes` | array\<string> | opt | `[]` | Legacy/denormalized item names for older clients |
 | `notes` | string | opt | `""` | |
+
+Clients prefer a non-empty, valid `items` array and fall back to legacy
+`dishes` names when structured items are absent or malformed. Saves write both
+fields additively. Dish allergen tokens use the same stable preset/custom token
+vocabulary as participant profile allergies.
 
 ### 4.5 Menu ↔ Program sync (application-level - no Firestore trigger)
 
@@ -480,14 +489,15 @@ deterministic id only:
 
 - menu id `"<yyyy-MM-dd>-<meal>"`; program id `"menu-<menu id>"`;
   program `campDayID = "<campingID>-day-<yyyy-MM-dd>"`.
-- Entry→Program: `title`/`type`/`description` are **menu-owned** (always
-  regenerated). `startDate`/`endDate`/`location`/`campDayID`/`id` are
-  **preserved** if a leader-edited program already exists.
+- Entry→Program: `title`/`type` identify the meal. Menu `items`/`dishes`/`notes` stay
+  in the menu document; Program `description` is leader-owned and preserved.
+  `startDate`/`endDate`/`location`/`campDayID`/`id` are also preserved when a
+  leader-edited program already exists.
 - Default meal times: breakfast 08:00 (45m), snack 10:30 (30m), lunch
   12:30 (60m), dinner 18:30 (60m). Default location `"Dining hall"`.
-- `description` format: each dish on `"- <dish>"` line; if notes, a blank
-  line then `"Notes: <notes>"`; joined with `\n`. Parsing splits on
-  newline **and** comma, strips `-`/`*`/`Menu:` prefixes, drops `Notes:`.
+- Program→Entry preserves an existing entry's structured items/notes. A new entry uses
+  the meal title as its initial dish; Program descriptions are never parsed as
+  menu data.
 
 ---
 
@@ -567,7 +577,7 @@ Create requires `campingID == path` and `createdBy == auth.uid`.
 | --- | --- | --- |
 | `id` | string | body + doc ID |
 | `campingID` | string | **must equal path** |
-| `gameID` | string | indexed (`whereField`) |
+| `gameID` | string | optional; indexed (`whereField`); omitted for manual team/member adjustments |
 | `pointRuleID` | string | omit-when-nil |
 | `name` | string | |
 | `points` | int | **signed** (negative = penalty/correction) |
@@ -581,11 +591,16 @@ Create requires `campingID == path` and `createdBy == auth.uid`.
 | `createdByName` | string | |
 | `createdAt` | timestamp | client `Date()`; ordered desc; capped 500 |
 
-Awarding contract: write the Activity first, then mutate the team doc.
+Game-award contract: write the Activity first, then mutate the team doc.
 A **negative team award** is recorded as an appended positive-magnitude
 `penalties[]` entry - **never** a decrement of `points`. A user award
 adds the delta to that member’s `personalScore`. Every team write
 rewrites the full doc + `memberUserIDs` + `updatedAt`.
+
+Manual team/member adjustments are initiated from team management: mutate the
+team first, then best-effort append an Activity with omitted `gameID`, a
+required operator reason, and matching `previousScore`/`newScore`. A denied
+ledger append must not roll back or misreport an already-persisted score change.
 
 ---
 
@@ -593,8 +608,8 @@ rewrites the full doc + `memberUserIDs` + `updatedAt`.
 
 ### 6.1 `campings/{id}/chat/{messageId}` and `campings/{id}/teams/{teamId}/chat/{messageId}` - ChatMessage
 
-- **Doc ID**: client UUID. `senderID == auth.uid`. Send = full `set` (no merge); pin/soft-delete = `updateData`. Read ordered by `createdAt` asc, `limit(toLast: 200)`.
-- Decode drops the message if any of `campingID`, `senderID`, `senderName`, `text` is missing/non-string.
+- **Doc ID**: client UUID. `senderID == auth.uid`. Send = full `set` (no merge); pin/soft-delete/edit/reaction = `updateData`. Read ordered by `createdAt` asc, `limit(toLast: 200)`.
+- Decode drops the message if any of `campingID`, `senderID`, `senderName`, `text` is missing/non-string. Reply/reaction fields are optional and tolerated on legacy docs.
 
 | key | type | req | default | notes |
 | --- | --- | --- | --- | --- |
@@ -612,6 +627,16 @@ rewrites the full doc + `memberUserIDs` + `updatedAt`.
 | `isDeleted` | bool | opt | `false` | soft delete keeps the doc; display → `"Message removed"` |
 | `deletedByID` | string | opt | `nil` | on soft delete |
 | `deletedAt` | timestamp | opt | `nil` | `serverTimestamp()` on soft delete |
+| `mentions` | array<map> | opt | `[]` | `userID`, `displayName`, UTF-16 `offset`, `length`; `__everyone__` for all visible recipients |
+| `mentionedUserIDs` | array<string> | opt | `[]` | flat backend/rules companion to `mentions`; cap 50 |
+| `attachmentKind` | string | opt | `nil` | `image`/`audio` |
+| `attachmentURL` | string | opt | `nil` | Cloudinary secure URL |
+| `attachmentPublicID` | string | opt | `nil` | Cloudinary cleanup id |
+| `attachmentDuration` | number | opt | `nil` | voice-note seconds |
+| `attachmentWidth`/`attachmentHeight` | number | opt | `nil` | image dimensions |
+| `editedAt` | timestamp | opt | `nil` | author text edit timestamp |
+| `replyTo` | map | opt | `nil` | quoted-message snapshot: `messageID`, `senderID`, `senderName`, optional `textPreview`, `mediaType`, `mediaURL` |
+| `reactions` | map<string,string> | opt | `{}` | `[userID: emoji]`; clients update only `reactions.<auth.uid>` |
 
 ### 6.2 `announcements/{announcementId}` - Announcement
 
@@ -677,9 +702,12 @@ decrement old options, increment new, set vote doc + poll `options`.
 ### 6.5 `ziyon_notifications/{id}` - in-app feed (BACKEND-WRITTEN, shared multi-app)
 
 Clients are **readers only** (RBAC: `create/update/delete: false`).
-Read filtered `whereField("topic", isEqualTo: <topic>).limit(200)` per
-visible topic, merged & deduped by `id`, sorted `sentAt` desc. Tolerant
-decoder. **`appID` MUST be `"campzone"`** or the doc is ignored client-side.
+Every listener filters `topic` and is capped at 200. Camping listeners must
+also filter `campingID`; camping-role listeners additionally filter `role`;
+team listeners filter `teamID` and, for non-admins, `campingID`. These
+predicates are required because Firestore Security Rules are not filters.
+Results are merged & deduped by `id`, sorted `sentAt` desc. Tolerant decoder.
+**`appID` MUST be `"campzone"`** or the doc is ignored client-side.
 
 | key | type | default | notes |
 | --- | --- | --- | --- |
@@ -892,7 +920,12 @@ if unparseable - **not** a structured object), `position` (int),
 (`"Song audio"`), `contentType` (`"audio/mpeg"`), `storagePath`
 (Cloudinary public_id, video resource type), `downloadURL` (secure_url;
 `""` when nil), `kind` (`mp3`/`m4a`/`wav`/`aac`/`other`), `duration`
-(double sec), `fileSize` (int64 bytes), `voiceType` (string).
+(double sec), `fileSize` (int64 bytes), `voiceType`, and `displayName`.
+`voiceType` is `mainSong`, `playback`, `instrumental`, `soprano`,
+`mezzoSoprano`, `alto`, `tenor`, `baritone`, `bass`, or `other`. Exactly one
+normalized entry is `mainSong`; the denormalized `audio` map points to that
+entry. Legacy missing/blank types promote the first take to `mainSong` without
+a migration. `displayName` is the optional free-form label for `other` tracks.
 
 ### 7.8 `campings/{id}/payments/{paymentIntentId}` - Payment audit (BACKEND-ONLY)
 
@@ -904,6 +937,22 @@ Documented in `04-backend-api.md`. Fields: `uid`, `kind`
 (Stripe status; seeded `"created"`), `paid` (bool), `createdAt`,
 `updatedAt` (serverTimestamps). Falls back to top-level
 `payments/{paymentIntentId}` if no `campingID`.
+
+### 7.9 `campings/{id}/safetyHub/config` - EmergencySafetyHub
+
+Single configuration document. Signed-in users may read it; camp schedule or
+announcement managers may create/update/delete it.
+
+| key | type | req | default |
+| --- | --- | --- | --- |
+| `emergencyContacts` | array\<map\> | opt | local 112 fallback |
+| `emergencyInstructions` | string | opt | local safety fallback |
+| `firstAidInfo` | string | opt | local first-aid fallback |
+| `updatedAt` | timestamp | opt | - |
+
+Each contact map stores `id`, `name`, `role`, `phoneNumber`, `note`,
+`isPrimary`, and `isEmergencyService`. Urgent broadcasts are normal camping
+announcements and use the existing announcement notification dispatcher.
 
 ---
 

@@ -87,6 +87,7 @@ class CampingTemplateCloneTest {
         assertEquals("camp-2026", clone.id)
         assertEquals("Summer Camp 2026", clone.title)
         assertEquals(CampingRegistrationStatus.Closed, clone.registrationStatus)
+        assertEquals(CampingPublicationStatus.Draft, clone.publicationStatus)
         assertEquals(emptyList<CampingAttendee>(), clone.attendees)
         assertEquals("", clone.guidelines)
         assertEquals(utcDate(2026, 6, 20), clone.registrationDeadline)

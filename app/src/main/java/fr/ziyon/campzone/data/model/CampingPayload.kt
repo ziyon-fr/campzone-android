@@ -25,6 +25,7 @@ internal object CampingPayload {
             "organizerLevel" to organizerLevelMap(camping.organizerLevel),
             "location" to camping.location.trim(),
             "registrationStatus" to camping.registrationStatus.wireValue,
+            "publicationStatus" to camping.publicationStatus.wireValue,
             "priceItems" to camping.priceItems.map(::priceItemMap),
             "agePrices" to camping.agePrices.map(::agePriceMap),
             "transportationOptions" to camping.transportationOptions.map(::transportationOptionMap),
@@ -125,6 +126,16 @@ internal object CampingPayload {
     ): Map<String, Any?> =
         linkedMapOf(
             "isFeatured" to isFeatured,
+            "updatedAt" to serverTimestamp,
+        )
+
+    /** Publication path - writes only `{ publicationStatus, updatedAt }`. */
+    fun publicationPayload(
+        status: CampingPublicationStatus,
+        serverTimestamp: Any,
+    ): Map<String, Any?> =
+        linkedMapOf(
+            "publicationStatus" to status.wireValue,
             "updatedAt" to serverTimestamp,
         )
 

@@ -46,6 +46,7 @@ class AppPermissionEvaluatorTest {
                 AppPermission.AssignPoints,
                 AppPermission.RevealWinners,
                 AppPermission.ManageAlbumMedia,
+                AppPermission.ManageAlbumSettings,
                 AppPermission.ManageTransportation,
                 AppPermission.ManageOwnChurchTransportation,
                 AppPermission.AwardAchievements,
@@ -96,6 +97,14 @@ class AppPermissionEvaluatorTest {
     }
 
     @Test
+    fun onlyAdminsCanPinFeaturedCampingToHome() {
+        UserRole.entries.filterNot { it == UserRole.Admin }.forEach { role ->
+            assertFalse(role.name, evaluator.canPinFeaturedCamping(PermissionUser(role = role)))
+        }
+        assertTrue(evaluator.canPinFeaturedCamping(PermissionUser(role = UserRole.Admin)))
+    }
+
+    @Test
     fun contentModerationMatchesFirestoreRoleGate() {
         assertTrue(evaluator.canModerateContent(PermissionUser(role = UserRole.YouthDirector)))
         assertTrue(evaluator.canModerateContent(PermissionUser(role = UserRole.Pastor)))
@@ -133,12 +142,14 @@ class AppPermissionEvaluatorTest {
 
         assertTrue(evaluator.can(youthDirector, AppPermission.ApproveRegistrations))
         assertTrue(evaluator.can(youthDirector, AppPermission.ManageTeams))
+        assertTrue(evaluator.can(youthDirector, AppPermission.ManageAlbumSettings))
         assertTrue(evaluator.can(youthDirector, AppPermission.CreateOwnChurchCampings))
         assertFalse(evaluator.can(youthDirector, AppPermission.CreateCampings))
         assertFalse(evaluator.can(youthDirector, AppPermission.ManageCheckIns))
 
         assertTrue(evaluator.can(pastor, AppPermission.ManageSchedule))
         assertTrue(evaluator.can(pastor, AppPermission.CreateAnnouncements))
+        assertTrue(evaluator.can(pastor, AppPermission.ManageAlbumSettings))
         assertFalse(evaluator.can(pastor, AppPermission.ApproveRegistrations))
         assertFalse(evaluator.can(pastor, AppPermission.ManageTeams))
         assertFalse(evaluator.can(pastor, AppPermission.ManageSongbook))
@@ -149,9 +160,11 @@ class AppPermissionEvaluatorTest {
 
         assertTrue(evaluator.can(leader, AppPermission.ManageTeams))
         assertTrue(evaluator.can(leader, AppPermission.ManageOwnChurchTransportation))
+        assertTrue(evaluator.can(leader, AppPermission.ManageAlbumSettings))
         assertFalse(evaluator.can(leader, AppPermission.AssignLeadershipRoles))
 
         assertTrue(evaluator.can(photographer, AppPermission.ManageAlbumMedia))
+        assertFalse(evaluator.can(photographer, AppPermission.ManageAlbumSettings))
         assertFalse(evaluator.can(photographer, AppPermission.ManageTeams))
         assertFalse(evaluator.can(photographer, AppPermission.CreateAnnouncements))
     }
@@ -233,6 +246,9 @@ class AppPermissionEvaluatorTest {
 
         assertTrue(evaluator.canManageAlbumMedia(photographer, ownChurchCamping))
         assertFalse(evaluator.canManageAlbumMedia(photographer, otherChurchCamping))
+        assertTrue(evaluator.canManageAlbumSettings(leader, ownChurchCamping))
+        assertFalse(evaluator.canManageAlbumSettings(leader, otherChurchCamping))
+        assertFalse(evaluator.canManageAlbumSettings(photographer, ownChurchCamping))
     }
 
     @Test

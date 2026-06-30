@@ -68,13 +68,20 @@ class FirestoreFoodMenuService @Inject constructor(
             ?.takeIf { it != entryId }
             ?.let { loadEntry(it, entry.campingId) }
 
-        // 1. Write food-menu doc (merge)
+        // Commit the canonical identity and stale-id removal together. A
+        // date/meal edit changes the deterministic document id; batching the
+        // two writes prevents observers from ever seeing duplicate entries.
         val entryDoc = foodMenuCol(entry.campingId).document(entryId)
         val entrySnap = entryDoc.get().await()
         val entryPayload = FoodMenuPayload.entryPayload(canonical).toMutableMap()
         entryPayload[UPDATED_AT] = ts
         if (!entrySnap.exists()) entryPayload[CREATED_AT] = ts
-        entryDoc.set(entryPayload, com.google.firebase.firestore.SetOptions.merge()).await()
+        val menuBatch = firestore.batch()
+        menuBatch.set(entryDoc, entryPayload, com.google.firebase.firestore.SetOptions.merge())
+        if (replacingEntryId != null && replacingEntryId != entryId) {
+            menuBatch.delete(foodMenuCol(entry.campingId).document(replacingEntryId))
+        }
+        menuBatch.commit().await()
 
         // 2. Sync -> Program (upsert the generated program)
         if (syncProgram) {
@@ -82,12 +89,7 @@ class FirestoreFoodMenuService @Inject constructor(
         }
 
         if (replacingEntryId != null && replacingEntryId != entryId) {
-            deleteEntryDocumentAndProgram(
-                entryId = replacingEntryId,
-                campingId = entry.campingId,
-                removedEntry = replacedEntry,
-                syncProgram = syncProgram,
-            )
+            if (syncProgram) deleteGeneratedProgram(replacingEntryId, entry.campingId, replacedEntry)
         }
 
         return loadMenu(entry.campingId)

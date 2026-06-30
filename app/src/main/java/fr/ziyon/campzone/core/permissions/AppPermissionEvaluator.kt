@@ -63,6 +63,7 @@ class AppPermissionEvaluator {
             AppPermission.AssignPoints,
             AppPermission.RevealWinners,
             AppPermission.ManageAlbumMedia,
+            AppPermission.ManageAlbumSettings,
             AppPermission.ManageOwnChurchTransportation,
             AppPermission.AwardAchievements,
             AppPermission.ManageOwnChurchCheckIns,
@@ -165,6 +166,11 @@ class AppPermissionEvaluator {
         camping: CampingPermissionContext?,
     ): Boolean = canManageScoped(user, AppPermission.ManageAlbumMedia, camping)
 
+    fun canManageAlbumSettings(
+        user: PermissionUser?,
+        camping: CampingPermissionContext?,
+    ): Boolean = canManageScoped(user, AppPermission.ManageAlbumSettings, camping)
+
     fun canManagePolls(
         user: PermissionUser?,
         camping: CampingPermissionContext?,
@@ -231,6 +237,9 @@ class AppPermissionEvaluator {
 
     fun canViewAdminTools(user: PermissionUser?): Boolean =
         can(user, AppPermission.ViewAdminTools)
+
+    /** Global Home-featured camping selection is reserved for administrators. */
+    fun canPinFeaturedCamping(user: PermissionUser?): Boolean = user?.role == UserRole.Admin
 
     fun canManageAnyCamping(user: PermissionUser?): Boolean =
         canCreateAnyCamping(user) ||
@@ -345,6 +354,7 @@ class AppPermissionEvaluator {
                 AppPermission.ManageGames,
                 AppPermission.AssignPoints,
                 AppPermission.AwardAchievements,
+                AppPermission.ManageAlbumSettings,
                 AppPermission.ManageOwnChurchCheckIns,
                 AppPermission.ManageOwnChurchTransportation,
                 AppPermission.AssignOwnChurchRoles,
@@ -367,6 +377,7 @@ class AppPermissionEvaluator {
                 AppPermission.ManageSchedule,
                 AppPermission.ManageGames,
                 AppPermission.AwardAchievements,
+                AppPermission.ManageAlbumSettings,
                 AppPermission.ManageOwnChurchCheckIns,
                 AppPermission.ManageOwnChurchTransportation,
                 AppPermission.AssignOwnChurchRoles,
@@ -402,6 +413,7 @@ class AppPermissionEvaluator {
                 AppPermission.ManageGames,
                 AppPermission.AssignPoints,
                 AppPermission.ManageSongbook,
+                AppPermission.ManageAlbumSettings,
                 AppPermission.AwardAchievements,
                 AppPermission.ManageOwnChurchCheckIns,
                 AppPermission.ManageOwnChurchTransportation,

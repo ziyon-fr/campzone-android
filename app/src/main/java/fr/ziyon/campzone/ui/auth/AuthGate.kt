@@ -10,9 +10,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -26,6 +31,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -65,7 +71,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
@@ -94,6 +103,8 @@ import fr.ziyon.campzone.core.navigation.DeepLinkInbox
 import fr.ziyon.campzone.data.auth.AuthState
 import fr.ziyon.campzone.ui.notifications.NotificationBootstrapViewModel
 import fr.ziyon.campzone.ui.onboarding.OnboardingScreen
+import kotlinx.coroutines.delay
+import kotlin.math.sin
 
 private val AuthNight = Color(0xFF070E1A)
 private val AuthTwilight = Color(0xFF1A0E30)
@@ -115,8 +126,11 @@ fun AuthGate(
     val authState by viewModel.authState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val activity = LocalContext.current.findActivity()
+    var showSplash by rememberSaveable { mutableStateOf(true) }
 
-    when (authState) {
+    if (showSplash) {
+        CampzoneSplash(onFinished = { showSplash = false }, modifier = modifier)
+    } else when (authState) {
         AuthState.SignedOut -> AuthScreen(
             uiState = uiState,
             onGoogleSignIn = { activity?.let(viewModel::signInWithGoogle) },
@@ -165,6 +179,259 @@ fun AuthGate(
                 authReady = true,
             )
         }
+    }
+}
+
+@Composable
+private fun CampzoneSplash(
+    onFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val dark = isSystemInDarkTheme()
+    var sceneReady by remember { mutableStateOf(false) }
+    var brandReady by remember { mutableStateOf(false) }
+    var fireLit by remember { mutableStateOf(false) }
+
+    // Continuous seconds since the first frame — drives the sun pulse and fire
+    // flicker exactly like iOS's TimelineView(.animation).
+    var time by remember { mutableStateOf(0f) }
+    LaunchedEffect(Unit) {
+        val start = withInfiniteAnimationFrameNanos { it }
+        while (true) {
+            withInfiniteAnimationFrameNanos { now ->
+                time = (now - start) / 1_000_000_000f
+            }
+        }
+    }
+
+    val sceneAlpha by animateFloatAsState(
+        targetValue = if (sceneReady) 1f else 0f,
+        animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+        label = "splash-scene-alpha",
+    )
+    val sceneOffset by animateFloatAsState(
+        targetValue = if (sceneReady) 0f else 16f,
+        animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+        label = "splash-scene-offset",
+    )
+    val sunOffset by animateFloatAsState(
+        targetValue = if (sceneReady) 0f else -32f,
+        animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+        label = "splash-sun-offset",
+    )
+    val brandAlpha by animateFloatAsState(
+        targetValue = if (brandReady) 1f else 0f,
+        animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing),
+        label = "splash-brand-alpha",
+    )
+    val brandOffset by animateFloatAsState(
+        targetValue = if (brandReady) 0f else 14f,
+        animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing),
+        label = "splash-brand-offset",
+    )
+
+    LaunchedEffect(Unit) {
+        sceneReady = true
+        delay(540)
+        fireLit = true
+        delay(260)
+        brandReady = true
+        delay(1_600)
+        onFinished()
+    }
+
+    Box(modifier.fillMaxSize()) {
+        SplashBackground(dark = dark, modifier = Modifier.fillMaxSize())
+
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val sceneHeight = maxHeight * 0.44f
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    // Keep the camp scene clear of Android's (opaque) navigation
+                    // bar — iOS only has to clear a thin transparent home
+                    // indicator, so the bottom-anchored 44% scene would otherwise
+                    // be cropped by the nav bar on Android.
+                    .navigationBarsPadding(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = CzSpacing.xxxl),
+                    contentAlignment = Alignment.TopEnd,
+                ) {
+                    SplashCelestialBody(
+                        dark = dark,
+                        time = time,
+                        modifier = Modifier
+                            .padding(end = CzSpacing.xxl)
+                            .size(72.dp)
+                            .graphicsLayer {
+                                alpha = sceneAlpha
+                                translationY = sunOffset
+                            },
+                    )
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                SplashBranding(
+                    dark = dark,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = brandAlpha
+                        translationY = brandOffset
+                    },
+                )
+
+                Spacer(Modifier.weight(1f))
+
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(sceneHeight)
+                        .graphicsLayer {
+                            alpha = sceneAlpha
+                            translationY = sceneOffset
+                        },
+                ) {
+                    drawCampScene(dark = dark, fireLit = fireLit, time = time)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SplashBackground(dark: Boolean, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        drawRect(
+            brush = Brush.verticalGradient(
+                colorStops = if (dark) arrayOf(
+                    0f to Color(0xFF060914),
+                    0.28f to Color(0xFF100826),
+                    0.52f to Color(0xFF29103E),
+                    0.76f to Color(0xFF38160C),
+                    1f to Color(0xFF160C06),
+                ) else arrayOf(
+                    0f to Color(0xFFB0D6F2),
+                    0.28f to Color(0xFFD4E8F8),
+                    0.55f to Color(0xFFF5D8A8),
+                    0.76f to Color(0xFFE8C47E),
+                    1f to Color(0xFFC4DEB4),
+                ),
+            ),
+        )
+        // Warm horizon bloom centred on the tree line (iOS SplashBackground).
+        val bloomCenter = Offset(size.width * 0.5f, size.height * 0.62f)
+        val bloomRadius = size.minDimension * 0.82f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    (if (dark) Color(0xFFFF6000) else Color(0xFFFFA030)).copy(alpha = 0.30f),
+                    Color.Transparent,
+                ),
+                center = bloomCenter,
+                radius = bloomRadius,
+            ),
+            radius = bloomRadius,
+            center = bloomCenter,
+        )
+        if (dark) {
+            authStars.forEach { star ->
+                drawCircle(
+                    color = Color.White.copy(alpha = star.alpha),
+                    radius = star.radius,
+                    center = Offset(star.x * size.width, star.y * size.height),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SplashCelestialBody(dark: Boolean, time: Float, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        if (dark) {
+            val pulse = 0.88f + sin((time * 0.55f).toDouble()).toFloat() * 0.12f
+            val cx = w * 0.5f
+            val cy = h * 0.5f
+            val r = w * 0.34f
+            drawCircle(
+                color = Color(0xFFFFF5CC).copy(alpha = 0.92f * pulse),
+                radius = r,
+                center = Offset(cx, cy),
+            )
+            // Crescent bite.
+            val br = r * 0.82f
+            drawCircle(
+                color = Color(0xFF100826),
+                radius = br,
+                center = Offset(cx + r * 0.46f, cy - r * 0.06f),
+            )
+        } else {
+            val pulse = 0.86f + sin((time * 0.44f).toDouble()).toFloat() * 0.14f
+            val cx = w * 0.5f
+            val cy = h * 0.5f
+            val r = w * 0.28f
+            val glowRadius = r * 2.5f
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFFFD070).copy(alpha = 0.26f * pulse),
+                        Color(0xFFFFA030).copy(alpha = 0.08f * pulse),
+                        Color.Transparent,
+                    ),
+                    center = Offset(cx, cy),
+                    radius = glowRadius,
+                ),
+                radius = glowRadius,
+                center = Offset(cx, cy),
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFFFFFDE2), Color(0xFFFFD050)),
+                    center = Offset(cx, cy),
+                    radius = r,
+                ),
+                radius = r,
+                center = Offset(cx, cy),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SplashBranding(dark: Boolean, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = CzSpacing.xxl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        Text(
+            text = "Campzone",
+            style = MaterialTheme.typography.displayLarge.copy(
+                brush = Brush.linearGradient(
+                    colors = if (dark) {
+                        listOf(AuthCream, AuthAmber)
+                    } else {
+                        listOf(Color(0xFF7A3808), Color(0xFFC46018))
+                    },
+                ),
+            ),
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = stringResource(R.string.auth_tagline),
+            color = if (dark) AuthCream.copy(alpha = 0.6f) else Color(0xFF583010).copy(alpha = 0.7f),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -235,35 +502,49 @@ fun AuthScreen(
 
 @Composable
 private fun AuthNightBackground(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.background(AuthNight)) {
+    val dark = isSystemInDarkTheme()
+    Canvas(modifier = modifier.background(if (dark) AuthNight else Color(0xFFD4E8F8))) {
         drawRect(
             brush = Brush.verticalGradient(
-                0f to AuthNight,
-                0.5f to AuthTwilight,
-                1f to AuthCampfireBottom,
+                colorStops = if (dark) arrayOf(
+                    0f to Color(0xFF060914),
+                    0.28f to Color(0xFF100826),
+                    0.52f to Color(0xFF29103E),
+                    0.76f to Color(0xFF38160C),
+                    1f to Color(0xFF160C06),
+                ) else arrayOf(
+                    0f to Color(0xFFB0D6F2),
+                    0.28f to Color(0xFFD4E8F8),
+                    0.55f to Color(0xFFF5D8A8),
+                    0.76f to Color(0xFFE8C47E),
+                    1f to Color(0xFFC4DEB4),
+                ),
             ),
         )
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(AuthEmber.copy(alpha = 0.2f), Color.Transparent),
-                center = Offset(size.width / 2f, size.height),
+                colors = listOf((if (dark) AuthEmber else Color(0xFFFFA030)).copy(alpha = if (dark) 0.2f else 0.28f), Color.Transparent),
+                center = if (dark) Offset(size.width / 2f, size.height) else Offset(size.width * 0.72f, size.height * 0.06f),
                 radius = size.minDimension * 0.95f,
             ),
             radius = size.minDimension * 0.95f,
-            center = Offset(size.width / 2f, size.height),
+            center = if (dark) Offset(size.width / 2f, size.height) else Offset(size.width * 0.72f, size.height * 0.06f),
         )
-        authStars.forEach { star ->
-            drawCircle(
-                color = Color.White.copy(alpha = star.alpha),
-                radius = star.radius,
-                center = Offset(star.x * size.width, star.y * size.height),
-            )
+        if (dark) {
+            authStars.forEach { star ->
+                drawCircle(
+                    color = Color.White.copy(alpha = star.alpha),
+                    radius = star.radius,
+                    center = Offset(star.x * size.width, star.y * size.height),
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun AuthBrandSection(modifier: Modifier = Modifier) {
+    val dark = isSystemInDarkTheme()
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -271,13 +552,13 @@ private fun AuthBrandSection(modifier: Modifier = Modifier) {
     ) {
         Text(
             text = "Campzone",
-            color = AuthCream,
+            color = if (dark) AuthCream else Color(0xFF7A3808),
             style = MaterialTheme.typography.displayLarge,
             textAlign = TextAlign.Center,
         )
         Text(
             text = stringResource(R.string.auth_tagline),
-            color = AuthAmber.copy(alpha = 0.72f),
+            color = if (dark) AuthAmber.copy(alpha = 0.72f) else Color(0xFF5A3010).copy(alpha = 0.72f),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
         )
@@ -296,6 +577,7 @@ private fun AuthGlassPanel(
     onDismissEmailResetMessage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val dark = isSystemInDarkTheme()
     val shape = RoundedCornerShape(CzRadius.xl)
     val isProviderBusy = uiState.isSigningInWithGoogle || uiState.isSigningInWithApple
     val isEmailBusy = uiState.isSigningInWithEmail || uiState.isSendingPasswordReset
@@ -305,7 +587,7 @@ private fun AuthGlassPanel(
             .widthIn(max = 430.dp)
             .fillMaxWidth()
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.08f), shape)
+            .background(Color.White.copy(alpha = if (dark) 0.08f else 0.50f), shape)
             .border(BorderStroke(1.dp, AuthDivider), shape)
             .padding(CzSpacing.xl),
         verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
@@ -477,6 +759,8 @@ private fun EmailAuthForm(
     val focusManager = LocalFocusManager.current
     val canSubmit = email.trim().isNotEmpty() && password.isNotBlank()
     val fieldsEnabled = enabled && !isBusy && !isSendingReset
+    val hidePasswordDescription = stringResource(R.string.auth_hide_password)
+    val showPasswordDescription = stringResource(R.string.auth_show_password)
     val submit = {
         if (canSubmit && fieldsEnabled) {
             focusManager.clearFocus()
@@ -554,9 +838,9 @@ private fun EmailAuthForm(
                     enabled = fieldsEnabled,
                     modifier = Modifier.semantics {
                         contentDescription = if (isPasswordVisible) {
-                            "Ocultar senha"
+                            hidePasswordDescription
                         } else {
-                            "Mostrar senha"
+                            showPasswordDescription
                         }
                     },
                 ) {
@@ -590,7 +874,7 @@ private fun EmailAuthForm(
                 )
             } else {
                 Text(
-                    text = if (mode == EmailMode.SignIn) "Entrar" else "Criar conta",
+                    text = stringResource(if (mode == EmailMode.SignIn) R.string.auth_sign_in else R.string.auth_create_account),
                     style = MaterialTheme.typography.titleSmall,
                 )
             }
@@ -611,7 +895,7 @@ private fun EmailAuthForm(
                 ),
             ) {
                 Text(
-                    text = if (isSendingReset) "Enviando..." else "Esqueceu a senha?",
+                    text = stringResource(if (isSendingReset) R.string.auth_sending else R.string.auth_forgot_password),
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
@@ -648,7 +932,7 @@ private fun AuthModeToggle(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = if (mode == EmailMode.SignIn) "Não tem uma conta?" else "Já tem uma conta?",
+            text = stringResource(if (mode == EmailMode.SignIn) R.string.auth_no_account else R.string.auth_already_account),
             color = AuthAmber.copy(alpha = 0.72f),
             style = MaterialTheme.typography.labelMedium,
         )
@@ -663,7 +947,7 @@ private fun AuthModeToggle(
             ),
         ) {
             Text(
-                text = if (mode == EmailMode.SignIn) "Criar um" else "Entrar",
+                text = stringResource(if (mode == EmailMode.SignIn) R.string.auth_create_one else R.string.auth_sign_in),
                 style = MaterialTheme.typography.labelMedium,
             )
         }
@@ -690,6 +974,7 @@ private fun AuthTextField(
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
+    val dark = isSystemInDarkTheme()
     val shape = RoundedCornerShape(CzRadius.xxl)
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -710,7 +995,11 @@ private fun AuthTextField(
                 .fillMaxWidth()
                 .heightIn(min = 54.dp)
                 .clip(shape)
-                .background(Color.White.copy(alpha = if (isFocused) 0.09f else 0.06f), shape)
+                .background(
+                    if (dark) Color.White.copy(alpha = if (isFocused) 0.09f else 0.06f)
+                    else Color.Black.copy(alpha = if (isFocused) 0.07f else 0.04f),
+                    shape,
+                )
                 .border(borderWidth, borderColor, shape)
                 .padding(start = CzSpacing.base, end = CzSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
@@ -724,7 +1013,7 @@ private fun AuthTextField(
                 if (value.isEmpty()) {
                     Text(
                         text = placeholder,
-                        color = AuthCream.copy(alpha = 0.45f),
+                        color = (if (dark) AuthCream else MaterialTheme.czColors.textPrimary).copy(alpha = 0.45f),
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
@@ -734,7 +1023,7 @@ private fun AuthTextField(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = enabled,
                     singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = AuthCream),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = if (dark) AuthCream else MaterialTheme.czColors.textPrimary),
                     keyboardOptions = keyboardOptions,
                     keyboardActions = keyboardActions,
                     visualTransformation = visualTransformation,
@@ -913,17 +1202,24 @@ private fun AuthMessageBanner(
 
 @Composable
 private fun AuthLegalText(modifier: Modifier = Modifier) {
+    val prefix = stringResource(R.string.auth_legal_prefix)
+    val terms = stringResource(R.string.auth_terms)
+    val conjunction = stringResource(R.string.auth_legal_and)
+    val privacy = stringResource(R.string.auth_privacy)
     val linkStyle = TextLinkStyles(
         style = SpanStyle(color = AuthAmber),
     )
     val text = buildAnnotatedString {
-        append("Ao continuar, você concorda com nossos ")
+        append(prefix)
+        append(" ")
         withLink(LinkAnnotation.Url(CampzonePrivacyUrl, linkStyle)) {
-            append("Termos de Serviço")
+            append(terms)
         }
-        append(" e ")
+        append(" ")
+        append(conjunction)
+        append(" ")
         withLink(LinkAnnotation.Url(CampzonePrivacyUrl, linkStyle)) {
-            append("Política de Privacidade")
+            append(privacy)
         }
         append(".")
     }
@@ -996,4 +1292,442 @@ private fun AuthScreenPreview() {
             onDismissEmailResetMessage = {},
         )
     }
+}
+
+// MARK: - Splash camp scene (ported from iOS SplashView.CampScene)
+
+/**
+ * Draws the full layered camp illustration into the bottom strip of the splash:
+ * soft displacement-mapped mountain ridges, horizon mist, an elliptical
+ * clearing, a mid-ground forest, an A-frame tent, the campfire bloom + flames,
+ * and the large flanking foreground pines. Coordinates are relative to the
+ * scene canvas (its own height ≈ 44% of the screen), matching iOS exactly.
+ */
+private fun DrawScope.drawCampScene(dark: Boolean, fireLit: Boolean, time: Float) {
+    drawDistantMountains(dark)
+    drawNearMountains(dark)
+    drawHorizonMist(dark)
+    drawGround(dark)
+    drawMidForest(dark)
+    drawTent(dark, fireLit, time)
+    drawCampfireGlow(fireLit, time)
+    drawFireLogs()
+    drawFire(fireLit, time)
+    drawForegroundPines(dark)
+}
+
+private fun DrawScope.drawDistantMountains(dark: Boolean) {
+    val w = size.width
+    val h = size.height
+    val ridge = mountainRidgePath(w, h, baseline = h * 0.36f, roughness = 0.16f, seed = 42L)
+    drawPath(
+        ridge,
+        brush = Brush.linearGradient(
+            colors = if (dark) {
+                listOf(Color(0xFF1C2640), Color(0xFF0C1420))
+            } else {
+                listOf(Color(0xFF8AAABE), Color(0xFF6888A0))
+            },
+            start = Offset(w * 0.5f, h * 0.04f),
+            end = Offset(w * 0.5f, h),
+        ),
+    )
+    if (dark) {
+        drawPath(
+            ridge,
+            brush = Brush.linearGradient(
+                colorStops = arrayOf(
+                    0f to Color.White.copy(alpha = 0.58f),
+                    0.22f to Color.White.copy(alpha = 0.20f),
+                    0.44f to Color.Transparent,
+                ),
+                start = Offset(w * 0.5f, h * 0.04f),
+                end = Offset(w * 0.5f, h * 0.46f),
+            ),
+        )
+    }
+}
+
+private fun DrawScope.drawNearMountains(dark: Boolean) {
+    val w = size.width
+    val h = size.height
+    val ridge = mountainRidgePath(w, h, baseline = h * 0.57f, roughness = 0.20f, seed = 99L)
+    drawPath(
+        ridge,
+        brush = Brush.linearGradient(
+            colors = if (dark) {
+                listOf(Color(0xFF182E1C), Color(0xFF0A1510))
+            } else {
+                listOf(Color(0xFF507A58), Color(0xFF345438))
+            },
+            start = Offset(w * 0.5f, h * 0.30f),
+            end = Offset(w * 0.5f, h),
+        ),
+    )
+}
+
+private fun DrawScope.drawHorizonMist(dark: Boolean) {
+    val w = size.width
+    val h = size.height
+    val y0 = h * 0.50f
+    val mist = if (dark) Color(0xFF8888CC).copy(alpha = 0.13f) else Color.White.copy(alpha = 0.22f)
+    drawRect(
+        brush = Brush.verticalGradient(
+            colorStops = arrayOf(
+                0f to Color.Transparent,
+                0.38f to mist,
+                0.62f to mist,
+                1f to Color.Transparent,
+            ),
+            startY = y0,
+            endY = y0 + h * 0.10f,
+        ),
+        topLeft = Offset(0f, y0),
+        size = Size(w, h * 0.10f),
+    )
+}
+
+private fun DrawScope.drawGround(dark: Boolean) {
+    val w = size.width
+    val h = size.height
+    val topLeft = Offset(w * 0.03f, h * 0.72f)
+    val ovalSize = Size(w * 0.94f, h * 0.24f)
+    drawOval(
+        brush = Brush.linearGradient(
+            colors = if (dark) {
+                listOf(Color(0xFF1C3018), Color(0xFF0C1A0A))
+            } else {
+                listOf(Color(0xFF5A8848), Color(0xFF385830))
+            },
+            start = Offset(topLeft.x + ovalSize.width / 2f, topLeft.y),
+            end = Offset(topLeft.x + ovalSize.width / 2f, topLeft.y + ovalSize.height),
+        ),
+        topLeft = topLeft,
+        size = ovalSize,
+    )
+}
+
+private fun DrawScope.drawMidForest(dark: Boolean) {
+    val w = size.width
+    val h = size.height
+    val col = if (dark) Color(0xFF0E1E18) else Color(0xFF284830)
+    val trees = listOf(
+        Triple(0.03f, 0.78f, 0.24f), Triple(0.09f, 0.80f, 0.28f), Triple(0.15f, 0.78f, 0.22f),
+        Triple(0.21f, 0.80f, 0.26f), Triple(0.27f, 0.77f, 0.20f), Triple(0.33f, 0.79f, 0.23f),
+        Triple(0.67f, 0.79f, 0.23f), Triple(0.73f, 0.77f, 0.20f), Triple(0.79f, 0.80f, 0.26f),
+        Triple(0.85f, 0.78f, 0.22f), Triple(0.91f, 0.80f, 0.28f), Triple(0.97f, 0.78f, 0.24f),
+    )
+    trees.forEach { (xF, yF, hF) ->
+        val tH = h * hF
+        drawPineTree(w * xF, h * yF, tH * 0.40f, tH, col)
+    }
+}
+
+private fun DrawScope.drawForegroundPines(dark: Boolean) {
+    val w = size.width
+    val h = size.height
+    val col = if (dark) Color(0xFF080E0B) else Color(0xFF183020)
+    val trees = listOf(
+        Triple(0.00f, 0.96f, 0.50f), Triple(0.07f, 1.00f, 0.58f), Triple(0.15f, 0.94f, 0.42f),
+        Triple(1.00f, 0.96f, 0.50f), Triple(0.93f, 1.00f, 0.58f), Triple(0.85f, 0.94f, 0.42f),
+    )
+    trees.forEach { (xF, yF, hF) ->
+        val tH = h * hF
+        drawPineTree(w * xF, h * yF, tH * 0.44f, tH, col)
+    }
+}
+
+private fun DrawScope.drawPineTree(baseX: Float, baseY: Float, width: Float, height: Float, color: Color) {
+    val trunkH = height * 0.10f
+    val trunkW = maxOf(2f, width * 0.07f)
+    drawRect(
+        color = Color(0xFF3A2010).copy(alpha = 0.75f),
+        topLeft = Offset(baseX - trunkW / 2f, baseY - trunkH),
+        size = Size(trunkW, trunkH),
+    )
+    // Tier 1 — widest (bottom)
+    drawTreeTier(
+        apex = Offset(baseX, baseY - height * 0.52f),
+        left = Offset(baseX - width * 0.50f, baseY - trunkH),
+        right = Offset(baseX + width * 0.50f, baseY - trunkH),
+        color = color,
+    )
+    // Tier 2 — middle
+    drawTreeTier(
+        apex = Offset(baseX, baseY - height * 0.76f),
+        left = Offset(baseX - width * 0.34f, baseY - height * 0.42f),
+        right = Offset(baseX + width * 0.34f, baseY - height * 0.42f),
+        color = color,
+    )
+    // Tier 3 — narrowest (top)
+    drawTreeTier(
+        apex = Offset(baseX, baseY - height),
+        left = Offset(baseX - width * 0.20f, baseY - height * 0.66f),
+        right = Offset(baseX + width * 0.20f, baseY - height * 0.66f),
+        color = color,
+    )
+}
+
+private fun DrawScope.drawTreeTier(apex: Offset, left: Offset, right: Offset, color: Color) {
+    val tri = Path().apply {
+        moveTo(apex.x, apex.y)
+        lineTo(left.x, left.y)
+        lineTo(right.x, right.y)
+        close()
+    }
+    drawPath(tri, color = color)
+}
+
+private fun DrawScope.drawTent(dark: Boolean, fireLit: Boolean, time: Float) {
+    val w = size.width
+    val h = size.height
+    val cx = w * 0.62f
+    val baseY = h * 0.84f
+    val tW = w * 0.27f
+    val tH = h * 0.26f
+    val peak = Offset(cx, baseY - tH)
+    val lBase = Offset(cx - tW * 0.52f, baseY)
+    val rBase = Offset(cx + tW * 0.52f, baseY)
+
+    // Inner warm glow behind the tent body.
+    if (fireLit) {
+        val glowPulse = 0.76f + sin((time * 1.60f).toDouble()).toFloat() * 0.24f
+        val glowRadius = tW * 0.56f
+        val glowCenter = Offset(cx, baseY - tH * 0.32f)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colorStops = arrayOf(
+                    0f to Color(0xFFFF8C20).copy(alpha = 0.58f * glowPulse),
+                    0.55f to Color(0xFFFF6000).copy(alpha = 0.22f * glowPulse),
+                    1f to Color.Transparent,
+                ),
+                center = glowCenter,
+                radius = glowRadius,
+            ),
+            radius = glowRadius,
+            center = glowCenter,
+        )
+    }
+
+    val body = Path().apply {
+        moveTo(peak.x, peak.y)
+        lineTo(lBase.x, lBase.y)
+        lineTo(rBase.x, rBase.y)
+        close()
+    }
+    drawPath(
+        body,
+        brush = Brush.linearGradient(
+            colors = if (dark) {
+                listOf(Color(0xFF2A2010), Color(0xFF1A1508))
+            } else {
+                listOf(Color(0xFF947028), Color(0xFF6A5018))
+            },
+            start = peak,
+            end = Offset(cx, baseY),
+        ),
+    )
+
+    // Left-face shadow for depth.
+    val leftFace = Path().apply {
+        moveTo(peak.x, peak.y)
+        lineTo(lBase.x, lBase.y)
+        lineTo(cx, baseY)
+        close()
+    }
+    drawPath(leftFace, color = Color.Black.copy(alpha = 0.20f))
+
+    // Door arch.
+    val dW = tW * 0.26f
+    val dH = tH * 0.46f
+    val door = Path().apply {
+        moveTo(cx, baseY - tH * 0.06f)
+        cubicTo(cx - dW * 0.08f, baseY - dH * 0.18f, cx - dW * 0.46f, baseY - dH * 0.40f, cx - dW * 0.46f, baseY)
+        lineTo(cx + dW * 0.46f, baseY)
+        cubicTo(cx + dW * 0.46f, baseY - dH * 0.40f, cx + dW * 0.08f, baseY - dH * 0.18f, cx, baseY - tH * 0.06f)
+        close()
+    }
+    drawPath(
+        door,
+        color = if (fireLit) Color(0xFFFF8020).copy(alpha = 0.68f) else Color.Black.copy(alpha = 0.55f),
+    )
+
+    // Outline.
+    drawPath(body, color = Color(0xFF504020).copy(alpha = 0.65f), style = Stroke(width = 1f))
+
+    // Guy lines.
+    listOf(-1f, 1f).forEach { signX ->
+        drawLine(
+            color = Color(0xFF907048).copy(alpha = 0.42f),
+            start = peak,
+            end = Offset(cx + signX * tW * 0.72f, baseY + h * 0.022f),
+            strokeWidth = 0.8f,
+        )
+    }
+}
+
+private fun DrawScope.drawCampfireGlow(fireLit: Boolean, time: Float) {
+    if (!fireLit) return
+    val w = size.width
+    val h = size.height
+    val f1 = 0.72f + sin((time * 9.1f).toDouble()).toFloat() * 0.15f + sin((time * 5.3f).toDouble()).toFloat() * 0.13f
+    val f2 = 0.78f + sin((time * 6.7f).toDouble()).toFloat() * 0.12f + sin((time * 3.9f).toDouble()).toFloat() * 0.10f
+    val fire = Offset(w * 0.44f, h * 0.885f)
+    // Each node: dx, dy, radius, opacity — offset from `fire`.
+    val nodes = listOf(
+        floatArrayOf(0f, h * 0.030f, w * 0.34f, 0.48f * f1),
+        floatArrayOf(-w * 0.040f, h * 0.018f, w * 0.24f, 0.30f * f1),
+        floatArrayOf(w * 0.035f, h * 0.022f, w * 0.22f, 0.26f * f1),
+        floatArrayOf(0f, -h * 0.020f, w * 0.18f, 0.42f * f2),
+        floatArrayOf(0f, -h * 0.080f, w * 0.12f, 0.32f * f2),
+        floatArrayOf(w * 0.008f, -h * 0.150f, w * 0.08f, 0.18f * f2),
+    )
+    nodes.forEach { node ->
+        val c = Offset(fire.x + node[0], fire.y + node[1])
+        val radius = node[2]
+        val opacity = node[3].coerceIn(0f, 1f)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colorStops = arrayOf(
+                    0f to Color(0xFFFF8C20).copy(alpha = opacity),
+                    0.50f to Color(0xFFFF5500).copy(alpha = opacity * 0.40f),
+                    1f to Color.Transparent,
+                ),
+                center = c,
+                radius = radius,
+            ),
+            radius = radius,
+            center = c,
+        )
+    }
+}
+
+private fun DrawScope.drawFireLogs() {
+    val w = size.width
+    val h = size.height
+    val center = Offset(w * 0.44f, h * 0.905f)
+    val logW = w * 0.14f
+    val logH = h * 0.021f
+    listOf(-14f, 14f).forEach { angle ->
+        withTransform({
+            translate(center.x, center.y)
+            rotate(angle, pivot = Offset.Zero)
+        }) {
+            drawRoundRect(
+                brush = Brush.linearGradient(
+                    colors = listOf(Color(0xFF8B4A20), Color(0xFF4D2411)),
+                    start = Offset(-logW / 2f, 0f),
+                    end = Offset(logW / 2f, 0f),
+                ),
+                topLeft = Offset(-logW / 2f, -logH / 2f),
+                size = Size(logW, logH),
+                cornerRadius = CornerRadius(logH / 2f, logH / 2f),
+            )
+        }
+    }
+}
+
+private fun DrawScope.drawFire(fireLit: Boolean, time: Float) {
+    if (!fireLit) return
+    val w = size.width
+    val h = size.height
+    val base = Offset(w * 0.44f, h * 0.885f)
+    val flicker = sin((time * 10.5f).toDouble()).toFloat() * h * 0.010f
+    val sideShift = sin((time * 6.8f).toDouble()).toFloat() * w * 0.008f
+
+    // Outer flame: ember → amber.
+    drawFlame(
+        base = base,
+        width = w * 0.090f,
+        height = h * 0.175f + flicker,
+        xOffset = sideShift,
+        colors = listOf(Color(0xFFFF4500), Color(0xFFFF9020)),
+    )
+    // Inner flame: amber → cream.
+    drawFlame(
+        base = Offset(base.x, base.y + h * 0.008f),
+        width = w * 0.054f,
+        height = h * 0.105f - flicker * 0.4f,
+        xOffset = -sideShift * 0.5f,
+        colors = listOf(Color(0xFFFFC040), Color(0xFFFFFACC)),
+    )
+}
+
+private fun DrawScope.drawFlame(base: Offset, width: Float, height: Float, xOffset: Float, colors: List<Color>) {
+    val flame = Path().apply {
+        moveTo(base.x, base.y - height)
+        cubicTo(
+            base.x - width * 0.42f + xOffset, base.y - height * 0.70f,
+            base.x - width * 0.72f, base.y - height * 0.36f,
+            base.x - width * 0.54f, base.y - height * 0.14f,
+        )
+        cubicTo(
+            base.x - width * 0.14f, base.y + height * 0.04f,
+            base.x + width * 0.14f, base.y + height * 0.04f,
+            base.x + width * 0.54f, base.y - height * 0.14f,
+        )
+        cubicTo(
+            base.x + width * 0.74f, base.y - height * 0.40f,
+            base.x + width * 0.36f + xOffset, base.y - height * 0.72f,
+            base.x, base.y - height,
+        )
+        close()
+    }
+    drawPath(
+        flame,
+        brush = Brush.linearGradient(
+            colors = colors,
+            start = Offset(base.x, base.y - height),
+            end = base,
+        ),
+    )
+}
+
+/**
+ * Builds a smooth mountain silhouette via midpoint-displacement (4 iterations)
+ * smoothed with quadratic-bezier joins, so every peak is rounded rather than a
+ * sharp angle — the iOS `mountainRidge` algorithm. Peaks never rise above 4% of
+ * the canvas height. Deterministic for a given `seed`.
+ */
+private fun mountainRidgePath(w: Float, h: Float, baseline: Float, roughness: Float, seed: Long): Path {
+    val rng = SplashRng(seed)
+    var pts = mutableListOf(Offset(-60f, baseline), Offset(w + 60f, baseline))
+    repeat(4) {
+        val next = ArrayList<Offset>(pts.size * 2)
+        for (i in 0 until pts.size - 1) {
+            val a = pts[i]
+            val b = pts[i + 1]
+            next.add(a)
+            val disp = rng.nextSigned() * (b.x - a.x) * roughness
+            val rawY = (a.y + b.y) / 2f + disp
+            next.add(Offset((a.x + b.x) / 2f, maxOf(h * 0.04f, rawY)))
+        }
+        next.add(pts.last())
+        pts = next
+    }
+    return Path().apply {
+        moveTo(pts.first().x, h)
+        lineTo(pts[0].x, pts[0].y)
+        for (i in 0 until pts.size - 1) {
+            val cur = pts[i]
+            val nxt = pts[i + 1]
+            quadraticBezierTo(cur.x, cur.y, (cur.x + nxt.x) / 2f, (cur.y + nxt.y) / 2f)
+        }
+        lineTo(pts.last().x, pts.last().y)
+        lineTo(pts.last().x, h)
+        close()
+    }
+}
+
+/** Deterministic LCG matching iOS `SplashRNG` (same constants and bit shift). */
+private class SplashRng(seed: Long) {
+    private var state: Long = seed
+
+    private fun next(): Long {
+        state = 6364136223846793005L * state + 1442695040888963407L
+        return state
+    }
+
+    /** Uniform value in [-1, 1). */
+    fun nextSigned(): Float = (next() ushr 40).toFloat() / (1 shl 24).toFloat() * 2f - 1f
 }

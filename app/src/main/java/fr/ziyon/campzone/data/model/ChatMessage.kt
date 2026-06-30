@@ -56,6 +56,44 @@ data class ChatAttachment(
     val height: Int? = null,
 )
 
+/** A denormalized snapshot of the message this one quotes as a reply. */
+data class ChatReplyReference(
+    val messageId: String,
+    val senderId: String,
+    val senderName: String,
+    val textPreview: String? = null,
+    val mediaType: ChatAttachmentKind? = null,
+    val mediaUrl: String? = null,
+) {
+    companion object {
+        const val PREVIEW_LIMIT = 140
+
+        fun from(message: ChatMessage): ChatReplyReference? {
+            if (message.isDeleted) return null
+            val trimmed = message.text.trim()
+            return ChatReplyReference(
+                messageId = message.id,
+                senderId = message.senderId,
+                senderName = message.senderName,
+                textPreview = trimmed.takeIf { it.isNotEmpty() }?.take(PREVIEW_LIMIT),
+                mediaType = message.attachment?.kind,
+                mediaUrl = message.attachment?.url,
+            )
+        }
+    }
+}
+
+/** Canonical one-row reaction set, ordered to match iOS. */
+object ChatReaction {
+    val available = listOf("\u2764\uFE0F", "\uD83D\uDE02", "\uD83D\uDC4D", "\uD83D\uDE4F", "\uD83D\uDD25", "\uD83D\uDC40")
+}
+
+data class ChatReactionSummary(
+    val emoji: String,
+    val count: Int,
+    val reactedByCurrentUser: Boolean,
+)
+
 /**
  * `campings/{id}/chat/{messageId}` and the team variant
  * (`02-firestore-schema.md` §6.1, extended to match the shipped iOS chat:
@@ -85,10 +123,38 @@ data class ChatMessage(
     val mentions: List<ChatMention> = emptyList(),
     val attachment: ChatAttachment? = null,
     val editedAt: Date? = null,
+    val replyTo: ChatReplyReference? = null,
+    val reactions: Map<String, String> = emptyMap(),
 ) {
     val isEdited: Boolean get() = editedAt != null
     val hasAttachment: Boolean get() = attachment != null
     val hasText: Boolean get() = text.trim().isNotEmpty()
+    val isReply: Boolean get() = replyTo != null
+    val hasReactions: Boolean get() = reactions.isNotEmpty()
+
+    fun reaction(userId: String?): String? = userId?.let(reactions::get)
+
+    fun reactionSummaries(currentUserId: String?): List<ChatReactionSummary> {
+        if (reactions.isEmpty()) return emptyList()
+        val mine = reaction(currentUserId)
+        return reactions.values
+            .groupingBy { it }
+            .eachCount()
+            .map { (emoji, count) ->
+                ChatReactionSummary(
+                    emoji = emoji,
+                    count = count,
+                    reactedByCurrentUser = emoji == mine,
+                )
+            }
+            .sortedWith(
+                compareByDescending<ChatReactionSummary> { it.count }
+                    .thenBy { summary ->
+                        ChatReaction.available.indexOf(summary.emoji).takeIf { it >= 0 } ?: Int.MAX_VALUE
+                    }
+                    .thenBy { it.emoji },
+            )
+    }
 
     /**
      * Whether [userId] may edit this message right now. Only the author, only
@@ -144,6 +210,11 @@ internal fun Map<String, Any?>.toChatMessageOrNull(documentId: String): ChatMess
         mentions = mapListValue("mentions").mapNotNull { it.toChatMentionOrNull() },
         attachment = toChatAttachmentOrNull(),
         editedAt = dateValue("editedAt"),
+        replyTo = toChatReplyReferenceOrNull(),
+        reactions = mapValue("reactions")
+            .orEmpty()
+            .mapNotNull { (userId, emoji) -> (emoji as? String)?.takeIf { it.isNotBlank() }?.let { userId to it } }
+            .toMap(),
     )
 }
 
@@ -165,6 +236,21 @@ private fun Map<String, Any?>.toChatAttachmentOrNull(): ChatAttachment? {
         durationSeconds = doubleValue("attachmentDuration"),
         width = intValue("attachmentWidth"),
         height = intValue("attachmentHeight"),
+    )
+}
+
+private fun Map<String, Any?>.toChatReplyReferenceOrNull(): ChatReplyReference? {
+    val raw = mapValue("replyTo") ?: return null
+    val messageId = raw.stringValue("messageID") ?: return null
+    val senderId = raw.stringValue("senderID") ?: return null
+    val senderName = raw.rawStringValue("senderName") ?: return null
+    return ChatReplyReference(
+        messageId = messageId,
+        senderId = senderId,
+        senderName = senderName,
+        textPreview = raw.rawStringValue("textPreview")?.takeIf { it.isNotBlank() },
+        mediaType = ChatAttachmentKind.fromWire(raw.stringValue("mediaType")),
+        mediaUrl = raw.stringValue("mediaURL"),
     )
 }
 
@@ -200,6 +286,7 @@ internal object ChatMessagePayload {
         message.senderPhotoUrl?.trim()?.takeUnless { it.isBlank() }?.let { payload["senderPhotoURL"] = it }
         applyMentions(payload, message.mentions)
         applyAttachment(payload, message.attachment)
+        message.replyTo?.let { payload["replyTo"] = replyMap(it) }
         return payload
     }
 
@@ -256,6 +343,17 @@ internal object ChatMessagePayload {
         attachment.width?.let { payload["attachmentWidth"] = it }
         attachment.height?.let { payload["attachmentHeight"] = it }
     }
+
+    private fun replyMap(reply: ChatReplyReference): Map<String, Any?> =
+        linkedMapOf<String, Any?>(
+            "messageID" to reply.messageId,
+            "senderID" to reply.senderId,
+            "senderName" to reply.senderName,
+        ).apply {
+            reply.textPreview?.let { put("textPreview", it) }
+            reply.mediaType?.let { put("mediaType", it.wireValue) }
+            reply.mediaUrl?.let { put("mediaURL", it) }
+        }
 
     private fun mentionMap(mention: ChatMention): Map<String, Any?> =
         linkedMapOf(

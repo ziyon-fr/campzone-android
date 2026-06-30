@@ -19,6 +19,7 @@ data class Camping(
     val organizerLevel: OrganizerLevel,
     val location: String,
     val registrationStatus: CampingRegistrationStatus,
+    val publicationStatus: CampingPublicationStatus = CampingPublicationStatus.Published,
     val locationLatitude: Double? = null,
     val locationLongitude: Double? = null,
     val participantCapacity: Int? = null,
@@ -78,7 +79,19 @@ data class Camping(
         }
 
     val acceptsRegistrations: Boolean
-        get() = effectiveRegistrationStatus == CampingRegistrationStatus.Open
+        get() = isPublished && effectiveRegistrationStatus == CampingRegistrationStatus.Open
+
+    val isDraft: Boolean
+        get() = publicationStatus == CampingPublicationStatus.Draft
+
+    val isPublished: Boolean
+        get() = publicationStatus == CampingPublicationStatus.Published
+
+    val isArchived: Boolean
+        get() = publicationStatus == CampingPublicationStatus.Archived
+
+    val isPubliclyVisible: Boolean
+        get() = isPublished
 
     val approvedAttendees: List<CampingAttendee>
         get() = attendees.filter { it.registrationStatus == RegistrationApprovalStatus.Approved }
@@ -120,6 +133,18 @@ data class Camping(
                 attendee.guardianId == uid ||
                 (attendee.participantKind == RegistrationParticipantKind.SelfParticipant && attendee.id == uid)
         }
+    }
+
+    /**
+     * The registration document Security Rules can join directly at
+     * `/registrations/{auth.uid}`. A guardian-only child registration does not
+     * authorize broad activity or notification collection queries.
+     */
+    fun directRegistrationForAuthenticatedUser(userId: String?): CampingAttendee? {
+        val uid = userId?.takeUnless { it.isBlank() } ?: return null
+        return attendees.firstOrNull {
+            it.userId == uid && it.participantKind == RegistrationParticipantKind.SelfParticipant
+        } ?: attendees.firstOrNull { it.id == uid }
     }
 
     fun hasApprovedRegistrationForUser(userId: String?): Boolean =
@@ -219,6 +244,7 @@ internal fun Map<String, Any?>.toCampingOrNull(documentId: String): Camping? {
         organizerLevel = organizerLevel,
         location = location,
         registrationStatus = CampingRegistrationStatus.fromWire(registrationStatus),
+        publicationStatus = CampingPublicationStatus.fromWire(stringValue("publicationStatus")),
         locationLatitude = doubleValue("locationLatitude"),
         locationLongitude = doubleValue("locationLongitude"),
         participantCapacity = intValue("participantCapacity"),

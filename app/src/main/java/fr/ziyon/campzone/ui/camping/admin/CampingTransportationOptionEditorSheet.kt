@@ -44,6 +44,7 @@ import fr.ziyon.campzone.core.designsystem.CzTextField
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.model.CampingTransportationOption
 import fr.ziyon.campzone.data.model.TransportationMode
+import fr.ziyon.campzone.ui.camping.localizedDisplayName
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -123,7 +124,7 @@ private fun TransportationOptionEditorContent(
             modifier = Modifier.fillMaxWidth(),
         ) {
             CzTextField(
-                value = mode.displayLabel(),
+                value = mode.localizedDisplayName(),
                 onValueChange = {},
                 readOnly = true,
                 label = stringResource(R.string.camping_editor_transport_mode),
@@ -138,7 +139,7 @@ private fun TransportationOptionEditorContent(
             ) {
                 TransportationMode.entries.forEach { m ->
                     DropdownMenuItem(
-                        text = { Text(m.displayLabel()) },
+                        text = { Text(m.localizedDisplayName()) },
                         onClick = {
                             mode = m
                             modeMenuExpanded = false
@@ -240,19 +241,4 @@ private fun TransportationOptionEditorContent(
         )
         Spacer(Modifier.height(CzSpacing.xl))
     }
-}
-
-private fun TransportationMode.displayLabel(): String = when (this) {
-    TransportationMode.Bus -> "Bus"
-    TransportationMode.Coach -> "Coach"
-    TransportationMode.Minibus -> "Minibus"
-    TransportationMode.Shuttle -> "Shuttle"
-    TransportationMode.Train -> "Train"
-    TransportationMode.Carpool -> "Carpool"
-    TransportationMode.OwnCar -> "Own car"
-    TransportationMode.Plane -> "Plane"
-    TransportationMode.Boat -> "Boat"
-    TransportationMode.Bike -> "Bike"
-    TransportationMode.OnFoot -> "On foot"
-    TransportationMode.Other -> "Other"
 }

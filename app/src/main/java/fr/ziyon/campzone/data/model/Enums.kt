@@ -30,6 +30,22 @@ enum class CampingRegistrationStatus(val wireValue: String) {
     }
 }
 
+/** camping `publicationStatus`: visibility lifecycle, separate from registration state. */
+enum class CampingPublicationStatus(val wireValue: String) {
+    Draft("draft"),
+    Published("published"),
+    Archived("archived");
+
+    companion object {
+        /**
+         * Backward-compatible default: campings written before this field existed
+         * are public in the shipped iOS app.
+         */
+        fun fromWire(value: String?): CampingPublicationStatus =
+            entries.firstOrNull { it.wireValue == value } ?: Published
+    }
+}
+
 /** attendee `registrationStatus`. */
 enum class RegistrationApprovalStatus(val wireValue: String) {
     Pending("pending"),

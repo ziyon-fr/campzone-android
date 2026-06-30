@@ -3,6 +3,8 @@ package fr.ziyon.campzone.ui.schedule.food
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.R
+import fr.ziyon.campzone.core.i18n.StringProvider
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
@@ -12,11 +14,15 @@ import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.DateKeys
 import fr.ziyon.campzone.data.model.FoodMealKind
 import fr.ziyon.campzone.data.model.FoodMenuEntry
+import fr.ziyon.campzone.data.model.FoodMenuItem
 import fr.ziyon.campzone.data.model.FoodMenuProgramSync
 import fr.ziyon.campzone.data.model.Program
+import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
+import fr.ziyon.campzone.data.profile.CommonAllergy
 import fr.ziyon.campzone.data.schedule.FoodMenuService
 import java.util.Calendar
 import java.util.Date
+import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,24 +36,39 @@ sealed interface FoodMenuUiState {
     data class Error(val message: String) : FoodMenuUiState
 }
 
-/** Mirror of iOS `FoodMenuEntryForm`. `dishesText` holds all dishes joined by `\n`. */
+/** Identity-stable editable counterpart of one structured dish. */
+data class FoodMenuItemDraft(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String = "",
+    val details: String = "",
+    val allergens: List<String> = emptyList(),
+    val note: String = "",
+) {
+    fun toItemOrNull(): FoodMenuItem? {
+        val trimmedName = name.trim()
+        if (trimmedName.isEmpty()) return null
+        return FoodMenuItem(
+            id = id,
+            name = trimmedName,
+            details = details.trim().takeUnless(String::isEmpty),
+            allergens = allergens.map(String::trim).filter(String::isNotEmpty).distinctBy { it.lowercase() },
+            note = note.trim().takeUnless(String::isEmpty),
+        )
+    }
+}
+
+/** Mirror of iOS `FoodMenuEntryForm`. */
 data class FoodMenuEntryForm(
     val id: String = "",
     val date: Date = Date(),
     val meal: FoodMealKind = FoodMealKind.Breakfast,
-    val dishesText: String = "",
+    val items: List<FoodMenuItemDraft> = emptyList(),
     val notes: String = "",
 ) {
-    val parsedDishes: List<String>
-        get() = dishesText
-            .split("\n", ",")
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
+    val parsedItems: List<FoodMenuItem>
+        get() = items.mapNotNull(FoodMenuItemDraft::toItemOrNull)
 
-    val isValid: Boolean get() = parsedDishes.isNotEmpty()
-
-    val validationError: String?
-        get() = if (!isValid) "Add at least one dish." else null
+    val isValid: Boolean get() = parsedItems.isNotEmpty()
 }
 
 /** Grouped by calendar day - mirrors iOS `FoodMenuDaySection`. */
@@ -63,10 +84,18 @@ data class FoodMenuDaySection(
         }
 }
 
+data class ParticipantAllergySummary(
+    val attendeeId: String,
+    val attendeeName: String,
+    val allergies: List<String>,
+    val photoUrl: String? = null,
+)
+
 @HiltViewModel
 class FoodMenuViewModel @Inject constructor(
     private val foodMenuService: FoodMenuService,
     private val campingService: CampingService,
+    private val stringProvider: StringProvider,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<FoodMenuUiState>(FoodMenuUiState.Loading)
@@ -80,6 +109,9 @@ class FoodMenuViewModel @Inject constructor(
 
     private val _campingDateRange = MutableStateFlow<Pair<Date, Date>?>(null)
     val campingDateRange: StateFlow<Pair<Date, Date>?> = _campingDateRange.asStateFlow()
+
+    private val _participantAllergies = MutableStateFlow<List<ParticipantAllergySummary>>(emptyList())
+    val participantAllergies: StateFlow<List<ParticipantAllergySummary>> = _participantAllergies.asStateFlow()
 
     private val _editingEntryId = MutableStateFlow<String?>(null)
     val editingEntryId: StateFlow<String?> = _editingEntryId.asStateFlow()
@@ -106,6 +138,15 @@ class FoodMenuViewModel @Inject constructor(
             runCatching {
                 val camping = runCatching { campingService.fetchCamping(campingId) }.getOrNull()
                 cachedCamping = camping
+                _participantAllergies.value = camping?.attendees.orEmpty()
+                    .filter { it.registrationStatus == RegistrationApprovalStatus.Approved }
+                    .mapNotNull { attendee ->
+                        val allergies = attendee.allergies.filter(::isFoodRelevant)
+                        allergies.takeIf { it.isNotEmpty() }?.let {
+                            ParticipantAllergySummary(attendee.id, attendee.displayName, it, attendee.photoUrl)
+                        }
+                    }
+                    .sortedBy { it.attendeeName.lowercase() }
                 _campingDateRange.value = camping?.let {
                     DateKeys.startOfDay(it.startDate) to it.endDate.endOfDay()
                 }
@@ -114,7 +155,9 @@ class FoodMenuViewModel @Inject constructor(
                 loadedCampingIds.add(campingId)
                 publishEntries(entries)
             }.onFailure { e ->
-                _uiState.value = FoodMenuUiState.Error(e.message ?: "Failed to load food menu.")
+                _uiState.value = FoodMenuUiState.Error(
+                    e.message ?: stringProvider.get(R.string.food_menu_load_error),
+                )
             }
         }
     }
@@ -135,7 +178,7 @@ class FoodMenuViewModel @Inject constructor(
         _editorForm.value = FoodMenuEntryForm(
             date = date,
             meal = FoodMealKind.Breakfast,
-            dishesText = "",
+            items = emptyList(),
             notes = "",
         )
         _operationError.value = null
@@ -147,7 +190,15 @@ class FoodMenuViewModel @Inject constructor(
             id = entry.id,
             date = entry.date,
             meal = entry.meal,
-            dishesText = entry.dishes.joinToString("\n"),
+            items = entry.items.map { item ->
+                FoodMenuItemDraft(
+                    id = item.id,
+                    name = item.name,
+                    details = item.details.orEmpty(),
+                    allergens = item.allergens,
+                    note = item.note.orEmpty(),
+                )
+            },
             notes = entry.notes,
         )
         _operationError.value = null
@@ -155,6 +206,24 @@ class FoodMenuViewModel @Inject constructor(
 
     fun updateForm(update: (FoodMenuEntryForm) -> FoodMenuEntryForm) {
         _editorForm.value = update(_editorForm.value)
+    }
+
+    fun addDish() {
+        _editorForm.value = _editorForm.value.copy(
+            items = _editorForm.value.items + FoodMenuItemDraft(),
+        )
+    }
+
+    fun updateDish(id: String, update: (FoodMenuItemDraft) -> FoodMenuItemDraft) {
+        _editorForm.value = _editorForm.value.copy(
+            items = _editorForm.value.items.map { if (it.id == id) update(it) else it },
+        )
+    }
+
+    fun removeDish(id: String) {
+        _editorForm.value = _editorForm.value.copy(
+            items = _editorForm.value.items.filterNot { it.id == id },
+        )
     }
 
     fun selectMeal(meal: FoodMealKind) {
@@ -169,7 +238,7 @@ class FoodMenuViewModel @Inject constructor(
     fun saveEntry(campingId: String, onSuccess: () -> Unit) {
         val form = _editorForm.value
         if (!form.isValid) {
-            _operationError.value = form.validationError
+            _operationError.value = stringProvider.get(R.string.food_menu_validation_dish_required)
             return
         }
 
@@ -178,7 +247,7 @@ class FoodMenuViewModel @Inject constructor(
             campingId = campingId,
             date = form.date,
             meal = form.meal,
-            dishes = form.parsedDishes,
+            items = form.parsedItems,
             notes = form.notes.trim(),
         )
 
@@ -188,11 +257,11 @@ class FoodMenuViewModel @Inject constructor(
             runCatching {
                 val entries = foodMenuService.saveEntry(entry, replacingEntryId = _editingEntryId.value)
                 _editingEntryId.value = entry.id
-                _operationMessage.value = "Menu saved."
+                _operationMessage.value = stringProvider.get(R.string.food_menu_saved)
                 publishEntries(entries)
                 onSuccess()
             }.onFailure { e ->
-                _operationError.value = e.message ?: "Could not save menu entry."
+                _operationError.value = e.message ?: stringProvider.get(R.string.food_menu_save_error)
             }
             _isSaving.value = false
         }
@@ -203,10 +272,10 @@ class FoodMenuViewModel @Inject constructor(
             _operationError.value = null
             runCatching {
                 val entries = foodMenuService.deleteEntry(entryId, campingId)
-                _operationMessage.value = "Menu entry deleted."
+                _operationMessage.value = stringProvider.get(R.string.food_menu_deleted)
                 publishEntries(entries)
             }.onFailure { e ->
-                _operationError.value = e.message ?: "Could not delete menu entry."
+                _operationError.value = e.message ?: stringProvider.get(R.string.food_menu_delete_error)
             }
         }
     }
@@ -248,6 +317,9 @@ class FoodMenuViewModel @Inject constructor(
         _uiState.value = if (entries.isEmpty()) FoodMenuUiState.Empty
         else FoodMenuUiState.Loaded(entries)
     }
+
+    private fun isFoodRelevant(token: String): Boolean =
+        CommonAllergy.fromWire(token)?.isFood != false
 
     private fun updateCanManage(user: AuthenticatedUser?, camping: Camping?) {
         if (user == null || camping == null) return

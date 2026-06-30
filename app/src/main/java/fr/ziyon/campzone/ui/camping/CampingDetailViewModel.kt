@@ -13,10 +13,12 @@ import fr.ziyon.campzone.data.analytics.NoOpAnalyticsService
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.CampingAgeGroup
 import fr.ziyon.campzone.data.camping.CampingService
+import fr.ziyon.campzone.data.camping.CampingNotFoundException
 import fr.ziyon.campzone.data.games.FakeGameService
 import fr.ziyon.campzone.data.games.GameService
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
+import fr.ziyon.campzone.data.model.CampingPublicationStatus
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.TransportationPaymentStatus
@@ -46,6 +48,8 @@ data class CampingAttendeeFilters(
 enum class CampingDetailOperationMessage {
     PinnedToHome,
     UnpinnedFromHome,
+    CampingCancelled,
+    CampingPublished,
 }
 
 data class CampingDetailUiState(
@@ -57,17 +61,22 @@ data class CampingDetailUiState(
     val canRegisterForCampings: Boolean = false,
     val canManageFamilyRegistrations: Boolean = false,
     val canEditCamping: Boolean = false,
+    val canCancelCamping: Boolean = false,
+    val canViewSongbook: Boolean = false,
     val canApproveRegistrations: Boolean = false,
     val canManageSchedule: Boolean = false,
     val canManageFoodMenu: Boolean = false,
+    val canEditGuidelines: Boolean = false,
     val canManageTeams: Boolean = false,
     val canManageGames: Boolean = false,
     val canRevealWinners: Boolean = false,
     val canManageAlbumMedia: Boolean = false,
+    val canManageAlbumSettings: Boolean = false,
     val canManageCheckIns: Boolean = false,
     val canManageTransportation: Boolean = false,
     val canAwardAchievements: Boolean = false,
     val canManageAnyCamping: Boolean = false,
+    val canPinCampingToHome: Boolean = false,
     val canCreateRecurringCamp: Boolean = false,
     val wasCreatedByCurrentUser: Boolean = false,
     val isApprovedParticipant: Boolean = false,
@@ -82,9 +91,11 @@ data class CampingDetailUiState(
     val attendeeSearch: String = "",
     val filters: CampingAttendeeFilters = CampingAttendeeFilters(),
     val isSettingFeatured: Boolean = false,
+    val isMutatingCamping: Boolean = false,
     val operationMessage: CampingDetailOperationMessage? = null,
     val operationError: String? = null,
     val errorMessage: String? = null,
+    val campingNotFound: Boolean = false,
 ) {
     val canViewAttendees: Boolean
         get() = canViewParticipantProfiles || isApprovedParticipant
@@ -281,16 +292,20 @@ class CampingDetailViewModel @Inject constructor(
                         canRegisterForCampings = can(AppPermission.RegisterForCampings),
                         canManageFamilyRegistrations = can(AppPermission.ManageFamilyRegistrations),
                         canEditCamping = permissions.canEditCamping(permissionUser, context),
+                        canCancelCamping = permissions.canCancelCamping(permissionUser, context),
+                        canViewSongbook = permissions.can(permissionUser, AppPermission.ViewSongbook),
                         canApproveRegistrations = permissions.canApproveRegistrations(
                             permissionUser,
                             context,
                         ),
                         canManageSchedule = canManageSchedule,
                         canManageFoodMenu = permissions.canManageFoodMenu(permissionUser, context),
+                        canEditGuidelines = permissions.canEditGuidelines(permissionUser, context),
                         canManageTeams = canManageTeams,
                         canManageGames = canManageGames,
                         canRevealWinners = permissions.canRevealWinners(permissionUser, context),
                         canManageAlbumMedia = permissions.canManageAlbumMedia(permissionUser, context),
+                        canManageAlbumSettings = permissions.canManageAlbumSettings(permissionUser, context),
                         canManageCheckIns = permissions.canManageCheckIns(permissionUser, context),
                         canManageTransportation = permissions.canManageTransportation(
                             permissionUser,
@@ -301,6 +316,7 @@ class CampingDetailViewModel @Inject constructor(
                             context,
                         ),
                         canManageAnyCamping = permissions.canManageAnyCamping(permissionUser),
+                        canPinCampingToHome = permissions.canPinFeaturedCamping(permissionUser),
                         canCreateRecurringCamp = canCreateRecurringCamp,
                         wasCreatedByCurrentUser = camping.createdByUid == user.uid,
                         isApprovedParticipant = isApproved,
@@ -310,10 +326,19 @@ class CampingDetailViewModel @Inject constructor(
                                 attendee.paymentStatus != TransportationPaymentStatus.Paid &&
                                 camping.resolvedRegistrationFeeCents(attendee.age) > 0
                         },
-                        hasPayablePriceItems = camping.priceItems.any { it.amountCents > 0 },
+                        hasPayablePriceItems = camping.priceItems.any { it.amountCents > 0 } &&
+                            (
+                                permissions.canManageAnyCamping(permissionUser) ||
+                                    permissions.canEditCamping(permissionUser, context) ||
+                                    userRegistrations.any {
+                                        it.registrationStatus == RegistrationApprovalStatus.Approved ||
+                                            it.registrationStatus == RegistrationApprovalStatus.Pending
+                                    }
+                                ),
                         venueMap = visibleVenueMap,
                         guardianChildAttendeeIds = guardianChildIds,
                         isSettingFeatured = previousState.isSettingFeatured,
+                        isMutatingCamping = previousState.isMutatingCamping,
                         operationMessage = previousState.operationMessage,
                         operationError = previousState.operationError,
                     )
@@ -325,6 +350,7 @@ class CampingDetailViewModel @Inject constructor(
                 _uiState.value = CampingDetailUiState(
                     isLoading = false,
                     errorMessage = error.message,
+                    campingNotFound = error is CampingNotFoundException,
                 )
             }
         }
@@ -346,6 +372,7 @@ class CampingDetailViewModel @Inject constructor(
     fun trackTeamsView(campingId: String) = analyticsService.viewTeams(campingId)
 
     fun setFeatured(campingId: String, isFeatured: Boolean) {
+        if (!_uiState.value.canPinCampingToHome) return
         _uiState.update {
             it.copy(isSettingFeatured = true, operationMessage = null, operationError = null)
         }
@@ -374,6 +401,80 @@ class CampingDetailViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    fun cancelCamping(campingId: String) {
+        if (!_uiState.value.canCancelCamping || _uiState.value.isMutatingCamping) return
+        _uiState.update {
+            it.copy(isMutatingCamping = true, operationMessage = null, operationError = null)
+        }
+        viewModelScope.launch {
+            runCatching { service.cancelCamping(campingId) }
+                .onSuccess { updated ->
+                    analyticsService.cancelCamping(campingId)
+                    _uiState.update { state ->
+                        state.copy(
+                            camping = updated.copy(attendees = state.attendees),
+                            isMutatingCamping = false,
+                            operationMessage = CampingDetailOperationMessage.CampingCancelled,
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(isMutatingCamping = false, operationError = error.message.orEmpty())
+                    }
+                }
+        }
+    }
+
+    fun publishCamping(campingId: String) {
+        val state = _uiState.value
+        val camping = state.camping ?: return
+        if (!state.canEditCamping || !camping.isDraft || state.isMutatingCamping) return
+        _uiState.update {
+            it.copy(isMutatingCamping = true, operationMessage = null, operationError = null)
+        }
+        viewModelScope.launch {
+            runCatching {
+                service.updatePublicationStatus(campingId, CampingPublicationStatus.Published)
+            }
+                .onSuccess { updated ->
+                    _uiState.update { current ->
+                        current.copy(
+                            camping = updated.copy(attendees = current.attendees),
+                            isMutatingCamping = false,
+                            operationMessage = CampingDetailOperationMessage.CampingPublished,
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(isMutatingCamping = false, operationError = error.message.orEmpty())
+                    }
+                }
+        }
+    }
+
+    fun deleteCamping(campingId: String, onDeleted: () -> Unit) {
+        val state = _uiState.value
+        val canDelete = state.wasCreatedByCurrentUser || state.canCancelCamping
+        if (!canDelete || state.isMutatingCamping) return
+        _uiState.update {
+            it.copy(isMutatingCamping = true, operationMessage = null, operationError = null)
+        }
+        viewModelScope.launch {
+            runCatching { service.deleteCamping(campingId) }
+                .onSuccess {
+                    _uiState.update { it.copy(isMutatingCamping = false) }
+                    onDeleted()
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(isMutatingCamping = false, operationError = error.message.orEmpty())
+                    }
+                }
         }
     }
 

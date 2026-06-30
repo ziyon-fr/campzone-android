@@ -71,8 +71,8 @@ class ScheduleViewModelFoodMenuSyncTest {
         var entries = foodMenuService.loadMenu(campingId)
         assertEquals(listOf("2026-08-03-lunch"), entries.map { it.id })
         assertEquals(FoodMealKind.Lunch, entries.first().meal)
-        assertEquals(listOf("Chili", "Rice"), entries.first().dishes)
-        assertEquals("Gluten-free", entries.first().notes)
+        assertEquals(listOf("Lunch"), entries.first().dishes)
+        assertEquals("", entries.first().notes)
 
         assertNotNull(lunchProgram)
         viewModel.prepareEditingProgram(lunchProgram!!)
@@ -93,7 +93,7 @@ class ScheduleViewModelFoodMenuSyncTest {
         entries = foodMenuService.loadMenu(campingId)
         assertEquals(listOf("2026-08-03-dinner"), entries.map { it.id })
         assertEquals(FoodMealKind.Dinner, entries.first().meal)
-        assertEquals(listOf("Soup", "Bread"), entries.first().dishes)
+        assertEquals(listOf("Dinner"), entries.first().dishes)
 
         assertNotNull(dinnerProgram)
         viewModel.deleteProgram(dinnerProgram!!.id, campingId)

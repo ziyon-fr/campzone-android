@@ -40,6 +40,26 @@ class AppNotificationFeedServiceTest {
         )
     }
 
+    @Test
+    fun snapshotStoreRejectsDirectRowsForCampingsNoLongerVisible() {
+        val topic = "campzone_user_u1"
+        val store = NotificationFeedSnapshotStore(
+            userId = "u1",
+            role = UserRole.User,
+            visibleTopics = setOf(topic),
+            visibilityScope = NotificationVisibilityScope(
+                visibleCampingIds = setOf("camp-current"),
+            ),
+        )
+
+        val rows = store.update(
+            topic,
+            listOf(notification("stale", topic, 100, recipientUserId = "u1")),
+        )
+
+        assertNull(rows)
+    }
+
     private fun notification(
         id: String,
         topic: String,

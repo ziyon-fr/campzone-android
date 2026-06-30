@@ -11,17 +11,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Campaign
@@ -38,8 +37,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -73,7 +71,9 @@ import fr.ziyon.campzone.data.chat.ChatAudioRecorder
 import fr.ziyon.campzone.data.chat.ChatMentionScanner
 import fr.ziyon.campzone.data.chat.ChatMessageDraft
 import fr.ziyon.campzone.data.chat.MentionCandidate
+import fr.ziyon.campzone.data.model.ChatAttachmentKind
 import fr.ziyon.campzone.data.model.ChatMention
+import fr.ziyon.campzone.data.model.ChatMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -89,6 +89,7 @@ import kotlin.math.roundToInt
 fun ChatComposer(
     draft: ChatMessageDraft,
     isEditing: Boolean,
+    replyingTo: ChatMessage?,
     isSending: Boolean,
     isUploading: Boolean,
     mentionCandidates: List<MentionCandidate>,
@@ -97,6 +98,7 @@ fun ChatComposer(
     onSend: () -> Unit,
     onCommitEdit: () -> Unit,
     onCancelEdit: () -> Unit,
+    onCancelReply: () -> Unit,
     onSendImage: (bytes: ByteArray, mimeType: String, fileExtension: String) -> Unit,
     onSendVoice: (bytes: ByteArray, durationSeconds: Double) -> Unit,
     modifier: Modifier = Modifier,
@@ -184,9 +186,8 @@ fun ChatComposer(
             .fillMaxWidth()
             .background(colors.background)
             .imePadding()
-            .navigationBarsPadding()
-            .padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
-        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            .padding(horizontal = CzSpacing.md, vertical = CzSpacing.xs),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
     ) {
         if (activeQuery != null) {
             MentionPicker(
@@ -205,6 +206,9 @@ fun ChatComposer(
             )
         }
 
+        if (replyingTo != null && !recorder.isRecording && recordedVoice == null) {
+            ComposerReplyPreview(message = replyingTo, onCancel = onCancelReply)
+        }
         if (isEditing) {
             EditBanner(onCancel = onCancelEdit)
         }
@@ -241,7 +245,7 @@ fun ChatComposer(
                 isEditing = isEditing,
                 isSending = isSending,
                 isUploading = isUploading,
-                mentionColor = colors.ember,
+                mentionColor = colors.accent,
                 onValueChange = { newValue ->
                     fieldValue = newValue
                     onDraftChange(newValue.text, draft.mentions)
@@ -285,40 +289,48 @@ private fun InputBar(
             CircleIconButton(
                 icon = Icons.Rounded.Add,
                 contentDescription = stringResource(R.string.chat_attach_photo),
-                background = colors.ember.copy(alpha = 0.12f),
-                tint = colors.ember,
+                background = colors.accent.copy(alpha = 0.12f),
+                tint = colors.accent,
                 enabled = !isUploading,
                 onClick = onAttach,
             )
         }
-        TextField(
+        BasicTextField(
             value = fieldValue,
             onValueChange = onValueChange,
-            modifier = Modifier.weight(1f),
-            placeholder = {
-                Text(
-                    stringResource(
-                        if (isEditing) R.string.chat_edit_placeholder else R.string.chat_message_placeholder,
-                    ),
-                )
-            },
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 44.dp)
+                .background(colors.surface, RoundedCornerShape(CzRadius.lg))
+                .padding(horizontal = CzSpacing.md, vertical = CzSpacing.xs),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.textPrimary),
+            cursorBrush = SolidColor(colors.accent),
             visualTransformation = transformation,
             maxLines = 5,
-            shape = RoundedCornerShape(CzRadius.lg),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = colors.surface,
-                unfocusedContainerColor = colors.surface,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent,
-            ),
+            decorationBox = { innerTextField ->
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (fieldValue.text.isBlank()) {
+                        Text(
+                            stringResource(
+                                if (isEditing) R.string.chat_edit_placeholder else R.string.chat_message_placeholder,
+                            ),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.textSecondary,
+                        )
+                    }
+                    innerTextField()
+                }
+            },
         )
         val showSend = isEditing || draft.isValid || isSending
         when {
             isEditing -> CircleIconButton(
                 icon = Icons.Rounded.Check,
                 contentDescription = stringResource(R.string.chat_save_edit),
-                background = colors.ember,
+                background = colors.accent,
                 tint = Color.White,
                 enabled = draft.isValid && !isSending,
                 loading = isSending,
@@ -327,7 +339,7 @@ private fun InputBar(
             showSend -> CircleIconButton(
                 icon = Icons.Rounded.Send,
                 contentDescription = stringResource(R.string.chat_send),
-                background = colors.ember,
+                background = colors.accent,
                 tint = Color.White,
                 enabled = draft.isValid && !isSending,
                 loading = isSending,
@@ -336,7 +348,7 @@ private fun InputBar(
             else -> CircleIconButton(
                 icon = Icons.Rounded.Mic,
                 contentDescription = stringResource(R.string.chat_record_voice),
-                background = colors.ember,
+                background = colors.accent,
                 tint = Color.White,
                 enabled = !isUploading,
                 onClick = onStartRecording,
@@ -386,7 +398,7 @@ private fun RecordingBar(
         CircleIconButton(
             icon = Icons.Rounded.Stop,
             contentDescription = stringResource(R.string.chat_stop_recording),
-            background = colors.ember,
+            background = colors.accent,
             tint = Color.White,
             onClick = onStop,
         )
@@ -420,7 +432,7 @@ private fun ReviewBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
         ) {
-            Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = colors.ember)
+            Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = colors.accent)
             Text(
                 stringResource(R.string.chat_voice_message_duration, formatClock(durationSeconds)),
                 color = colors.textPrimary,
@@ -429,7 +441,7 @@ private fun ReviewBar(
         CircleIconButton(
             icon = Icons.Rounded.Send,
             contentDescription = stringResource(R.string.chat_send_voice),
-            background = colors.ember,
+            background = colors.accent,
             tint = Color.White,
             enabled = !isUploading,
             loading = isUploading,
@@ -439,12 +451,52 @@ private fun ReviewBar(
 }
 
 @Composable
+private fun ComposerReplyPreview(message: ChatMessage, onCancel: () -> Unit) {
+    val colors = MaterialTheme.czColors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.surface, RoundedCornerShape(CzRadius.md))
+            .padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.chat_replying_to, message.senderName),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.accent,
+            )
+            Text(
+                replyPreviewText(message),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+                maxLines = 1,
+            )
+        }
+        IconButton(onClick = onCancel) {
+            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.chat_cancel_reply))
+        }
+    }
+}
+
+@Composable
+private fun replyPreviewText(message: ChatMessage): String = when {
+    message.isDeleted -> stringResource(R.string.chat_message_removed)
+    message.hasText -> message.text
+    message.attachment?.kind == ChatAttachmentKind.Image -> stringResource(R.string.chat_photo)
+    message.attachment?.kind == ChatAttachmentKind.Audio -> stringResource(R.string.chat_voice_message)
+    else -> stringResource(R.string.chat_message_placeholder)
+}
+
+@Composable
 private fun EditBanner(onCancel: () -> Unit) {
     val colors = MaterialTheme.czColors
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(colors.ember.copy(alpha = 0.10f), RoundedCornerShape(CzRadius.md))
+            .background(colors.accent.copy(alpha = 0.10f), RoundedCornerShape(CzRadius.md))
             .padding(horizontal = CzSpacing.md, vertical = CzSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
@@ -588,7 +640,7 @@ private fun MentionRow(candidate: MentionCandidate, onClick: () -> Unit) {
             )
         }
         if (candidate.isEveryone) {
-            Icon(Icons.Rounded.Campaign, contentDescription = null, tint = colors.ember)
+            Icon(Icons.Rounded.Campaign, contentDescription = null, tint = colors.accent)
         }
     }
 }
@@ -623,6 +675,7 @@ private fun ChatComposerPreview() {
         ChatComposer(
             draft = ChatMessageDraft(text = "Hey @Léa, ready for dinner?"),
             isEditing = false,
+            replyingTo = null,
             isSending = false,
             isUploading = false,
             mentionCandidates = listOf(
@@ -634,6 +687,7 @@ private fun ChatComposerPreview() {
             onSend = {},
             onCommitEdit = {},
             onCancelEdit = {},
+            onCancelReply = {},
             onSendImage = { _, _, _ -> },
             onSendVoice = { _, _ -> },
         )

@@ -1,6 +1,7 @@
 package fr.ziyon.campzone.ui.schedule
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Restaurant
@@ -30,6 +32,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,7 +42,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +67,10 @@ import fr.ziyon.campzone.data.model.FoodMenuEntry
 import fr.ziyon.campzone.data.model.FoodMenuProgramSync
 import fr.ziyon.campzone.data.model.Game
 import fr.ziyon.campzone.data.model.Program
+import fr.ziyon.campzone.data.model.ProgramType
+import fr.ziyon.campzone.data.schedule.AndroidCalendarExportLauncher
+import fr.ziyon.campzone.data.schedule.CalendarExportLabels
+import fr.ziyon.campzone.data.schedule.ScheduleCalendarExportPlanner
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuUiState
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuViewModel
 import fr.ziyon.campzone.ui.schedule.food.MealMenuCard
@@ -67,6 +78,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 @Composable
 fun ProgramDetailScreen(
@@ -87,6 +99,7 @@ fun ProgramDetailScreen(
     }
 
     val uiState by viewModel.uiState.collectAsState()
+    val camping by viewModel.camping.collectAsState()
     val games by viewModel.games.collectAsState()
     val foodMenuState by foodMenuViewModel.uiState.collectAsState()
     val program = (uiState as? ScheduleUiState.Loaded)
@@ -102,6 +115,7 @@ fun ProgramDetailScreen(
     val linkedGame = program?.linkedGameId?.let { id -> games.firstOrNull { it.id == id } }
     ProgramDetailContent(
         program = program,
+        campingTitle = camping?.title ?: stringResource(R.string.calendar_default_camping_title),
         foodMenuEntry = foodMenuEntry,
         linkedGame = linkedGame,
         canManageAttendance = canManageAttendance,
@@ -117,6 +131,7 @@ fun ProgramDetailScreen(
 @Composable
 private fun ProgramDetailContent(
     program: Program?,
+    campingTitle: String,
     foodMenuEntry: FoodMenuEntry?,
     linkedGame: Game?,
     canManageAttendance: Boolean,
@@ -127,6 +142,16 @@ private fun ProgramDetailContent(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val addToCalendarDescription = stringResource(R.string.program_add_to_calendar_cd)
+    val calendarNoAppMessage = stringResource(R.string.schedule_calendar_no_app)
+    val calendarLabels = CalendarExportLabels(
+        camping = stringResource(R.string.calendar_notes_camping_label),
+        type = stringResource(R.string.calendar_notes_type_label),
+    )
+    val programTypeName = program?.let { stringResource(it.type.displayNameRes) }.orEmpty()
 
     Scaffold(
         modifier = modifier,
@@ -136,7 +161,7 @@ private fun ProgramDetailContent(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = program?.title ?: "Program",
+                        text = stringResource(R.string.program_navigation_title),
                         style = CzTypeScale.headline,
                         color = colors.textPrimary,
                         maxLines = 1,
@@ -151,6 +176,32 @@ private fun ProgramDetailContent(
                         )
                     }
                 },
+                actions = {
+                    if (program != null) {
+                        IconButton(
+                            onClick = {
+                                val draft = ScheduleCalendarExportPlanner.draft(
+                                    program = program,
+                                    campingTitle = campingTitle,
+                                    typeName = program.customType?.trimmedName
+                                        ?: programTypeName,
+                                    labels = calendarLabels,
+                                )
+                                if (!AndroidCalendarExportLauncher.openProgram(context, draft)) {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(calendarNoAppMessage)
+                                    }
+                                }
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.EventAvailable,
+                                contentDescription = addToCalendarDescription,
+                                tint = colors.ember,
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = colors.background,
                     scrolledContainerColor = colors.background,
@@ -158,6 +209,7 @@ private fun ProgramDetailContent(
                 windowInsets = WindowInsets()
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         if (program == null) {
             CzEmptyState(
@@ -212,81 +264,133 @@ private fun ProgramDetailContent(
 private fun ProgramHeader(program: Program) {
     val accent = program.resolvedAccentColor
     val typeName = program.customType?.trimmedName ?: stringResource(program.type.displayNameRes)
-    Row(
+    Column(
         modifier = Modifier.padding(top = CzSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(CzSpacing.base),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
     ) {
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(accent, accent.copy(alpha = 0.6f)),
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.base),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(accent, accent.copy(alpha = 0.6f)),
+                        ),
                     ),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = program.resolvedIcon,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(26.dp),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = program.resolvedIcon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+            Surface(
+                color = accent.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(CzRadius.full),
+            ) {
+                Text(
+                    text = typeName,
+                    style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
+                    color = accent,
+                    modifier = Modifier.padding(horizontal = CzSpacing.sm, vertical = CzSpacing.xs),
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
         }
-        Surface(
-            color = accent.copy(alpha = 0.12f),
-            shape = RoundedCornerShape(CzRadius.full),
-        ) {
-            Text(
-                text = typeName,
-                style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
-                color = accent,
-                modifier = Modifier.padding(horizontal = CzSpacing.sm, vertical = 3.dp),
-            )
-        }
-        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = program.title,
+            style = CzTypeScale.title2,
+            color = MaterialTheme.czColors.textPrimary,
+        )
     }
 }
 
 @Composable
 private fun DetailsSection(program: Program) {
     val colors = MaterialTheme.czColors
+    val accent = program.resolvedAccentColor
+    val isDark = isSystemInDarkTheme()
+    val isMeal = FoodMenuProgramSync.mealKind(program.type) != null
+    val isRest = program.type == ProgramType.Rest || program.type == ProgramType.Break
+    val hasLocation = program.location.isNotBlank()
+    val rowSurface = if (isDark) colors.surface else Color.White
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
         ProgramSectionHeader(title = stringResource(R.string.program_details), icon = Icons.Rounded.Schedule)
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = colors.surface,
+            color = rowSurface,
             shape = RoundedCornerShape(CzRadius.xl),
         ) {
             Column(modifier = Modifier.padding(vertical = CzSpacing.sm)) {
-                ProgramInfoRow(
-                    label = stringResource(R.string.program_start),
-                    value = fullDateTimeText(program.startDate),
-                    icon = Icons.Rounded.Schedule,
-                )
-                HorizontalDivider(color = colors.divider, modifier = Modifier.padding(horizontal = CzSpacing.base))
-                ProgramInfoRow(
-                    label = stringResource(R.string.program_end),
-                    value = fullDateTimeText(program.endDate),
-                    icon = Icons.Rounded.Schedule,
-                )
-                HorizontalDivider(color = colors.divider, modifier = Modifier.padding(horizontal = CzSpacing.base))
-                ProgramInfoRow(
-                    label = stringResource(R.string.program_duration),
-                    value = durationText(program.startDate, program.endDate),
-                    icon = Icons.Rounded.Timer,
-                )
-                HorizontalDivider(color = colors.divider, modifier = Modifier.padding(horizontal = CzSpacing.base))
-                ProgramInfoRow(
-                    label = stringResource(R.string.program_location_label),
-                    value = program.location,
-                    icon = Icons.Rounded.LocationOn,
-                )
+                if (isRest) {
+                    ProgramInfoRow(
+                        label = stringResource(R.string.program_duration),
+                        value = durationText(program.startDate, program.endDate),
+                        icon = Icons.Rounded.Timer,
+                        color = accent,
+                    )
+                    ProgramRowDivider()
+                    ProgramInfoRow(
+                        label = stringResource(R.string.program_start),
+                        value = fullDateTimeText(program.startDate),
+                        icon = Icons.Rounded.Schedule,
+                        color = accent,
+                    )
+                    ProgramRowDivider()
+                    ProgramInfoRow(
+                        label = stringResource(R.string.program_end),
+                        value = fullDateTimeText(program.endDate),
+                        icon = Icons.Rounded.Schedule,
+                        color = accent,
+                    )
+                } else {
+                    ProgramInfoRow(
+                        label = stringResource(R.string.program_start),
+                        value = fullDateTimeText(program.startDate),
+                        icon = Icons.Rounded.Schedule,
+                        color = accent,
+                    )
+                    ProgramRowDivider()
+                    ProgramInfoRow(
+                        label = stringResource(R.string.program_end),
+                        value = fullDateTimeText(program.endDate),
+                        icon = Icons.Rounded.Schedule,
+                        color = accent,
+                    )
+                    ProgramRowDivider()
+                    ProgramInfoRow(
+                        label = stringResource(R.string.program_duration),
+                        value = durationText(program.startDate, program.endDate),
+                        icon = Icons.Rounded.Timer,
+                        color = accent,
+                    )
+                }
+                if (hasLocation) {
+                    ProgramRowDivider()
+                    ProgramInfoRow(
+                        label = stringResource(if (isMeal) R.string.program_venue_label else R.string.program_location_label),
+                        value = program.location,
+                        icon = if (isMeal) Icons.Rounded.Restaurant else Icons.Rounded.LocationOn,
+                        color = accent,
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun ProgramRowDivider() {
+    HorizontalDivider(
+        color = MaterialTheme.czColors.divider,
+        modifier = Modifier.padding(start = CzSpacing.base + 34.dp + CzSpacing.md, end = CzSpacing.base),
+    )
 }
 
 @Composable
@@ -302,7 +406,7 @@ private fun ProgramSectionHeader(title: String, icon: ImageVector) {
 }
 
 @Composable
-private fun ProgramInfoRow(label: String, value: String, icon: ImageVector) {
+private fun ProgramInfoRow(label: String, value: String, icon: ImageVector, color: Color) {
     val colors = MaterialTheme.czColors
     Row(
         modifier = Modifier
@@ -311,7 +415,15 @@ private fun ProgramInfoRow(label: String, value: String, icon: ImageVector) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = colors.ember, modifier = Modifier.size(18.dp))
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(CzRadius.sm))
+                .background(color.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+        }
         Text(text = label, style = CzTypeScale.body, color = colors.textSecondary, modifier = Modifier.weight(1f))
         Text(text = value, style = CzTypeScale.body.copy(fontWeight = FontWeight.Medium), color = colors.textPrimary)
     }
@@ -324,7 +436,7 @@ private fun AboutSection(description: String) {
         ProgramSectionHeader(title = stringResource(R.string.program_about), icon = Icons.Rounded.Schedule)
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = colors.surface,
+            color = if (isSystemInDarkTheme()) colors.surface else Color.White,
             shape = RoundedCornerShape(CzRadius.xl),
         ) {
             Text(
@@ -492,6 +604,7 @@ private fun ProgramDetailNotFoundPreview() {
     CampzoneTheme {
         ProgramDetailContent(
             program = null,
+            campingTitle = "Summer Camp",
             foodMenuEntry = null,
             linkedGame = null,
             canManageAttendance = false,

@@ -6,7 +6,9 @@ import fr.ziyon.campzone.data.auth.UserGender
 import fr.ziyon.campzone.data.camping.FakeCampingService
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
+import fr.ziyon.campzone.data.model.CampingPublicationStatus
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
+import fr.ziyon.campzone.data.model.CampingPriceItem
 import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
@@ -15,7 +17,6 @@ import fr.ziyon.campzone.testing.MainDispatcherRule
 import java.util.Date
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -66,6 +67,8 @@ class CampingDetailViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state.canEditCamping)
         assertTrue(state.canManageSchedule)
+        assertTrue(state.canManageAlbumSettings)
+        assertFalse(state.canManageAlbumMedia)
         assertFalse(state.canApproveRegistrations)
         assertFalse(state.canManageTeams)
     }
@@ -81,6 +84,7 @@ class CampingDetailViewModelTest {
         assertTrue(state.canEditCamping)
         assertTrue(state.canApproveRegistrations)
         assertTrue(state.canManageTeams)
+        assertTrue(state.canManageAlbumSettings)
     }
 
     @Test
@@ -172,6 +176,60 @@ class CampingDetailViewModelTest {
     }
 
     @Test
+    fun resourceVisibilityMatchesRegistrationAndPermissionState() = runTest {
+        val priceItem = CampingPriceItem(
+            id = "shirt",
+            name = "Camp shirt",
+            details = "Optional",
+            amountCents = 1_500,
+            currency = "EUR",
+        )
+        val unregistered = CampingDetailViewModel(service(emptyList(), priceItems = listOf(priceItem)))
+        unregistered.load("camp-1", user(UserRole.User, "Other", "user-1"))
+        assertTrue(unregistered.uiState.value.canViewSongbook)
+        assertFalse(unregistered.uiState.value.isApprovedParticipant)
+        assertFalse(unregistered.uiState.value.hasPayablePriceItems)
+
+        val pending = CampingDetailViewModel(
+            service(
+                attendees = listOf(attendee("user-1", "Me", RegistrationApprovalStatus.Pending, userId = "user-1")),
+                priceItems = listOf(priceItem),
+            ),
+        )
+        pending.load("camp-1", user(UserRole.User, "Other", "user-1"))
+        assertTrue(pending.uiState.value.hasPayablePriceItems)
+
+        val guest = CampingDetailViewModel(service(emptyList(), priceItems = listOf(priceItem)))
+        guest.load("camp-1", user(UserRole.Guest, "Other", "guest-1"))
+        assertTrue(guest.uiState.value.canViewSongbook)
+        assertFalse(guest.uiState.value.isApprovedParticipant)
+    }
+
+    @Test
+    fun permittedLeaderCanCancelAndCreatorCanDelete() = runTest {
+        val cancellableService = service(emptyList())
+        val youthDirector = CampingDetailViewModel(cancellableService)
+        youthDirector.load("camp-1", user(UserRole.YouthDirector, church, "yd-1"))
+
+        youthDirector.cancelCamping("camp-1")
+        advanceUntilIdle()
+
+        assertEquals(CampingRegistrationStatus.Cancelled, youthDirector.uiState.value.camping?.registrationStatus)
+        assertEquals(CampingDetailOperationMessage.CampingCancelled, youthDirector.uiState.value.operationMessage)
+
+        val creatorService = service(emptyList(), createdByUid = "creator-1")
+        val creator = CampingDetailViewModel(creatorService)
+        creator.load("camp-1", user(UserRole.User, church, "creator-1"))
+        var deleted = false
+
+        creator.deleteCamping("camp-1") { deleted = true }
+        advanceUntilIdle()
+
+        assertTrue(deleted)
+        assertEquals(listOf("camp-1"), creatorService.deleted)
+    }
+
+    @Test
     fun attendeeSearchFiltersRoster() = runTest {
         val service = service(
             attendees = listOf(
@@ -201,13 +259,43 @@ class CampingDetailViewModelTest {
     }
 
     @Test
+    fun nonAdminCannotSetFeaturedCamping() = runTest {
+        val service = service(attendees = emptyList())
+        val viewModel = CampingDetailViewModel(service)
+        viewModel.load("camp-1", user(role = UserRole.Leader, church = church, uid = "leader-1"))
+
+        viewModel.setFeatured("camp-1", true)
+        advanceUntilIdle()
+
+        assertTrue(service.featuredUpdates.isEmpty())
+        assertFalse(viewModel.uiState.value.camping?.isFeatured == true)
+    }
+
+    @Test
+    fun permittedLeaderCanPublishDraftCamping() = runTest {
+        val service = service(
+            attendees = emptyList(),
+            publicationStatus = CampingPublicationStatus.Draft,
+        )
+        val viewModel = CampingDetailViewModel(service)
+        viewModel.load("camp-1", user(role = UserRole.Pastor, church = church, uid = "pastor-1"))
+
+        viewModel.publishCamping("camp-1")
+        advanceUntilIdle()
+
+        assertEquals(CampingPublicationStatus.Published, viewModel.uiState.value.camping?.publicationStatus)
+        assertEquals(CampingDetailOperationMessage.CampingPublished, viewModel.uiState.value.operationMessage)
+    }
+
+    @Test
     fun fetchFailureSurfacesError() = runTest {
         val viewModel = CampingDetailViewModel(FakeCampingService(emptyList()))
         viewModel.load("missing", user(role = UserRole.Guest, church = church, uid = "g"))
 
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)
-        assertNotNull(state.errorMessage)
+        assertTrue(state.campingNotFound)
+        assertFalse(state.errorMessage?.isNotBlank() == true)
     }
 
     private fun service(
@@ -215,6 +303,8 @@ class CampingDetailViewModelTest {
         organizerLevel: OrganizerLevel = OrganizerLevel(OrganizerType.Church, church),
         createdByUid: String? = null,
         registrationFeeCents: Int? = null,
+        priceItems: List<CampingPriceItem> = emptyList(),
+        publicationStatus: CampingPublicationStatus = CampingPublicationStatus.Published,
     ) = FakeCampingService(
         initial = listOf(
             Camping(
@@ -226,8 +316,10 @@ class CampingDetailViewModelTest {
                 organizerLevel = organizerLevel,
                 location = "Lake Annecy",
                 registrationStatus = CampingRegistrationStatus.Open,
+                publicationStatus = publicationStatus,
                 participantCapacity = 120,
                 registrationFeeCents = registrationFeeCents,
+                priceItems = priceItems,
                 createdByUid = createdByUid,
             ),
         ),

@@ -71,13 +71,14 @@ below the table.
 | Edit announcements |  |  |  | ✓¹ | ✓¹ |  | ✓¹ |  | ✓ |
 | Delete announcements |  |  |  |  |  |  |  |  | ✓ |
 | View songbook | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Manage songbook |  |  |  |  |  |  |  |  | ✓ |
+| Manage songbook |  |  |  | C |  |  | C |  | ✓ |
 | Manage schedule |  |  |  | C | C |  | C |  | ✓ |
 | Manage teams |  |  |  | C |  | C | C |  | ✓ |
 | Manage games |  |  |  | C | C | C | C |  | ✓ |
 | Assign points |  |  |  | C |  | C | C |  | ✓ |
 | Reveal winners |  |  |  |  |  | C |  |  | ✓ |
 | Manage album media |  |  |  |  |  |  |  | C | ✓ |
+| Manage album settings |  |  |  | C | C |  | C |  | ✓ |
 | Manage transportation |  |  |  |  |  |  |  |  | ✓ |
 | Manage own-church transportation |  |  |  | C | C |  | C |  | ✓ |
 | Award achievements |  |  |  | C | C | C | C |  | ✓ |
@@ -145,8 +146,10 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
 - **`ziyon_notifications`**: `read` if signed-in and the doc’s `topic`
   is `campzone_announcements`, the user’s own role topic, the user’s
   direct topic `campzone_user_<uid>`, or (admin) any role topic. Camping
-  and team topics are readable only when the user’s notification settings
-  include the corresponding camping/team id. `create/update/delete: false`
+  topics require a direct registration or an effective camping-management
+  capability; team topics require membership or team/chat management.
+  Scoped listeners must query the matching `campingID`/`role`/`teamID`
+  fields so Rules can prove that access. `create/update/delete: false`
   (backend-only).
 - **`campings/{id}`**: `read` public (`true`). `create` by admin or
   own-church youth_director/pastor whose proposed `organizerLevel`
@@ -159,8 +162,9 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
   `canEditCamping(current)`, while Save also validates the proposed
   organizer through `canSaveCamping`. The Home featured pin writes only
   `{ isFeatured, updatedAt }` through a dedicated merge path and is surfaced
-  only behind `canManageAnyCamping`; regular camping saves never include
-  `isFeatured`.
+  only to admins through `canPinFeaturedCamping`; non-admin camping updates
+  are forbidden from changing `isFeatured`, and regular camping saves never
+  include it.
   - `schedule/**`, `days/**`, `programs/**`: `read` public; write
     `canManageSchedule`.
   - `songs`: `read` public; write **admin only**.
@@ -179,7 +183,9 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
       OR moderator. `delete` admin.
   - `games`: `read` signed-in; write `canManageGames`.
   - `activities`: `read` `canManageGames` OR `canRevealWinners` OR
-    (approved participant AND `visibility=="immediate"`). `create`
+    (approved participant AND (`visibility=="immediate"` OR the winner
+    reveal has fired)). Participant queries must filter to `immediate` before
+    reveal and may read the full ledger afterward. `create`
     `canAssignPoints` AND `campingID==path` AND `createdBy==auth.uid`.
     `update: false` (immutable). `delete` `canManageGames`.
   - `registrations`: `read` if signed-in AND
@@ -211,7 +217,8 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
     album-manager OR (approved participant AND `uploaderID==auth.uid`
     AND `albumSettings/default.allowedUploadRoles` contains the user’s
     role). `update`/`delete` album-manager OR uploader.
-  - `albumSettings`: `read` signed-in; `write` `canManageAlbumMedia`.
+  - `albumSettings`: `read` signed-in; `write` scoped
+    `canManageAlbumSettings` (admin, youth director, pastor, or leader).
   - `foodMenu`: `read` signed-in; write `canManageFoodMenu`
     (== schedule manager).
   - `polls`: `read` poll-manager OR approved participant. write

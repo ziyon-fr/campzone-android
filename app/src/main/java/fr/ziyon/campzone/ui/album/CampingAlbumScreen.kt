@@ -7,6 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +67,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import fr.ziyon.campzone.R
@@ -88,6 +92,7 @@ fun CampingAlbumRoute(
     authenticatedUser: AuthenticatedUser,
     canViewAlbum: Boolean,
     canManageAlbum: Boolean,
+    canManageAlbumSettings: Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AlbumViewModel = hiltViewModel(),
@@ -106,6 +111,7 @@ fun CampingAlbumRoute(
         uiState = uiState,
         canViewAlbum = canViewAlbum,
         canManageAlbum = canManageAlbum,
+        canManageAlbumSettings = canManageAlbumSettings,
         isUploading = isUploading,
         operationMessage = operationMessage,
         onBack = onBack,
@@ -126,6 +132,7 @@ fun CampingAlbumScreen(
     uiState: AlbumUiState,
     canViewAlbum: Boolean,
     canManageAlbum: Boolean,
+    canManageAlbumSettings: Boolean,
     isUploading: Boolean,
     operationMessage: String?,
     onBack: () -> Unit,
@@ -166,7 +173,7 @@ fun CampingAlbumScreen(
                     }
                 },
                 actions = {
-                    if (canManageAlbum) {
+                    if (canManageAlbumSettings) {
                         IconButton(onClick = { showSettings = true }) {
                             Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.album_permissions))
                         }
@@ -228,31 +235,136 @@ fun CampingAlbumScreen(
     }
 
     selectedItem?.let { item ->
-        MediaDetailDialog(
-            item = item,
-            canDelete = canManageAlbum || item.uploaderId == authenticatedUser.uid,
-            canEdit = canManageAlbum || item.uploaderId == authenticatedUser.uid,
+        val media = (uiState as? AlbumUiState.Loaded)?.media.orEmpty()
+        FullScreenGalleryDialog(
+            media = media,
+            initialItemId = item.id,
+            currentUserId = authenticatedUser.uid,
+            canManageAlbum = canManageAlbum,
             onDismiss = { selectedItem = null },
-            onOpenExternal = {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.secureUrl)))
+            onOpenExternal = { current ->
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(current.secureUrl)))
             },
-            onDelete = {
-                onDelete(campingId, item.id)
+            onDelete = { current ->
+                onDelete(campingId, current.id)
                 selectedItem = null
             },
-            onUpdateCaption = { caption ->
-                onUpdateCaption(campingId, item.id, caption)
-                selectedItem = item.copy(caption = caption.trim())
+            onUpdateCaption = { current, caption ->
+                onUpdateCaption(campingId, current.id, caption)
             },
         )
     }
 
-    if (showSettings) {
+    if (showSettings && canManageAlbumSettings) {
         AlbumSettingsDialog(
             settings = settings,
             onDismiss = { showSettings = false },
             onSetRoleAllowed = { role, allowed -> onSetRoleAllowed(campingId, role, allowed) },
         )
+    }
+}
+
+@Composable
+private fun FullScreenGalleryDialog(
+    media: List<MediaItem>,
+    initialItemId: String,
+    currentUserId: String,
+    canManageAlbum: Boolean,
+    onDismiss: () -> Unit,
+    onOpenExternal: (MediaItem) -> Unit,
+    onDelete: (MediaItem) -> Unit,
+    onUpdateCaption: (MediaItem, String) -> Unit,
+) {
+    if (media.isEmpty()) return
+    val initialPage = media.indexOfFirst { it.id == initialItemId }.coerceAtLeast(0)
+    val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { media.size })
+    val current = media[pagerState.currentPage.coerceIn(media.indices)]
+    val canEdit = canManageAlbum || current.uploaderId == currentUserId
+    var caption by remember(current.id) { mutableStateOf(current.caption) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .padding(top = CzSpacing.lg, bottom = CzSpacing.lg),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = CzSpacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.common_close), tint = Color.White)
+                }
+                Text(
+                    text = "${pagerState.currentPage + 1} / ${media.size}",
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { onOpenExternal(current) }) {
+                    Text(stringResource(R.string.common_open), color = Color.White)
+                }
+            }
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                key = { media[it].id },
+            ) { page ->
+                val item = media[page]
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    AsyncImage(
+                        model = if (item.kind == MediaKind.Video) item.thumbnailUrl ?: item.secureUrl else item.secureUrl,
+                        contentDescription = item.caption.ifBlank { stringResource(R.string.album_media_cd) },
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit,
+                    )
+                    if (item.kind == MediaKind.Video) {
+                        IconButton(onClick = { onOpenExternal(item) }, modifier = Modifier.size(72.dp)) {
+                            Icon(Icons.Rounded.PlayCircle, null, tint = Color.White, modifier = Modifier.fillMaxSize())
+                        }
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = CzSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                Text(
+                    text = stringResource(R.string.album_uploaded_by, current.uploaderName),
+                    color = Color.White.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (canEdit) {
+                    OutlinedTextField(
+                        value = caption,
+                        onValueChange = { caption = it },
+                        label = { Text(stringResource(R.string.album_caption)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                        TextButton(onClick = { onUpdateCaption(current, caption.trim()) }) {
+                            Icon(Icons.Rounded.Edit, null)
+                            Text(stringResource(R.string.common_save))
+                        }
+                        TextButton(onClick = { onDelete(current) }) {
+                            Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.czColors.error)
+                            Text(stringResource(R.string.common_delete), color = MaterialTheme.czColors.error)
+                        }
+                    }
+                } else if (current.caption.isNotBlank()) {
+                    Text(current.caption, color = Color.White)
+                }
+            }
+        }
     }
 }
 
@@ -515,6 +627,7 @@ private fun CampingAlbumPreview() {
             ),
             canViewAlbum = true,
             canManageAlbum = true,
+            canManageAlbumSettings = true,
             isUploading = false,
             operationMessage = null,
             onBack = {},

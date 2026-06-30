@@ -2,6 +2,7 @@ package fr.ziyon.campzone.data.camping
 
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
+import fr.ziyon.campzone.data.model.CampingPublicationStatus
 import fr.ziyon.campzone.data.model.WinnerRevealPolicy
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
@@ -74,13 +75,16 @@ class FakeCampingService(
         campings.value.firstOrNull { it.id == id }?.let(::withAttendees)
 
     override suspend fun fetchCamping(id: String): Camping =
-        campings.value.firstOrNull { it.id == id }?.let(::withAttendees) ?: error("Camping not found")
+        campings.value.firstOrNull { it.id == id }?.let(::withAttendees)
+            ?: throw CampingNotFoundException()
 
     override fun observeCamping(id: String): Flow<Camping> =
         if (shouldFail) {
             flow { throw RuntimeException("Stream failed") }
         } else {
-            campings.map { list -> list.firstOrNull { it.id == id } ?: error("Camping not found") }
+            campings.map { list ->
+                list.firstOrNull { it.id == id } ?: throw CampingNotFoundException()
+            }
         }
 
     override suspend fun loadAttendees(campingId: String): List<CampingAttendee> {
@@ -116,6 +120,16 @@ class FakeCampingService(
         if (shouldFail) error("Featured update failed")
         featuredUpdates += campingId to isFeatured
         val updated = fetchCamping(campingId).copy(isFeatured = isFeatured)
+        campings.value = campings.value.map { if (it.id == campingId) updated else it }
+        return updated
+    }
+
+    override suspend fun updatePublicationStatus(
+        campingId: String,
+        status: CampingPublicationStatus,
+    ): Camping {
+        if (shouldFail) error("Publication update failed")
+        val updated = fetchCamping(campingId).copy(publicationStatus = status)
         campings.value = campings.value.map { if (it.id == campingId) updated else it }
         return updated
     }

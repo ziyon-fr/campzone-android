@@ -1,9 +1,18 @@
 package fr.ziyon.campzone.ui.songbook
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -27,13 +36,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.SlowMotionVideo
@@ -66,9 +78,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -84,6 +104,7 @@ import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.ChordLine
 import fr.ziyon.campzone.data.model.Song
+import fr.ziyon.campzone.data.model.SongAudio
 import fr.ziyon.campzone.data.model.SongLyricsPart
 import fr.ziyon.campzone.data.model.SongLyricsPartKind
 import kotlinx.coroutines.delay
@@ -105,8 +126,12 @@ fun SongDetailRoute(
 ) {
     val canManage by viewModel.canManageSongbook.collectAsState()
     val playingSongId by viewModel.playingSongId.collectAsState()
+    val playingAudioId by viewModel.playingAudioId.collectAsState()
     val isAudioPlaying by viewModel.isAudioPlaying.collectAsState()
+    val playbackPositionMs by viewModel.playbackPositionMs.collectAsState()
+    val playbackDurationMs by viewModel.playbackDurationMs.collectAsState()
     val song = viewModel.songById(songId, campingId)
+    val isActive = playingSongId == songId
 
     LaunchedEffect(campingId, authenticatedUser.uid) {
         viewModel.loadIfNeeded(campingId, authenticatedUser)
@@ -115,7 +140,11 @@ fun SongDetailRoute(
     SongDetailScreen(
         song = song,
         userId = authenticatedUser.uid,
-        isPlaying = playingSongId == songId && isAudioPlaying,
+        isActive = isActive,
+        isPlaying = isActive && isAudioPlaying,
+        playingAudioId = playingAudioId.takeIf { playingSongId == songId },
+        playbackPositionMs = playbackPositionMs.takeIf { isActive } ?: 0L,
+        playbackDurationMs = playbackDurationMs.takeIf { isActive } ?: 0L,
         canManage = canManage,
         onBack = onBack,
         onEdit = {
@@ -136,6 +165,10 @@ fun SongDetailRoute(
         onToggleAudio = {
             song?.let(viewModel::toggleAudio)
         },
+        onPlayTrack = { track ->
+            song?.let { viewModel.playAudio(it, track) }
+        },
+        onSeekAudio = viewModel::seekAudioTo,
     )
 }
 
@@ -144,7 +177,11 @@ fun SongDetailRoute(
 fun SongDetailScreen(
     song: Song?,
     userId: String?,
+    isActive: Boolean,
     isPlaying: Boolean,
+    playingAudioId: String?,
+    playbackPositionMs: Long,
+    playbackDurationMs: Long,
     canManage: Boolean,
     onBack: () -> Unit,
     onEdit: () -> Unit,
@@ -152,6 +189,8 @@ fun SongDetailScreen(
     onPin: () -> Unit,
     onToggleFavorite: () -> Unit,
     onToggleAudio: () -> Unit,
+    onPlayTrack: (SongAudio) -> Unit,
+    onSeekAudio: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
@@ -221,6 +260,34 @@ fun SongDetailScreen(
                                     onToggleFavorite()
                                 },
                             )
+                            if (song.hasAlternativeAudio) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.songbook_voice_kits), fontWeight = FontWeight.SemiBold) },
+                                    leadingIcon = { Icon(Icons.Rounded.QueueMusic, null) },
+                                    enabled = false,
+                                    onClick = {},
+                                )
+                                song.orderedAudioFiles.forEach { track ->
+                                    val selected = playingAudioId == track.id
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                track.displayName.ifBlank { stringResource(track.trackType.displayNameRes) },
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                if (selected) Icons.Rounded.Check else Icons.Rounded.PlayArrow,
+                                                contentDescription = null,
+                                            )
+                                        },
+                                        onClick = {
+                                            menuOpen = false
+                                            onPlayTrack(track)
+                                        },
+                                    )
+                                }
+                            }
                             if (song.youtubeLink.isNotBlank()) {
                                 DropdownMenuItem(text = { Text(stringResource(R.string.songbook_watch_youtube)) }, leadingIcon = { Icon(Icons.Rounded.SlowMotionVideo, null) }, onClick = {
                                     menuOpen = false
@@ -280,8 +347,17 @@ fun SongDetailScreen(
             ) {
                 SongDetailHeader(
                     song = song,
+                    isActive = isActive,
                     isPlaying = isPlaying,
+                    nowPlayingLabel = song.orderedAudioFiles
+                        .firstOrNull { it.id == playingAudioId }
+                        ?.let { track ->
+                            track.displayName.ifBlank { stringResource(track.trackType.displayNameRes) }
+                        },
+                    playbackPositionMs = playbackPositionMs,
+                    playbackDurationMs = playbackDurationMs,
                     onPlay = onToggleAudio,
+                    onSeek = onSeekAudio,
                     modifier = Modifier.padding(horizontal = CzSpacing.lg, vertical = CzSpacing.md),
                 )
 
@@ -339,57 +415,242 @@ private fun availableDisplayModes(song: Song): List<SongDisplayMode> = buildList
 @Composable
 private fun SongDetailHeader(
     song: Song,
+    isActive: Boolean,
     isPlaying: Boolean,
+    nowPlayingLabel: String?,
+    playbackPositionMs: Long,
+    playbackDurationMs: Long,
     onPlay: () -> Unit,
+    onSeek: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
+            .shadow(16.dp, RoundedCornerShape(CzRadius.xxl), clip = false)
             .clip(RoundedCornerShape(CzRadius.xxl))
-            .background(Brush.linearGradient(listOf(colors.espresso, colors.espressoDeep)))
+            .background(
+                Brush.linearGradient(
+                    listOf(colors.espresso, colors.espressoDeep),
+                ),
+            )
             .border(BorderStroke(1.dp, Color.Black.copy(alpha = 0.20f)), RoundedCornerShape(CzRadius.xxl))
             .padding(horizontal = CzSpacing.base, vertical = 13.dp),
-        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
-            Text(
-                text = song.title,
-                style = CzTypeScale.title2.copy(fontWeight = FontWeight.Medium, fontFamily = FontFamily.Serif),
-                color = colors.cream,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (song.artist.isNotBlank()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
                 Text(
-                    text = song.artist,
-                    style = CzTypeScale.caption,
-                    color = colors.cream.copy(alpha = 0.66f),
-                    maxLines = 1,
+                    text = song.title,
+                    style = CzTypeScale.title2.copy(fontWeight = FontWeight.Medium, fontFamily = FontFamily.Serif),
+                    color = colors.cream,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                )
+                if (song.artist.isNotBlank()) {
+                    Text(
+                        text = song.artist,
+                        style = CzTypeScale.caption,
+                        color = colors.cream.copy(alpha = 0.66f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (song.hasAlternativeAudio && nowPlayingLabel != null) {
+                    Row(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(colors.cream.copy(alpha = 0.14f))
+                            .padding(horizontal = CzSpacing.sm, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.MusicNote,
+                            contentDescription = null,
+                            tint = colors.cream,
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Text(
+                            text = nowPlayingLabel,
+                            style = CzTypeScale.caption2.copy(fontWeight = FontWeight.SemiBold),
+                            color = colors.cream,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+
+            if (song.mainAudio != null) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .shadow(10.dp, CircleShape, clip = false)
+                        .clip(CircleShape)
+                        .background(colors.accent)
+                        .clickable(onClick = onPlay),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        contentDescription = stringResource(if (isPlaying) R.string.songbook_pause else R.string.songbook_play),
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = song.mainAudio != null && isActive,
+            enter = fadeIn(animationSpec = tween(180)) + expandVertically(animationSpec = tween(220)),
+            exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(animationSpec = tween(140)),
+        ) {
+            HeroPlaybackProgressBar(
+                currentTimeMs = playbackPositionMs,
+                durationMs = playbackDurationMs,
+                onSeek = onSeek,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeroPlaybackProgressBar(
+    currentTimeMs: Long,
+    durationMs: Long,
+    onSeek: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.czColors
+    val label = stringResource(R.string.songbook_playback_position)
+    val hasDuration = durationMs > 0L
+    val progress = if (hasDuration) {
+        (currentTimeMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    var widthPx by remember { mutableFloatStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+    var dragProgress by remember { mutableFloatStateOf(0f) }
+    val displayedProgress = if (isDragging) dragProgress else progress
+    val displayTimeMs = if (isDragging && hasDuration) {
+        (durationMs * dragProgress).toLong().coerceIn(0L, durationMs)
+    } else {
+        currentTimeMs
+    }
+
+    fun ratioFrom(x: Float): Float = if (widthPx > 0f) (x / widthPx).coerceIn(0f, 1f) else 0f
+    val seekModifier = if (hasDuration) {
+        Modifier
+            .pointerInput(durationMs, widthPx) {
+                detectTapGestures { offset ->
+                    onSeek(ratioFrom(offset.x))
+                }
+            }
+            .pointerInput(durationMs, widthPx, progress) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        isDragging = true
+                        dragProgress = ratioFrom(offset.x).takeIf { widthPx > 0f } ?: progress
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        dragProgress = ratioFrom(change.position.x)
+                    },
+                    onDragEnd = {
+                        onSeek(dragProgress)
+                        isDragging = false
+                    },
+                    onDragCancel = { isDragging = false },
+                )
+            }
+    } else {
+        Modifier
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+    ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .onSizeChanged { widthPx = it.width.toFloat() }
+                .semantics { contentDescription = label }
+                .then(seekModifier),
+        ) {
+            val trackHeight = 4.dp.toPx()
+            val centerY = size.height / 2f
+            val radius = trackHeight / 2f
+            val knobRadius = (if (isDragging) 15.dp else 11.dp).toPx() / 2f
+            val knobCenterX = if (size.width > knobRadius * 2f) {
+                (size.width * displayedProgress).coerceIn(knobRadius, size.width - knobRadius)
+            } else {
+                size.width * displayedProgress
+            }
+            val cream = colors.cream
+
+            drawRoundRect(
+                color = cream.copy(alpha = 0.16f),
+                topLeft = Offset(0f, centerY - radius),
+                size = Size(size.width, trackHeight),
+                cornerRadius = CornerRadius(radius, radius),
+            )
+            if (hasDuration) {
+                val fillWidth = (size.width * displayedProgress).coerceIn(0f, size.width)
+                drawRoundRect(
+                    color = cream.copy(alpha = 0.92f),
+                    topLeft = Offset(0f, centerY - radius),
+                    size = Size(fillWidth, trackHeight),
+                    cornerRadius = CornerRadius(radius, radius),
+                )
+                drawCircle(
+                    color = Color.Black.copy(alpha = 0.25f),
+                    radius = knobRadius,
+                    center = Offset(knobCenterX, centerY + 1.dp.toPx()),
+                )
+                drawCircle(
+                    color = cream,
+                    radius = knobRadius,
+                    center = Offset(knobCenterX, centerY),
                 )
             }
         }
 
-        if (song.audio != null) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(colors.accent)
-                    .clickable(onClick = onPlay),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    contentDescription = stringResource(if (isPlaying) R.string.songbook_pause else R.string.songbook_play),
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            val timeStyle = CzTypeScale.caption2.copy(fontFamily = FontFamily.Monospace)
+            Text(
+                text = playbackTimeString(displayTimeMs),
+                style = timeStyle,
+                color = colors.cream.copy(alpha = 0.66f),
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = if (hasDuration) playbackTimeString(durationMs) else "--:--",
+                style = timeStyle,
+                color = colors.cream.copy(alpha = 0.66f),
+            )
         }
+    }
+}
+
+private fun playbackTimeString(milliseconds: Long): String {
+    val totalSeconds = ((milliseconds.coerceAtLeast(0L) + 500L) / 1_000L).toInt()
+    val hours = totalSeconds / 3_600
+    val minutes = (totalSeconds % 3_600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format(Locale.US, "%d:%02d", minutes, seconds)
     }
 }
 

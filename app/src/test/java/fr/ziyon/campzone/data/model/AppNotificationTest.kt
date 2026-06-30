@@ -57,6 +57,11 @@ class AppNotificationTest {
             mapOf("appID" to "campzone", "pollID" to "p1").toAppNotificationOrNull("n1")!!.kind,
         )
         assertEquals(
+            AppNotificationKind.ScheduleReminder,
+            mapOf("appID" to "campzone", "campingID" to "c1", "programID" to "program-1")
+                .toAppNotificationOrNull("n1")!!.kind,
+        )
+        assertEquals(
             AppNotificationKind.ChatMessage,
             mapOf("appID" to "campzone", "campingID" to "c1").toAppNotificationOrNull("n1")!!.kind,
         )

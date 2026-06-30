@@ -2,6 +2,14 @@ package fr.ziyon.campzone.data.model
 
 import fr.ziyon.campzone.core.permissions.UserRole
 
+/** A rules-provable Firestore listener contract for one feed topic. */
+data class NotificationTopicSubscription(
+    val topic: String,
+    val campingId: String? = null,
+    val role: String? = null,
+    val teamId: String? = null,
+)
+
 /**
  * FCM topic naming + the set of topics a given user can see in the in-app
  * feed. Ported verbatim from the iOS `AppNotification` topic helpers
@@ -65,7 +73,24 @@ object NotificationTopics {
         role: UserRole,
         settings: NotificationSettings? = null,
         userId: String? = null,
-    ): Set<String> {
+    ): Set<String> = visibleTopicSubscriptions(
+        role = role,
+        settings = settings,
+        userId = userId,
+    ).mapTo(mutableSetOf()) { it.topic }
+
+    /**
+     * Builds the exact metadata predicates Firestore rules use for each
+     * listener. A topic-only camping/team query cannot be authorized because
+     * Security Rules do not infer `campingID`, `role`, or `teamID` from topic
+     * text.
+     */
+    fun visibleTopicSubscriptions(
+        role: UserRole,
+        settings: NotificationSettings? = null,
+        userId: String? = null,
+        teamCampingIds: Map<String, String?> = emptyMap(),
+    ): Set<NotificationTopicSubscription> {
         if (settings?.isEnabled == false) return emptySet()
 
         val announcementsEnabled = settings?.announcementsEnabled ?: true
@@ -79,35 +104,88 @@ object NotificationTopics {
             settings != null && settings.subscribedRoles.isNotEmpty() -> settings.subscribedRoles
             else -> roleAudience(role)
         }
-        val roleTopics = roles.map { roleTopic(it.rawValue) }
+        val roleTopics = roles.map {
+            NotificationTopicSubscription(topic = roleTopic(it.rawValue))
+        }
 
         val campingIds = settings?.subscribedCampingIds ?: emptyList()
         val campingTopics = campingIds.flatMap { campingId ->
             buildList {
                 if (announcementsEnabled) {
-                    add(campingAnnouncement(campingId))
-                    addAll(roles.map { campingRoleAnnouncement(campingId, it.rawValue) })
+                    add(
+                        NotificationTopicSubscription(
+                            topic = campingAnnouncement(campingId),
+                            campingId = campingId,
+                        ),
+                    )
+                    addAll(roles.map {
+                        NotificationTopicSubscription(
+                            topic = campingRoleAnnouncement(campingId, it.rawValue),
+                            campingId = campingId,
+                            role = it.rawValue,
+                        )
+                    })
                 }
                 if (roleMessagesEnabled) {
-                    addAll(roles.map { campingRegistrationRole(campingId, it.rawValue) })
+                    addAll(roles.map {
+                        NotificationTopicSubscription(
+                            topic = campingRegistrationRole(campingId, it.rawValue),
+                            campingId = campingId,
+                            role = it.rawValue,
+                        )
+                    })
                 }
-                if (chatMessagesEnabled) add(campingChat(campingId))
-                if (scheduleRemindersEnabled) add(campingReminders(campingId))
+                if (chatMessagesEnabled) {
+                    add(
+                        NotificationTopicSubscription(
+                            topic = campingChat(campingId),
+                            campingId = campingId,
+                        ),
+                    )
+                }
+                if (scheduleRemindersEnabled) {
+                    add(
+                        NotificationTopicSubscription(
+                            topic = campingReminders(campingId),
+                            campingId = campingId,
+                        ),
+                    )
+                }
             }
         }
 
         val teamTopics = (settings?.subscribedTeamIds ?: emptyList()).flatMap { teamId ->
             buildList {
-                if (teamUpdatesEnabled) add(teamUpdate(teamId))
-                if (chatMessagesEnabled) add(teamChat(teamId))
+                if (teamUpdatesEnabled) {
+                    add(
+                        NotificationTopicSubscription(
+                            topic = teamUpdate(teamId),
+                            campingId = teamCampingIds[teamId],
+                            teamId = teamId,
+                        ),
+                    )
+                }
+                if (chatMessagesEnabled) {
+                    add(
+                        NotificationTopicSubscription(
+                            topic = teamChat(teamId),
+                            campingId = teamCampingIds[teamId],
+                            teamId = teamId,
+                        ),
+                    )
+                }
             }
         }
 
-        val globalTopics = if (announcementsEnabled) listOf(globalAnnouncement) else emptyList()
+        val globalTopics = if (announcementsEnabled) {
+            listOf(NotificationTopicSubscription(topic = globalAnnouncement))
+        } else {
+            emptyList()
+        }
         val directUserTopics = userId
             ?.trim()
             ?.takeUnless { it.isBlank() }
-            ?.let { listOf(userTopic(it)) }
+            ?.let { listOf(NotificationTopicSubscription(topic = userTopic(it))) }
             ?: emptyList()
         return (directUserTopics + globalTopics + roleTopics + campingTopics + teamTopics).toSet()
     }

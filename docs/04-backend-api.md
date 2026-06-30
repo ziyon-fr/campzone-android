@@ -44,7 +44,7 @@
 | GET | `/api/health` | health (firebase/firestore/fcm) |
 | POST | `/notifications/devices` | register/refresh FCM token + topic subscriptions |
 | POST | `/notifications/settings` | save notification settings + re-sync topics |
-| POST | `/notifications/reminders` | schedule a camp reminder (leadership) |
+| POST | `/notifications/reminders` | schedule/replace program reminders (leadership) |
 | GET | `/api/notifications/reminders` | cron: dispatch due reminders (`CRON_SECRET`) |
 | POST | `/notifications/dispatch/announcement` | push + feed: announcement |
 | POST | `/notifications/dispatch/chat` | push + feed: chat message |
@@ -111,7 +111,45 @@ Body mirrors the settings doc (`02` §2.3): `appID`, `isEnabled`,
 `subscribedRoleRawValues` defaults to `[req.user.role]`. The backend
 re-derives topics for every token of the user and re-subscribes.
 
-### 3.4 Dispatch endpoints (push + `ziyon_notifications` feed record)
+### 3.4 `POST /notifications/reminders`
+
+This endpoint stores backend-dispatched schedule reminders. It preserves the
+legacy single-reminder body, but clients should use replacement actions so stale
+rows are cancelled when reminder timing, program details, or deletions change.
+
+Legacy single reminder:
+
+```jsonc
+{ "appID": "campzone", "id": "camp-1-program-1",
+  "campingID": "camp-1", "programID": "program-1",
+  "title": "Worship", "body": "Worship starts in 15 minutes at Main tent.",
+  "fireDate": "2026-08-03T09:45:00.000Z",
+  "targetTopic": "campzone_camping_reminders_camp-1" }
+```
+
+Replace every pending reminder for a camping:
+
+```jsonc
+{ "action": "replaceCamping", "appID": "campzone", "campingID": "camp-1",
+  "reminders": [ { /* same reminder fields as above */ } ] }
+```
+
+Replace only specific programs:
+
+```jsonc
+{ "action": "replacePrograms", "appID": "campzone", "campingID": "camp-1",
+  "programIDs": ["program-1"],
+  "reminders": [ { /* same reminder fields as above */ } ] }
+```
+
+Replacement cancels matching scheduled rows by `appID` + `campingID` and,
+for `replacePrograms`, by `programID`. Cancelled rows are kept with
+`status:"cancelled"` so the due-reminder cron only sends `status:"scheduled"`.
+Going forward reminder ids should be stable by camping/program
+(`campingID-programID`) and reminders include `programID`; feed rows and push
+payloads use it to open the program detail route.
+
+### 3.5 Dispatch endpoints (push + `ziyon_notifications` feed record)
 
 All take `{ "appID": "campzone", ... }`. The backend sends an FCM **topic**
 message **and** appends a record to the `ziyon_notifications` collection
@@ -124,10 +162,15 @@ to any signed-in registrant.
 - `dispatch/announcement` - `{ announcementID, title, body,
   target?: { campingID?, role?, teamID? } }`. Topic =
   target-specific or global `campzone_announcements`.
-- `dispatch/chat` - `{ campingID, messageID, teamID? }`. The backend
-  loads the chat message, verifies `senderID == caller` and not deleted,
-  pushes to `campzone_camping_chat_<campingID>` (or
-  `campzone_team_chat_<teamID>`).
+- `dispatch/chat` - `{ campingID, messageID, teamID?, replyToMessageID?,
+  replyToSenderID?, replyToSenderName? }`. The backend loads the chat
+  message, verifies `senderID == caller` and not deleted, pushes to
+  `campzone_camping_chat_<campingID>` (or `campzone_team_chat_<teamID>`),
+  and uses the persisted `replyTo` map (payload fields are fallback only) to
+  render reply-aware copy and send an extra direct-user notification/feed row
+  to the original author when appropriate. `dispatch/chatMention` also honors
+  reply targeting, but suppresses the extra direct reply notification when the
+  original author already receives the mention.
 - `dispatch/poll` - `{ campingID, pollID, title, body, event:
   "created"|"closed"|"reopened" }`. Topic `campzone_camping_<campingID>`.
 - `dispatch/team` - `{ campingID, teamID, teamName, title, body,
@@ -154,7 +197,7 @@ to any signed-in registrant.
   `recipientUserID`, and a camping deep link so old clients still open
   the camping detail.
 
-### 3.5 Topic naming
+### 3.6 Topic naming
 
 `_topic(appID, scope, value)` = `[appID, scope, value]` filtered, each
 part sanitized (`[^A-Za-z0-9-_.~%] → "_"`), joined by `_`. Resulting
@@ -176,7 +219,13 @@ topics). FCM topic subscription (what actually delivers a push) is
 driven by the saved notification settings via `/notifications/devices`
 and `/notifications/settings`.
 
-### 3.6 In-app feed records
+Firestore feed listeners must be rules-provable: all use `topic == ...`;
+camping topics also constrain `campingID`, camping-role topics constrain both
+`campingID` and `role`, and team topics constrain `teamID` plus `campingID`
+for non-admin viewers. A topic-only scoped listener is denied because Rules
+cannot infer metadata fields from the topic text.
+
+### 3.7 In-app feed records
 
 Backend writes to `ziyon_notifications` with: `appID`, `kind`
 (`announcement`/`badge`/`chat_message`/`poll`/`team_update`/`registration`),

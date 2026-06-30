@@ -24,11 +24,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun FeaturedMountainBackground(modifier: Modifier = Modifier) {
+fun FeaturedMountainBackground(
+    modifier: Modifier = Modifier,
+    opacity: Float = 0.15f,
+) {
     Canvas(
         modifier = modifier
             // Low opacity to act as a background watermark
-            .alpha(0.15f)
+            .alpha(opacity.coerceIn(0f, 1f))
             // Slight offset to bleed off the edge of the card
             .offset(y = 10.dp)
     ) {

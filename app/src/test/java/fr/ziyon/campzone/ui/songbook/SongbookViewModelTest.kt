@@ -8,6 +8,7 @@ import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.Song
+import fr.ziyon.campzone.data.model.SongAudioTrackType
 import fr.ziyon.campzone.data.model.SongLyricsPart
 import fr.ziyon.campzone.data.model.SongLyricsPartKind
 import fr.ziyon.campzone.data.songbook.FakeSongbookService
@@ -192,6 +193,57 @@ class SongbookViewModelTest {
             "Choose a supported audio file: MP3, M4A, AAC, or WAV.",
             viewModel.operationError.value,
         )
+    }
+
+    @Test
+    fun audioTakesGetUniqueVoiceKitTypes() = runTest {
+        val viewModel = viewModel()
+        viewModel.prepareNewSong(campingId)
+
+        viewModel.addPendingAudio("main.mp3", "audio/mpeg", "a".toByteArray())
+        viewModel.addPendingAudio("backing.mp3", "audio/mpeg", "b".toByteArray())
+        viewModel.addPendingAudio("tenor.mp3", "audio/mpeg", "c".toByteArray())
+        val ids = viewModel.form.value.pendingAudioFiles.map { it.id }
+
+        assertEquals(
+            listOf(SongAudioTrackType.MainSong, SongAudioTrackType.Playback, SongAudioTrackType.Instrumental),
+            viewModel.form.value.pendingAudioFiles.map { it.trackType },
+        )
+        assertTrue(viewModel.updateAudioTrackType(ids[2], SongAudioTrackType.Tenor))
+        assertFalse(viewModel.updateAudioTrackType(ids[1], SongAudioTrackType.Tenor))
+        assertEquals(SongAudioTrackType.Playback, viewModel.form.value.pendingAudioFiles[1].trackType)
+    }
+
+    @Test
+    fun otherVoiceKitsAllowCustomNamesAndMainRemovalPromotesNext() = runTest {
+        val viewModel = viewModel()
+        viewModel.prepareNewSong(campingId)
+        viewModel.addPendingAudio("main.mp3", "audio/mpeg", "a".toByteArray())
+        viewModel.addPendingAudio("demo.mp3", "audio/mpeg", "b".toByteArray())
+        val mainId = viewModel.form.value.pendingAudioFiles.first().id
+        val demoId = viewModel.form.value.pendingAudioFiles.last().id
+
+        assertTrue(viewModel.updateAudioTrackType(demoId, SongAudioTrackType.Other, "Click track"))
+        assertEquals("Click track", viewModel.form.value.pendingAudioFiles.last().displayName)
+
+        viewModel.removeAudio(mainId)
+
+        assertEquals(SongAudioTrackType.MainSong, viewModel.form.value.pendingAudioFiles.single().trackType)
+        assertEquals("", viewModel.form.value.pendingAudioFiles.single().displayName)
+    }
+
+    @Test
+    fun remoteAudioValidatesDeduplicatesAndOpensVoiceKitEditor() = runTest {
+        val viewModel = viewModel()
+        viewModel.prepareNewSong(campingId)
+
+        assertFalse(viewModel.addRemoteAudio("not-a-url"))
+        assertTrue(viewModel.addRemoteAudio("https://cdn.example.org/audio/main.mp3"))
+        val attached = viewModel.form.value.existingAudioFiles.single()
+        assertEquals("main.mp3", attached.fileName)
+        assertEquals(SongAudioTrackType.MainSong, attached.trackType)
+        assertEquals(attached.id, viewModel.trackTypeEditorAudioId.value)
+        assertFalse(viewModel.addRemoteAudio("https://cdn.example.org/audio/main.mp3"))
     }
 
     @Test

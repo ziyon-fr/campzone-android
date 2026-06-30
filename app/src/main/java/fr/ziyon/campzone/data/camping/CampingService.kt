@@ -15,6 +15,7 @@ import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.CampingAttendeePayload
 import fr.ziyon.campzone.data.model.CampingPayload
+import fr.ziyon.campzone.data.model.CampingPublicationStatus
 import fr.ziyon.campzone.data.model.CampingTemplateCloneDayOffset
 import fr.ziyon.campzone.data.model.CampingTemplateCloneRequest
 import fr.ziyon.campzone.data.model.DateKeys
@@ -97,6 +98,9 @@ interface CampingService {
     /** Home pin path - writes only `{ isFeatured, updatedAt }` as a merge. */
     suspend fun setFeatured(campingId: String, isFeatured: Boolean): Camping
 
+    /** Visibility lifecycle path - writes only `{ publicationStatus, updatedAt }`. */
+    suspend fun updatePublicationStatus(campingId: String, status: CampingPublicationStatus): Camping
+
     /**
      * Creates a fresh camping from reusable setup content: schedule, team
      * shells, songbook, and guidelines. Live camp data is intentionally reset.
@@ -145,6 +149,9 @@ interface CampingService {
         campingId: String,
     ): Camping
 }
+
+/** A live camping document was confirmed absent by Firestore. */
+class CampingNotFoundException : NoSuchElementException()
 
 private class FirestoreTemplateCloneBatch(
     private val firestore: FirebaseFirestore,
@@ -250,12 +257,10 @@ class FirebaseCampingService @Inject constructor(
             observeRegistrationCampingIds(
                 field = UserId,
                 userId = uid,
-                approvedOnly = true,
             ),
             observeRegistrationCampingIds(
                 field = GuardianId,
                 userId = uid,
-                approvedOnly = true,
             ),
         ) { owned, guardian -> owned + guardian }
     }
@@ -280,7 +285,7 @@ class FirebaseCampingService @Inject constructor(
         return snapshot.data?.toCampingOrNull(snapshot.id)
             ?.let { it.copy(attendees = loadAttendees(it.id)) }
             ?.also(::cacheCamping)
-            ?: error("Camping could not be found.")
+            ?: throw CampingNotFoundException()
     }
 
     override fun observeCamping(id: String): Flow<Camping> = callbackFlow {
@@ -288,6 +293,10 @@ class FirebaseCampingService @Inject constructor(
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     close(error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null && !snapshot.exists() && !snapshot.metadata.isFromCache) {
+                    close(CampingNotFoundException())
                     return@addSnapshotListener
                 }
                 val camping = snapshot?.data?.toCampingOrNull(snapshot.id)
@@ -335,19 +344,22 @@ class FirebaseCampingService @Inject constructor(
     private fun observeRegistrationCampingIds(
         field: String,
         userId: String,
-        approvedOnly: Boolean,
     ): Flow<Set<String>> = callbackFlow {
-        var query: Query = firestore.collectionGroup(Registrations)
+        // Keep this query to a single ownership predicate. Adding
+        // `registrationStatus == approved` requires a composite index that is
+        // not present in production, while the ownership-only shape is already
+        // provable by the registrations read rule. Filter approval locally.
+        val query: Query = firestore.collectionGroup(Registrations)
             .whereEqualTo(field, userId)
-        if (approvedOnly) {
-            query = query.whereEqualTo(RegistrationStatus, RegistrationApprovalStatus.Approved.wireValue)
-        }
         val registration = query.addSnapshotListener { snapshot, error ->
             if (error != null) {
                 close(error)
                 return@addSnapshotListener
             }
             val campingIds = snapshot?.documents
+                ?.filter { document ->
+                    document.getString(RegistrationStatus) == RegistrationApprovalStatus.Approved.wireValue
+                }
                 ?.mapNotNull { document -> document.reference.parent.parent?.id }
                 ?.toSet()
                 .orEmpty()
@@ -433,6 +445,19 @@ class FirebaseCampingService @Inject constructor(
         return fetchCamping(campingId)
     }
 
+    override suspend fun updatePublicationStatus(
+        campingId: String,
+        status: CampingPublicationStatus,
+    ): Camping {
+        campings().document(campingId)
+            .set(
+                CampingPayload.publicationPayload(status, FieldValue.serverTimestamp()),
+                SetOptions.merge(),
+            )
+            .await()
+        return fetchCamping(campingId)
+    }
+
     override suspend fun cloneCampingTemplate(request: CampingTemplateCloneRequest): Camping {
         val sourceSnapshot = campings().document(request.sourceCampingId).get().await()
         val source = sourceSnapshot.data?.toCampingOrNull(sourceSnapshot.id)
@@ -510,10 +535,30 @@ class FirebaseCampingService @Inject constructor(
         }
 
         val registrations = campingDocument.collection(Registrations)
-        val existingRegistrationSnapshot = registrations.get().await()
-        val existingIds = existingRegistrationSnapshot.documents.map { it.id }.toSet()
-        val approvedCount = existingRegistrationSnapshot.documents.count {
-            it.getString("registrationStatus") == RegistrationApprovalStatus.Approved.wireValue
+
+        // A blanket registration list is denied to a first-time participant.
+        // Query only the ownership arms Firestore rules can prove. Failed
+        // duplicate reads are safe because stable participant ids plus merge
+        // writes make a repeated submission idempotent.
+        val existingIds = buildSet {
+            runCatching {
+                registrations.whereEqualTo("userID", user.uid).get().await()
+            }.getOrNull()?.documents?.mapTo(this) { it.id }
+            runCatching {
+                registrations.whereEqualTo("guardianID", user.uid).get().await()
+            }.getOrNull()?.documents?.mapTo(this) { it.id }
+        }
+
+        // Use an exact count when the caller may read approved registrations;
+        // first-time participants fall back to the maintained parent counter.
+        val approvedCount = runCatching {
+            registrations
+                .whereEqualTo("registrationStatus", RegistrationApprovalStatus.Approved.wireValue)
+                .get()
+                .await()
+                .size()
+        }.getOrElse {
+            campingSnapshot.getLong("registrationsCount")?.toInt() ?: 0
         }
         val waitlistNewRegistrations = camping.participantCapacity?.let { approvedCount >= it } ?: false
 
@@ -869,6 +914,9 @@ class FirebaseCampingService @Inject constructor(
             emergencyContactName = participant.emergencyContactName,
             emergencyContactPhone = participant.emergencyContactPhone,
             medicalNotes = participant.medicalNotes,
+            allergies = if (isSelfRegistration) user.allergies else participant.allergies,
+            relationship = if (isSelfRegistration) null else participant.relationship,
+            customRelationshipLabel = if (isSelfRegistration) null else participant.customRelationshipLabel,
             guardianConsentAt = participant.guardianConsentAt,
             transportationChoice = submission.transportationChoice,
             transportationBookingId = bookingId,
@@ -941,8 +989,9 @@ class PreviewCampingService(private val camping: Camping? = null) : CampingServi
                 .orEmpty(),
         )
     override fun cachedCamping(id: String) = camping?.takeIf { it.id == id }
-    override suspend fun fetchCamping(id: String) = camping ?: error("No camping")
-    override fun observeCamping(id: String) = kotlinx.coroutines.flow.flowOf(camping ?: error("No camping"))
+    override suspend fun fetchCamping(id: String) = camping ?: throw CampingNotFoundException()
+    override fun observeCamping(id: String) =
+        kotlinx.coroutines.flow.flowOf(camping ?: throw CampingNotFoundException())
     override suspend fun loadAttendees(campingId: String) = emptyList<fr.ziyon.campzone.data.model.CampingAttendee>()
     override suspend fun saveCamping(camping: Camping) = camping
     override suspend fun cancelCamping(id: String) = camping ?: error("No camping")
@@ -951,6 +1000,8 @@ class PreviewCampingService(private val camping: Camping? = null) : CampingServi
         camping?.copy(guidelines = body) ?: error("No camping")
     override suspend fun setFeatured(campingId: String, isFeatured: Boolean) =
         camping?.copy(isFeatured = isFeatured) ?: error("No camping")
+    override suspend fun updatePublicationStatus(campingId: String, status: CampingPublicationStatus) =
+        camping?.copy(publicationStatus = status) ?: error("No camping")
     override suspend fun cloneCampingTemplate(request: CampingTemplateCloneRequest) =
         camping?.templateClone(request) ?: error("No camping")
     override suspend fun updateWinnerReveal(campingId: String, policy: WinnerRevealPolicy) =

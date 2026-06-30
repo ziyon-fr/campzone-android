@@ -227,6 +227,7 @@ sealed interface FeedbackResultsUiState {
 
     data class Loaded(
         val campTitle: String,
+        val campLogoUrl: String?,
         val responseCount: Int,
         val averageOverall: Double,
         val wouldReturnPercent: Int,
@@ -266,15 +267,16 @@ class FeedbackResultsViewModel @Inject constructor(
 
         viewModelScope.launch {
             runCatching {
-                val title = campingService.fetchCamping(campingId).title
+                val camping = campingService.fetchCamping(campingId)
                 val responses = feedbackService.loadAllFeedback(campingId)
-                title to responses
-            }.onSuccess { (title, responses) ->
+                camping to responses
+            }.onSuccess { (camping, responses) ->
                 _uiState.value = if (responses.isEmpty()) {
-                    FeedbackResultsUiState.Empty(title)
+                    FeedbackResultsUiState.Empty(camping.title)
                 } else {
                     FeedbackResultsUiState.Loaded(
-                        campTitle = title,
+                        campTitle = camping.title,
+                        campLogoUrl = camping.logoUrl,
                         responseCount = responses.size,
                         averageOverall = averageOverall(responses),
                         wouldReturnPercent = wouldReturnPercent(responses),

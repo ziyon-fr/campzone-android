@@ -106,6 +106,7 @@ fun Camping.templateClone(
         startDate = request.startDate,
         endDate = request.endDate,
         registrationStatus = request.registrationStatus,
+        publicationStatus = CampingPublicationStatus.Draft,
         attendees = emptyList(),
         guidelines = if (request.options.includeGuidelines) guidelines else "",
         createdByUid = null,

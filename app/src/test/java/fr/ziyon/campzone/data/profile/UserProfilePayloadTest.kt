@@ -23,6 +23,7 @@ class UserProfilePayloadTest {
         assertEquals("female", payload["gender"])
         assertEquals("Paris Central SDA", payload["church"])
         assertEquals(listOf("Singing", "First Aid"), payload["skills"])
+        assertEquals(listOf("peanuts", "Kiwi"), payload["allergies"])
         assertEquals("Designer", payload["profession"])
         assertEquals("Bachelor", payload["education"])
         assertEquals("Guide", payload["pathfinderRank"])
@@ -93,6 +94,7 @@ class UserProfilePayloadTest {
         assertEquals("youth", attendee["ageGroup"])
         assertEquals("female", attendee["gender"])
         assertEquals(listOf("fr", "pt"), attendee["languages"])
+        assertEquals(listOf("peanuts", "Kiwi"), attendee["allergies"])
         assertEquals("https://cdn.example/avatar.jpg", participant["photoURL"])
         assertEquals("Lea Camper", chat["senderName"])
         assertEquals("female", chat["senderGender"])
@@ -145,6 +147,7 @@ class UserProfilePayloadTest {
             gender = UserGender.Female,
             church = " Paris Central SDA ",
             skills = listOf(" Singing ", "", "First Aid"),
+            allergies = listOf(" peanuts ", "Kiwi", "kiwi", ""),
             profession = " Designer ",
             education = " Bachelor ",
             pathfinderRank = " Guide ",

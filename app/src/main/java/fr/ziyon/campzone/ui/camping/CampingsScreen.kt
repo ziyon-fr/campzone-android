@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,9 +32,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.Groups
@@ -56,6 +60,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +68,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -97,11 +103,15 @@ import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.model.CampingPublicationStatus
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
+import fr.ziyon.campzone.ui.home.FeaturedMountainBackground
+import java.util.Calendar
 import java.util.Date
+import java.util.TimeZone
 import kotlin.math.max
 
 @Composable
@@ -127,6 +137,12 @@ fun CampingsRoute(
     )
     val canCreate = evaluator.canCreateAnyCamping(permissionUser)
     val canReview = evaluator.can(permissionUser, AppPermission.ApproveRegistrations)
+    val canManageAnyCamping = evaluator.canManageAnyCamping(permissionUser)
+    LaunchedEffect(authenticatedUser?.uid, authenticatedUser?.role, authenticatedUser?.church) {
+        viewModel.configureUnpublishedVisibility { camping ->
+            evaluator.canEditCamping(user = permissionUser, camping = camping.permissionContext())
+        }
+    }
     CampingsScreen(
         state = state,
         onSearchChange = viewModel::updateSearch,
@@ -141,6 +157,7 @@ fun CampingsRoute(
         canEditCamping = { camping ->
             evaluator.canEditCamping(user = permissionUser, camping = camping.permissionContext())
         },
+        canManageAnyCamping = canManageAnyCamping,
         onCreateCamping = if (canCreate) onCreateCamping else null,
         onReviewRegistrations = if (canReview) onReviewRegistrations else null,
         modifier = modifier,
@@ -156,6 +173,7 @@ fun CampingsScreen(
     onRetry: () -> Unit,
     showAdminInfo: (Camping) -> Boolean,
     canEditCamping: (Camping) -> Boolean,
+    canManageAnyCamping: Boolean,
     modifier: Modifier = Modifier,
     currentUser: AuthenticatedUser? = null,
     onRegisterCamping: (String) -> Unit = {},
@@ -165,22 +183,32 @@ fun CampingsScreen(
 ) {
     val showAdminCard = onCreateCamping != null || onReviewRegistrations != null
     var sheetCamping by remember { mutableStateOf<Camping?>(null) }
+    var showHistory by remember { mutableStateOf(false) }
     val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     Column(
         modifier = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = CzSpacing.xl, end = CzSpacing.md, top = CzSpacing.xl, bottom = CzSpacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(start = CzSpacing.xl, end = CzSpacing.md, top = CzSpacing.md, bottom = CzSpacing.sm),
         ) {
             Text(
                 text = stringResource(R.string.nav_campings),
                 color = MaterialTheme.czColors.textPrimary,
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                modifier = Modifier.align(Alignment.Center),
             )
+            if (state.historyGroups.isNotEmpty()) {
+                IconButton(onClick = { showHistory = true }, modifier = Modifier.align(Alignment.CenterEnd)) {
+                    Icon(
+                        Icons.Filled.History,
+                        contentDescription = stringResource(R.string.camping_history),
+                        tint = MaterialTheme.czColors.accent,
+                    )
+                }
+            }
         }
         CzTextField(
             value = state.searchText,
@@ -194,12 +222,22 @@ fun CampingsScreen(
         )
 
         when (val phase = state.phase) {
-            CampingsPhase.Loading -> CzLoadingView(
-                modifier = Modifier.fillMaxSize(),
-                message = stringResource(R.string.camping_loading),
-            )
+            CampingsPhase.Loading -> CampingsStateColumn(
+                showAdminCard = showAdminCard,
+                onCreateCamping = onCreateCamping,
+                onReviewRegistrations = onReviewRegistrations,
+            ) {
+                CzLoadingView(
+                    modifier = Modifier.fillMaxSize(),
+                    message = stringResource(R.string.camping_loading),
+                )
+            }
 
-            is CampingsPhase.Error -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+            is CampingsPhase.Error -> CampingsStateColumn(
+                showAdminCard = showAdminCard,
+                onCreateCamping = onCreateCamping,
+                onReviewRegistrations = onReviewRegistrations,
+            ) {
                 CzErrorState(
                     title = stringResource(R.string.camping_error_title),
                     message = phase.message,
@@ -208,7 +246,11 @@ fun CampingsScreen(
                 )
             }
 
-            is CampingsPhase.Empty -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+            is CampingsPhase.Empty -> CampingsStateColumn(
+                showAdminCard = showAdminCard,
+                onCreateCamping = onCreateCamping,
+                onReviewRegistrations = onReviewRegistrations,
+            ) {
                 if (phase.isSearchResult) {
                     CzEmptyState(
                         title = stringResource(R.string.camping_empty_search_title, phase.query),
@@ -240,15 +282,33 @@ fun CampingsScreen(
                         )
                     }
                 }
-                phase.sections.forEach { section ->
-                    item(key = "section-${section.id}") {
-                        MonthSection(
-                            section = section,
-                            currentUser = currentUser,
-                            onOpenCamping = onOpenCamping,
-                            onRequestEventSheet = { sheetCamping = it },
-                            showAdminInfo = showAdminInfo,
-                        )
+                val showPublicationGroups = canManageAnyCamping ||
+                    phase.publicationSections.any { it.status != CampingPublicationStatus.Published }
+                if (showPublicationGroups && phase.publicationSections.isNotEmpty()) {
+                    phase.publicationSections.forEach { section ->
+                        item(key = "publication-${section.id}") {
+                            PublicationSection(
+                                section = section,
+                                currentUser = currentUser,
+                                onOpenCamping = onOpenCamping,
+                                onRequestEventSheet = { sheetCamping = it },
+                                showAdminInfo = showAdminInfo,
+                                canEditCamping = canEditCamping,
+                            )
+                        }
+                    }
+                } else {
+                    phase.sections.forEach { section ->
+                        item(key = "section-${section.id}") {
+                            MonthSection(
+                                section = section,
+                                currentUser = currentUser,
+                                onOpenCamping = onOpenCamping,
+                                onRequestEventSheet = { sheetCamping = it },
+                                showAdminInfo = showAdminInfo,
+                                canEditCamping = canEditCamping,
+                            )
+                        }
                     }
                 }
             }
@@ -273,6 +333,268 @@ fun CampingsScreen(
                     sheetCamping = null
                     onEditCamping(camping.id)
                 },
+            )
+        }
+    }
+
+    if (showHistory) {
+        ModalBottomSheet(
+            onDismissRequest = { showHistory = false },
+            containerColor = MaterialTheme.czColors.background,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = CzSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.camping_history),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.czColors.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { showHistory = false }) {
+                        Text(stringResource(R.string.common_done), color = MaterialTheme.czColors.accent)
+                    }
+                }
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = CzSpacing.xxxl),
+                    verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                ) {
+                    if (state.historyGroups.isEmpty()) {
+                        item(key = "history-empty") {
+                            CzEmptyState(
+                                title = stringResource(R.string.camping_history_empty_title),
+                                message = stringResource(R.string.camping_history_empty_message),
+                            )
+                        }
+                    } else {
+                        state.historyGroups.forEach { group ->
+                            item(key = "organizer-${group.id}") {
+                                HistoryOrganizerHeader(group)
+                            }
+                            group.yearGroups.forEach { yearGroup ->
+                                item(key = "year-${group.id}-${yearGroup.year}") {
+                                    HistoryYearRow(yearGroup.year)
+                                }
+                                itemsIndexed(
+                                    items = yearGroup.campings,
+                                    key = { _, camping -> "history-${group.id}-${camping.id}" },
+                                ) { index, camping ->
+                                    HistoryCampingRow(
+                                        camping = camping,
+                                        isFirst = index == 0,
+                                        isLast = index == yearGroup.campings.lastIndex,
+                                        onClick = {
+                                            showHistory = false
+                                            onOpenCamping(camping.id)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CampingsStateColumn(
+    showAdminCard: Boolean,
+    onCreateCamping: (() -> Unit)?,
+    onReviewRegistrations: (() -> Unit)?,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = CzSpacing.xl)
+            .padding(top = CzSpacing.base, bottom = CzSpacing.xxxl),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
+    ) {
+        if (showAdminCard) {
+            AdminActionsCard(
+                onCreateCamping = onCreateCamping,
+                onReviewRegistrations = onReviewRegistrations,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun HistoryOrganizerHeader(group: CampingHistoryOrganizerGroup) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = CzSpacing.md, bottom = CzSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.czColors.accent),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = group.organizerLevel.type.icon(),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(15.dp),
+            )
+        }
+        Text(
+            text = group.organizerLevel.value,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.czColors.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        CountPill(group.count)
+    }
+}
+
+@Composable
+private fun HistoryYearRow(year: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = CzSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.czColors.divider)
+        Text(
+            text = year.toString(),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.czColors.textSecondary,
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(MaterialTheme.czColors.textSecondary.copy(alpha = 0.10f))
+                .padding(horizontal = CzSpacing.sm, vertical = 3.dp),
+        )
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.czColors.divider)
+    }
+}
+
+@Composable
+private fun HistoryCampingRow(
+    camping: Camping,
+    isFirst: Boolean,
+    isLast: Boolean,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(
+        topStart = if (isFirst) CzRadius.md else 0.dp,
+        topEnd = if (isFirst) CzRadius.md else 0.dp,
+        bottomStart = if (isLast) CzRadius.md else 0.dp,
+        bottomEnd = if (isLast) CzRadius.md else 0.dp,
+    )
+    Surface(
+        onClick = onClick,
+        color = MaterialTheme.czColors.surface,
+        shape = shape,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            if (!camping.logoUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = camping.logoUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(44.dp).clip(CircleShape),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.czColors.accent.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = camping.title.trim().take(1).uppercase(),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.czColors.accent,
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    camping.title,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.czColors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+                ) {
+                    Icon(
+                        Icons.Filled.CalendarMonth,
+                        contentDescription = null,
+                        tint = MaterialTheme.czColors.textSecondary,
+                        modifier = Modifier.size(12.dp),
+                    )
+                    Text(
+                        text = campingDateRange(camping.startDate, camping.endDate),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.czColors.textSecondary,
+                        maxLines = 1,
+                    )
+                }
+                if (camping.location.isNotBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+                    ) {
+                        Icon(
+                            Icons.Filled.LocationOn,
+                            contentDescription = null,
+                            tint = MaterialTheme.czColors.textSecondary,
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Text(
+                            text = camping.location,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.czColors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            CampingStatusPill(camping.effectiveRegistrationStatus)
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.czColors.textTertiary,
+                modifier = Modifier.size(16.dp),
             )
         }
     }
@@ -380,12 +702,119 @@ private fun MonthSectionHeader(title: String) {
 }
 
 @Composable
+private fun PublicationSection(
+    section: CampingPublicationSection,
+    currentUser: AuthenticatedUser?,
+    onOpenCamping: (String) -> Unit,
+    onRequestEventSheet: (Camping) -> Unit,
+    showAdminInfo: (Camping) -> Boolean,
+    canEditCamping: (Camping) -> Boolean,
+) {
+    val listState = rememberLazyListState()
+    val status = section.status
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (status == CampingPublicationStatus.Archived) 0.64f else 1f),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        PublicationSectionHeader(status = status, count = section.campings.size)
+        LazyRow(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalBleed(CzSpacing.lg),
+            contentPadding = PaddingValues(horizontal = CzSpacing.base),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            flingBehavior = rememberSnapFlingBehavior(lazyListState = listState),
+        ) {
+            items(section.campings, key = { it.id }) { camping ->
+                CampingCard(
+                    camping = camping,
+                    onClick = {
+                        if (camping.canOpenDetails(currentUser, canEditCamping)) {
+                            onOpenCamping(camping.id)
+                        } else {
+                            onRequestEventSheet(camping)
+                        }
+                    },
+                    showAdminInfo = showAdminInfo(camping),
+                    modifier = Modifier.fillParentMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PublicationSectionHeader(status: CampingPublicationStatus, count: Int) {
+    val color = status.publicationColor()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = CzSpacing.sm, bottom = CzSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(color),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = status.publicationIcon(),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = status.publicationSectionTitle(),
+                color = MaterialTheme.czColors.textPrimary,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            )
+            if (status == CampingPublicationStatus.Draft) {
+                Text(
+                    text = stringResource(R.string.camping_publication_not_public),
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+        CountPill(count, color)
+    }
+}
+
+@Composable
+private fun CountPill(
+    count: Int,
+    color: Color = MaterialTheme.czColors.accent,
+) {
+    Text(
+        text = count.toString(),
+        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+        color = color,
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.10f))
+            .padding(horizontal = CzSpacing.sm, vertical = 3.dp),
+    )
+}
+
+@Composable
 private fun MonthSection(
     section: CampingMonthSection,
     currentUser: AuthenticatedUser?,
     onOpenCamping: (String) -> Unit,
     onRequestEventSheet: (Camping) -> Unit,
     showAdminInfo: (Camping) -> Boolean,
+    canEditCamping: (Camping) -> Boolean,
 ) {
     val listState = rememberLazyListState()
     Column(
@@ -406,7 +835,7 @@ private fun MonthSection(
                 CampingCard(
                     camping = camping,
                     onClick = {
-                        if (camping.isApprovedParticipant(currentUser?.uid)) {
+                        if (camping.canOpenDetails(currentUser, canEditCamping)) {
                             onOpenCamping(camping.id)
                         } else {
                             onRequestEventSheet(camping)
@@ -460,7 +889,7 @@ private fun CampingCard(
                 fillRatio = fillRatio,
                 fillBrush = fillBrush,
                 showAdminInfo = showAdminInfo,
-                modifier = Modifier.padding(CzSpacing.lg),
+                modifier = Modifier.padding(vertical = CzSpacing.lg),
             )
         }
     }
@@ -474,7 +903,7 @@ private fun CampingCardBanner(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(110.dp),
+            .height(160.dp),
     ) {
         if (!camping.logoUrl.isNullOrBlank()) {
             AsyncImage(
@@ -484,10 +913,16 @@ private fun CampingCardBanner(
                 contentScale = ContentScale.Crop,
             )
         } else {
-            CampingImageFallback(
-                iconSize = 32.dp,
-                modifier = Modifier.matchParentSize(),
-            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(MaterialTheme.czColors.surface),
+            ) {
+                FeaturedMountainBackground(
+                    opacity = if (isSystemInDarkTheme()) 0.82f else 0.40f,
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
         }
         Box(
             modifier = Modifier
@@ -508,6 +943,14 @@ private fun CampingCardBanner(
                 .align(Alignment.TopEnd)
                 .padding(CzSpacing.sm),
         )
+        if (!camping.isPublished) {
+            CampingPublicationPill(
+                status = camping.publicationStatus,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(CzSpacing.sm),
+            )
+        }
         Row(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -520,7 +963,7 @@ private fun CampingCardBanner(
                 imageVector = Icons.Filled.LocationOn,
                 contentDescription = null,
                 modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.czColors.accent,
+                tint = Color.White,
             )
             Text(
                 text = camping.location,
@@ -554,8 +997,12 @@ private fun CampingCardContent(
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = CzSpacing.lg),
         )
-        Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        Column(
+            modifier = Modifier.padding(horizontal = CzSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
             CampingInfoChipRow(
                 icon = Icons.Filled.CalendarMonth,
                 iconTint = MaterialTheme.czColors.accent,
@@ -597,6 +1044,7 @@ private fun CampingCardContent(
             fillRatio = fillRatio,
             fillBrush = fillBrush,
             showAdminInfo = showAdminInfo,
+            modifier = Modifier.padding(horizontal = CzSpacing.lg),
         )
     }
 }
@@ -640,9 +1088,13 @@ private fun CampingCapacityView(
     fillRatio: Float,
     fillBrush: Brush,
     showAdminInfo: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     camping.participantCapacity?.takeIf { it > 0 }?.let { capacity ->
-        Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+        Column(
+            modifier = modifier,
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -691,7 +1143,7 @@ private fun CampingCapacityView(
             }
         }
     } ?: Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
     ) {
@@ -746,12 +1198,20 @@ private fun CampingEventSheet(
             )
             CampingEventCover(camping = camping)
             if (camping.description.isNotBlank()) {
-                Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(CzRadius.lg))
+                        .background(MaterialTheme.czColors.surface)
+                        .padding(CzSpacing.md),
+                    verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                ) {
                     Text(
                         text = stringResource(R.string.camping_event_about_title).uppercase(),
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.czColors.textPrimary,
                     )
+                    HorizontalDivider(color = MaterialTheme.czColors.divider)
                     CampingMarkdownText(
                         text = camping.description,
                         textColor = MaterialTheme.czColors.textSecondary.toArgb(),
@@ -915,8 +1375,9 @@ private fun CampingEventInfoCard(camping: Camping) {
                     .clip(RoundedCornerShape(4.dp))
                     .background(MaterialTheme.czColors.amber.copy(alpha = 0.15f))
                     .padding(horizontal = CzSpacing.xs, vertical = 2.dp),
-            )
+                )
         }
+        HorizontalDivider(color = MaterialTheme.czColors.divider)
         CampingEventInfoRow(
             icon = Icons.Filled.LocationOn,
             title = stringResource(R.string.camping_event_location),
@@ -1090,6 +1551,36 @@ private fun CampingStatusPill(
     )
 }
 
+@Composable
+private fun CampingPublicationPill(
+    status: CampingPublicationStatus,
+    modifier: Modifier = Modifier,
+) {
+    val color = status.publicationColor()
+    Row(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(color)
+            .border(1.dp, Color.White.copy(alpha = 0.24f), CircleShape)
+            .padding(horizontal = CzSpacing.sm, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(
+            imageVector = status.publicationIcon(),
+            contentDescription = null,
+            modifier = Modifier.size(12.dp),
+            tint = Color.White,
+        )
+        Text(
+            text = status.publicationLabel(),
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = Color.White,
+            maxLines = 1,
+        )
+    }
+}
+
 // MARK: - Logo badge
 
 @Composable
@@ -1153,6 +1644,33 @@ private fun CampingRegistrationStatus.statusColor(): Color = when (this) {
     CampingRegistrationStatus.Open -> MaterialTheme.czColors.success
     CampingRegistrationStatus.Closed -> MaterialTheme.czColors.amber
     CampingRegistrationStatus.Cancelled -> MaterialTheme.czColors.error
+}
+
+private fun CampingPublicationStatus.publicationIcon(): ImageVector = when (this) {
+    CampingPublicationStatus.Draft -> Icons.Filled.Edit
+    CampingPublicationStatus.Published -> Icons.Filled.CheckCircle
+    CampingPublicationStatus.Archived -> Icons.Filled.Archive
+}
+
+@Composable
+private fun CampingPublicationStatus.publicationColor(): Color = when (this) {
+    CampingPublicationStatus.Draft -> MaterialTheme.czColors.textSecondary
+    CampingPublicationStatus.Published -> MaterialTheme.czColors.success
+    CampingPublicationStatus.Archived -> MaterialTheme.czColors.warning
+}
+
+@Composable
+private fun CampingPublicationStatus.publicationLabel(): String = when (this) {
+    CampingPublicationStatus.Draft -> stringResource(R.string.camping_publication_draft)
+    CampingPublicationStatus.Published -> stringResource(R.string.camping_publication_published)
+    CampingPublicationStatus.Archived -> stringResource(R.string.camping_publication_archived)
+}
+
+@Composable
+private fun CampingPublicationStatus.publicationSectionTitle(): String = when (this) {
+    CampingPublicationStatus.Draft -> stringResource(R.string.camping_publication_drafts)
+    CampingPublicationStatus.Published -> stringResource(R.string.camping_publication_published_plural)
+    CampingPublicationStatus.Archived -> stringResource(R.string.camping_publication_archived_plural)
 }
 
 private fun OrganizerType.icon(): ImageVector = when (this) {
@@ -1225,13 +1743,44 @@ private fun Camping.isApprovedParticipant(userId: String?): Boolean {
     }
 }
 
+private fun Camping.canOpenDetails(
+    currentUser: AuthenticatedUser?,
+    canEditCamping: (Camping) -> Boolean,
+): Boolean = isApprovedParticipant(currentUser?.uid) || canEditCamping(this)
+
 @Composable
 private fun campingDurationText(start: Date, end: Date): String {
-    val days = max(
-        1,
-        java.util.concurrent.TimeUnit.MILLISECONDS.toDays(end.time - start.time).toInt(),
-    )
+    val days = inclusiveCampingDayCount(start, end)
     return pluralStringResource(R.plurals.camping_duration_days, days, days)
+}
+
+internal fun inclusiveCampingDayCount(
+    start: Date,
+    end: Date,
+    timeZone: TimeZone = TimeZone.getDefault(),
+): Int {
+    val startDay = Calendar.getInstance(timeZone).apply {
+        time = start
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val endDay = Calendar.getInstance(timeZone).apply {
+        time = end
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    if (endDay.before(startDay)) return 1
+
+    var days = 1
+    while (startDay.before(endDay)) {
+        startDay.add(Calendar.DAY_OF_MONTH, 1)
+        days += 1
+    }
+    return days
 }
 
 // MARK: - Preview
@@ -1256,6 +1805,7 @@ private fun CampingsScreenPreview() {
             onRetry = {},
             showAdminInfo = { true },
             canEditCamping = { true },
+            canManageAnyCamping = true,
             onRegisterCamping = {},
             onEditCamping = {},
             onCreateCamping = {},

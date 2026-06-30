@@ -83,4 +83,41 @@ class NotificationTopicsTest {
         val topics = NotificationTopics.visibleTopics(UserRole.User, settings, userId = "u1")
         assertFalse(topics.contains("campzone_user_u1"))
     }
+
+    @Test
+    fun scopedSubscriptionsCarryEveryRulesPredicate() {
+        val settings = NotificationSettings(
+            subscribedCampingIds = listOf("c1"),
+            subscribedTeamIds = listOf("t1"),
+            subscribedRoles = listOf(UserRole.Adult),
+        )
+
+        val subscriptions = NotificationTopics.visibleTopicSubscriptions(
+            role = UserRole.Adult,
+            settings = settings,
+            userId = "adult-1",
+            teamCampingIds = mapOf("t1" to "c1"),
+        )
+
+        assertTrue(subscriptions.contains(
+            NotificationTopicSubscription(
+                topic = "campzone_camping_c1",
+                campingId = "c1",
+            ),
+        ))
+        assertTrue(subscriptions.contains(
+            NotificationTopicSubscription(
+                topic = "campzone_camping_role_c1_adult",
+                campingId = "c1",
+                role = "adult",
+            ),
+        ))
+        assertTrue(subscriptions.contains(
+            NotificationTopicSubscription(
+                topic = "campzone_team_t1",
+                campingId = "c1",
+                teamId = "t1",
+            ),
+        ))
+    }
 }

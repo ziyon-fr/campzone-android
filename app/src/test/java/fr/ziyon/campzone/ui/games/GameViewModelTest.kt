@@ -5,10 +5,12 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.UserGender
 import fr.ziyon.campzone.data.camping.PreviewCampingService
 import fr.ziyon.campzone.data.games.FakeGameService
+import fr.ziyon.campzone.data.games.ActivityReadScope
 import fr.ziyon.campzone.data.media.PreviewMediaUploader
 import fr.ziyon.campzone.data.games.previewGame
 import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.Game
 import fr.ziyon.campzone.data.model.GameInstructionAttachment
@@ -17,6 +19,8 @@ import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.PointRule
 import fr.ziyon.campzone.data.model.PointRuleTarget
 import fr.ziyon.campzone.data.model.PointRuleVisibility
+import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
+import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.teams.FakeTeamNotificationDispatcher
@@ -90,7 +94,7 @@ class GameViewModelTest {
     fun recordedActivityReflectsLiveWithoutReload() = runTest {
         val service = FakeGameService(games = listOf(previewGame("camp-1")))
         val vm = viewModel(service)
-        vm.loadIfNeeded("camp-1")
+        vm.loadIfNeeded("camp-1", ActivityReadScope.All)
         advanceUntilIdle()
         assertTrue(vm.activitiesFor("camp-1").isEmpty())
 
@@ -102,6 +106,67 @@ class GameViewModelTest {
         val activities = vm.activitiesFor("camp-1")
         assertEquals(1, activities.size)
         assertEquals("act-1", activities.first().id)
+    }
+
+    @Test
+    fun gamesOnlyLoadDoesNotPublishProtectedActivities() = runTest {
+        val service = FakeGameService(
+            games = listOf(previewGame("camp-1")),
+            activities = listOf(activity("act-1", "camp-1", "game-1")),
+        )
+        val vm = viewModel(service)
+
+        vm.loadIfNeeded("camp-1")
+        advanceUntilIdle()
+
+        assertEquals(1, vm.gamesFor("camp-1").size)
+        assertTrue(vm.activitiesFor("camp-1").isEmpty())
+    }
+
+    @Test
+    fun activityReadScopeMatchesDirectRegistrationRevealAndGuardianRules() {
+        val direct = CampingAttendee(
+            id = "participant",
+            userId = "participant",
+            displayName = "Participant",
+            church = "Central SDA",
+            age = 20,
+            languages = listOf("en"),
+            registrationStatus = RegistrationApprovalStatus.Approved,
+        )
+        val child = CampingAttendee(
+            id = "child",
+            userId = "child",
+            displayName = "Child",
+            church = "Central SDA",
+            age = 12,
+            languages = listOf("en"),
+            registrationStatus = RegistrationApprovalStatus.Approved,
+            participantKind = RegistrationParticipantKind.Child,
+            guardianId = "guardian",
+        )
+        val camping = scopeCamping().copy(attendees = listOf(direct, child))
+
+        assertEquals(
+            ActivityReadScope.Immediate,
+            ActivityReadScope.resolve(camping, "participant", canReadFullLedger = false),
+        )
+        assertEquals(
+            ActivityReadScope.None,
+            ActivityReadScope.resolve(camping, "guardian", canReadFullLedger = false),
+        )
+        assertEquals(
+            ActivityReadScope.All,
+            ActivityReadScope.resolve(camping, "manager", canReadFullLedger = true),
+        )
+        assertEquals(
+            ActivityReadScope.All,
+            ActivityReadScope.resolve(
+                camping.copy(winnerRevealPolicy = fr.ziyon.campzone.data.model.WinnerRevealPolicy(isRevealed = true)),
+                "participant",
+                canReadFullLedger = false,
+            ),
+        )
     }
 
     @Test

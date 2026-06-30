@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.TrendingDown
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.filled.RemoveCircle
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.BarChart
@@ -43,12 +44,16 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -61,8 +66,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import coil.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -79,6 +87,7 @@ import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.data.games.ActivityReadScope
 import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
@@ -89,6 +98,11 @@ import fr.ziyon.campzone.data.model.TeamPenalty
 import fr.ziyon.campzone.data.model.toTeamMember
 import fr.ziyon.campzone.ui.games.ActivityRow
 import fr.ziyon.campzone.ui.games.GameViewModel
+import fr.ziyon.campzone.ui.games.teamEarnedActivities
+import fr.ziyon.campzone.ui.games.teamMemberDeductionActivities
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
@@ -126,6 +140,11 @@ fun TeamDetailRoute(
         evaluator.canRevealWinners(permissionUser, campingCtx) ||
             evaluator.canManageGames(permissionUser, campingCtx)
         )
+    val activityReadScope = ActivityReadScope.resolve(
+        camping = camping,
+        userId = authenticatedUser.uid,
+        canReadFullLedger = canSeeHiddenGameActivity,
+    )
 
     val uiState by viewModel.uiState.collectAsState()
     val gamesUiState by gameViewModel.uiState.collectAsState()
@@ -134,24 +153,32 @@ fun TeamDetailRoute(
     val operationMessage by viewModel.operationMessage.collectAsState()
 
     LaunchedEffect(campingId) { viewModel.loadIfNeeded(campingId) }
-    LaunchedEffect(campingId) { gameViewModel.loadIfNeeded(campingId) }
+    LaunchedEffect(campingId, activityReadScope) {
+        gameViewModel.loadIfNeeded(campingId, activityReadScope)
+    }
     DisposableEffect(campingId) {
         viewModel.startObserving(campingId)
         onDispose { viewModel.stopObserving() }
     }
 
     val team = viewModel.team(teamId, campingId)
-    val earnedActivities = remember(gamesUiState, camping, teamId, canSeeHiddenGameActivity) {
+    val visibleActivities = remember(gamesUiState, camping, canSeeHiddenGameActivity) {
         camping
             ?.let { gameViewModel.visibleActivities(it, canSeeHiddenGameActivity) }
             .orEmpty()
-            .teamEarnedActivities(teamId)
+    }
+    val earnedActivities = remember(visibleActivities, team) {
+        team?.let { visibleActivities.teamEarnedActivities(it) }.orEmpty()
+    }
+    val penaltyItems = remember(visibleActivities, team) {
+        team?.penaltyItems(visibleActivities).orEmpty()
     }
 
     TeamDetailScreen(
         team = team,
         campingId = campingId,
         earnedActivities = earnedActivities,
+        penaltyItems = penaltyItems,
         canManageTeams = canManageTeams,
         authenticatedUserId = authenticatedUser.uid,
         approvedAttendees = approvedAttendees,
@@ -167,9 +194,19 @@ fun TeamDetailRoute(
         onAssignMember = { member -> viewModel.assignMember(member, teamId, campingId) },
         onRemoveMember = { memberId -> viewModel.removeMember(memberId, teamId, campingId) },
         onUpdateMemberRole = { memberId, role -> viewModel.updateMemberRole(memberId, role, teamId, campingId) },
-        onUpdateMemberScore = { memberId, delta -> viewModel.updateMemberScore(memberId, teamId, campingId, delta) },
-        onUpdateScore = { delta -> viewModel.updateTeamScore(teamId, campingId, delta) },
-        onApplyPenalty = { pts, reason -> viewModel.applyPenalty(teamId, campingId, pts, reason) },
+        onUpdateMemberScore = { memberId, delta, reason ->
+            viewModel.updateMemberScore(memberId, teamId, campingId, delta, reason, authenticatedUser)
+        },
+        onUpdateScore = { delta, reason ->
+            viewModel.updateTeamScore(teamId, campingId, delta, reason, authenticatedUser)
+        },
+        onApplyPenalty = { pts, reason ->
+            viewModel.applyPenalty(teamId, campingId, pts, reason, authenticatedUser)
+        },
+        onRefresh = {
+            viewModel.refresh(campingId)
+            gameViewModel.load(campingId, activityReadScope)
+        },
         onClearError = viewModel::clearOperationError,
         onClearMessage = viewModel::clearOperationMessage,
         allTeams = viewModel.teams(campingId),
@@ -184,6 +221,7 @@ private fun TeamDetailScreen(
     team: Team?,
     campingId: String,
     earnedActivities: List<Activity>,
+    penaltyItems: List<PenaltyItem>,
     canManageTeams: Boolean,
     canModerateTeamChat: Boolean,
     authenticatedUserId: String,
@@ -200,9 +238,10 @@ private fun TeamDetailScreen(
     onAssignMember: (TeamMember) -> Unit,
     onRemoveMember: (String) -> Unit,
     onUpdateMemberRole: (String, TeamMemberRole) -> Unit,
-    onUpdateMemberScore: (String, Int) -> Unit,
-    onUpdateScore: (Int) -> Unit,
+    onUpdateMemberScore: (String, Int, String) -> Unit,
+    onUpdateScore: (Int, String) -> Unit,
     onApplyPenalty: (Int, String) -> Unit,
+    onRefresh: () -> Unit,
     onClearError: () -> Unit,
     onClearMessage: () -> Unit,
     modifier: Modifier = Modifier,
@@ -210,6 +249,7 @@ private fun TeamDetailScreen(
     val colors = MaterialTheme.czColors
     var showDeleteAlert by remember { mutableStateOf(false) }
     var scoreMember by remember { mutableStateOf<TeamMember?>(null) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
     if (showDeleteAlert) {
         AlertDialog(
@@ -231,9 +271,9 @@ private fun TeamDetailScreen(
         MemberScoreDialog(
             member = member,
             onDismiss = { scoreMember = null },
-            onConfirm = { delta ->
+            onConfirm = { delta, reason ->
                 scoreMember = null
-                onUpdateMemberScore(member.id, delta)
+                onUpdateMemberScore(member.id, delta, reason)
             },
         )
     }
@@ -242,7 +282,7 @@ private fun TeamDetailScreen(
         containerColor = colors.background,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(team?.name ?: stringResource(R.string.teams_title), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
+                title = {},
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = colors.background,
                     titleContentColor = colors.textPrimary,
@@ -275,14 +315,24 @@ private fun TeamDetailScreen(
 
         val teamColor = team.colorHex.toComposeColor() ?: colors.ember
 
-        Column(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                isRefreshing = true
+                onRefresh()
+                isRefreshing = false
+            },
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.md),
-            verticalArrangement = Arrangement.spacedBy(CzSpacing.xl),
+                .padding(innerPadding),
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.xl),
+            ) {
             // Error banner
             if (operationError != null) {
                 ErrorBanner(message = operationError, onDismiss = onClearError)
@@ -318,9 +368,9 @@ private fun TeamDetailScreen(
             )
 
             // Penalties
-            if (team.penalties.isNotEmpty()) {
+            if (penaltyItems.isNotEmpty()) {
                 TeamDetailSectionLabel(stringResource(R.string.teams_penalties), Icons.AutoMirrored.Outlined.TrendingDown)
-                PenaltiesSection(penalties = team.penalties)
+                PenaltiesSection(items = penaltyItems)
             }
 
             // Management (admin only)
@@ -334,8 +384,8 @@ private fun TeamDetailScreen(
                         onAssignMember(attendee.toTeamMember(role))
                     },
                 )
-                ScoreControlCard(onUpdateScore = onUpdateScore)
-                PenaltyControlCard(onApplyPenalty = onApplyPenalty)
+                ScoreControlCard(team = team, onUpdateScore = onUpdateScore)
+                PenaltyControlCard(team = team, onApplyPenalty = onApplyPenalty)
                 TextButton(
                     onClick = { showDeleteAlert = true },
                     modifier = Modifier.fillMaxWidth(),
@@ -346,7 +396,7 @@ private fun TeamDetailScreen(
                 }
             }
 
-            Spacer(Modifier.height(CzSpacing.lg))
+            }
         }
     }
 }
@@ -356,8 +406,35 @@ private fun TeamDetailScreen(
 @Composable
 private fun TeamHeaderSection(team: Team, teamColor: Color, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.czColors
-    Row(modifier = modifier.fillMaxWidth().padding(top = CzSpacing.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(CzSpacing.lg)) {
-        TeamBadgeView(team = team, size = 64)
+    Row(
+        modifier = modifier.fillMaxWidth().padding(top = CzSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.lg),
+    ) {
+        Box(
+            modifier = Modifier
+                .shadow(elevation = 8.dp, shape = CircleShape, spotColor = teamColor.copy(alpha = 0.35f), ambientColor = teamColor.copy(alpha = 0.35f))
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(Brush.linearGradient(colors = listOf(teamColor, teamColor.copy(alpha = 0.55f)))),
+            contentAlignment = Alignment.Center,
+        ) {
+            val photoUrl = team.photoUrl
+            if (!photoUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = photoUrl,
+                    contentDescription = team.name,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                )
+            } else {
+                Icon(
+                    imageVector = symbolIcon(team.symbolName),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+        }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(team.name, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (team.slogan.isNotBlank()) {
@@ -525,27 +602,61 @@ private fun MemberRow(
 private fun MemberScoreDialog(
     member: TeamMember,
     onDismiss: () -> Unit,
-    onConfirm: (Int) -> Unit,
+    onConfirm: (Int, String) -> Unit,
 ) {
     var deltaText by rememberSaveable(member.id) { mutableStateOf("") }
+    var reason by rememberSaveable(member.id) { mutableStateOf("") }
+    val delta = deltaText.trim().toIntOrNull() ?: 0
+    val canSave = delta != 0 && reason.isNotBlank()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.teams_adjust_member_score_title, member.displayName)) },
         text = {
-            OutlinedTextField(
-                value = deltaText,
-                onValueChange = { deltaText = it },
-                label = { Text(stringResource(R.string.teams_score_hint)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                Text(
+                    text = stringResource(R.string.teams_personal_points_format, member.personalScore),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.czColors.textSecondary,
+                )
+                OutlinedTextField(
+                    value = deltaText,
+                    onValueChange = { deltaText = it },
+                    label = { Text(stringResource(R.string.teams_score_hint)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+                ) {
+                    listOf(5, 10, -5, -10).forEach { amount ->
+                        TextButton(
+                            onClick = { deltaText = amount.toString() },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(if (amount > 0) "+$amount" else amount.toString())
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    label = { Text(stringResource(R.string.teams_reason_required)) },
+                    supportingText = { Text(stringResource(R.string.teams_reason_history_help)) },
+                    minLines = 2,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    val delta = deltaText.trim().toIntOrNull() ?: return@TextButton
-                    onConfirm(delta)
+                    if (!canSave) return@TextButton
+                    onConfirm(delta, reason.trim())
                 },
+                enabled = canSave,
             ) {
                 Text(stringResource(R.string.teams_update_score_action))
             }
@@ -645,13 +756,36 @@ private fun List<Activity>.teamEarnedActivities(teamId: String): List<Activity> 
 
 // ── Penalties section ─────────────────────────────────────────────────────────
 
+private sealed interface PenaltyItem {
+    val id: String
+    val createdAt: Date
+
+    data class TeamPenaltyItem(val penalty: TeamPenalty) : PenaltyItem {
+        override val id: String = "team-${penalty.id}"
+        override val createdAt: Date = penalty.createdAt
+    }
+
+    data class MemberDeductionItem(val activity: Activity) : PenaltyItem {
+        override val id: String = "member-${activity.id}"
+        override val createdAt: Date = activity.createdAt
+    }
+}
+
+private fun Team.penaltyItems(visibleActivities: List<Activity>): List<PenaltyItem> =
+    penalties.map(PenaltyItem::TeamPenaltyItem)
+        .plus(visibleActivities.teamMemberDeductionActivities(this).map(PenaltyItem::MemberDeductionItem))
+        .sortedByDescending { it.createdAt }
+
 @Composable
-private fun PenaltiesSection(penalties: List<TeamPenalty>, modifier: Modifier = Modifier) {
+private fun PenaltiesSection(items: List<PenaltyItem>, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.czColors
     Column(modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(CzRadius.lg)).background(colors.surface)) {
-        penalties.forEachIndexed { idx, penalty ->
-            PenaltyRow(penalty = penalty)
-            if (idx < penalties.lastIndex) Box(Modifier.padding(horizontal = CzSpacing.md).height(0.5.dp).fillMaxWidth().background(colors.divider))
+        items.forEachIndexed { idx, item ->
+            when (item) {
+                is PenaltyItem.TeamPenaltyItem -> PenaltyRow(penalty = item.penalty)
+                is PenaltyItem.MemberDeductionItem -> ActivityRow(activity = item.activity)
+            }
+            if (idx < items.lastIndex) Box(Modifier.padding(horizontal = CzSpacing.md).height(0.5.dp).fillMaxWidth().background(colors.divider))
         }
     }
 }
@@ -659,12 +793,45 @@ private fun PenaltiesSection(penalties: List<TeamPenalty>, modifier: Modifier = 
 @Composable
 private fun PenaltyRow(penalty: TeamPenalty, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.czColors
-    Row(modifier = modifier.fillMaxWidth().padding(CzSpacing.md), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
-        Icon(Icons.AutoMirrored.Outlined.TrendingDown, contentDescription = null, tint = colors.error, modifier = Modifier.size(16.dp))
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(penalty.reason.ifBlank { stringResource(R.string.teams_penalty_no_reason) }, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium), color = colors.textPrimary)
+    val dateFormatter = remember { SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault()) }
+    val dateLabel = remember(penalty.createdAt) { dateFormatter.format(penalty.createdAt) }
+
+    Row(
+        modifier = modifier.fillMaxWidth().padding(CzSpacing.md),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+    ) {
+        Icon(
+            Icons.Filled.RemoveCircle,
+            contentDescription = null,
+            tint = colors.error,
+            modifier = Modifier.size(32.dp),
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Text(
+                    text = penalty.reason.ifBlank { stringResource(R.string.teams_penalty_no_reason) },
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.textPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    stringResource(R.string.teams_points_format, "-${penalty.points}"),
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = colors.error,
+                )
+            }
+            Text(
+                dateLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textSecondary,
+            )
         }
-        Text("-${penalty.points}", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = colors.error)
     }
 }
 
@@ -792,36 +959,93 @@ private fun AssignMemberCard(
 // ── Score control card ────────────────────────────────────────────────────────
 
 @Composable
-private fun ScoreControlCard(onUpdateScore: (Int) -> Unit, modifier: Modifier = Modifier) {
+private fun ScoreControlCard(team: Team, onUpdateScore: (Int, String) -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.czColors
-    var deltaText by rememberSaveable { mutableStateOf("") }
+    var showSheet by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(CzRadius.lg)).background(colors.surface).padding(CzSpacing.md),
-        verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
-    ) {
-        Text(stringResource(R.string.teams_update_score), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold), color = colors.textSecondary)
-
-        OutlinedTextField(
-            value = deltaText,
-            onValueChange = { deltaText = it },
-            label = { Text(stringResource(R.string.teams_score_hint)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.TrendingUp, contentDescription = null, tint = colors.ember) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Box(Modifier.fillMaxWidth().height(0.5.dp).background(colors.divider))
-
-        TextButton(
-            onClick = {
-                val pts = deltaText.trim().toIntOrNull() ?: return@TextButton
-                onUpdateScore(pts)
-                deltaText = ""
+    if (showSheet) {
+        TeamScoreSheet(
+            team = team,
+            onDismiss = { showSheet = false },
+            onConfirm = { delta, reason ->
+                showSheet = false
+                onUpdateScore(delta, reason)
             },
-            modifier = Modifier.align(Alignment.End),
+        )
+    }
+
+    Row(
+        modifier = modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(CzRadius.lg)).background(colors.surface)
+            .clickable { showSheet = true }.padding(CzSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+    ) {
+        Box(Modifier.size(42.dp).clip(CircleShape).background(colors.ember.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.AutoMirrored.Outlined.TrendingUp, contentDescription = null, tint = colors.ember, modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stringResource(R.string.teams_update_score), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary)
+            Text(stringResource(R.string.teams_update_score_subtitle), style = MaterialTheme.typography.labelSmall, color = colors.textSecondary)
+        }
+        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(16.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TeamScoreSheet(team: Team, onDismiss: () -> Unit, onConfirm: (Int, String) -> Unit) {
+    val colors = MaterialTheme.czColors
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var deltaText by rememberSaveable { mutableStateOf("") }
+    var reason by rememberSaveable { mutableStateOf("") }
+    val delta = deltaText.trim().toIntOrNull() ?: 0
+    val canSave = delta != 0 && reason.isNotBlank()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = colors.background,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = CzSpacing.lg)
+                .padding(bottom = CzSpacing.xl),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
         ) {
-            Text(stringResource(R.string.teams_update_score_action), color = colors.ember)
+            Text(
+                text = stringResource(R.string.teams_update_score),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.textPrimary,
+            )
+            TeamScoreSheetSummary(team)
+            OutlinedTextField(
+                value = deltaText,
+                onValueChange = { deltaText = it },
+                label = { Text(stringResource(R.string.teams_score_hint)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            QuickAmountRow(
+                amounts = listOf(10, 25, 50, -10),
+                onSelect = { deltaText = it.toString() },
+            )
+            OutlinedTextField(
+                value = reason,
+                onValueChange = { reason = it },
+                label = { Text(stringResource(R.string.teams_reason_required)) },
+                supportingText = { Text(stringResource(R.string.teams_reason_history_help)) },
+                minLines = 2,
+                maxLines = 4,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TeamSheetActions(
+                confirmLabel = stringResource(R.string.common_save),
+                canConfirm = canSave,
+                onDismiss = onDismiss,
+                onConfirm = { onConfirm(delta, reason.trim()) },
+            )
         }
     }
 }
@@ -829,43 +1053,175 @@ private fun ScoreControlCard(onUpdateScore: (Int) -> Unit, modifier: Modifier = 
 // ── Penalty control card ──────────────────────────────────────────────────────
 
 @Composable
-private fun PenaltyControlCard(onApplyPenalty: (Int, String) -> Unit, modifier: Modifier = Modifier) {
+private fun PenaltyControlCard(team: Team, onApplyPenalty: (Int, String) -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.czColors
+    var showSheet by remember { mutableStateOf(false) }
+
+    if (showSheet) {
+        TeamPenaltySheet(
+            team = team,
+            onDismiss = { showSheet = false },
+            onConfirm = { pts, reason ->
+                showSheet = false
+                onApplyPenalty(pts, reason)
+            },
+        )
+    }
+
+    Row(
+        modifier = modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(CzRadius.lg)).background(colors.surface)
+            .clickable { showSheet = true }.padding(CzSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+    ) {
+        Box(Modifier.size(42.dp).clip(CircleShape).background(colors.error.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.AutoMirrored.Outlined.TrendingDown, contentDescription = null, tint = colors.error, modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stringResource(R.string.teams_apply_penalty), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary)
+            Text(stringResource(R.string.teams_apply_penalty_subtitle), style = MaterialTheme.typography.labelSmall, color = colors.textSecondary)
+        }
+        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(16.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TeamPenaltySheet(team: Team, onDismiss: () -> Unit, onConfirm: (Int, String) -> Unit) {
+    val colors = MaterialTheme.czColors
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var ptsText by rememberSaveable { mutableStateOf("") }
     var reason by rememberSaveable { mutableStateOf("") }
-
-    Column(
-        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(CzRadius.lg)).background(colors.surface).padding(CzSpacing.md),
-        verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+    val pts = ptsText.trim().toIntOrNull() ?: 0
+    val canSave = pts > 0 && reason.isNotBlank()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = colors.background,
     ) {
-        Text(stringResource(R.string.teams_apply_penalty), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold), color = colors.textSecondary)
-
-        OutlinedTextField(
-            value = ptsText,
-            onValueChange = { ptsText = it },
-            label = { Text(stringResource(R.string.teams_penalty_points_hint)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.TrendingDown, contentDescription = null, tint = colors.error) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        OutlinedTextField(
-            value = reason,
-            onValueChange = { reason = it },
-            label = { Text(stringResource(R.string.teams_reason)) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Box(Modifier.fillMaxWidth().height(0.5.dp).background(colors.divider))
-
-        TextButton(
-            onClick = {
-                val pts = ptsText.trim().toIntOrNull() ?: return@TextButton
-                if (pts > 0) { onApplyPenalty(pts, reason); ptsText = ""; reason = "" }
-            },
-            modifier = Modifier.align(Alignment.End),
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = CzSpacing.lg)
+                .padding(bottom = CzSpacing.xl),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
         ) {
-            Text(stringResource(R.string.teams_apply_penalty_action), color = colors.error)
+            Text(
+                text = stringResource(R.string.teams_apply_penalty),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.textPrimary,
+            )
+            TeamScoreSheetSummary(team)
+            OutlinedTextField(
+                value = ptsText,
+                onValueChange = { ptsText = it },
+                label = { Text(stringResource(R.string.teams_penalty_points_hint)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            QuickAmountRow(
+                amounts = listOf(5, 10, 25, 50),
+                negativeLabels = true,
+                onSelect = { ptsText = it.toString() },
+            )
+            OutlinedTextField(
+                value = reason,
+                onValueChange = { reason = it },
+                label = { Text(stringResource(R.string.teams_reason_required)) },
+                supportingText = { Text(stringResource(R.string.teams_penalty_reason_help)) },
+                minLines = 2,
+                maxLines = 4,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TeamSheetActions(
+                confirmLabel = stringResource(R.string.teams_apply_penalty_action),
+                canConfirm = canSave,
+                onDismiss = onDismiss,
+                onConfirm = { onConfirm(pts, reason.trim()) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun TeamScoreSheetSummary(team: Team) {
+    val colors = MaterialTheme.czColors
+    Surface(
+        color = colors.surface,
+        shape = RoundedCornerShape(CzRadius.lg),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(CzSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            TeamBadgeView(team = team, size = 44)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = team.name,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.textPrimary,
+                )
+                Text(
+                    text = stringResource(R.string.teams_total_points_format, team.totalScore),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textSecondary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickAmountRow(
+    amounts: List<Int>,
+    onSelect: (Int) -> Unit,
+    negativeLabels: Boolean = false,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        amounts.forEach { amount ->
+            val displayAmount = if (negativeLabels) -amount else amount
+            val tone = if (displayAmount >= 0) MaterialTheme.czColors.success else MaterialTheme.czColors.error
+            Surface(
+                onClick = { onSelect(amount) },
+                color = tone.copy(alpha = 0.12f),
+                shape = CircleShape,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    text = if (displayAmount > 0) "+$displayAmount" else "$displayAmount",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = tone,
+                    modifier = Modifier.padding(horizontal = CzSpacing.sm, vertical = CzSpacing.xs),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeamSheetActions(
+    confirmLabel: String,
+    canConfirm: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onDismiss) {
+            Text(stringResource(R.string.common_cancel))
+        }
+        TextButton(onClick = onConfirm, enabled = canConfirm) {
+            Text(confirmLabel)
         }
     }
 }
@@ -937,6 +1293,7 @@ private fun TeamDetailScreenPreview() {
                     targetTeamName = team.name,
                 ),
             ),
+            penaltyItems = team.penaltyItems(emptyList()),
             canManageTeams = true,
             canModerateTeamChat = true,
             authenticatedUserId = "u1",
@@ -953,9 +1310,10 @@ private fun TeamDetailScreenPreview() {
             onAssignMember = {},
             onRemoveMember = {},
             onUpdateMemberRole = { _, _ -> },
-            onUpdateMemberScore = { _, _ -> },
-            onUpdateScore = {},
+            onUpdateMemberScore = { _, _, _ -> },
+            onUpdateScore = { _, _ -> },
             onApplyPenalty = { _, _ -> },
+            onRefresh = {},
             onClearError = {},
             onClearMessage = {},
         )

@@ -113,6 +113,13 @@ import fr.ziyon.campzone.ui.announcements.AnnouncementViewModel
 import fr.ziyon.campzone.ui.announcements.AnnouncementsRoute
 import fr.ziyon.campzone.ui.album.CampingAlbumRoute
 import fr.ziyon.campzone.ui.admin.AdminToolsRoute
+import fr.ziyon.campzone.ui.admin.AdminAnalyticsRoute
+import fr.ziyon.campzone.ui.safety.EmergencySafetyRoute
+import fr.ziyon.campzone.ui.packing.PackingChecklistRoute
+import fr.ziyon.campzone.ui.packing.PackingTemplateEditorRoute
+import fr.ziyon.campzone.ui.packing.PackingShareImportRoute
+import fr.ziyon.campzone.ui.support.AppSupportRoute
+import fr.ziyon.campzone.ui.support.CampSupportRoute
 import fr.ziyon.campzone.ui.admin.moderation.ModerationQueueRoute
 import fr.ziyon.campzone.ui.admin.onboarding.AdminOnboardingRoute
 import fr.ziyon.campzone.ui.admin.role.RoleManagementRoute
@@ -203,6 +210,9 @@ fun CampzoneNavigationShell(
                     onOpenGuidelines = { campingId ->
                         navController.navigate(AppRoute.CampingGuidelines(campingId).route)
                     },
+                    onOpenPackingChecklist = { campingId ->
+                        navController.navigate(AppRoute.CampingPackingChecklist(campingId).route)
+                    },
                     onOpenTeams = { campingId ->
                         navController.navigate(AppRoute.CampingTeams(campingId).route)
                     },
@@ -227,12 +237,31 @@ fun CampzoneNavigationShell(
                     onOpenAlbum = { campingId ->
                         navController.navigate(AppRoute.CampingAlbum(campingId).route)
                     },
+                    onOpenEmergency = { campingId ->
+                        navController.navigate(AppRoute.CampingSafety(campingId).route)
+                    },
+                    onOpenPricing = { campingId ->
+                        navController.navigate(AppRoute.CampingPricing(campingId).route)
+                    },
+                    onOpenSupport = { campingId ->
+                        navController.navigate(AppRoute.CampingSupport(campingId).route)
+                    },
+                    onOpenTransportation = { campingId ->
+                        navController.navigate(AppRoute.TransportationDashboard(campingId).route)
+                    },
+                    onOpenVehicles = { campingId ->
+                        navController.navigate(AppRoute.CampingVehicles(campingId).route)
+                    },
+                    onOpenCheckInScanner = { campingId ->
+                        navController.navigate(AppRoute.CheckInScanner(campingId).route)
+                    },
                 )
             }
             composable(AppRoute.NotificationFeed.route) {
                 AppNotificationFeedRoute(
                     uid = authenticatedUser.uid,
                     role = authenticatedUser.role,
+                    church = authenticatedUser.church,
                     onBack = { navController.popBackStack() },
                     onOpenDeepLink = { deepLink -> navController.navigateToDeepLink(deepLink) },
                 )
@@ -467,6 +496,15 @@ fun CampzoneNavigationShell(
                     onOpenRegistrationReview = {
                         navController.navigate(AppRoute.RegistrationReview.route)
                     },
+                    onOpenAnalytics = {
+                        navController.navigate(AppRoute.AdminAnalytics.route)
+                    },
+                )
+            }
+            composable(AppRoute.AdminAnalytics.route) {
+                AdminAnalyticsRoute(
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(AppRoute.ModerationQueue.route) {
@@ -499,7 +537,7 @@ fun CampzoneNavigationShell(
                 )
             }
             composable(AppRoute.AppSupport.route) {
-                DetailPlaceholderScreen(title = stringResource(R.string.profile_support_campzone), value = stringResource(R.string.profile_coming_soon))
+                AppSupportRoute(authenticatedUser, onBack = { navController.popBackStack() })
             }
             composable(
                 route = AppRoutePattern.CampingDetail,
@@ -511,6 +549,15 @@ fun CampzoneNavigationShell(
                     onBack = { navController.popBackStack() },
                     onOpenGuidelines = { campingId ->
                         navController.navigate(AppRoute.CampingGuidelines(campingId).route)
+                    },
+                    onOpenPackingChecklist = { campingId ->
+                        navController.navigate(AppRoute.CampingPackingChecklist(campingId).route)
+                    },
+                    onOpenPackingEditor = { campingId ->
+                        navController.navigate(AppRoute.CampingPackingChecklistEditor(campingId).route)
+                    },
+                    onOpenSupport = { campingId ->
+                        navController.navigate(AppRoute.CampingSupport(campingId).route)
                     },
                     onOpenSchedule = { campingId ->
                         navController.navigate(AppRoute.CampingSchedule(campingId).route)
@@ -572,6 +619,9 @@ fun CampzoneNavigationShell(
                     onOpenVenueMap = { campingId ->
                         navController.navigate(AppRoute.CampingVenueMap(campingId).route)
                     },
+                    onOpenVenueMapEditor = { campingId ->
+                        navController.navigate(AppRoute.CampingVenueMapEditor(campingId).route)
+                    },
                     onOpenFamilyAtCamp = { campingId ->
                         navController.navigate(AppRoute.CampingGuardianUpdates(campingId).route)
                     },
@@ -599,6 +649,9 @@ fun CampzoneNavigationShell(
                     onOpenAlbum = { campingId ->
                         navController.navigate(AppRoute.CampingAlbum(campingId).route)
                     },
+                    onOpenEmergency = { campingId ->
+                        navController.navigate(AppRoute.CampingSafety(campingId).route)
+                    },
                 )
             }
             composable(
@@ -622,6 +675,17 @@ fun CampzoneNavigationShell(
                     authenticatedUser = authenticatedUser,
                     canViewAlbum = campingDetailState.canManageAlbumMedia || campingDetailState.isApprovedParticipant,
                     canManageAlbum = campingDetailState.canManageAlbumMedia,
+                    canManageAlbumSettings = campingDetailState.canManageAlbumSettings,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingSafety,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                EmergencySafetyRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -1039,6 +1103,9 @@ fun CampzoneNavigationShell(
                     attendeeId = backStackEntry.stringArg(AppRouteArgs.AttendeeId),
                     authenticatedUser = authenticatedUser,
                     onBack = { navController.popBackStack() },
+                    onOpenRelatedAttendee = { relatedCampingId, relatedAttendeeId ->
+                        navController.navigate(AppRoute.AttendeeProfile(relatedCampingId, relatedAttendeeId).route)
+                    },
                 )
             }
             composable(route = AppRoutePattern.CampingCreate) {
@@ -1502,12 +1569,20 @@ fun CampzoneNavigationShell(
                 }
                 val viewModel: GameViewModel =
                     if (gamesEntry != null) hiltViewModel(gamesEntry) else hiltViewModel()
+                val teamsEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingTeams(campingId).route)
+                    }.getOrNull()
+                }
+                val teamViewModel: TeamViewModel =
+                    if (teamsEntry != null) hiltViewModel(teamsEntry) else hiltViewModel()
                 PointHistoryRoute(
                     campingId = campingId,
                     teamId = teamId,
                     camping = campingDetailState.camping,
                     authenticatedUser = authenticatedUser,
                     viewModel = viewModel,
+                    teamViewModel = teamViewModel,
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -1776,6 +1851,56 @@ fun CampzoneNavigationShell(
                     onBack = { navController.popBackStack() },
                 )
             }
+            composable(
+                route = AppRoutePattern.CampingPackingChecklistEditor,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                PackingTemplateEditorRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingSupport,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                CampSupportRoute(
+                    campingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
+                    user = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingPackingShareImport,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.ShareId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val shareId = backStackEntry.stringArg(AppRouteArgs.ShareId)
+                PackingShareImportRoute(
+                    campingId = campingId,
+                    shareId = shareId,
+                    userId = authenticatedUser.uid,
+                    onBack = { navController.popBackStack() },
+                    onOpenChecklist = { navController.navigate(AppRoute.CampingPackingChecklist(campingId).route) },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingPackingChecklist,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                PackingChecklistRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                    onOpenEditor = { navController.navigate(AppRoute.CampingPackingChecklistEditor(campingId).route) },
+                )
+            }
             // Food menu - register editor BEFORE the food menu list so it doesn't match as list
             composable(
                 route = AppRoutePattern.CampingFoodMenuEditor,
@@ -1793,6 +1918,9 @@ fun CampzoneNavigationShell(
                     isEditing = editingEntryId != null,
                     onBack = { navController.popBackStack() },
                     onSaved = { navController.popBackStack() },
+                    onOpenAttendee = { attendeeId ->
+                        navController.navigate(AppRoute.AttendeeProfile(campingId, attendeeId).route)
+                    },
                 )
             }
             composable(
@@ -1885,6 +2013,7 @@ fun CampzoneNavigationShell(
             FloatingSongPlaybackIndicator(
                 song = currentPlayingSong,
                 isPlaying = isSongAudioPlaying,
+                hasNextSong = songbookViewModel.hasNextSong(),
                 onOpen = {
                     val isCurrentSongDetail =
                         currentBackStackEntry?.destination?.route == AppRoutePattern.SongDetail &&
@@ -1897,12 +2026,11 @@ fun CampzoneNavigationShell(
                     }
                 },
                 onToggle = { songbookViewModel.toggleAudio(currentPlayingSong) },
+                onNext = songbookViewModel::playNextSong,
                 onStop = songbookViewModel::stopAudio,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(
-                        start = CzSpacing.base,
-                        end = CzSpacing.base,
                         bottom = innerPadding.calculateBottomPadding() + CzSpacing.base,
                     ),
             )
@@ -1965,60 +2093,6 @@ private fun CampzoneBottomNavigation(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun TopLevelPlaceholderScreen(
-    title: String,
-    modifier: Modifier = Modifier,
-) {
-    ScreenColumn(modifier = modifier) {
-        Text(
-            text = title,
-            color = MaterialTheme.czColors.textPrimary,
-            style = MaterialTheme.typography.displayLarge,
-        )
-    }
-}
-
-@Composable
-private fun DetailPlaceholderScreen(
-    title: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    ScreenColumn(modifier = modifier) {
-        Text(
-            text = title,
-            color = MaterialTheme.czColors.textPrimary,
-            style = MaterialTheme.typography.headlineLarge,
-        )
-        Text(
-            text = value,
-            color = MaterialTheme.czColors.textSecondary,
-            style = MaterialTheme.typography.bodyLarge,
-        )
-    }
-}
-
-@Composable
-fun ScreenColumn(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(
-                PaddingValues(
-                    horizontal = CzSpacing.xl,
-                    vertical = CzSpacing.xxxl,
-                ),
-            ),
-        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-    ) {
-        content()
     }
 }
 

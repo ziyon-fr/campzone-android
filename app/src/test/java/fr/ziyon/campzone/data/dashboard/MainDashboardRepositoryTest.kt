@@ -1,6 +1,7 @@
 package fr.ziyon.campzone.data.dashboard
 
 import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.model.CampingPublicationStatus
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
@@ -108,12 +109,39 @@ class MainDashboardRepositoryTest {
         assertNull(selected)
     }
 
+    @Test
+    fun unpublishedCampingsAreNotHomeCandidates() {
+        val now = Date(10_000)
+        val draftPinned = camping(
+            id = "draft-pinned",
+            start = 20_000,
+            end = 30_000,
+            isFeatured = true,
+            publicationStatus = CampingPublicationStatus.Draft,
+        )
+        val published = camping(
+            id = "published",
+            start = 25_000,
+            end = 40_000,
+            status = CampingRegistrationStatus.Closed,
+        )
+
+        val selected = selectFeaturedCamping(
+            campingsInEndDateOrder = listOf(draftPinned, published),
+            registeredCampingIds = setOf(draftPinned.id),
+            now = now,
+        )
+
+        assertEquals("published", selected?.id)
+    }
+
     private fun camping(
         id: String,
         start: Long,
         end: Long,
         status: CampingRegistrationStatus = CampingRegistrationStatus.Open,
         isFeatured: Boolean = false,
+        publicationStatus: CampingPublicationStatus = CampingPublicationStatus.Published,
     ) = Camping(
         id = id,
         title = id,
@@ -123,6 +151,7 @@ class MainDashboardRepositoryTest {
         organizerLevel = OrganizerLevel(OrganizerType.Church, "Paris Central SDA"),
         location = "Pine Valley",
         registrationStatus = status,
+        publicationStatus = publicationStatus,
         isFeatured = isFeatured,
     )
 }

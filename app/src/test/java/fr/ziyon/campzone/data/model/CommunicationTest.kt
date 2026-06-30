@@ -33,6 +33,45 @@ class CommunicationTest {
     }
 
     @Test
+    fun chatReplyAndReactionsRoundTrip() {
+        val reply = ChatReplyReference(
+            messageId = "orig",
+            senderId = "u2",
+            senderName = "Lea",
+            textPreview = "Original message",
+            mediaType = ChatAttachmentKind.Image,
+            mediaUrl = "https://img/orig.jpg",
+        )
+        val payload = ChatMessagePayload.sendPayload(
+            ChatMessage(
+                id = "m1",
+                campingId = "camp-1",
+                senderId = "u1",
+                senderName = "Maria",
+                text = "Replying",
+                replyTo = reply,
+            ),
+            TS,
+            isTeamChat = false,
+        ).toMutableMap().apply {
+            put("reactions", mapOf("u2" to "\u2764\uFE0F", "u3" to "\u2764\uFE0F", "u4" to ""))
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        val replyMap = payload["replyTo"] as Map<String, Any?>
+        assertEquals("orig", replyMap["messageID"])
+        assertEquals("u2", replyMap["senderID"])
+        assertEquals("image", replyMap["mediaType"])
+
+        val decoded = payload.toChatMessageOrNull("m1")
+        assertEquals("orig", decoded?.replyTo?.messageId)
+        assertEquals("https://img/orig.jpg", decoded?.replyTo?.mediaUrl)
+        assertEquals(mapOf("u2" to "\u2764\uFE0F", "u3" to "\u2764\uFE0F"), decoded?.reactions)
+        assertEquals(1, decoded?.reactionSummaries("u2")?.size)
+        assertTrue(decoded?.reactionSummaries("u2")?.first()?.reactedByCurrentUser == true)
+    }
+
+    @Test
     fun chatPinAndSoftDelete() {
         assertEquals(mapOf("pinned" to true), ChatMessagePayload.pinPayload(true))
 

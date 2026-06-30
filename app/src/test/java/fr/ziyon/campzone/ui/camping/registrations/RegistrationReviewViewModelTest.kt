@@ -178,7 +178,13 @@ class CampingAttendeesViewModelTest {
         viewModel.load("camp-1", user(UserRole.Leader, uid = "leader-1", church = parisChurch))
 
         viewModel.updateSearch("ana")
-        viewModel.updateFilters(AttendeeFilters(ageGroup = CampingAgeGroup.Kids, language = "fr"))
+        val loaded = viewModel.uiState.value
+        assertEquals(listOf(lyonChurch, parisChurch), loaded.availableChurches)
+        assertEquals(listOf("fr", "pt"), loaded.availableLanguages)
+
+        viewModel.updateFilters(
+            AttendeeFilters(church = lyonChurch, ageGroup = CampingAgeGroup.Kids, language = "fr"),
+        )
 
         assertEquals(listOf("kid-1"), viewModel.uiState.value.visibleAttendees.map { it.id })
     }

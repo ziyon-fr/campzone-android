@@ -5,8 +5,11 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.view.Window
 import android.view.WindowManager
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -14,40 +17,58 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Park
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Poll
+import androidx.compose.material.icons.filled.PinDrop
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.outlined.Park
@@ -56,6 +77,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -65,29 +90,39 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import fr.ziyon.campzone.R
+import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
+import fr.ziyon.campzone.core.permissions.CampingPermissionContext
+import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
@@ -130,6 +165,7 @@ fun HomeRoute(
     onOpenSchedule: (String) -> Unit = {},
     onOpenVenueMap: (String) -> Unit = {},
     onOpenGuidelines: (String) -> Unit = {},
+    onOpenPackingChecklist: (String) -> Unit = {},
     onOpenTeams: (String) -> Unit = {},
     onOpenQrPasses: (String) -> Unit = {},
     onOpenFoodMenu: (String) -> Unit = {},
@@ -138,10 +174,16 @@ fun HomeRoute(
     onOpenChat: (String) -> Unit = {},
     onOpenPolls: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
+    onOpenPricing: (String) -> Unit = {},
+    onOpenSupport: (String) -> Unit = {},
+    onOpenTransportation: (String) -> Unit = {},
+    onOpenVehicles: (String) -> Unit = {},
+    onOpenCheckInScanner: (String) -> Unit = {},
+    onOpenEmergency: (String) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(authenticatedUser.uid) {
-        viewModel.loadHome(authenticatedUser.uid)
+        viewModel.loadHome(authenticatedUser)
     }
     val state by viewModel.uiState.collectAsState()
     HomeScreen(
@@ -155,6 +197,7 @@ fun HomeRoute(
         onOpenSchedule = onOpenSchedule,
         onOpenVenueMap = onOpenVenueMap,
         onOpenGuidelines = onOpenGuidelines,
+        onOpenPackingChecklist = onOpenPackingChecklist,
         onOpenTeams = onOpenTeams,
         onOpenQrPasses = onOpenQrPasses,
         onOpenFoodMenu = onOpenFoodMenu,
@@ -163,6 +206,12 @@ fun HomeRoute(
         onOpenChat = onOpenChat,
         onOpenPolls = onOpenPolls,
         onOpenAlbum = onOpenAlbum,
+        onOpenPricing = onOpenPricing,
+        onOpenSupport = onOpenSupport,
+        onOpenTransportation = onOpenTransportation,
+        onOpenVehicles = onOpenVehicles,
+        onOpenCheckInScanner = onOpenCheckInScanner,
+        onOpenEmergency = onOpenEmergency,
         onRetry = viewModel::retry,
         modifier = modifier,
     )
@@ -180,6 +229,7 @@ fun HomeScreen(
     onOpenSchedule: (String) -> Unit,
     onOpenVenueMap: (String) -> Unit,
     onOpenGuidelines: (String) -> Unit,
+    onOpenPackingChecklist: (String) -> Unit,
     onOpenTeams: (String) -> Unit,
     onOpenQrPasses: (String) -> Unit,
     onOpenFoodMenu: (String) -> Unit,
@@ -188,6 +238,12 @@ fun HomeScreen(
     onOpenChat: (String) -> Unit,
     onOpenPolls: (String) -> Unit,
     onOpenAlbum: (String) -> Unit,
+    onOpenPricing: (String) -> Unit,
+    onOpenSupport: (String) -> Unit,
+    onOpenTransportation: (String) -> Unit,
+    onOpenVehicles: (String) -> Unit,
+    onOpenCheckInScanner: (String) -> Unit,
+    onOpenEmergency: (String) -> Unit = {},
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -241,6 +297,7 @@ fun HomeScreen(
                         onOpenSchedule = onOpenSchedule,
                         onOpenVenueMap = onOpenVenueMap,
                         onOpenGuidelines = onOpenGuidelines,
+                        onOpenPackingChecklist = onOpenPackingChecklist,
                         onOpenTeams = onOpenTeams,
                         onOpenQrPasses = onOpenQrPasses,
                         onOpenFoodMenu = onOpenFoodMenu,
@@ -249,6 +306,12 @@ fun HomeScreen(
                         onOpenChat = onOpenChat,
                         onOpenPolls = onOpenPolls,
                         onOpenAlbum = onOpenAlbum,
+                        onOpenPricing = onOpenPricing,
+                        onOpenSupport = onOpenSupport,
+                        onOpenTransportation = onOpenTransportation,
+                        onOpenVehicles = onOpenVehicles,
+                        onOpenCheckInScanner = onOpenCheckInScanner,
+                        onOpenEmergency = onOpenEmergency,
                     )
                 }
             }
@@ -271,6 +334,7 @@ private fun HomeDashboard(
     onOpenSchedule: (String) -> Unit,
     onOpenVenueMap: (String) -> Unit,
     onOpenGuidelines: (String) -> Unit,
+    onOpenPackingChecklist: (String) -> Unit,
     onOpenTeams: (String) -> Unit,
     onOpenQrPasses: (String) -> Unit,
     onOpenFoodMenu: (String) -> Unit,
@@ -279,6 +343,12 @@ private fun HomeDashboard(
     onOpenChat: (String) -> Unit,
     onOpenPolls: (String) -> Unit,
     onOpenAlbum: (String) -> Unit,
+    onOpenPricing: (String) -> Unit,
+    onOpenSupport: (String) -> Unit,
+    onOpenTransportation: (String) -> Unit,
+    onOpenVehicles: (String) -> Unit,
+    onOpenCheckInScanner: (String) -> Unit,
+    onOpenEmergency: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isLiveMode = featuredCamping?.isLiveForUser(authenticatedUser.uid) == true
@@ -319,11 +389,13 @@ private fun HomeDashboard(
 
                 item(key = "quick-actions") {
                     HomeQuickActionsRow(
-                        campingId = featuredCamping.id,
+                        camping = featuredCamping,
+                        authenticatedUser = authenticatedUser,
                         isLive = isLiveMode,
                         onOpenSchedule = onOpenSchedule,
                         onOpenVenueMap = onOpenVenueMap,
                         onOpenGuidelines = onOpenGuidelines,
+                        onOpenPackingChecklist = onOpenPackingChecklist,
                         onOpenTeams = onOpenTeams,
                         onOpenQrPasses = onOpenQrPasses,
                         onOpenFoodMenu = onOpenFoodMenu,
@@ -332,6 +404,12 @@ private fun HomeDashboard(
                         onOpenChat = onOpenChat,
                         onOpenPolls = onOpenPolls,
                         onOpenAlbum = onOpenAlbum,
+                        onOpenPricing = onOpenPricing,
+                        onOpenSupport = onOpenSupport,
+                        onOpenTransportation = onOpenTransportation,
+                        onOpenVehicles = onOpenVehicles,
+                        onOpenCheckInScanner = onOpenCheckInScanner,
+                        onOpenEmergency = onOpenEmergency,
                         modifier = Modifier.padding(horizontal = CzSpacing.lg),
                     )
                 }
@@ -443,7 +521,7 @@ private fun DashboardHeader(
                 .background(MaterialTheme.czColors.surface)
                 .border(
                     width = 1.dp,
-                    color = MaterialTheme.czColors.divider.copy(alpha = 0.7f),
+                    color = MaterialTheme.czColors.divider.copy(alpha = 0.2f),
                     shape = RoundedCornerShape(CzRadius.md),
                 )
         ) {
@@ -466,11 +544,13 @@ private data class HomeQuickAction(
 
 @Composable
 private fun HomeQuickActionsRow(
-    campingId: String,
+    camping: Camping,
+    authenticatedUser: AuthenticatedUser,
     isLive: Boolean,
     onOpenSchedule: (String) -> Unit,
     onOpenVenueMap: (String) -> Unit,
     onOpenGuidelines: (String) -> Unit,
+    onOpenPackingChecklist: (String) -> Unit,
     onOpenTeams: (String) -> Unit,
     onOpenQrPasses: (String) -> Unit,
     onOpenFoodMenu: (String) -> Unit,
@@ -479,93 +559,304 @@ private fun HomeQuickActionsRow(
     onOpenChat: (String) -> Unit,
     onOpenPolls: (String) -> Unit,
     onOpenAlbum: (String) -> Unit,
+    onOpenPricing: (String) -> Unit,
+    onOpenSupport: (String) -> Unit,
+    onOpenTransportation: (String) -> Unit,
+    onOpenVehicles: (String) -> Unit,
+    onOpenCheckInScanner: (String) -> Unit,
+    onOpenEmergency: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
     val usageStore = rememberQuickActionUsageStore()
-    val actions = usageStore
+    val pinStore = rememberQuickActionPinStore()
+    var showPinPicker by rememberSaveable { mutableStateOf(false) }
+    val availableActions = HOME_QUICK_ACTION_PIN_ORDER.mapNotNull { kind ->
+        if (!kind.isAccessible(camping, authenticatedUser)) return@mapNotNull null
+        kind.toHomeQuickAction(
+            campingId = camping.id,
+            colors = colors,
+            onOpenSchedule = onOpenSchedule,
+            onOpenVenueMap = onOpenVenueMap,
+            onOpenGuidelines = onOpenGuidelines,
+            onOpenPackingChecklist = onOpenPackingChecklist,
+            onOpenTeams = onOpenTeams,
+            onOpenQrPasses = onOpenQrPasses,
+            onOpenFoodMenu = onOpenFoodMenu,
+            onOpenSongbook = onOpenSongbook,
+            onOpenGames = onOpenGames,
+            onOpenChat = onOpenChat,
+            onOpenPolls = onOpenPolls,
+            onOpenAlbum = onOpenAlbum,
+            onOpenPricing = onOpenPricing,
+            onOpenSupport = onOpenSupport,
+            onOpenTransportation = onOpenTransportation,
+            onOpenVehicles = onOpenVehicles,
+            onOpenCheckInScanner = onOpenCheckInScanner,
+            onOpenEmergency = onOpenEmergency,
+        )
+    }
+    val actionByKind = availableActions.associateBy(HomeQuickAction::kind)
+    val pinnedKinds = pinStore.pinned.filter(actionByKind::containsKey)
+    val rankedKinds = usageStore
         .ranked(QuickActionKind.candidates(isLive))
-        .mapNotNull { kind ->
-            kind.toHomeQuickAction(
-                campingId = campingId,
-                colors = colors,
-                onOpenSchedule = onOpenSchedule,
-                onOpenVenueMap = onOpenVenueMap,
-                onOpenGuidelines = onOpenGuidelines,
-                onOpenTeams = onOpenTeams,
-                onOpenQrPasses = onOpenQrPasses,
-                onOpenFoodMenu = onOpenFoodMenu,
-                onOpenSongbook = onOpenSongbook,
-                onOpenGames = onOpenGames,
-                onOpenChat = onOpenChat,
-                onOpenPolls = onOpenPolls,
-                onOpenAlbum = onOpenAlbum,
-            )
-        }
+        .filter(actionByKind::containsKey)
+    val actions = (pinnedKinds + rankedKinds.filterNot(pinnedKinds::contains))
+        .distinct()
+        .mapNotNull(actionByKind::get)
         .take(HOME_QUICK_ACTION_TILE_COUNT)
 
-    Row(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
     ) {
-        actions.forEach { action ->
-            HomeQuickActionTile(
-                action = action,
-                onClick = {
-                    usageStore.record(action.kind)
-                    action.onClick()
-                },
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.home_quick_actions),
                 modifier = Modifier.weight(1f),
+                color = colors.textPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
             )
+            IconButton(onClick = { showPinPicker = true }) {
+                Icon(
+                    imageVector = Icons.Filled.PushPin,
+                    contentDescription = stringResource(R.string.home_manage_quick_action_pins),
+                    tint = colors.accent,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            actions.forEach { action ->
+                HomeQuickActionTile(
+                    action = action,
+                    isPinned = pinStore.isPinned(action.kind),
+                    onClick = {
+                        usageStore.record(action.kind)
+                        action.onClick()
+                    },
+                    onLongClick = { showPinPicker = true },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+
+    if (showPinPicker) {
+        QuickActionPinPicker(
+            options = availableActions,
+            pinStore = pinStore,
+            onDismiss = { showPinPicker = false },
+        )
     }
 }
 
 @Composable
 private fun HomeQuickActionTile(
     action: HomeQuickAction,
+    isPinned: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(CzRadius.lg))
-            .background(MaterialTheme.czColors.card)
-            .border(
-                width = 0.5.dp,
-                color = MaterialTheme.czColors.divider.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(CzRadius.lg),
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = CzSpacing.xs, vertical = CzSpacing.md),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
-    ) {
-        Box(
+    Box(modifier = modifier) {
+        Column(
             modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(CzRadius.md))
-                .background(action.tint.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(CzRadius.lg))
+                .background(MaterialTheme.czColors.card)
+                .border(
+                    width = if (isPinned) 1.dp else 0.5.dp,
+                    color = if (isPinned) {
+                        MaterialTheme.czColors.accent.copy(alpha = 0.55f)
+                    } else {
+                        MaterialTheme.czColors.divider.copy(alpha = 0.5f)
+                    },
+                    shape = RoundedCornerShape(CzRadius.lg),
+                )
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                .padding(horizontal = CzSpacing.xs, vertical = CzSpacing.md),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
         ) {
-            Icon(
-                imageVector = action.icon,
-                contentDescription = null,
-                tint = action.tint,
-                modifier = Modifier.size(20.dp),
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(CzRadius.md))
+                    .background(action.tint.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = action.icon,
+                    contentDescription = null,
+                    tint = action.tint,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Text(
+                text = action.label,
+                color = MaterialTheme.czColors.textSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        Text(
-            text = action.label,
-            color = MaterialTheme.czColors.textSecondary,
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (isPinned) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 5.dp, y = (-5).dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.czColors.card),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PushPin,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.accent,
+                    modifier = Modifier.size(11.dp),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuickActionPinPicker(
+    options: List<HomeQuickAction>,
+    pinStore: QuickActionPinStore,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 640.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            Text(
+                text = stringResource(R.string.home_pin_quick_actions_title),
+                color = MaterialTheme.czColors.textPrimary,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = stringResource(
+                    R.string.home_pin_quick_actions_message,
+                    pinStore.pinned.size,
+                    QuickActionPinStore.MaximumPinnedCount,
+                ),
+                color = MaterialTheme.czColors.textSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (pinStore.pinned.isNotEmpty()) {
+                TextButton(onClick = pinStore::clear) {
+                    Text(stringResource(R.string.home_remove_all_pins))
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.czColors.divider)
+            options.forEach { action ->
+                val selected = pinStore.isPinned(action.kind)
+                val enabled = pinStore.canPin(action.kind)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(CzRadius.md))
+                        .clickable(enabled = enabled) { pinStore.toggle(action.kind) }
+                        .alpha(if (enabled) 1f else 0.5f)
+                        .padding(CzSpacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = action.icon,
+                        contentDescription = null,
+                        tint = action.tint,
+                    )
+                    Text(
+                        text = action.label,
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.czColors.textPrimary,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    if (selected) {
+                        Icon(
+                            imageVector = Icons.Filled.PinDrop,
+                            contentDescription = stringResource(R.string.home_quick_action_pinned),
+                            tint = MaterialTheme.czColors.accent,
+                        )
+                    }
+                }
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Text(stringResource(R.string.common_done))
+            }
+        }
     }
 }
 
 private const val HOME_QUICK_ACTION_TILE_COUNT = 4
+
+private val HOME_QUICK_ACTION_PIN_ORDER = listOf(
+    QuickActionKind.Schedule,
+    QuickActionKind.VenueMap,
+    QuickActionKind.FoodMenu,
+    QuickActionKind.Songbook,
+    QuickActionKind.Teams,
+    QuickActionKind.Games,
+    QuickActionKind.QrPass,
+    QuickActionKind.Chat,
+    QuickActionKind.Polls,
+    QuickActionKind.Album,
+    QuickActionKind.Guidelines,
+    QuickActionKind.Packing,
+    QuickActionKind.Pricing,
+    QuickActionKind.Emergency,
+    QuickActionKind.Support,
+    QuickActionKind.Transportation,
+    QuickActionKind.Vehicles,
+    QuickActionKind.CheckInScanner,
+)
+
+private fun QuickActionKind.isAccessible(
+    camping: Camping,
+    authenticatedUser: AuthenticatedUser,
+): Boolean {
+    val permissions = AppPermissionEvaluator()
+    val permissionUser = PermissionUser(
+        role = authenticatedUser.role,
+        userId = authenticatedUser.uid,
+        church = authenticatedUser.church,
+    )
+    val campingContext = CampingPermissionContext(
+        organizerLevelType = camping.organizerLevel.type.wireValue,
+        organizerLevelValue = camping.organizerLevel.value,
+        createdByUid = camping.createdByUid,
+    )
+    return when (this) {
+        QuickActionKind.CheckInScanner ->
+            permissions.canManageCheckIns(permissionUser, campingContext)
+        QuickActionKind.Transportation,
+        QuickActionKind.Vehicles,
+        -> permissions.canManageTransportation(permissionUser, campingContext)
+        QuickActionKind.Emergency -> true
+        else -> true
+    }
+}
 
 @Composable
 private fun QuickActionKind.toHomeQuickAction(
@@ -574,6 +865,7 @@ private fun QuickActionKind.toHomeQuickAction(
     onOpenSchedule: (String) -> Unit,
     onOpenVenueMap: (String) -> Unit,
     onOpenGuidelines: (String) -> Unit,
+    onOpenPackingChecklist: (String) -> Unit,
     onOpenTeams: (String) -> Unit,
     onOpenQrPasses: (String) -> Unit,
     onOpenFoodMenu: (String) -> Unit,
@@ -582,6 +874,12 @@ private fun QuickActionKind.toHomeQuickAction(
     onOpenChat: (String) -> Unit,
     onOpenPolls: (String) -> Unit,
     onOpenAlbum: (String) -> Unit,
+    onOpenPricing: (String) -> Unit,
+    onOpenSupport: (String) -> Unit,
+    onOpenTransportation: (String) -> Unit,
+    onOpenVehicles: (String) -> Unit,
+    onOpenCheckInScanner: (String) -> Unit,
+    onOpenEmergency: (String) -> Unit,
 ): HomeQuickAction? = when (this) {
     QuickActionKind.Schedule -> HomeQuickAction(
         kind = this,
@@ -632,6 +930,13 @@ private fun QuickActionKind.toHomeQuickAction(
         tint = colors.gold,
         onClick = { onOpenGuidelines(campingId) },
     )
+    QuickActionKind.Packing -> HomeQuickAction(
+        kind = this,
+        label = stringResource(R.string.packing_quick_action),
+        icon = Icons.Filled.Checklist,
+        tint = colors.accent,
+        onClick = { onOpenPackingChecklist(campingId) },
+    )
     QuickActionKind.QrPass -> HomeQuickAction(
         kind = this,
         label = stringResource(R.string.home_action_qr_pass),
@@ -660,12 +965,48 @@ private fun QuickActionKind.toHomeQuickAction(
         tint = colors.twilight,
         onClick = { onOpenAlbum(campingId) },
     )
-    QuickActionKind.Pricing,
-    QuickActionKind.Emergency,
-    QuickActionKind.Support,
-    QuickActionKind.Transportation,
-    QuickActionKind.Vehicles,
-    QuickActionKind.CheckInScanner -> null
+    QuickActionKind.Pricing -> HomeQuickAction(
+        kind = this,
+        label = stringResource(R.string.home_action_fees),
+        icon = Icons.Filled.CreditCard,
+        tint = colors.twilight,
+        onClick = { onOpenPricing(campingId) },
+    )
+    QuickActionKind.Support -> HomeQuickAction(
+        kind = this,
+        label = stringResource(R.string.home_action_support),
+        icon = Icons.Filled.Campaign,
+        tint = colors.accent,
+        onClick = { onOpenSupport(campingId) },
+    )
+    QuickActionKind.Transportation -> HomeQuickAction(
+        kind = this,
+        label = stringResource(R.string.home_action_transport),
+        icon = Icons.Filled.DirectionsBus,
+        tint = colors.secondary,
+        onClick = { onOpenTransportation(campingId) },
+    )
+    QuickActionKind.Vehicles -> HomeQuickAction(
+        kind = this,
+        label = stringResource(R.string.home_action_vehicles),
+        icon = Icons.Filled.DirectionsCar,
+        tint = colors.accent,
+        onClick = { onOpenVehicles(campingId) },
+    )
+    QuickActionKind.CheckInScanner -> HomeQuickAction(
+        kind = this,
+        label = stringResource(R.string.home_action_scanner),
+        icon = Icons.Filled.QrCodeScanner,
+        tint = colors.success,
+        onClick = { onOpenCheckInScanner(campingId) },
+    )
+    QuickActionKind.Emergency -> HomeQuickAction(
+        kind = this,
+        label = stringResource(R.string.camping_emergency_safety),
+        icon = Icons.Filled.Security,
+        tint = colors.error,
+        onClick = { onOpenEmergency(campingId) },
+    )
 }
 
 @Composable
@@ -886,7 +1227,7 @@ private fun NowProgramCard(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(CzRadius.xl))
-            .background(MaterialTheme.czColors.card)
+            .background(MaterialTheme.czColors.surface)
             .padding(CzSpacing.md),
         verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
     ) {
@@ -1102,6 +1443,17 @@ private fun HomeAnnouncementCard(
     }
 }
 
+private data class HomeCampPass(
+    val id: String,
+    val qrValue: String,
+    val name: String,
+    val campName: String,
+    val isSelf: Boolean,
+    val photoUrl: String?,
+    val teamName: String?,
+    val lodgingName: String?,
+)
+
 @Composable
 private fun CampPassHeroCard(
     camping: Camping,
@@ -1109,39 +1461,71 @@ private fun CampPassHeroCard(
     livePassInfo: HomeLivePassInfo,
     modifier: Modifier = Modifier,
 ) {
-    val attendee = camping.homePassAttendee(authenticatedUser.uid)
+    val selfAttendee = camping.homePassAttendee(authenticatedUser.uid)
         ?.takeIf { it.registrationStatus == RegistrationApprovalStatus.Approved }
-    val displayName = attendee?.displayName?.takeUnless { it.isBlank() }
-        ?: authenticatedUser.preferredDisplayName
-    val isCheckedIn = livePassInfo.checkInRecord != null
-    val dayText = camping.dayProgressText(isCheckedIn)
-    val accentGlow = MaterialTheme.czColors.accent
-    val qrValue = remember(camping.id, attendee?.id, attendee?.userId) {
-        attendee?.let {
-            CheckInQrPayload(
-                campingId = camping.id,
-                attendeeId = it.id,
-                userId = it.userId,
-            ).encoded()
+    val managedPassInfo = livePassInfo.passes.ifEmpty {
+        selfAttendee?.let { attendee ->
+            listOf(
+                HomeCampPassInfo(
+                    attendee = attendee,
+                    teamName = livePassInfo.teamName,
+                    lodgingName = livePassInfo.lodgingName,
+                ),
+            )
+        }.orEmpty()
+    }
+    val passes = remember(camping.id, camping.title, managedPassInfo, authenticatedUser.photoUrl) {
+        managedPassInfo.map { passInfo ->
+            val attendee = passInfo.attendee
+            val isSelf = attendee.participantKind == RegistrationParticipantKind.SelfParticipant
+            HomeCampPass(
+                id = attendee.id,
+                qrValue = CheckInQrPayload(
+                    campingId = camping.id,
+                    attendeeId = attendee.id,
+                    userId = attendee.userId,
+                ).encoded(),
+                name = attendee.displayName,
+                campName = camping.title,
+                isSelf = isSelf,
+                photoUrl = attendee.photoUrl ?: authenticatedUser.photoUrl.takeIf { isSelf },
+                teamName = passInfo.teamName,
+                lodgingName = passInfo.lodgingName,
+            )
         }
     }
-    var showFullPass by remember(camping.id, attendee?.id) { mutableStateOf(false) }
+    val primaryPass = passes.firstOrNull { it.isSelf } ?: passes.firstOrNull()
+    val displayName = primaryPass?.name?.takeUnless { it.isBlank() }
+        ?: authenticatedUser.preferredDisplayName
+    val isCheckedIn = primaryPass?.isSelf == true &&
+        livePassInfo.checkInRecord?.attendeeId == primaryPass.id
+    val dayText = camping.dayProgressText(isCheckedIn)
+    val accentGlow = MaterialTheme.czColors.accent
+    val qrValue = primaryPass?.qrValue
+    val accessibilityLabel = stringResource(R.string.home_pass_card_accessibility, displayName)
+    val isDarkMode = isSystemInDarkTheme()
+    var showFullPass by remember(camping.id, primaryPass?.id) { mutableStateOf(false) }
 
-    if (showFullPass) {
+    if (showFullPass && passes.isNotEmpty()) {
         CampPassFullScreenDialog(
-            qrValue = qrValue.orEmpty(),
-            name = displayName,
-            campName = camping.title,
-            photoUrl = attendee?.photoUrl ?: authenticatedUser.photoUrl,
-            teamName = livePassInfo.teamName,
-            lodgingName = livePassInfo.lodgingName,
+            passes = passes,
+            initialPassId = primaryPass?.id,
             onDismiss = { showFullPass = false },
         )
     }
 
     Card(
-        onClick = { showFullPass = true },
-        modifier = modifier.fillMaxWidth(),
+        onClick = { if (passes.isNotEmpty()) showFullPass = true },
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = if (isDarkMode) 0.dp else 16.dp,
+                shape = RoundedCornerShape(CzRadius.xxl),
+                clip = false,
+            )
+            .semantics(mergeDescendants = true) {
+                contentDescription = accessibilityLabel
+            },
         shape = RoundedCornerShape(CzRadius.xxl),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.czColors.espresso),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -1184,6 +1568,7 @@ private fun CampPassHeroCard(
                         color = MaterialTheme.czColors.cream.copy(alpha = 0.55f),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp,
                         maxLines = 1,
                         modifier = Modifier.weight(1f),
                     )
@@ -1238,20 +1623,20 @@ private fun CampPassHeroCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        if (!livePassInfo.teamName.isNullOrBlank() || !livePassInfo.lodgingName.isNullOrBlank()) {
+                        if (!primaryPass?.teamName.isNullOrBlank() || !primaryPass?.lodgingName.isNullOrBlank()) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = CzSpacing.xs),
                                 horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
                             ) {
-                                livePassInfo.teamName?.takeUnless { it.isBlank() }?.let { teamName ->
+                                primaryPass?.teamName?.takeUnless { it.isBlank() }?.let { teamName ->
                                     CampPassChip(
                                         text = teamName,
                                         modifier = Modifier.weight(1f, fill = false),
                                     )
                                 }
-                                livePassInfo.lodgingName?.takeUnless { it.isBlank() }?.let { lodgingName ->
+                                primaryPass?.lodgingName?.takeUnless { it.isBlank() }?.let { lodgingName ->
                                     CampPassChip(
                                         text = lodgingName,
                                         modifier = Modifier.weight(1f, fill = false),
@@ -1262,12 +1647,8 @@ private fun CampPassHeroCard(
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = CzSpacing.md)
-                        .height(1.dp)
-                        .background(MaterialTheme.czColors.cream.copy(alpha = 0.18f)),
+                CampPassDashedDivider(
+                    modifier = Modifier.padding(horizontal = CzSpacing.md),
                 )
 
                 Row(
@@ -1357,6 +1738,28 @@ private fun CampPassQrTile(
 }
 
 @Composable
+private fun CampPassDashedDivider(
+    modifier: Modifier = Modifier,
+) {
+    val color = MaterialTheme.czColors.cream.copy(alpha = 0.18f)
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(2.dp),
+    ) {
+        drawLine(
+            color = color,
+            start = Offset(0f, size.height / 2f),
+            end = Offset(size.width, size.height / 2f),
+            strokeWidth = 1.5.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(
+                intervals = floatArrayOf(5.dp.toPx(), 4.dp.toPx()),
+            ),
+        )
+    }
+}
+
+@Composable
 private fun CampPassChip(
     text: String,
     modifier: Modifier = Modifier,
@@ -1369,23 +1772,28 @@ private fun CampPassChip(
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
-            .clip(CircleShape)
+            .clip(RoundedCornerShape(CzRadius.sm))
             .background(Color.White.copy(alpha = 0.10f))
             .padding(horizontal = CzSpacing.sm, vertical = 4.dp),
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CampPassFullScreenDialog(
-    qrValue: String,
-    name: String,
-    campName: String,
-    photoUrl: String?,
-    teamName: String?,
-    lodgingName: String?,
+    passes: List<HomeCampPass>,
+    initialPassId: String?,
     onDismiss: () -> Unit,
 ) {
     val view = LocalView.current
+    val initialPage = passes.indexOfFirst { it.id == initialPassId }
+        .takeIf { it >= 0 }
+        ?: 0
+    val pagerState = rememberPagerState(
+        initialPage = initialPage,
+        pageCount = { passes.size },
+    )
+    val hasMultiplePasses = passes.size > 1
     DisposableEffect(Unit) {
         val window = view.context.findActivity()?.window
         val previousBrightness = window?.attributes?.screenBrightness
@@ -1404,7 +1812,7 @@ private fun CampPassFullScreenDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
@@ -1414,112 +1822,213 @@ private fun CampPassFullScreenDialog(
                             MaterialTheme.czColors.espressoDeep,
                         ),
                     ),
-                ),
+                )
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(vertical = CzSpacing.xl),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            IconButton(
-                onClick = onDismiss,
+            Row(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(CzSpacing.lg)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.12f)),
+                    .fillMaxWidth()
+                    .padding(horizontal = CzSpacing.xl),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = stringResource(R.string.common_close),
-                    tint = MaterialTheme.czColors.cream,
-                )
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = CzSpacing.xl, vertical = CzSpacing.xl),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                QrCodeImage(
-                    value = qrValue,
+                if (hasMultiplePasses) {
+                    Text(
+                        text = stringResource(
+                            R.string.home_pass_position,
+                            pagerState.currentPage + 1,
+                            passes.size,
+                        ),
+                        color = MaterialTheme.czColors.cream.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(
+                    onClick = onDismiss,
                     modifier = Modifier
-                        .size(320.dp)
-                        .clip(RoundedCornerShape(CzRadius.xl))
-                        .background(Color.White)
-                        .padding(CzSpacing.lg),
-                )
-
-                Row(
-                    modifier = Modifier.padding(top = CzSpacing.xl),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-                ) {
-                    if (!photoUrl.isNullOrBlank()) {
-                        AsyncImage(
-                            model = photoUrl,
-                            contentDescription = name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape),
-                        )
-                    }
-                    Column(
-                        horizontalAlignment = if (photoUrl.isNullOrBlank()) Alignment.CenterHorizontally else Alignment.Start,
-                        verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
-                    ) {
-                        Text(
-                            text = name,
-                            color = MaterialTheme.czColors.cream,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = campName,
-                            color = MaterialTheme.czColors.cream.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-
-                if (!teamName.isNullOrBlank() || !lodgingName.isNullOrBlank()) {
-                    Row(
-                        modifier = Modifier.padding(top = CzSpacing.xl),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-                    ) {
-                        teamName?.takeUnless { it.isBlank() }?.let { resolvedTeamName ->
-                            CampPassFullScreenChip(
-                                text = resolvedTeamName,
-                                icon = Icons.Filled.Groups,
-                            )
-                        }
-                        lodgingName?.takeUnless { it.isBlank() }?.let { resolvedLodgingName ->
-                            CampPassFullScreenChip(
-                                text = resolvedLodgingName,
-                                icon = Icons.Filled.Terrain,
-                            )
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.padding(top = CzSpacing.xl),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.12f)),
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.QrCode,
-                        contentDescription = null,
-                        tint = MaterialTheme.czColors.cream.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp),
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.common_close),
+                        tint = MaterialTheme.czColors.cream,
                     )
-                    Text(
-                        text = stringResource(R.string.home_pass_hint),
-                        color = MaterialTheme.czColors.cream.copy(alpha = 0.6f),
-                        style = MaterialTheme.typography.labelMedium,
+                }
+            }
+
+            if (hasMultiplePasses) {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                ) { page ->
+                    CampPassFullScreenContent(
+                        pass = passes[page],
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = CzSpacing.xl),
+                    )
+                }
+                Row(
+                    modifier = Modifier.padding(top = CzSpacing.lg),
+                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+                ) {
+                    passes.indices.forEach { index ->
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    MaterialTheme.czColors.cream.copy(
+                                        alpha = if (index == pagerState.currentPage) 0.95f else 0.3f,
+                                    ),
+                                ),
+                        )
+                    }
+                }
+            } else {
+                passes.firstOrNull()?.let { pass ->
+                    CampPassFullScreenContent(
+                        pass = pass,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(horizontal = CzSpacing.xl),
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.padding(top = CzSpacing.xl),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.QrCode,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.cream.copy(alpha = 0.6f),
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    text = stringResource(R.string.home_pass_hint),
+                    color = MaterialTheme.czColors.cream.copy(alpha = 0.6f),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CampPassFullScreenContent(
+    pass: HomeCampPass,
+    modifier: Modifier = Modifier,
+) {
+    val kindLabel = stringResource(
+        if (pass.isSelf) R.string.home_pass_you else R.string.home_pass_participant,
+    )
+    val accessibilityLabel = stringResource(
+        R.string.home_pass_accessibility,
+        kindLabel,
+        pass.name,
+    )
+    Column(
+        modifier = modifier.semantics(mergeDescendants = true) {
+            contentDescription = accessibilityLabel
+        },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.14f))
+                .padding(horizontal = CzSpacing.md, vertical = CzSpacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+        ) {
+            Icon(
+                imageVector = if (pass.isSelf) Icons.Filled.Person else Icons.Filled.ChildCare,
+                contentDescription = null,
+                tint = MaterialTheme.czColors.cream,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = kindLabel,
+                color = MaterialTheme.czColors.cream,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
+        QrCodeImage(
+            value = pass.qrValue,
+            modifier = Modifier
+                .padding(top = CzSpacing.lg)
+                .size(320.dp)
+                .clip(RoundedCornerShape(CzRadius.xl))
+                .background(Color.White)
+                .padding(CzSpacing.lg),
+        )
+
+        Row(
+            modifier = Modifier.padding(top = CzSpacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
+            if (!pass.photoUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = pass.photoUrl,
+                    contentDescription = pass.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape),
+                )
+            }
+            Column(
+                horizontalAlignment = if (pass.photoUrl.isNullOrBlank()) Alignment.CenterHorizontally else Alignment.Start,
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+            ) {
+                Text(
+                    text = pass.name,
+                    color = MaterialTheme.czColors.cream,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = pass.campName,
+                    color = MaterialTheme.czColors.cream.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        if (!pass.teamName.isNullOrBlank() || !pass.lodgingName.isNullOrBlank()) {
+            Row(
+                modifier = Modifier.padding(top = CzSpacing.lg),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                pass.teamName?.takeUnless { it.isBlank() }?.let { teamName ->
+                    CampPassFullScreenChip(
+                        text = teamName,
+                        icon = Icons.Filled.Groups,
+                    )
+                }
+                pass.lodgingName?.takeUnless { it.isBlank() }?.let { lodgingName ->
+                    CampPassFullScreenChip(
+                        text = lodgingName,
+                        icon = Icons.Filled.Terrain,
                     )
                 }
             }
@@ -1815,28 +2324,21 @@ private enum class FeaturedCampingCta {
 
 @Composable
 private fun FeaturedTag(modifier: Modifier = Modifier) {
+    val accessibilityLabel = stringResource(R.string.home_featured_tag)
     Row(
         modifier = modifier
             .padding(CzSpacing.md)
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.92f))
-            .padding(horizontal = CzSpacing.sm, vertical = 5.dp),
+            .padding(CzSpacing.sm)
+            .semantics { contentDescription = accessibilityLabel },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
     ) {
         Icon(
-            imageVector = Icons.Filled.Park,
+            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
             contentDescription = null,
             tint = MaterialTheme.czColors.ember,
-            modifier = Modifier.size(12.dp),
-        )
-        Text(
-            text = stringResource(R.string.home_featured_tag)
-                .uppercase(Locale.forLanguageTag(ComposeLocale.current.toLanguageTag())),
-            color = MaterialTheme.czColors.ember,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
+            modifier = Modifier.size(14.dp),
         )
     }
 }
@@ -1901,7 +2403,7 @@ private fun FeaturedRegisterButton(
             .alpha(if (enabled) 1f else 0.62f)
             .padding(horizontal = CzSpacing.base),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        horizontalArrangement = Arrangement.Center,
     ) {
         Text(
             text = stringResource(
@@ -1916,13 +2418,7 @@ private fun FeaturedRegisterButton(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Icon(
-            imageVector = if (enabled) Icons.Filled.ChevronRight else Icons.Filled.Lock,
-            contentDescription = null,
-            tint = if (enabled) MaterialTheme.czColors.textPrimary else MaterialTheme.czColors.textSecondary,
-            modifier = Modifier.size(18.dp),
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -2310,6 +2806,7 @@ fun HomeScreenPreview() {
             onOpenSchedule = {},
             onOpenVenueMap = {},
             onOpenGuidelines = {},
+            onOpenPackingChecklist = {},
             onOpenTeams = {},
             onOpenQrPasses = {},
             onOpenFoodMenu = {},
@@ -2318,6 +2815,11 @@ fun HomeScreenPreview() {
             onOpenChat = {},
             onOpenPolls = {},
             onOpenAlbum = {},
+            onOpenPricing = {},
+            onOpenSupport = {},
+            onOpenTransportation = {},
+            onOpenVehicles = {},
+            onOpenCheckInScanner = {},
             onRetry = {},
         )
     }

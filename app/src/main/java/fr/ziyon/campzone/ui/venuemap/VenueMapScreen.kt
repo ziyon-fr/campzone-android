@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,9 +29,11 @@ import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -76,11 +79,13 @@ import fr.ziyon.campzone.core.designsystem.CzErrorState
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
+import fr.ziyon.campzone.core.designsystem.CzTextField
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.venuemap.DirectionsTarget
 import fr.ziyon.campzone.data.venuemap.ExternalMapsApp
 import fr.ziyon.campzone.data.venuemap.ExternalNavigationLauncher
+import fr.ziyon.campzone.data.model.VenueCategory
 import fr.ziyon.campzone.data.model.VenueMap
 import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.model.hasContent
@@ -224,6 +229,25 @@ private fun VenueMapContent(
     val context = LocalContext.current
     var mode by rememberSaveable { mutableStateOf(VenueMapMode.Illustration) }
     var directionsTarget by remember { mutableStateOf<DirectionsTarget?>(null) }
+    var selectedCategory by rememberSaveable { mutableStateOf<VenueCategory?>(null) }
+    var searchText by rememberSaveable { mutableStateOf("") }
+    val availableCategories = remember(state.map.points) {
+        val present = state.map.points.map { it.category }.toSet()
+        VenueCategory.entries.filter { it in present }
+    }
+    val displayedMap = remember(state.map, selectedCategory, searchText) {
+        state.map.filteredForVenueSearch(selectedCategory, searchText)
+    }
+    val displayedSelectedPointId = state.selectedPointId
+        ?.takeIf { id -> displayedMap.points.any { it.id == id } }
+    val displayedState = state.copy(map = displayedMap, selectedPointId = displayedSelectedPointId)
+    val isFiltering = selectedCategory != null || searchText.isNotBlank()
+
+    LaunchedEffect(state.selectedPointId, displayedMap.points) {
+        if (state.selectedPointId != null && displayedSelectedPointId == null) {
+            onSelectPoint(null)
+        }
+    }
 
     directionsTarget?.let { target ->
         ExternalDirectionsSheet(
@@ -242,6 +266,27 @@ private fun VenueMapContent(
                 },
                 modifier = Modifier.padding(horizontal = CzSpacing.lg, vertical = CzSpacing.sm),
             )
+            if (state.map.points.isNotEmpty()) {
+                VenueMapFilterBar(
+                    categories = availableCategories,
+                    selectedCategory = selectedCategory,
+                    searchText = searchText,
+                    onCategorySelected = {
+                        selectedCategory = it
+                        onSelectPoint(null)
+                    },
+                    onSearchChange = {
+                        searchText = it
+                    },
+                    onClearSearch = {
+                        searchText = ""
+                        onSelectPoint(null)
+                    },
+                    modifier = Modifier
+                        .padding(horizontal = CzSpacing.lg)
+                        .padding(bottom = CzSpacing.sm),
+                )
+            }
             // The content fills only the space *below* the picker, and
             // `clipToBounds()` confines the osmdroid MapView's drawing to this
             // region (Compose doesn't clip child views by default, so without it
@@ -253,17 +298,24 @@ private fun VenueMapContent(
                     .clipToBounds(),
             ) {
                 when (mode) {
-                    VenueMapMode.Illustration -> IllustrationMode(state, onSelectPoint)
+                    VenueMapMode.Illustration -> IllustrationMode(displayedState, onSelectPoint)
                     VenueMapMode.Map -> MapMode(
-                        state = state,
+                        state = displayedState,
                         onSelectPoint = onSelectPoint,
                         onRouteTo = { directionsTarget = it },
+                    )
+                }
+                if (isFiltering && displayedMap.points.isEmpty()) {
+                    VenueNoMatchesNotice(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(CzSpacing.lg),
                     )
                 }
             }
         }
 
-        val selected = state.selectedPoint
+        val selected = displayedState.selectedPoint
         if (selected != null) {
             VenuePointDetailCard(
                 point = selected,
@@ -325,6 +377,107 @@ private fun VenueModePicker(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VenueMapFilterBar(
+    categories: List<VenueCategory>,
+    selectedCategory: VenueCategory?,
+    searchText: String,
+    onCategorySelected: (VenueCategory?) -> Unit,
+    onSearchChange: (String) -> Unit,
+    onClearSearch: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        CzTextField(
+            value = searchText,
+            onValueChange = onSearchChange,
+            label = stringResource(R.string.venue_search_locations),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.textSecondary,
+                )
+            },
+            trailingIcon = if (searchText.isNotEmpty()) {
+                {
+                    IconButton(onClick = onClearSearch) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.venue_clear_search),
+                        )
+                    }
+                }
+            } else {
+                null
+            },
+        )
+        if (categories.size > 1) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                contentPadding = PaddingValues(horizontal = 2.dp),
+            ) {
+                item("all") {
+                    FilterChip(
+                        selected = selectedCategory == null,
+                        onClick = { onCategorySelected(null) },
+                        label = { Text(stringResource(R.string.venue_filter_all)) },
+                    )
+                }
+                items(categories, key = { it.wireValue }) { category ->
+                    FilterChip(
+                        selected = selectedCategory == category,
+                        onClick = {
+                            onCategorySelected(if (selectedCategory == category) null else category)
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = category.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        },
+                        label = { Text(stringResource(category.labelRes)) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VenueNoMatchesNotice(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.czColors.surface.compositeOver(MaterialTheme.czColors.background),
+        shape = RoundedCornerShape(CzRadius.xl),
+        shadowElevation = 6.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(CzSpacing.lg),
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Search,
+                contentDescription = null,
+                tint = MaterialTheme.czColors.textSecondary,
+            )
+            Text(
+                text = stringResource(R.string.venue_no_filter_matches),
+                color = MaterialTheme.czColors.textSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
 @Composable
 private fun IllustrationMode(
     state: VenueMapUiState.Ready,
@@ -376,6 +529,21 @@ private fun IllustrationMode(
             }
         }
     }
+}
+
+private fun VenueMap.filteredForVenueSearch(category: VenueCategory?, rawSearchText: String): VenueMap {
+    val query = rawSearchText.trim().lowercase()
+    if (category == null && query.isEmpty()) return this
+    return copy(
+        points = points.filter { point ->
+            val matchesCategory = category == null || point.category == category
+            if (!matchesCategory) return@filter false
+            if (query.isEmpty()) return@filter true
+            point.name.lowercase().contains(query) ||
+                point.resolvedDisplayName.lowercase().contains(query) ||
+                point.note.lowercase().contains(query)
+        },
+    )
 }
 
 @Composable

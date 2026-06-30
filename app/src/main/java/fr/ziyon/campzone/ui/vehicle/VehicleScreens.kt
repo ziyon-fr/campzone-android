@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CarRental
@@ -133,8 +134,9 @@ fun MyTransportationRoute(
         viewModel.loadSavedVehicles(authenticatedUser.uid)
     }
     val state by viewModel.uiState.collectAsState()
+    val requestCancelledMessage = stringResource(R.string.vehicle_request_cancelled)
     VehicleScaffold(
-        title = "Transport",
+        title = stringResource(R.string.transportation_title),
         onBack = onBack,
         modifier = modifier,
     ) { padding ->
@@ -146,8 +148,8 @@ fun MyTransportationRoute(
             val attendee = state.selfAttendee(authenticatedUser)
             if (attendee == null) {
                 CzEmptyState(
-                    title = "Approval needed",
-                    message = "Register and get approved to set up your transport.",
+                    title = stringResource(R.string.vehicle_approval_needed_title),
+                    message = stringResource(R.string.vehicle_transport_approval_needed_message),
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -157,7 +159,7 @@ fun MyTransportationRoute(
                     onOpenVehicleForm = onOpenVehicleForm,
                     onOpenVehicleQr = onOpenVehicleQr,
                     onRequestHelp = { viewModel.requestTransportHelp(campingId, attendee.id) },
-                    onClearTransport = { viewModel.clearTransportIntent(campingId, attendee.id, "Request cancelled.") },
+                    onClearTransport = { viewModel.clearTransportIntent(campingId, attendee.id, requestCancelledMessage) },
                     onJoinVehicle = { vehicle -> viewModel.requestJoin(vehicle, attendee) },
                     onJoinByCode = { code -> viewModel.joinByInvitationCode(campingId, code, attendee) },
                     onWithdraw = { vehicle -> viewModel.withdrawJoinRequest(vehicle, attendee.id) },
@@ -166,6 +168,8 @@ fun MyTransportationRoute(
                     onDeny = viewModel::denyPassenger,
                     onRemovePassenger = viewModel::removePassenger,
                     onAddPassenger = { vehicle, passenger -> viewModel.addPassenger(vehicle, passenger) },
+                    onInvitePassenger = { vehicle, passenger -> viewModel.invitePassenger(vehicle, passenger) },
+                    currentUser = authenticatedUser,
                     onRespondToInvitation = { vehicle, accept -> viewModel.respondToInvitation(vehicle, attendee, accept) },
                     initialJoinCode = initialJoinCode,
                     initialDecisionKind = initialDecisionKind,
@@ -196,7 +200,7 @@ fun VehicleFormRoute(
     val state by viewModel.uiState.collectAsState()
     val savedState by viewModel.savedVehicleState.collectAsState()
     VehicleScaffold(
-        title = if (vehicleId == null) "Register car" else "Edit car",
+        title = stringResource(if (vehicleId == null) R.string.vehicle_register_car_title else R.string.vehicle_edit_car_title),
         onBack = onBack,
         modifier = modifier,
     ) { padding ->
@@ -208,14 +212,18 @@ fun VehicleFormRoute(
             val attendee = state.selfAttendee(authenticatedUser)
             if (attendee == null) {
                 CzEmptyState(
-                    title = "Approval needed",
-                    message = "You need an approved self registration before adding a car.",
+                    title = stringResource(R.string.vehicle_approval_needed_title),
+                    message = stringResource(R.string.vehicle_form_approval_needed_message),
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
                 VehicleFormContent(
                     existing = vehicleId?.let(state::vehicle),
                     savedVehicles = savedState.vehicles,
+                    familyCandidates = state.camping?.attendees.orEmpty()
+                        .filter { it.registrationStatus == RegistrationApprovalStatus.Approved }
+                        .filter { it.guardianId == authenticatedUser.uid }
+                        .filterNot { it.id == attendee.id },
                     saving = state.savingVehicle,
                     error = state.operationError,
                     onSubmitNew = { input ->
@@ -253,12 +261,12 @@ fun VehicleQrRoute(
     }
     val state by viewModel.uiState.collectAsState()
     VehicleScaffold(
-        title = "Car QR code",
+        title = stringResource(R.string.vehicle_qr_title),
         onBack = onBack,
         modifier = modifier,
         actions = {
             IconButton(onClick = { onEdit(vehicleId) }) {
-                Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.common_edit))
             }
         },
     ) { padding ->
@@ -270,8 +278,8 @@ fun VehicleQrRoute(
             val vehicle = state.vehicle(vehicleId)
             if (vehicle == null) {
                 CzEmptyState(
-                    title = "Vehicle unavailable",
-                    message = "This car could not be found.",
+                    title = stringResource(R.string.vehicle_unavailable_title),
+                    message = stringResource(R.string.vehicle_unavailable_message),
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -297,18 +305,18 @@ fun CampingVehiclesRoute(
     }
     val state by viewModel.uiState.collectAsState()
     VehicleScaffold(
-        title = "Vehicles",
+        title = stringResource(R.string.vehicle_dashboard_title),
         onBack = onBack,
         modifier = modifier,
         actions = {
             IconButton(onClick = onOpenScanner) {
-                Icon(Icons.Filled.QrCodeScanner, contentDescription = "Scan a car QR")
+                Icon(Icons.Filled.QrCodeScanner, contentDescription = stringResource(R.string.vehicle_scan_car_qr))
             }
         },
     ) { padding ->
         VehicleStateContent(
             state = state.loadState,
-            restrictedMessage = "Only transport managers can manage vehicle arrivals.",
+            restrictedMessage = stringResource(R.string.vehicle_manager_arrivals_restricted),
             onRetry = { viewModel.retry(campingId, authenticatedUser, requireManager = true) },
             modifier = Modifier.padding(padding),
         ) {
@@ -338,13 +346,13 @@ fun VehicleScanRoute(
     val filteredVehicles by viewModel.filteredVehicles.collectAsState()
     val query by viewModel.vehicleSearchText.collectAsState()
     VehicleScaffold(
-        title = "Scan car QR",
+        title = stringResource(R.string.vehicle_scan_car_qr),
         onBack = onBack,
         modifier = modifier,
     ) { padding ->
         VehicleStateContent(
             state = state.loadState,
-            restrictedMessage = "Only transport managers can scan vehicle arrivals.",
+            restrictedMessage = stringResource(R.string.vehicle_manager_scan_restricted),
             onRetry = { viewModel.retry(campingId, authenticatedUser, requireManager = true) },
             modifier = Modifier.padding(padding),
         ) {
@@ -377,21 +385,21 @@ fun VehicleArrivalRoute(
     }
     val state by viewModel.uiState.collectAsState()
     VehicleScaffold(
-        title = "Confirm arrival",
+        title = stringResource(R.string.vehicle_confirm_arrival_title),
         onBack = onBack,
         modifier = modifier,
     ) { padding ->
         VehicleStateContent(
             state = state.loadState,
-            restrictedMessage = "Only transport managers can confirm vehicle arrivals.",
+            restrictedMessage = stringResource(R.string.vehicle_manager_confirm_restricted),
             onRetry = { viewModel.retry(campingId, authenticatedUser, requireManager = true) },
             modifier = Modifier.padding(padding),
         ) {
             val vehicle = state.vehicle(vehicleId)
             if (vehicle == null) {
                 CzEmptyState(
-                    title = "Vehicle unavailable",
-                    message = "This car could not be found.",
+                    title = stringResource(R.string.vehicle_unavailable_title),
+                    message = stringResource(R.string.vehicle_unavailable_message),
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -501,18 +509,18 @@ fun MyVehicleCard(
     val ridden = state.vehicleRidden(attendee.id)
     val pending = state.pendingVehicle(attendee.id)
     val title = when {
-        driven != null -> "Car QR ready"
-        ridden != null -> "Your ride"
-        pending != null -> "Ride request pending"
-        attendee.needsTransportHelp -> "Transport help requested"
-        else -> "Set up transport"
+        driven != null -> stringResource(R.string.vehicle_card_qr_ready)
+        ridden != null -> stringResource(R.string.vehicle_card_your_ride)
+        pending != null -> stringResource(R.string.vehicle_card_request_pending)
+        attendee.needsTransportHelp -> stringResource(R.string.vehicle_transport_help_requested)
+        else -> stringResource(R.string.vehicle_card_setup_transport)
     }
     val subtitle = when {
-        driven != null -> "${driven.plateNumber} - ${driven.availableSeats} free seat(s)"
-        ridden != null -> "Riding with ${ridden.driverName}"
-        pending != null -> "Waiting for ${pending.driverName}"
-        attendee.needsTransportHelp -> "Camp leadership can see your request."
-        else -> "Driving, passenger, or need help."
+        driven != null -> stringResource(R.string.vehicle_free_seats_summary, driven.plateNumber, driven.availableSeats)
+        ridden != null -> stringResource(R.string.vehicle_riding_with, ridden.driverName)
+        pending != null -> stringResource(R.string.vehicle_waiting_for, pending.driverName)
+        attendee.needsTransportHelp -> stringResource(R.string.vehicle_leadership_can_see_request)
+        else -> stringResource(R.string.vehicle_setup_transport_subtitle)
     }
     VehicleCard(
         modifier = modifier.clickable(onClick = onOpenTransport),
@@ -542,6 +550,7 @@ fun MyVehicleCard(
 private fun MyTransportationContent(
     state: VehicleUiState,
     attendee: CampingAttendee,
+    currentUser: AuthenticatedUser,
     onOpenVehicleForm: (String?) -> Unit,
     onOpenVehicleQr: (String) -> Unit,
     onRequestHelp: () -> Unit,
@@ -554,6 +563,7 @@ private fun MyTransportationContent(
     onDeny: (CampingVehicle, String) -> Unit,
     onRemovePassenger: (CampingVehicle, String) -> Unit,
     onAddPassenger: (CampingVehicle, CampingAttendee) -> Unit,
+    onInvitePassenger: (CampingVehicle, CampingAttendee) -> Unit,
     onRespondToInvitation: (CampingVehicle, Boolean) -> Unit,
     initialJoinCode: String? = null,
     initialDecisionKind: String? = null,
@@ -595,6 +605,8 @@ private fun MyTransportationContent(
                         onDeny = onDeny,
                         onRemovePassenger = onRemovePassenger,
                         onAddPassenger = onAddPassenger,
+                        onInvitePassenger = onInvitePassenger,
+                        currentUser = currentUser,
                     )
                 }
             }
@@ -607,13 +619,13 @@ private fun MyTransportationContent(
                 item("pending") {
                     StatusHeader(
                         icon = Icons.Filled.Warning,
-                        title = "Waiting for approval",
-                        subtitle = "You asked to ride with ${pending.driverName}.",
+                        title = stringResource(R.string.vehicle_waiting_approval_title),
+                        subtitle = stringResource(R.string.vehicle_asked_to_ride_with, pending.driverName),
                         color = MaterialTheme.czColors.warning,
                     )
                     Spacer(Modifier.height(CzSpacing.md))
                     CzButton(
-                        text = "Cancel request",
+                        text = stringResource(R.string.vehicle_cancel_request),
                         onClick = { onWithdraw(pending) },
                         variant = CzButtonVariant.Destructive,
                     )
@@ -623,15 +635,15 @@ private fun MyTransportationContent(
                 item("help") {
                     StatusHeader(
                         icon = Icons.Filled.Help,
-                        title = "Transport help requested",
-                        subtitle = "A camp organizer will be in touch.",
+                        title = stringResource(R.string.vehicle_transport_help_requested),
+                        subtitle = stringResource(R.string.vehicle_organizer_will_contact),
                         color = MaterialTheme.czColors.warning,
                     )
                     Spacer(Modifier.height(CzSpacing.md))
-                    CzButton(text = "Find a ride instead", onClick = { showFindRide = !showFindRide })
+                    CzButton(text = stringResource(R.string.vehicle_find_ride_instead), onClick = { showFindRide = !showFindRide })
                     Spacer(Modifier.height(CzSpacing.sm))
                     CzButton(
-                        text = "Cancel request",
+                        text = stringResource(R.string.vehicle_cancel_request),
                         onClick = onClearTransport,
                         variant = CzButtonVariant.Destructive,
                     )
@@ -651,31 +663,31 @@ private fun MyTransportationContent(
                 item("chooser") {
                     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
                         Text(
-                            "How are you getting to camp?",
+                            stringResource(R.string.vehicle_transport_choice_title),
                             color = MaterialTheme.czColors.textPrimary,
                             style = MaterialTheme.typography.headlineSmall,
                         )
                         Text(
-                            "Pick one. You can change it later.",
+                            stringResource(R.string.vehicle_transport_choice_subtitle),
                             color = MaterialTheme.czColors.textSecondary,
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         ChooserCard(
                             icon = Icons.Filled.DirectionsCar,
-                            title = "I'm driving",
-                            subtitle = "Register your car and get a QR code.",
+                            title = stringResource(R.string.vehicle_choice_driving_title),
+                            subtitle = stringResource(R.string.vehicle_choice_driving_subtitle),
                             onClick = { onOpenVehicleForm(null) },
                         )
                         ChooserCard(
                             icon = Icons.Filled.Groups,
-                            title = "I'm a passenger",
-                            subtitle = "Join a car with a free seat.",
+                            title = stringResource(R.string.vehicle_choice_passenger_title),
+                            subtitle = stringResource(R.string.vehicle_choice_passenger_subtitle),
                             onClick = { showFindRide = !showFindRide },
                         )
                         ChooserCard(
                             icon = Icons.Filled.Help,
-                            title = "I need transport",
-                            subtitle = "Ask the organizers to arrange a ride.",
+                            title = stringResource(R.string.vehicle_choice_need_transport_title),
+                            subtitle = stringResource(R.string.vehicle_choice_need_transport_subtitle),
                             onClick = onRequestHelp,
                         )
                     }
@@ -742,6 +754,7 @@ private fun DriverVehicleSection(
     state: VehicleUiState,
     vehicle: CampingVehicle,
     attendee: CampingAttendee,
+    currentUser: AuthenticatedUser,
     onOpenQr: () -> Unit,
     onEdit: () -> Unit,
     onCancel: () -> Unit,
@@ -749,71 +762,91 @@ private fun DriverVehicleSection(
     onDeny: (CampingVehicle, String) -> Unit,
     onRemovePassenger: (CampingVehicle, String) -> Unit,
     onAddPassenger: (CampingVehicle, CampingAttendee) -> Unit,
+    onInvitePassenger: (CampingVehicle, CampingAttendee) -> Unit,
 ) {
-    var showPassengerPicker by remember { mutableStateOf(false) }
+    var passengerPickerMode by remember { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         StatusHeader(
             icon = Icons.Filled.DirectionsCar,
-            title = "You're driving",
-            subtitle = "${vehicle.plateNumber} - ${vehicle.availableSeats} free seat(s)",
+            title = stringResource(R.string.vehicle_you_are_driving),
+            subtitle = stringResource(R.string.vehicle_free_seats_summary, vehicle.plateNumber, vehicle.availableSeats),
             color = MaterialTheme.czColors.accent,
         )
-        CzButton(text = "Show car QR code", onClick = onOpenQr)
+        CzButton(text = stringResource(R.string.vehicle_show_car_qr), onClick = onOpenQr)
         if (vehicle.pendingPassengers.isNotEmpty()) {
             VehicleCard {
-                SectionTitle("Requests", Icons.Filled.Warning)
+                SectionTitle(stringResource(R.string.vehicle_requests), Icons.Filled.Warning)
                 vehicle.pendingPassengers.forEach { passenger ->
                     PassengerActionRow(
                         name = passenger.name,
-                        primary = "Approve",
+                        primary = stringResource(R.string.vehicle_approve),
                         onPrimary = { onApprove(vehicle, passenger.id) },
-                        secondary = "Decline",
+                        secondary = stringResource(R.string.vehicle_decline),
                         onSecondary = { onDeny(vehicle, passenger.id) },
                     )
                 }
             }
         }
         VehicleCard {
-            SectionTitle("Passengers", Icons.Filled.Groups)
+            SectionTitle(stringResource(R.string.vehicle_passengers), Icons.Filled.Groups)
             if (vehicle.passengers.isEmpty()) {
-                Text("No passengers yet.", color = MaterialTheme.czColors.textSecondary)
+                Text(stringResource(R.string.vehicle_no_passengers_yet), color = MaterialTheme.czColors.textSecondary)
             } else {
                 vehicle.passengers.forEach { passenger ->
                     PassengerActionRow(
                         name = passenger.name.ifBlank { passenger.id },
-                        primary = "Remove",
+                        primary = stringResource(R.string.vehicle_remove_passenger),
                         onPrimary = { onRemovePassenger(vehicle, passenger.id) },
                     )
                 }
             }
             if (vehicle.availableSeats > 0) {
-                TextButton(onClick = { showPassengerPicker = true }) {
+                val candidates = state.camping?.attendees.orEmpty()
+                    .filter { it.registrationStatus == RegistrationApprovalStatus.Approved }
+                    .filterNot { it.id == attendee.id }
+                    .filterNot { it.id in vehicle.passengerRegistrationIds }
+                    .filterNot { candidate -> state.activeVehicles.any { it.involves(candidate.id) } }
+                val directCandidates = candidates.filter {
+                    state.canManageTransportation || it.guardianId == currentUser.uid
+                }
+                val inviteCandidates = candidates.filterNot { it.guardianId == currentUser.uid }
+                if (directCandidates.isNotEmpty()) TextButton(onClick = { passengerPickerMode = "add" }) {
                     Icon(Icons.Filled.Add, contentDescription = null)
-                    Text("Invite passenger")
+                    Text(stringResource(R.string.vehicle_add_passenger))
+                }
+                if (inviteCandidates.isNotEmpty()) TextButton(onClick = { passengerPickerMode = "invite" }) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
+                    Text(stringResource(R.string.vehicle_invite_passenger))
                 }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-            CzButton(text = "Edit", onClick = onEdit, modifier = Modifier.weight(1f))
+            CzButton(text = stringResource(R.string.common_edit), onClick = onEdit, modifier = Modifier.weight(1f))
             CzButton(
-                text = "Cancel car",
+                text = stringResource(R.string.vehicle_cancel_car),
                 onClick = onCancel,
                 variant = CzButtonVariant.Destructive,
                 modifier = Modifier.weight(1f),
             )
         }
     }
-    if (showPassengerPicker) {
+    passengerPickerMode?.let { mode ->
         val candidates = state.camping?.attendees.orEmpty()
             .filter { it.registrationStatus == RegistrationApprovalStatus.Approved }
             .filterNot { it.id == attendee.id }
             .filterNot { it.id in vehicle.passengerRegistrationIds }
+            .filterNot { candidate -> state.activeVehicles.any { it.involves(candidate.id) } }
+            .filter {
+                if (mode == "add") state.canManageTransportation || it.guardianId == currentUser.uid
+                else it.guardianId != currentUser.uid
+            }
         PassengerPickerDialog(
             candidates = candidates,
-            onDismiss = { showPassengerPicker = false },
+            title = stringResource(if (mode == "add") R.string.vehicle_add_passenger else R.string.vehicle_invite_passenger),
+            onDismiss = { passengerPickerMode = null },
             onPick = {
-                showPassengerPicker = false
-                onAddPassenger(vehicle, it)
+                passengerPickerMode = null
+                if (mode == "add") onAddPassenger(vehicle, it) else onInvitePassenger(vehicle, it)
             },
         )
     }
@@ -824,8 +857,8 @@ private fun PassengerRideSection(vehicle: CampingVehicle) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         StatusHeader(
             icon = Icons.Filled.Groups,
-            title = "You're a passenger",
-            subtitle = "Riding with ${vehicle.driverName}.",
+            title = stringResource(R.string.vehicle_you_are_passenger),
+            subtitle = stringResource(R.string.vehicle_riding_with, vehicle.driverName),
             color = MaterialTheme.czColors.success,
         )
         VehicleCard {
@@ -841,7 +874,7 @@ private fun PassengerRideSection(vehicle: CampingVehicle) {
                 )
                 Column(Modifier.weight(1f)) {
                     Text(vehicle.driverName, color = MaterialTheme.czColors.textPrimary, fontWeight = FontWeight.SemiBold)
-                    Text("Driver", color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.vehicle_driver), color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.bodySmall)
                 }
                 Text(vehicle.maskedPlate, color = MaterialTheme.czColors.textPrimary, fontWeight = FontWeight.Bold)
             }
@@ -853,7 +886,7 @@ private fun PassengerRideSection(vehicle: CampingVehicle) {
             }
         }
         Text(
-            "To change or leave this car, ask the driver or a camp leader.",
+            stringResource(R.string.vehicle_passenger_change_hint),
             color = MaterialTheme.czColors.textSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -868,10 +901,10 @@ private fun FindRideCard(
     onJoinByCode: () -> Unit,
 ) {
     VehicleCard {
-        SectionTitle("Cars with free seats", Icons.Filled.CarRental)
+        SectionTitle(stringResource(R.string.vehicle_cars_with_free_seats), Icons.Filled.CarRental)
         val rides = state.availableSeatVehicles.filter { it.driverRegistrationId != attendee.id }
         if (rides.isEmpty()) {
-            Text("No cars with free seats yet. Try an invitation code.", color = MaterialTheme.czColors.textSecondary)
+            Text(stringResource(R.string.vehicle_no_free_seats_hint), color = MaterialTheme.czColors.textSecondary)
         } else {
             rides.forEach { vehicle ->
                 Row(
@@ -881,15 +914,15 @@ private fun FindRideCard(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(vehicle.driverName, color = MaterialTheme.czColors.textPrimary, fontWeight = FontWeight.SemiBold)
-                        Text("${vehicle.availableSeats} free seat(s)", color = MaterialTheme.czColors.textSecondary)
+                        Text(stringResource(R.string.vehicle_free_seats_count, vehicle.availableSeats), color = MaterialTheme.czColors.textSecondary)
                     }
-                    TextButton(onClick = { onJoinVehicle(vehicle) }) { Text("Request") }
+                    TextButton(onClick = { onJoinVehicle(vehicle) }) { Text(stringResource(R.string.vehicle_request)) }
                 }
             }
         }
         TextButton(onClick = onJoinByCode) {
             Icon(Icons.Filled.Search, contentDescription = null)
-            Text("Have an invitation code?")
+            Text(stringResource(R.string.vehicle_have_invitation_code))
         }
     }
 }
@@ -898,6 +931,7 @@ private fun FindRideCard(
 private fun VehicleFormContent(
     existing: CampingVehicle?,
     savedVehicles: List<UserVehicle>,
+    familyCandidates: List<CampingAttendee>,
     saving: Boolean,
     error: String?,
     onSubmitNew: (VehicleFormInput) -> Unit,
@@ -914,6 +948,9 @@ private fun VehicleFormContent(
     var peopleInCar by remember(existing?.id) { mutableIntStateOf(existing?.occupiedSeats ?: 1) }
     var hasAvailableSeats by remember(existing?.id) { mutableStateOf(existing?.hasAvailableSeats ?: true) }
     var notes by remember(existing?.id) { mutableStateOf(existing?.notes.orEmpty()) }
+    var selectedFamilyIds by remember(existing?.id) { mutableStateOf(emptySet<String>()) }
+    val notSpecifiedLabel = stringResource(R.string.vehicle_not_specified)
+    val noneLabel = stringResource(R.string.common_none)
 
     fun applySaved(vehicle: UserVehicle) {
         selectedSavedId = vehicle.id
@@ -938,7 +975,7 @@ private fun VehicleFormContent(
             when (step) {
                 0 -> {
                     if (existing == null && savedVehicles.isNotEmpty()) {
-                        Text("Saved vehicles", color = MaterialTheme.czColors.textSecondary)
+                        Text(stringResource(R.string.vehicle_saved_vehicles), color = MaterialTheme.czColors.textSecondary)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
                             savedVehicles.forEach { saved ->
                                 FilterChip(
@@ -949,20 +986,47 @@ private fun VehicleFormContent(
                             }
                         }
                     }
-                    OutlinedTextField(plate, { plate = it.uppercase(Locale.ROOT) }, label = { Text("Plate number") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(brand, { brand = it }, label = { Text("Brand") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(model, { model = it }, label = { Text("Model") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(color, { color = it }, label = { Text("Color") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(plate, { plate = it.uppercase(Locale.ROOT) }, label = { Text(stringResource(R.string.registration_plate_number)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(brand, { brand = it }, label = { Text(stringResource(R.string.registration_brand)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(model, { model = it }, label = { Text(stringResource(R.string.registration_model)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(color, { color = it }, label = { Text(stringResource(R.string.registration_color)) }, modifier = Modifier.fillMaxWidth())
                 }
                 1 -> {
-                    SeatStepper("Total seats", totalSeats, 1..9) {
+                    SeatStepper(stringResource(R.string.vehicle_total_seats), totalSeats, 1..9) {
                         totalSeats = it
+                        selectedFamilyIds = selectedFamilyIds.take((totalSeats - 1).coerceAtLeast(0)).toSet()
                         if (peopleInCar > totalSeats) peopleInCar = totalSeats
+                        peopleInCar = maxOf(peopleInCar, selectedFamilyIds.size + 1)
                     }
-                    SeatStepper("People in the car", peopleInCar, 1..totalSeats) { peopleInCar = it }
+                    SeatStepper(
+                        stringResource(R.string.vehicle_people_in_car),
+                        peopleInCar,
+                        (selectedFamilyIds.size + 1).coerceAtMost(totalSeats)..totalSeats,
+                    ) { peopleInCar = it }
+                    if (existing == null && familyCandidates.isNotEmpty()) {
+                        Text(stringResource(R.string.vehicle_family_participants), color = MaterialTheme.czColors.textSecondary)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                            familyCandidates.forEach { passenger ->
+                                FilterChip(
+                                    selected = passenger.id in selectedFamilyIds,
+                                    onClick = {
+                                        selectedFamilyIds = if (passenger.id in selectedFamilyIds) {
+                                            selectedFamilyIds - passenger.id
+                                        } else if (selectedFamilyIds.size + 1 < totalSeats) {
+                                            selectedFamilyIds + passenger.id
+                                        } else {
+                                            selectedFamilyIds
+                                        }
+                                        peopleInCar = maxOf(peopleInCar, selectedFamilyIds.size + 1)
+                                    },
+                                    label = { Text(passenger.displayName) },
+                                )
+                            }
+                        }
+                    }
                     ToggleRow(
-                        title = "Seats for others",
-                        subtitle = "Let approved participants request a seat.",
+                        title = stringResource(R.string.vehicle_seats_for_others),
+                        subtitle = stringResource(R.string.vehicle_seats_for_others_subtitle),
                         checked = hasAvailableSeats,
                         onCheckedChange = { hasAvailableSeats = it },
                     )
@@ -971,29 +1035,38 @@ private fun VehicleFormContent(
                     OutlinedTextField(
                         value = notes,
                         onValueChange = { notes = it },
-                        label = { Text("Notes") },
+                        label = { Text(stringResource(R.string.vehicle_notes)) },
                         minLines = 4,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 else -> {
-                    ReviewLine("Plate", plate)
-                    ReviewLine("Vehicle", listOf(brand, model, color).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Not specified" })
-                    ReviewLine("Seats", "$peopleInCar of $totalSeats occupied")
-                    ReviewLine("Open seats", if (hasAvailableSeats) "Yes" else "No")
-                    ReviewLine("Notes", notes.ifBlank { "None" })
+                    ReviewLine(stringResource(R.string.vehicle_plate), plate)
+                    ReviewLine(
+                        stringResource(R.string.vehicle_vehicle_label),
+                        listOf(brand, model, color).filter { it.isNotBlank() }.joinToString(" ").ifBlank { notSpecifiedLabel },
+                    )
+                    ReviewLine(stringResource(R.string.vehicle_seats), stringResource(R.string.vehicle_occupied_seats, peopleInCar, totalSeats))
+                    ReviewLine(stringResource(R.string.vehicle_open_seats), stringResource(if (hasAvailableSeats) R.string.common_yes else R.string.common_no))
+                    if (selectedFamilyIds.isNotEmpty()) {
+                        ReviewLine(
+                            stringResource(R.string.vehicle_family_participants),
+                            familyCandidates.filter { it.id in selectedFamilyIds }.joinToString { it.displayName },
+                        )
+                    }
+                    ReviewLine(stringResource(R.string.vehicle_notes), notes.ifBlank { noneLabel })
                 }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
             if (step > 0) {
-                CzButton(text = "Back", onClick = { step -= 1 }, modifier = Modifier.weight(1f))
+                CzButton(text = stringResource(R.string.common_back), onClick = { step -= 1 }, modifier = Modifier.weight(1f))
             }
             CzButton(
                 text = when {
-                    step < 3 -> "Continue"
-                    existing == null -> if (saving) "Creating..." else "Create my car"
-                    else -> if (saving) "Saving..." else "Save changes"
+                    step < 3 -> stringResource(R.string.common_continue)
+                    existing == null -> stringResource(if (saving) R.string.vehicle_creating_action else R.string.vehicle_create_my_car)
+                    else -> stringResource(if (saving) R.string.vehicle_saving_action else R.string.vehicle_save_changes)
                 },
                 onClick = {
                     if (step < 3) {
@@ -1010,6 +1083,7 @@ private fun VehicleFormContent(
                                 hasAvailableSeats = hasAvailableSeats,
                                 notes = notes,
                                 userVehicleId = selectedSavedId,
+                                passengers = familyCandidates.filter { it.id in selectedFamilyIds },
                             ),
                         )
                     } else {
@@ -1038,6 +1112,13 @@ private fun VehicleFormContent(
 private fun VehicleQrContent(vehicle: CampingVehicle, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val qrValue = remember(vehicle.qrToken) { VehicleCheckInPayload(vehicle.qrToken).encoded() }
+    val invitationCode = vehicle.invitationCode.orEmpty()
+    val joinUrl = remember(vehicle.campingId, invitationCode) {
+        "https://campzone-web.vercel.app/transportation-join/${vehicle.campingId}?code=$invitationCode"
+    }
+    val shareText = stringResource(R.string.vehicle_share_text, invitationCode, joinUrl)
+    val shareChooserTitle = stringResource(R.string.vehicle_share_code_chooser)
+    val qrCodeDescription = stringResource(R.string.vehicle_qr_code_cd)
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(CzSpacing.lg),
@@ -1069,16 +1150,16 @@ private fun VehicleQrContent(vehicle: CampingVehicle, modifier: Modifier = Modif
                 value = qrValue,
                 modifier = Modifier
                     .size(280.dp)
-                    .semantics { contentDescription = "Vehicle QR code" },
+                    .semantics { contentDescription = qrCodeDescription },
             )
         }
         item("code") {
             VehicleCard {
-                ReviewLine("Invitation code", vehicle.invitationCode ?: "Unavailable")
-                ReviewLine("Seats", "${vehicle.occupiedSeats}/${vehicle.totalSeats}")
+                ReviewLine(stringResource(R.string.vehicle_invitation_code), vehicle.invitationCode ?: stringResource(R.string.vehicle_unavailable_value))
+                ReviewLine(stringResource(R.string.vehicle_seats), "${vehicle.occupiedSeats}/${vehicle.totalSeats}")
                 if (vehicle.passengers.isNotEmpty()) {
                     Spacer(Modifier.height(CzSpacing.sm))
-                    SectionTitle("Passengers", Icons.Filled.Groups)
+                    SectionTitle(stringResource(R.string.vehicle_passengers), Icons.Filled.Groups)
                     vehicle.passengers.forEach {
                         Text(it.name.ifBlank { it.id }, color = MaterialTheme.czColors.textSecondary)
                     }
@@ -1087,24 +1168,15 @@ private fun VehicleQrContent(vehicle: CampingVehicle, modifier: Modifier = Modif
         }
         item("share") {
             CzButton(
-                text = "Share code",
+                text = stringResource(R.string.vehicle_share_code),
                 onClick = {
-                    val shareText = buildString {
-                        append("Campzone vehicle code: ")
-                        append(vehicle.invitationCode.orEmpty())
-                        append("\n")
-                        append("https://campzone-web.vercel.app/transportation-join/")
-                        append(vehicle.campingId)
-                        append("?code=")
-                        append(vehicle.invitationCode.orEmpty())
-                    }
                     context.startActivity(
                         Intent.createChooser(
                             Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_TEXT, shareText)
                             },
-                            "Share vehicle code",
+                            shareChooserTitle,
                         ),
                     )
                 },
@@ -1131,7 +1203,7 @@ private fun CampingVehiclesContent(
         }
         item("scan") {
             CzButton(
-                text = "Scan a car QR",
+                text = stringResource(R.string.vehicle_scan_car_qr),
                 onClick = onOpenScanner,
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Filled.QrCodeScanner, contentDescription = null) },
@@ -1140,7 +1212,7 @@ private fun CampingVehiclesContent(
         if (state.peopleNeedingTransport.isNotEmpty()) {
             item("needs") {
                 VehicleCard {
-                    SectionTitle("Need transport", Icons.Filled.Help)
+                    SectionTitle(stringResource(R.string.vehicle_need_transport), Icons.Filled.Help)
                     state.peopleNeedingTransport.forEach {
                         Text(it.displayName, color = MaterialTheme.czColors.textSecondary)
                     }
@@ -1150,8 +1222,8 @@ private fun CampingVehiclesContent(
         if (state.vehicles.isEmpty()) {
             item("empty") {
                 CzEmptyState(
-                    title = "No cars yet",
-                    message = "Cars added by drivers will appear here.",
+                    title = stringResource(R.string.vehicle_no_cars_title),
+                    message = stringResource(R.string.vehicle_no_cars_message),
                 )
             }
         } else {
@@ -1197,7 +1269,7 @@ private fun VehicleScanContent(
             OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
-                label = { Text("Search by plate or driver") },
+                label = { Text(stringResource(R.string.vehicle_search_plate_driver)) },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -1235,7 +1307,7 @@ private fun VehicleArrivalContent(
     ) {
         if (vehicle.hasArrived) {
             item("arrived") {
-                VehicleMessageCard("This vehicle is already marked arrived.", Icons.Filled.Info, MaterialTheme.czColors.warning)
+                VehicleMessageCard(stringResource(R.string.vehicle_already_marked_arrived), Icons.Filled.Info, MaterialTheme.czColors.warning)
             }
         }
         error?.let {
@@ -1257,13 +1329,13 @@ private fun VehicleArrivalContent(
                         Text(vehicle.driverName, color = MaterialTheme.czColors.textPrimary, style = MaterialTheme.typography.titleMedium)
                         Text(vehicle.plateNumber, color = MaterialTheme.czColors.textSecondary)
                     }
-                    Text("${vehicle.expectedRegisteredCount} expected", color = MaterialTheme.czColors.accent)
+                    Text(stringResource(R.string.vehicle_expected_count, vehicle.expectedRegisteredCount), color = MaterialTheme.czColors.accent)
                 }
             }
         }
         item("plate") {
             ToggleRow(
-                title = "Plate confirmed",
+                title = stringResource(R.string.vehicle_plate_confirmed),
                 subtitle = vehicle.plateNumber,
                 checked = plateConfirmed,
                 onCheckedChange = { plateConfirmed = it },
@@ -1271,7 +1343,7 @@ private fun VehicleArrivalContent(
         }
         item("people") {
             VehicleCard {
-                SectionTitle("People in this car", Icons.Filled.Groups)
+                SectionTitle(stringResource(R.string.vehicle_people_in_this_car), Icons.Filled.Groups)
                 expected.forEach { person ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1286,7 +1358,7 @@ private fun VehicleArrivalContent(
                         )
                         Column(Modifier.weight(1f)) {
                             Text(person.name.ifBlank { person.id }, color = MaterialTheme.czColors.textPrimary)
-                            Text(if (person.isDriver) "Driver" else "Passenger", color = MaterialTheme.czColors.textSecondary)
+                            Text(stringResource(if (person.isDriver) R.string.vehicle_driver else R.string.vehicle_passenger), color = MaterialTheme.czColors.textSecondary)
                         }
                     }
                 }
@@ -1295,7 +1367,7 @@ private fun VehicleArrivalContent(
                     present.addAll(expected.map { it.id })
                 }) {
                     Icon(Icons.Filled.Check, contentDescription = null)
-                    Text("Everyone arrived")
+                    Text(stringResource(R.string.vehicle_everyone_arrived))
                 }
             }
         }
@@ -1303,14 +1375,14 @@ private fun VehicleArrivalContent(
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
-                label = { Text("Notes") },
+                label = { Text(stringResource(R.string.vehicle_notes)) },
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
         item("confirm") {
             CzButton(
-                text = if (isUpdating) "Confirming..." else "Confirm arrival",
+                text = stringResource(if (isUpdating) R.string.vehicle_confirming_action else R.string.vehicle_confirm_arrival_title),
                 onClick = { onConfirm(present.toList(), plateConfirmed, notes) },
                 enabled = !isUpdating,
                 modifier = Modifier.fillMaxWidth(),
@@ -1639,12 +1711,13 @@ private fun PassengerActionRow(
     secondary: String? = null,
     onSecondary: (() -> Unit)? = null,
 ) {
+    val participantFallback = stringResource(R.string.vehicle_participant_fallback)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(name.ifBlank { "Participant" }, color = MaterialTheme.czColors.textPrimary, modifier = Modifier.weight(1f))
+        Text(name.ifBlank { participantFallback }, color = MaterialTheme.czColors.textPrimary, modifier = Modifier.weight(1f))
         TextButton(onClick = onPrimary) { Text(primary) }
         if (secondary != null && onSecondary != null) {
             TextButton(onClick = onSecondary) { Text(secondary) }
@@ -1655,16 +1728,17 @@ private fun PassengerActionRow(
 @Composable
 private fun PassengerPickerDialog(
     candidates: List<CampingAttendee>,
+    title: String,
     onDismiss: () -> Unit,
     onPick: (CampingAttendee) -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add passenger") },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
                 if (candidates.isEmpty()) {
-                    Text("No approved participants are available.")
+                    Text(stringResource(R.string.vehicle_no_approved_participants))
                 } else {
                     candidates.forEach { attendee ->
                         TextButton(onClick = { onPick(attendee) }, modifier = Modifier.fillMaxWidth()) {
@@ -1675,7 +1749,7 @@ private fun PassengerPickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) }
         },
     )
 }
@@ -1685,20 +1759,20 @@ private fun JoinCodeDialog(initialCode: String = "", onDismiss: () -> Unit, onJo
     var code by remember(initialCode) { mutableStateOf(initialCode) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Invitation code") },
+        title = { Text(stringResource(R.string.vehicle_invitation_code)) },
         text = {
             OutlinedTextField(
                 value = code,
                 onValueChange = { code = it.uppercase(Locale.ROOT) },
-                label = { Text("Code") },
+                label = { Text(stringResource(R.string.vehicle_code)) },
                 singleLine = true,
             )
         },
         confirmButton = {
-            TextButton(onClick = { onJoin(code) }) { Text("Request") }
+            TextButton(onClick = { onJoin(code) }) { Text(stringResource(R.string.vehicle_request)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         },
     )
 }
@@ -1725,32 +1799,33 @@ private fun TransportationDecisionSheet(
             verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
         ) {
             Text(
-                if (isInvitation) "Ride invitation" else "Transportation request",
+                stringResource(if (isInvitation) R.string.vehicle_ride_invitation_title else R.string.vehicle_transportation_request_title),
                 style = MaterialTheme.typography.headlineSmall,
             )
+            val participantFallback = stringResource(R.string.vehicle_participant_fallback)
             Text(
                 when {
-                    vehicle == null -> "Loading the vehicle details…"
-                    isInvitation -> "${vehicle.driverName} invited you to ride in ${vehicle.plateNumber}."
-                    else -> "${participantName.ifBlank { "A participant" }} requested a seat in ${vehicle.plateNumber}."
+                    vehicle == null -> stringResource(R.string.vehicle_loading_details)
+                    isInvitation -> stringResource(R.string.vehicle_invited_to_ride, vehicle.driverName, vehicle.plateNumber)
+                    else -> stringResource(R.string.vehicle_requested_seat, participantName.ifBlank { participantFallback }, vehicle.plateNumber)
                 },
                 color = MaterialTheme.czColors.textSecondary,
             )
             CzButton(
-                text = if (isInvitation) "Accept" else "Approve",
+                text = stringResource(if (isInvitation) R.string.vehicle_accept else R.string.vehicle_approve),
                 onClick = onAccept,
                 enabled = vehicle != null && !isUpdating,
                 modifier = Modifier.fillMaxWidth(),
             )
             CzButton(
-                text = "Decline",
+                text = stringResource(R.string.vehicle_decline),
                 onClick = onDecline,
                 enabled = vehicle != null && !isUpdating,
                 variant = CzButtonVariant.Destructive,
                 modifier = Modifier.fillMaxWidth(),
             )
             TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                Text("View transportation")
+                Text(stringResource(R.string.vehicle_view_transportation))
             }
             Spacer(Modifier.height(CzSpacing.lg))
         }
@@ -1806,7 +1881,12 @@ private fun ToggleRow(
 
 @Composable
 private fun StepHeader(step: Int) {
-    val labels = listOf("Car", "Seats", "Notes", "Review")
+    val labels = listOf(
+        stringResource(R.string.vehicle_step_car),
+        stringResource(R.string.vehicle_step_seats),
+        stringResource(R.string.vehicle_step_notes),
+        stringResource(R.string.vehicle_step_review),
+    )
     Row(
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
@@ -1859,7 +1939,7 @@ private fun VehicleRow(
                     if (showFullPlate) vehicle.plateNumber else vehicle.maskedPlate,
                     color = MaterialTheme.czColors.textSecondary,
                 )
-                Text("${vehicle.occupiedSeats}/${vehicle.totalSeats} seats", color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.vehicle_seats_fraction, vehicle.occupiedSeats, vehicle.totalSeats), color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.bodySmall)
             }
             StatusPill(vehicle)
         }
@@ -1869,10 +1949,10 @@ private fun VehicleRow(
 @Composable
 private fun StatusPill(vehicle: CampingVehicle) {
     val (label, color) = when {
-        vehicle.status == VehicleStatus.Cancelled -> "Cancelled" to MaterialTheme.czColors.error
-        vehicle.hasArrived -> "Arrived" to MaterialTheme.czColors.success
-        vehicle.status == VehicleStatus.Confirmed -> "Confirmed" to MaterialTheme.czColors.accent
-        else -> "Pending" to MaterialTheme.czColors.warning
+        vehicle.status == VehicleStatus.Cancelled -> stringResource(R.string.vehicle_status_cancelled) to MaterialTheme.czColors.error
+        vehicle.hasArrived -> stringResource(R.string.vehicle_status_arrived) to MaterialTheme.czColors.success
+        vehicle.status == VehicleStatus.Confirmed -> stringResource(R.string.vehicle_status_confirmed) to MaterialTheme.czColors.accent
+        else -> stringResource(R.string.vehicle_status_pending) to MaterialTheme.czColors.warning
     }
     androidx.compose.material3.Surface(
         color = color.copy(alpha = 0.12f),
@@ -1891,12 +1971,12 @@ private fun StatusPill(vehicle: CampingVehicle) {
 private fun DashboardStatsGrid(stats: VehicleDashboardStats) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
         Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-            StatCard("Cars", "${stats.arrivedVehicles}/${stats.totalVehicles}", Modifier.weight(1f))
-            StatCard("People", "${stats.peopleArrived}/${stats.peopleExpected}", Modifier.weight(1f))
+            StatCard(stringResource(R.string.vehicle_stats_cars), "${stats.arrivedVehicles}/${stats.totalVehicles}", Modifier.weight(1f))
+            StatCard(stringResource(R.string.vehicle_stats_people), "${stats.peopleArrived}/${stats.peopleExpected}", Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-            StatCard("With seats", "${stats.vehiclesWithSeats}", Modifier.weight(1f))
-            StatCard("Need ride", "${stats.peopleNeedingTransport}", Modifier.weight(1f))
+            StatCard(stringResource(R.string.vehicle_stats_with_seats), "${stats.vehiclesWithSeats}", Modifier.weight(1f))
+            StatCard(stringResource(R.string.vehicle_stats_need_ride), "${stats.peopleNeedingTransport}", Modifier.weight(1f))
         }
     }
 }
@@ -1922,12 +2002,12 @@ private fun ScanResultCard(
         else -> null
     }
     val (title, message, color) = when (result) {
-        is VehicleScanResult.Resolved -> Triple("Vehicle found", "${result.vehicle.driverName}'s car is ready to confirm.", MaterialTheme.czColors.success)
-        is VehicleScanResult.AlreadyArrived -> Triple("Already arrived", "${result.vehicle.driverName}'s car was already checked in.", MaterialTheme.czColors.warning)
-        is VehicleScanResult.Cancelled -> Triple("Vehicle cancelled", "${result.vehicle.driverName}'s car was cancelled.", MaterialTheme.czColors.warning)
-        VehicleScanResult.WrongCamping -> Triple("Wrong camp", "This vehicle code belongs to another camp.", MaterialTheme.czColors.error)
-        VehicleScanResult.UnknownVehicle -> Triple("Unknown vehicle", "No vehicle matches this code in this camp.", MaterialTheme.czColors.error)
-        VehicleScanResult.Malformed -> Triple("Invalid code", "The scanned code is not a Campzone vehicle code.", MaterialTheme.czColors.error)
+        is VehicleScanResult.Resolved -> Triple(stringResource(R.string.vehicle_scan_found_title), stringResource(R.string.vehicle_scan_found_message, result.vehicle.driverName), MaterialTheme.czColors.success)
+        is VehicleScanResult.AlreadyArrived -> Triple(stringResource(R.string.vehicle_scan_already_arrived_title), stringResource(R.string.vehicle_scan_already_arrived_message, result.vehicle.driverName), MaterialTheme.czColors.warning)
+        is VehicleScanResult.Cancelled -> Triple(stringResource(R.string.vehicle_scan_cancelled_title), stringResource(R.string.vehicle_scan_cancelled_message, result.vehicle.driverName), MaterialTheme.czColors.warning)
+        VehicleScanResult.WrongCamping -> Triple(stringResource(R.string.vehicle_scan_wrong_camp_title), stringResource(R.string.vehicle_scan_wrong_camp_message), MaterialTheme.czColors.error)
+        VehicleScanResult.UnknownVehicle -> Triple(stringResource(R.string.vehicle_scan_unknown_title), stringResource(R.string.vehicle_scan_unknown_message), MaterialTheme.czColors.error)
+        VehicleScanResult.Malformed -> Triple(stringResource(R.string.vehicle_scan_invalid_title), stringResource(R.string.vehicle_scan_invalid_message), MaterialTheme.czColors.error)
     }
     VehicleCard {
         Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
@@ -1939,9 +2019,9 @@ private fun ScanResultCard(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
             if (result is VehicleScanResult.Resolved && vehicle != null) {
-                CzButton(text = "Confirm arrival", onClick = { onOpenArrival(vehicle.id) }, modifier = Modifier.weight(1f))
+                CzButton(text = stringResource(R.string.vehicle_confirm_arrival_title), onClick = { onOpenArrival(vehicle.id) }, modifier = Modifier.weight(1f))
             }
-            CzButton(text = "Dismiss", onClick = onDismiss, modifier = Modifier.weight(1f))
+            CzButton(text = stringResource(R.string.common_dismiss), onClick = onDismiss, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -1972,7 +2052,7 @@ private fun CameraCard(isScanning: Boolean, onQrScanned: (String) -> Unit) {
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text("Resolving vehicle...", color = Color.White)
+                            Text(stringResource(R.string.vehicle_resolving), color = Color.White)
                         }
                     }
                 }
@@ -1984,8 +2064,8 @@ private fun CameraCard(isScanning: Boolean, onQrScanned: (String) -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Icon(Icons.Filled.CameraAlt, contentDescription = null, tint = MaterialTheme.czColors.textSecondary, modifier = Modifier.size(42.dp))
-                Text("Camera permission is needed to scan QR codes.", color = MaterialTheme.czColors.textSecondary)
-                CzButton(text = "Allow camera", onClick = { launcher.launch(Manifest.permission.CAMERA) })
+                Text(stringResource(R.string.vehicle_camera_permission_needed), color = MaterialTheme.czColors.textSecondary)
+                CzButton(text = stringResource(R.string.vehicle_allow_camera), onClick = { launcher.launch(Manifest.permission.CAMERA) })
             }
         }
     }

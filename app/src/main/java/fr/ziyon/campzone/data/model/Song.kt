@@ -28,6 +28,30 @@ data class Song(
     val updatedAt: Date? = null,
 ) {
     fun isFavoritedBy(uid: String): Boolean = favoriteUserIds.contains(uid)
+
+    /** Audio tracks normalized for legacy documents and ordered like iOS Voice Kits. */
+    val normalizedAudioFiles: List<SongAudio>
+        get() = normalizeSongAudioFiles(audioFiles.ifEmpty { audio?.let(::listOf).orEmpty() })
+
+    val orderedAudioFiles: List<SongAudio>
+        get() = normalizedAudioFiles.sortedWith(
+            compareBy<SongAudio> { it.trackType.sortOrder }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.fileName },
+        )
+
+    /** Canonical default take. Alternative voice parts never become default playback. */
+    val mainAudio: SongAudio?
+        get() = normalizedAudioFiles.firstOrNull { it.trackType == SongAudioTrackType.MainSong }
+            ?: audio
+            ?: normalizedAudioFiles.firstOrNull()
+
+    val alternativeAudioFiles: List<SongAudio>
+        get() {
+            val mainId = mainAudio?.id ?: return orderedAudioFiles
+            return orderedAudioFiles.filterNot { it.id == mainId }
+        }
+
+    val hasAlternativeAudio: Boolean get() = alternativeAudioFiles.isNotEmpty()
 }
 
 data class SongLyricsPart(
@@ -72,8 +96,44 @@ data class SongAudio(
     val kind: SongAudioKind = SongAudioKind.Mp3,
     val duration: Double = 0.0,
     val fileSize: Long = 0L,
-    val voiceType: String = "",
-)
+    val voiceType: String = SongAudioTrackType.MainSong.wireValue,
+    val displayName: String = "",
+) {
+    val trackType: SongAudioTrackType get() = SongAudioTrackType.fromWire(voiceType)
+
+    fun withTrackType(type: SongAudioTrackType, customName: String = ""): SongAudio = copy(
+        voiceType = type.wireValue,
+        displayName = if (type.allowsCustomName) customName.trim() else "",
+    )
+}
+
+enum class SongAudioTrackType(val wireValue: String, val sortOrder: Int) {
+    MainSong("mainSong", 0),
+    Playback("playback", 1),
+    Instrumental("instrumental", 2),
+    Soprano("soprano", 3),
+    MezzoSoprano("mezzoSoprano", 4),
+    Alto("alto", 5),
+    Tenor("tenor", 6),
+    Baritone("baritone", 7),
+    Bass("bass", 8),
+    Other("other", 9);
+
+    val allowsMultiple: Boolean get() = this == Other
+    val allowsCustomName: Boolean get() = this == Other
+
+    companion object {
+        fun fromWire(value: String?): SongAudioTrackType =
+            entries.firstOrNull { it.wireValue == value } ?: Other
+    }
+}
+
+internal fun normalizeSongAudioFiles(files: List<SongAudio>): List<SongAudio> {
+    if (files.isEmpty() || files.any { it.trackType == SongAudioTrackType.MainSong }) return files
+    return files.mapIndexed { index, audio ->
+        if (index == 0) audio.copy(voiceType = SongAudioTrackType.MainSong.wireValue) else audio
+    }
+}
 
 /** Keys that survive a round-trip; everything else collapses to C major (lossy, like iOS). */
 private val DECODABLE_KEYS = mapOf(
@@ -90,7 +150,12 @@ internal fun decodeOriginalKey(raw: String?): String =
 
 internal fun Map<String, Any?>.toSongOrNull(documentId: String): Song {
     val primaryAudio = mapValue("audio")?.toSongAudioOrNull()
-    val audioFiles = mapListValue("audioFiles").mapNotNull { it.toSongAudioOrNull() }
+    val audioFiles = normalizeSongAudioFiles(
+        mapListValue("audioFiles").mapNotNull { it.toSongAudioOrNull() }
+            .ifEmpty { primaryAudio?.let(::listOf).orEmpty() },
+    )
+    val mainAudio = audioFiles.firstOrNull { it.trackType == SongAudioTrackType.MainSong }
+        ?: audioFiles.firstOrNull()
     return Song(
         id = documentId,
         title = rawStringValue("title").orEmpty(),
@@ -100,8 +165,8 @@ internal fun Map<String, Any?>.toSongOrNull(documentId: String): Song {
         chords = rawStringValue("chords").orEmpty(),
         lyricsParts = mapListValue("lyricsParts").mapNotNull { it.toSongLyricsPartOrNull() },
         chordSheet = mapValue("chordSheet")?.toChordSheet(documentId) ?: ChordSheet(id = documentId),
-        audio = primaryAudio,
-        audioFiles = audioFiles.ifEmpty { primaryAudio?.let(::listOf).orEmpty() },
+        audio = mainAudio,
+        audioFiles = audioFiles,
         youtubeLink = rawStringValue("youtubeLink").orEmpty(),
         pdfLink = rawStringValue("pdfLink").orEmpty(),
         orderIndex = intValue("orderIndex") ?: 0,
@@ -168,6 +233,7 @@ internal fun Map<String, Any?>.toSongAudioOrNull(): SongAudio? {
         duration = doubleValue("duration") ?: 0.0,
         fileSize = longValue("fileSize") ?: 0L,
         voiceType = rawStringValue("voiceType").orEmpty(),
+        displayName = rawStringValue("displayName").orEmpty(),
     )
 }
 
@@ -181,6 +247,8 @@ internal object SongPayload {
         rawDate: Date,
         includeCreatedAt: Boolean,
     ): Map<String, Any?> {
+        val audioFiles = song.normalizedAudioFiles
+        val mainAudio = audioFiles.firstOrNull { it.trackType == SongAudioTrackType.MainSong }
         val payload = linkedMapOf<String, Any?>(
             "title" to song.title.trim(),
             "artist" to song.artist.trim(),
@@ -189,7 +257,7 @@ internal object SongPayload {
             "chords" to song.chords,
             "lyricsParts" to song.lyricsParts.map(::lyricsPartMap),
             "chordSheet" to chordSheetMap(song.chordSheet, rawDate),
-            "audioFiles" to song.audioFiles.map(::audioMap),
+            "audioFiles" to audioFiles.map(::audioMap),
             "youtubeLink" to song.youtubeLink.trim(),
             "pdfLink" to song.pdfLink.trim(),
             "orderIndex" to song.orderIndex,
@@ -197,7 +265,7 @@ internal object SongPayload {
             "favoriteUserIDs" to song.favoriteUserIds,
             "updatedAt" to serverTimestamp,
         )
-        payload["audio"] = song.audio?.let(::audioMap) ?: deleteField
+        payload["audio"] = mainAudio?.let(::audioMap) ?: deleteField
         if (includeCreatedAt) payload["createdAt"] = serverTimestamp
         return payload
     }
@@ -253,6 +321,7 @@ internal object SongPayload {
             "kind" to audio.kind.wireValue,
             "duration" to audio.duration,
             "fileSize" to audio.fileSize,
-            "voiceType" to audio.voiceType,
+            "voiceType" to audio.trackType.wireValue,
+            "displayName" to audio.displayName,
         )
 }

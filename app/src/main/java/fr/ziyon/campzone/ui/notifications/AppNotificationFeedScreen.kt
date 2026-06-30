@@ -71,6 +71,7 @@ import java.util.Locale
 fun AppNotificationFeedRoute(
     uid: String,
     role: UserRole,
+    church: String,
     onBack: () -> Unit,
     onOpenDeepLink: (CampzoneDeepLink) -> Unit,
     modifier: Modifier = Modifier,
@@ -78,12 +79,12 @@ fun AppNotificationFeedRoute(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(uid) { viewModel.load(uid, role) }
+    LaunchedEffect(uid, role, church) { viewModel.load(uid, role, church) }
 
     AppNotificationFeedScreen(
         uiState = uiState,
         onBack = onBack,
-        onRetry = { viewModel.retry(uid, role) },
+        onRetry = { viewModel.retry(uid, role, church) },
         onOpen = onOpenDeepLink,
         modifier = modifier,
     )

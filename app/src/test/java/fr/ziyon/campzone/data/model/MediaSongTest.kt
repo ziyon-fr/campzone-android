@@ -74,6 +74,45 @@ class MediaSongTest {
     }
 
     @Test
+    fun voiceKitsNormalizeLegacyTracksAndPersistMainAudio() {
+        val legacy = listOf(
+            SongAudio(id = "legacy", fileName = "old.mp3", voiceType = ""),
+            SongAudio(id = "tenor", fileName = "tenor.mp3", voiceType = "tenor"),
+        )
+        val song = Song(id = "s1", title = "Hymn", audioFiles = legacy)
+
+        assertEquals(SongAudioTrackType.MainSong, song.mainAudio?.trackType)
+        assertEquals(listOf(SongAudioTrackType.MainSong, SongAudioTrackType.Tenor), song.orderedAudioFiles.map { it.trackType })
+
+        val payload = SongPayload.songPayload(song, TS, DEL, Date(1), includeCreatedAt = false)
+        @Suppress("UNCHECKED_CAST")
+        val audioFiles = payload["audioFiles"] as List<Map<String, Any?>>
+        @Suppress("UNCHECKED_CAST")
+        val primary = payload["audio"] as Map<String, Any?>
+        assertEquals("mainSong", audioFiles.first()["voiceType"])
+        assertEquals("legacy", primary["id"])
+    }
+
+    @Test
+    fun voiceKitCustomNameRoundTrips() {
+        val track = SongAudio(
+            id = "demo",
+            fileName = "demo.wav",
+            voiceType = SongAudioTrackType.Other.wireValue,
+            displayName = "Click track",
+        )
+        val payload = SongPayload.songPayload(
+            Song(id = "s1", title = "Hymn", audioFiles = listOf(track)),
+            TS,
+            DEL,
+            Date(1),
+            includeCreatedAt = false,
+        )
+        val decoded = payload.toSongOrNull("s1")
+        assertEquals("Click track", decoded.audioFiles.single().displayName)
+    }
+
+    @Test
     fun lossyOriginalKeyCollapsesUnknownToCMajor() {
         assertEquals("G", decodeOriginalKey("G"))
         assertEquals("Bb", decodeOriginalKey("B♭"))

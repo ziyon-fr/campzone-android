@@ -15,6 +15,7 @@ enum class QuickActionKind(val storageKey: String) {
     Games("games"),
     FoodMenu("foodMenu"),
     Guidelines("guidelines"),
+    Packing("packing"),
     QrPass("qrPass"),
     Chat("chat"),
     Polls("polls"),
@@ -29,9 +30,9 @@ enum class QuickActionKind(val storageKey: String) {
     companion object {
         fun candidates(isLive: Boolean): List<QuickActionKind> =
             if (isLive) {
-                listOf(QrPass, Schedule, VenueMap, FoodMenu, Teams, Songbook, Chat, Polls, Album, Games)
+                listOf(QrPass, Schedule, VenueMap, Packing, FoodMenu, Teams, Songbook, Chat, Polls, Album, Games)
             } else {
-                listOf(Schedule, VenueMap, Guidelines, Songbook, Teams, FoodMenu)
+                listOf(Schedule, VenueMap, Packing, Guidelines, Songbook, Teams, FoodMenu)
             }
 
         fun fromResourceId(resourceId: String): QuickActionKind? = when (resourceId) {
@@ -42,6 +43,7 @@ enum class QuickActionKind(val storageKey: String) {
             "polls" -> Polls
             "album" -> Album
             "food-menu" -> FoodMenu
+            "packing" -> Packing
             "pricing" -> Pricing
             "check-in-scanner" -> CheckInScanner
             "transportation" -> Transportation

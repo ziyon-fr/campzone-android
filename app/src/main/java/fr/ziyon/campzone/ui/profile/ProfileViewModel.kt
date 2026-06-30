@@ -80,6 +80,7 @@ data class ProfileFormState(
     val gender: UserGender? = UserGender.PreferNotToSay,
     val church: String = "",
     val skillsText: String = "",
+    val allergies: List<String> = emptyList(),
     val profession: String = "",
     val education: String = "",
     val pathfinderRank: String = "",
@@ -147,6 +148,7 @@ class ProfileViewModel @Inject constructor(
     fun updateGender(value: UserGender?) = updateForm { copy(gender = value) }
     fun updateChurch(value: String) = updateForm { copy(church = value) }
     fun updateSkillsText(value: String) = updateForm { copy(skillsText = value) }
+    fun updateAllergies(value: List<String>) = updateForm { copy(allergies = value) }
     fun updateProfession(value: String) = updateForm { copy(profession = value) }
     fun updateEducation(value: String) = updateForm { copy(education = value) }
     fun updatePathfinderRank(value: String) = updateForm { copy(pathfinderRank = value) }
@@ -411,6 +413,7 @@ private fun ProfileFormState(user: UserProfile): ProfileFormState =
         gender = user.gender ?: UserGender.PreferNotToSay,
         church = user.church,
         skillsText = user.skills.joinToString(", "),
+        allergies = user.allergies,
         profession = user.profession,
         education = user.education,
         pathfinderRank = user.pathfinderRank,
@@ -442,6 +445,7 @@ private fun ProfileFormState.toUserProfile(
         gender = gender,
         church = church.trim(),
         skills = skillsText.cleanedCsv(),
+        allergies = fr.ziyon.campzone.data.profile.AllergyFormatter.cleaned(allergies),
         profession = profession.trim(),
         education = education.trim(),
         pathfinderRank = pathfinderRank.trim(),

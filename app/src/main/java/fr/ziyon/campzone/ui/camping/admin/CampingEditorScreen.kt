@@ -1316,17 +1316,19 @@ private fun organizerNamePlaceholder(type: OrganizerType): String = when (type) 
     OrganizerType.Custom -> stringResource(R.string.camping_editor_organizer_custom_hint)
 }
 
+@Composable
 private fun OrganizerType.displayLabel(): String = when (this) {
-    OrganizerType.Church -> "Church"
-    OrganizerType.Regional -> "Regional"
-    OrganizerType.International -> "International"
-    OrganizerType.Custom -> "Custom"
+    OrganizerType.Church -> stringResource(R.string.organizer_type_church)
+    OrganizerType.Regional -> stringResource(R.string.organizer_type_regional)
+    OrganizerType.International -> stringResource(R.string.organizer_type_international)
+    OrganizerType.Custom -> stringResource(R.string.organizer_type_custom)
 }
 
+@Composable
 private fun CampingRegistrationStatus.displayLabel(): String = when (this) {
-    CampingRegistrationStatus.Open -> "Open"
-    CampingRegistrationStatus.Closed -> "Closed"
-    CampingRegistrationStatus.Cancelled -> "Cancelled"
+    CampingRegistrationStatus.Open -> stringResource(R.string.camping_status_open)
+    CampingRegistrationStatus.Closed -> stringResource(R.string.camping_status_closed)
+    CampingRegistrationStatus.Cancelled -> stringResource(R.string.camping_status_cancelled)
 }
 
 // MARK: - Preview

@@ -282,4 +282,18 @@ class CampzoneDeepLinkTest {
         assertNull(CampzoneDeepLink.TeamUpdate("camp-1", "team-1").canonicalShareUrlOrNull())
         assertNull(CampzoneDeepLink.TeamPoints("camp-1", "team-1").canonicalShareUrlOrNull())
     }
+
+    @Test
+    fun packingShareLinksRoundTrip() {
+        val link = CampzoneDeepLink.PackingShare("camp-1", "share-1")
+        assertEquals(
+            "https://campzone-web.vercel.app/packing-share/share-1?c=camp-1",
+            link.canonicalShareUrlOrNull(),
+        )
+        assertEquals(link, CampzoneDeepLink.fromCampzoneUrl(link.canonicalShareUrlOrNull()))
+        assertEquals(
+            link,
+            CampzoneDeepLink.fromCampzoneUrl("campzone://packing-share/share-1?c=camp-1"),
+        )
+    }
 }

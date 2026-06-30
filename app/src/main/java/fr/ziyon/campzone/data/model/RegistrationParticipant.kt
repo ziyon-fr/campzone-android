@@ -4,6 +4,7 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.CampingAgeGroup
 import fr.ziyon.campzone.data.auth.UserGender
 import fr.ziyon.campzone.data.family.ChildParticipant
+import fr.ziyon.campzone.data.family.FamilyRelationship
 import java.util.Date
 
 /**
@@ -27,6 +28,9 @@ data class RegistrationParticipant(
     val emergencyContactName: String,
     val emergencyContactPhone: String,
     val medicalNotes: String,
+    val allergies: List<String> = emptyList(),
+    val relationship: FamilyRelationship? = null,
+    val customRelationshipLabel: String? = null,
 ) {
     val ageGroup: CampingAgeGroup
         get() = CampingAgeGroup.fromAge(age)
@@ -48,6 +52,9 @@ data class RegistrationParticipant(
             emergencyContactName = "",
             emergencyContactPhone = "",
             medicalNotes = "",
+            allergies = user.allergies,
+            relationship = null,
+            customRelationshipLabel = null,
         )
 
         fun from(child: ChildParticipant): RegistrationParticipant = RegistrationParticipant(
@@ -66,6 +73,9 @@ data class RegistrationParticipant(
             emergencyContactName = child.emergencyContactName,
             emergencyContactPhone = child.emergencyContactPhone,
             medicalNotes = child.medicalNotes,
+            allergies = child.allergies,
+            relationship = child.relationship,
+            customRelationshipLabel = child.customRelationshipLabel.takeUnless { it.isBlank() },
         )
     }
 }

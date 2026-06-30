@@ -103,6 +103,7 @@ are deep-link destinations only and have **no** canonical share URL.
 | achievements/badge | route/host `achievement`/`achievements`/`badge`/`badges`, user id = first path component, optional `?achievementID`/`?badgeID`/`?a` | `https://campzone-web.vercel.app/badges/<userID>?achievementID=<id>` |
 | transportation join | route/host `transportation-join`, camping id = first path component, code = `?code`/`?invitationCode`/`?i` | `https://campzone-web.vercel.app/transportation-join/<campingID>?code=<code>` |
 | transportation decision | route/host `transportation-invitation` or `transportation-request`, vehicle id = first path component, camping/registration ids in query | none |
+| packing share | route/host `packing-share`, share id = first path component or `?shareID`/`?s`, camping id = `?c`/`?campingID` | `https://campzone-web.vercel.app/packing-share/<shareID>?c=<campingID>` |
 
 iOS registers both the `campzone` scheme in `Info.plist` and the
 `applinks:campzone-web.vercel.app` Associated Domain entitlement.
@@ -129,6 +130,7 @@ work in a browser. Recommended structure:
 | `achievements(userID, ...)` | `/badges/[userId]` |
 | `scheduleProgram(campingID, programID)` | `/campings/[id]?programID=...` |
 | `transportation(campingID)` | `/campings/[id]?transportation=true` |
+| `packingShare(campingID, shareID)` | `/packing-share/[shareId]?c=<campingID>` |
 | Home / Campings / Announcements / Profile | `/`, `/campings`, `/announcements`, `/profile` |
 
 Android: a single-Activity Compose nav graph mirroring the same logical
@@ -153,6 +155,7 @@ lands sensibly. Mirror this:
 - `scheduleProgram` → `[campingDetail, scheduleProgram]`
 - `transportation` → `[campingDetail, myTransportation]`; invitation and
   request links additionally open the relevant decision bottom sheet
+- `packingShare` → `[campingDetail, packingChecklistImport]`
 
 Tabs: **Home, Campings, Announcements, Profile/Settings** (same four on
 every platform).

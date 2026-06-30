@@ -42,6 +42,7 @@ import fr.ziyon.campzone.core.designsystem.CzTextField
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.model.CampingPaymentOption
 import fr.ziyon.campzone.data.model.CampingPriceItem
+import fr.ziyon.campzone.ui.camping.localizedDisplayName
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -183,7 +184,7 @@ private fun PriceItemEditorContent(
                     colors = CheckboxDefaults.colors(checkedColor = colors.ember),
                 )
                 Text(
-                    text = option.displayLabel(),
+                    text = option.localizedDisplayName(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.textPrimary,
                 )
@@ -233,10 +234,4 @@ private fun PriceItemEditorContent(
         )
         Spacer(Modifier.height(CzSpacing.xl))
     }
-}
-
-private fun CampingPaymentOption.displayLabel(): String = when (this) {
-    CampingPaymentOption.CardOneTime -> "Card / payment"
-    CampingPaymentOption.CardInstallments -> "3 installments"
-    CampingPaymentOption.BankTransfer -> "Bank transfer (IBAN)"
 }

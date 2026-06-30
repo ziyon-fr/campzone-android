@@ -64,6 +64,7 @@ sealed interface CampzoneDeepLink {
         val vehicleId: String,
         val registrationId: String,
     ) : CampzoneDeepLink
+    data class PackingShare(val campingId: String, val shareId: String) : CampzoneDeepLink
 
     fun canonicalShareUrlOrNull(): String? = when (this) {
         is Announcement -> "https://${Companion.WebHost}/announcements/${id.asUrlSegment()}"
@@ -71,6 +72,7 @@ sealed interface CampzoneDeepLink {
         is Achievements -> "https://${Companion.WebHost}/badges/${userId.asUrlSegment()}"
         is Achievement -> "https://${Companion.WebHost}/badges/${userId.asUrlSegment()}?achievementID=${achievementId.asUrlSegment()}"
         is TransportationJoin -> "https://${Companion.WebHost}/transportation-join/${campingId.asUrlSegment()}?code=${invitationCode.asUrlSegment()}"
+        is PackingShare -> "https://${Companion.WebHost}/packing-share/${shareId.asUrlSegment()}?c=${campingId.asUrlSegment()}"
         is CampingChat,
         is Poll,
         is RegistrationReview,
@@ -247,6 +249,12 @@ sealed interface CampzoneDeepLink {
                     } else {
                         TransportationRequest(campingId, vehicleId, registrationId)
                     }
+                }
+
+                "packing-share" -> {
+                    val shareId = pathId ?: query.firstValue("shareID", "s") ?: return null
+                    val campingId = query.firstValue("campingID", "c") ?: return null
+                    PackingShare(campingId, shareId)
                 }
 
                 else -> null

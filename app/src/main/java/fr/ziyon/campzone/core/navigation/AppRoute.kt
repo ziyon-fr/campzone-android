@@ -104,6 +104,10 @@ sealed interface AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.AdminOnboarding}"
     }
 
+    data object AdminAnalytics : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.AdminAnalytics}"
+    }
+
     data object UserDataExport : AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.UserDataExport}"
     }
@@ -181,6 +185,10 @@ sealed interface AppRoute {
 
     data class CampingAlbum(val campingId: String) : AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Album}"
+    }
+
+    data class CampingSafety(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Safety}"
     }
 
     data class CheckInScanner(val campingId: String) : AppRoute {
@@ -461,6 +469,22 @@ sealed interface AppRoute {
             "${CampingDetail(campingId).route}/${AppRoutePath.Guidelines}"
     }
 
+    data class CampingSupport(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Support}"
+    }
+
+    data class CampingPackingChecklist(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.PackingChecklist}"
+    }
+
+    data class CampingPackingChecklistEditor(val campingId: String) : AppRoute {
+        override val route = "${CampingPackingChecklist(campingId).route}/${AppRoutePath.CampingEdit}"
+    }
+
+    data class CampingPackingShareImport(val campingId: String, val shareId: String) : AppRoute {
+        override val route = "${CampingPackingChecklist(campingId).route}/${AppRoutePath.PackingShare}/${shareId.asRouteSegment()}"
+    }
+
     data class CampingGames(val campingId: String) : AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Games}"
     }
@@ -519,6 +543,7 @@ internal object AppRouteArgs {
     const val InvitationCode = "invitationCode"
     const val DecisionKind = "decisionKind"
     const val RegistrationId = "registrationId"
+    const val ShareId = "shareId"
 }
 
 internal object AppRoutePath {
@@ -539,6 +564,7 @@ internal object AppRoutePath {
     const val ModerationQueue = "moderation"
     const val RoleManagement = "roles"
     const val AdminOnboarding = "onboarding"
+    const val AdminAnalytics = "analytics"
     const val UserDataExport = "export"
     const val AppSupport = "support"
     const val Chat = "chat"
@@ -546,6 +572,7 @@ internal object AppRoutePath {
     const val PointHistory = "points"
     const val Polls = "polls"
     const val Album = "album"
+    const val Safety = "safety"
     const val CheckInScanner = "check-in-scanner"
     const val CheckInRecords = "check-in-records"
     const val CheckInQrPasses = "qr-passes"
@@ -584,6 +611,9 @@ internal object AppRoutePath {
     const val SongEditor = "song-editor"
     const val TeamEditor = "team-editor"
     const val Guidelines = "guidelines"
+    const val PackingChecklist = "packing"
+    const val PackingShare = "shared"
+    const val Support = "support"
     const val AnnouncementComposer = "compose"
     const val Games = "games"
     const val GameEditor = "game-editor"
@@ -604,6 +634,7 @@ internal object AppRoutePattern {
     const val TeamPointHistory = "$PointHistory/{${AppRouteArgs.TeamId}}"
     const val CampingPolls = "$CampingDetail/${AppRoutePath.Polls}"
     const val CampingAlbum = "$CampingDetail/${AppRoutePath.Album}"
+    const val CampingSafety = "$CampingDetail/${AppRoutePath.Safety}"
     const val MyVehicles = "${AppRoutePath.Profile}/${AppRoutePath.MyVehicles}"
     const val UserVehicleEditor = "$MyVehicles/${AppRoutePath.UserVehicleEditor}"
     const val UserVehicleEdit = "$UserVehicleEditor/{${AppRouteArgs.UserVehicleId}}"
@@ -658,6 +689,10 @@ internal object AppRoutePattern {
     const val SongEdit = "$SongEditor/{${AppRouteArgs.SongId}}"
     const val SongDetail = "$CampingSongbook/{${AppRouteArgs.SongId}}"
     const val CampingGuidelines = "$CampingDetail/${AppRoutePath.Guidelines}"
+    const val CampingPackingChecklist = "$CampingDetail/${AppRoutePath.PackingChecklist}"
+    const val CampingPackingChecklistEditor = "$CampingPackingChecklist/${AppRoutePath.CampingEdit}"
+    const val CampingPackingShareImport = "$CampingPackingChecklist/${AppRoutePath.PackingShare}/{${AppRouteArgs.ShareId}}"
+    const val CampingSupport = "$CampingDetail/${AppRoutePath.Support}"
     const val AnnouncementComposer = "${AppRoutePath.Announcements}/${AppRoutePath.AnnouncementComposer}"
     const val CampingGames = "$CampingDetail/${AppRoutePath.Games}"
     const val GameEditor = "$CampingGames/${AppRoutePath.GameEditor}"

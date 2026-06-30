@@ -12,6 +12,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -136,7 +137,11 @@ fun OnboardingScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                OnboardingHeader(step = step)
+                OnboardingHeader(
+                    step = step,
+                    isCompleting = isCompleting,
+                    onBack = { step = 0 },
+                )
 
                 AnimatedContent(
                     targetState = step,
@@ -194,7 +199,6 @@ fun OnboardingScreen(
                             )
                         }
                     },
-                    onBack = { step = 0 },
                     onSignOut = onSignOut,
                     modifier = Modifier
                         .padding(top = CzSpacing.xl)
@@ -219,12 +223,17 @@ fun OnboardingScreen(
 
 @Composable
 private fun OnboardingBackground(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.background(OnboardingNight)) {
+    val dark = isSystemInDarkTheme()
+    Canvas(modifier = modifier.background(if (dark) OnboardingNight else Color(0xFFD4E8F8))) {
         drawRect(
             brush = Brush.verticalGradient(
-                0f to OnboardingNight,
-                0.5f to OnboardingTwilight,
-                1f to OnboardingBottom,
+                colorStops = if (dark) arrayOf(
+                    0f to Color(0xFF060914), 0.28f to Color(0xFF100826),
+                    0.52f to Color(0xFF29103E), 0.76f to Color(0xFF38160C), 1f to Color(0xFF160C06),
+                ) else arrayOf(
+                    0f to Color(0xFFB0D6F2), 0.28f to Color(0xFFD4E8F8),
+                    0.55f to Color(0xFFF5D8A8), 0.76f to Color(0xFFE8C47E), 1f to Color(0xFFC4DEB4),
+                ),
             ),
         )
         drawCircle(
@@ -240,28 +249,36 @@ private fun OnboardingBackground(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun OnboardingHeader(step: Int, modifier: Modifier = Modifier) {
+private fun OnboardingHeader(
+    step: Int,
+    isCompleting: Boolean,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.czColors
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
-        ) {
-            Text(
-                text = stringResource(
-                    if (step == 0) {
-                        R.string.onboarding_step_about_title
-                    } else {
-                        R.string.onboarding_step_community_title
-                    },
-                ),
-                color = OnboardingAmber,
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center,
-            )
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                if (step > 0) {
+                    TextButton(onClick = onBack, enabled = !isCompleting, modifier = Modifier.size(40.dp)) {
+                        Text("‹", style = MaterialTheme.typography.headlineMedium, color = colors.textSecondary)
+                    }
+                } else {
+                    Spacer(Modifier.size(40.dp))
+                }
+                Text(
+                    text = stringResource(if (step == 0) R.string.onboarding_step_about_title else R.string.onboarding_step_community_title),
+                    color = colors.accent,
+                    style = MaterialTheme.typography.headlineMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.size(40.dp))
+            }
             Text(
                 text = stringResource(
                     if (step == 0) {
@@ -270,7 +287,7 @@ private fun OnboardingHeader(step: Int, modifier: Modifier = Modifier) {
                         R.string.onboarding_step_community_subtitle
                     },
                 ),
-                color = OnboardingAmber.copy(alpha = 0.72f),
+                color = colors.textSecondary,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
             )
@@ -295,11 +312,12 @@ private fun OnboardingCard(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
+    val dark = isSystemInDarkTheme()
     val shape = RoundedCornerShape(CzRadius.xl)
     Box(
         modifier = modifier
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.08f), shape)
+            .background(Color.White.copy(alpha = if (dark) 0.08f else 0.50f), shape)
             .border(BorderStroke(1.dp, OnboardingDivider), shape)
             .padding(CzSpacing.xl),
     ) {
@@ -333,10 +351,10 @@ private fun AboutYouStep(
                     imeAction = ImeAction.Done,
                 ),
                 keyboardActions = KeyboardActions(onDone = { onDone() }),
-                leadingIcon = { Text("#", color = OnboardingAmber) },
+                leadingIcon = { Text("#", color = MaterialTheme.czColors.textSecondary) },
                 trailingIcon = {
                     if (ageGroup != null) {
-                        Text(stringResource(R.string.common_ok), color = OnboardingAmber, style = MaterialTheme.typography.labelMedium)
+                        Text(stringResource(R.string.common_ok), color = MaterialTheme.czColors.accent, style = MaterialTheme.typography.labelMedium)
                     }
                 },
                 shape = RoundedCornerShape(CzRadius.md),
@@ -362,10 +380,10 @@ private fun AgeGroupRow(ageGroup: CampingAgeGroup?, modifier: Modifier = Modifie
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
     ) {
-        Text("⚙", color = OnboardingAmber, style = MaterialTheme.typography.bodyMedium)
+        Text("⚙", color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.bodyMedium)
         Text(
             text = stringResource(R.string.onboarding_age_group),
-            color = OnboardingAmber,
+            color = MaterialTheme.czColors.textSecondary,
             style = MaterialTheme.typography.labelMedium,
         )
         Spacer(modifier = Modifier.weight(1f))
@@ -377,7 +395,7 @@ private fun AgeGroupRow(ageGroup: CampingAgeGroup?, modifier: Modifier = Modifie
         ) {
             Text(
                 text = ageGroup?.localizedName() ?: stringResource(R.string.onboarding_age_group_empty),
-                color = if (ageGroup != null) OnboardingEmber else OnboardingAmber.copy(alpha = 0.55f),
+                color = if (ageGroup != null) MaterialTheme.czColors.textSecondary else MaterialTheme.czColors.accent.copy(alpha = 0.55f),
                 style = MaterialTheme.typography.labelMedium,
             )
         }
@@ -412,7 +430,7 @@ private fun GenderSegmentedControl(
             ) {
                 Text(
                     text = gender.localizedShortName(),
-                    color = if (selected) Color.White else OnboardingCream,
+                    color = if (selected) Color.White else MaterialTheme.czColors.textPrimary,
                     style = MaterialTheme.typography.labelMedium,
                     textAlign = TextAlign.Center,
                 )
@@ -479,14 +497,14 @@ private fun ChurchSelectorButton(
             text = church.takeIf { hasChurch }
                 ?: stringResource(R.string.onboarding_church_placeholder),
             modifier = Modifier.weight(1f),
-            color = if (hasChurch) OnboardingCream else OnboardingAmber.copy(alpha = 0.7f),
+            color = if (hasChurch) MaterialTheme.czColors.textPrimary else MaterialTheme.czColors.textSecondary,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
             text = if (hasChurch) stringResource(R.string.common_ok) else "›",
-            color = if (hasChurch) OnboardingEmber else OnboardingAmber,
+            color = if (hasChurch) MaterialTheme.czColors.accent else MaterialTheme.czColors.textSecondary,
             style = MaterialTheme.typography.labelMedium,
         )
     }
@@ -515,10 +533,10 @@ private fun LanguageMenu(
             Text(
                 text = selectedLanguage.localizedName(),
                 modifier = Modifier.weight(1f),
-                color = OnboardingCream,
+                color = MaterialTheme.czColors.textPrimary,
                 style = MaterialTheme.typography.bodyLarge,
             )
-            Text("⌄", color = OnboardingAmber, style = MaterialTheme.typography.titleSmall)
+            Text("⌄", color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.titleSmall)
         }
 
         DropdownMenu(
@@ -533,7 +551,7 @@ private fun LanguageMenu(
                     text = {
                         Text(
                             text = language.localizedName(),
-                            color = OnboardingCream,
+                            color = MaterialTheme.czColors.textPrimary,
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     },
@@ -559,7 +577,7 @@ private fun OnboardingField(
     ) {
         Text(
             text = title.uppercase(),
-            color = OnboardingAmber,
+            color = MaterialTheme.czColors.textSecondary,
             style = MaterialTheme.typography.labelSmall,
         )
         content()
@@ -572,7 +590,6 @@ private fun BottomBar(
     canAdvance: Boolean,
     isCompleting: Boolean,
     onPrimary: () -> Unit,
-    onBack: () -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -602,36 +619,10 @@ private fun BottomBar(
                     strokeWidth = 2.dp,
                 )
             } else {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (step == 0) {
-                                R.string.onboarding_next
-                            } else {
-                                R.string.onboarding_get_started
-                            },
-                        ),
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Spacer(Modifier.width(CzSpacing.sm))
-                    Text(if (step == 0) "→" else "▲")
-                }
-            }
-        }
-
-        AnimatedVisibility(visible = step > 0) {
-            TextButton(
-                onClick = onBack,
-                enabled = !isCompleting,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = OnboardingAmber.copy(alpha = 0.72f),
-                    disabledContentColor = OnboardingAmber.copy(alpha = 0.35f),
-                ),
-            ) {
-                Text(stringResource(R.string.onboarding_back), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = stringResource(if (step == 0) R.string.onboarding_next else R.string.onboarding_get_started),
+                    style = MaterialTheme.typography.titleSmall,
+                )
             }
         }
 
@@ -683,19 +674,19 @@ private fun OnboardingErrorBanner(
 
 @Composable
 private fun onboardingTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = OnboardingCream,
-    unfocusedTextColor = OnboardingCream,
-    disabledTextColor = OnboardingCream.copy(alpha = 0.45f),
-    focusedContainerColor = Color.White.copy(alpha = 0.09f),
-    unfocusedContainerColor = Color.White.copy(alpha = 0.06f),
-    disabledContainerColor = Color.White.copy(alpha = 0.04f),
-    cursorColor = OnboardingAmber,
+    focusedTextColor = MaterialTheme.czColors.textPrimary,
+    unfocusedTextColor = MaterialTheme.czColors.textPrimary,
+    disabledTextColor = MaterialTheme.czColors.textPrimary.copy(alpha = 0.45f),
+    focusedContainerColor = MaterialTheme.czColors.surface.copy(alpha = 0.65f),
+    unfocusedContainerColor = MaterialTheme.czColors.surface.copy(alpha = 0.45f),
+    disabledContainerColor = MaterialTheme.czColors.surface.copy(alpha = 0.30f),
+    cursorColor = MaterialTheme.czColors.accent,
     focusedBorderColor = OnboardingEmber.copy(alpha = 0.65f),
     unfocusedBorderColor = OnboardingDivider,
-    focusedLabelColor = OnboardingAmber,
-    unfocusedLabelColor = OnboardingAmber,
-    focusedPlaceholderColor = OnboardingAmber.copy(alpha = 0.55f),
-    unfocusedPlaceholderColor = OnboardingAmber.copy(alpha = 0.55f),
+    focusedLabelColor = MaterialTheme.czColors.textSecondary,
+    unfocusedLabelColor = MaterialTheme.czColors.textSecondary,
+    focusedPlaceholderColor = MaterialTheme.czColors.textSecondary.copy(alpha = 0.55f),
+    unfocusedPlaceholderColor = MaterialTheme.czColors.textSecondary.copy(alpha = 0.55f),
 )
 
 @Composable

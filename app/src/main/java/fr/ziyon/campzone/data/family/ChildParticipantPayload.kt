@@ -27,6 +27,7 @@ internal object ChildParticipantPayload {
             "emergencyContactName" to child.emergencyContactName,
             "emergencyContactPhone" to child.emergencyContactPhone,
             "medicalNotes" to child.medicalNotes,
+            "allergies" to fr.ziyon.campzone.data.profile.AllergyFormatter.cleaned(child.allergies),
             "relationship" to child.relationship.wireValue,
             "customRelationshipLabel" to child.customRelationshipLabel,
             "updatedAt" to serverTimestamp,

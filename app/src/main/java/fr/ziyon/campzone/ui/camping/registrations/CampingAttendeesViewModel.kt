@@ -59,6 +59,19 @@ data class CampingAttendeesUiState(
     val approvedCount: Int
         get() = attendees.count { it.registrationStatus == RegistrationApprovalStatus.Approved }
 
+    val availableChurches: List<String>
+        get() = attendees.map { it.church.trim() }
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.lowercase() }
+            .sortedWith(String.CASE_INSENSITIVE_ORDER)
+
+    val availableLanguages: List<String>
+        get() = attendees.flatMap { it.languages }
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinctBy { it.lowercase() }
+            .sortedWith(String.CASE_INSENSITIVE_ORDER)
+
     private fun matchesFilters(attendee: CampingAttendee): Boolean {
         if (filters.church.isNotBlank() && !attendee.church.contains(filters.church, ignoreCase = true)) {
             return false

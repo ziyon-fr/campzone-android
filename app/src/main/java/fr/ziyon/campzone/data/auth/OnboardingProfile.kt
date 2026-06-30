@@ -89,7 +89,7 @@ enum class PreferredLanguage(
             entries.firstOrNull { it.wireValue == value }
 
         fun defaultForLocale(locale: Locale = Locale.getDefault()): PreferredLanguage =
-            fromWire(locale.language) ?: French
+            fromWire(locale.language) ?: English
     }
 }
 

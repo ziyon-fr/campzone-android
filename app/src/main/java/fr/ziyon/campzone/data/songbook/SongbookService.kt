@@ -13,9 +13,11 @@ import fr.ziyon.campzone.data.model.ChordSheet
 import fr.ziyon.campzone.data.model.Song
 import fr.ziyon.campzone.data.model.SongAudio
 import fr.ziyon.campzone.data.model.SongAudioKind
+import fr.ziyon.campzone.data.model.SongAudioTrackType
 import fr.ziyon.campzone.data.model.SongLyricsPart
 import fr.ziyon.campzone.data.model.SongPayload
 import fr.ziyon.campzone.data.model.toSongOrNull
+import fr.ziyon.campzone.data.model.normalizeSongAudioFiles
 import java.util.Date
 import java.util.UUID
 import javax.inject.Inject
@@ -39,7 +41,8 @@ data class PendingSongAudio(
     val kind: SongAudioKind,
     val duration: Double = 0.0,
     val fileSize: Long = bytes.size.toLong(),
-    val voiceType: String = "",
+    val voiceType: String = SongAudioTrackType.MainSong.wireValue,
+    val displayName: String = "",
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -51,7 +54,8 @@ data class PendingSongAudio(
             kind == other.kind &&
             duration == other.duration &&
             fileSize == other.fileSize &&
-            voiceType == other.voiceType
+            voiceType == other.voiceType &&
+            displayName == other.displayName
     }
 
     override fun hashCode(): Int {
@@ -63,8 +67,16 @@ data class PendingSongAudio(
         result = 31 * result + duration.hashCode()
         result = 31 * result + fileSize.hashCode()
         result = 31 * result + voiceType.hashCode()
+        result = 31 * result + displayName.hashCode()
         return result
     }
+
+    val trackType: SongAudioTrackType get() = SongAudioTrackType.fromWire(voiceType)
+
+    fun withTrackType(type: SongAudioTrackType, customName: String = ""): PendingSongAudio = copy(
+        voiceType = type.wireValue,
+        displayName = if (type.allowsCustomName) customName.trim() else "",
+    )
 }
 
 data class SongDraft(
@@ -116,8 +128,8 @@ class FirestoreSongbookService @Inject constructor(
         val existingAudio = draft.existingAudioFiles.ifEmpty {
             draft.existingAudio?.let(::listOf).orEmpty()
         }
-        val audioFiles = existingAudio + uploadedAudio
-        val primaryAudio = audioFiles.firstOrNull()
+        val audioFiles = normalizeSongAudioFiles(existingAudio + uploadedAudio)
+        val primaryAudio = audioFiles.firstOrNull { it.trackType == SongAudioTrackType.MainSong }
 
         if (draft.isPinnedTheme) {
             clearPinnedTheme(campingId = draft.campingId, exceptSongId = draft.id)
@@ -263,6 +275,7 @@ class FirestoreSongbookService @Inject constructor(
                 duration = result.duration ?: pending.duration,
                 fileSize = result.bytes ?: pending.fileSize,
                 voiceType = pending.voiceType,
+                displayName = pending.displayName,
             )
         }
     }
@@ -315,12 +328,13 @@ class FakeSongbookService(
                 duration = pending.duration,
                 fileSize = pending.fileSize,
                 voiceType = pending.voiceType,
+                displayName = pending.displayName,
             )
         }
         val existingAudio = draft.existingAudioFiles.ifEmpty {
             draft.existingAudio?.let(::listOf).orEmpty()
         }
-        val audioFiles = existingAudio + uploadedAudio
+        val audioFiles = normalizeSongAudioFiles(existingAudio + uploadedAudio)
         val saved = Song(
             id = draft.id,
             title = draft.title,
@@ -330,7 +344,7 @@ class FakeSongbookService(
             chords = draft.chords,
             lyricsParts = draft.lyricsParts,
             chordSheet = draft.chordSheet,
-            audio = audioFiles.firstOrNull(),
+            audio = audioFiles.firstOrNull { it.trackType == SongAudioTrackType.MainSong },
             audioFiles = audioFiles,
             youtubeLink = draft.youtubeLink,
             pdfLink = draft.pdfLink,

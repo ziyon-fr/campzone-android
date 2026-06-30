@@ -1,6 +1,7 @@
 package fr.ziyon.campzone.data.model
 
 import fr.ziyon.campzone.data.auth.UserGender
+import fr.ziyon.campzone.data.family.FamilyRelationship
 import java.util.Date
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,6 +24,7 @@ class CampingAttendeePayloadTest {
         assertEquals("youth", payload["ageGroup"]) // derived from age
         assertEquals("own_car", payload["transportationChoice"])
         assertEquals("pending", payload["registrationStatus"])
+        assertEquals(listOf("peanuts", "Kiwi"), payload["allergies"])
         assertEquals(TS, payload["createdAt"])
         // backend settles payment - never written by the client on create
         assertFalse(payload.containsKey("paymentStatus"))
@@ -45,6 +47,8 @@ class CampingAttendeePayloadTest {
                 transportationBookingId = "child-1-bus",
                 transportationOptionId = "t1",
                 transportationOptionName = "Bus A",
+                relationship = FamilyRelationship.Other,
+                customRelationshipLabel = "Godchild",
             ),
             serverTimestamp = TS,
             includeCreatedAt = true,
@@ -56,6 +60,8 @@ class CampingAttendeePayloadTest {
         assertEquals("provided_bus", payload["transportationChoice"])
         assertEquals("child-1-bus", payload["transportationBookingID"])
         assertEquals("Bus A", payload["transportationOptionName"])
+        assertEquals("other", payload["relationship"])
+        assertEquals("Godchild", payload["customRelationshipLabel"])
     }
 
     @Test
@@ -69,7 +75,10 @@ class CampingAttendeePayloadTest {
     fun roundTripsThroughDecoder() {
         val paymentUpdatedAt = Date(12)
         val approvedAt = Date(13)
-        val original = selfAttendee().copy(gender = UserGender.Male)
+        val original = selfAttendee().copy(
+            gender = UserGender.Male,
+            relationship = FamilyRelationship.LegalGuardian,
+        )
         val payload = CampingAttendeePayload.registrationPayload(original, Date(7), includeCreatedAt = false)
             .toMutableMap()
             .apply {
@@ -89,6 +98,8 @@ class CampingAttendeePayloadTest {
         assertEquals(original.age, decoded.age)
         assertEquals(UserGender.Male, decoded.gender)
         assertEquals(listOf("en"), decoded.languages)
+        assertEquals(listOf("peanuts", "Kiwi"), decoded.allergies)
+        assertEquals(FamilyRelationship.LegalGuardian, decoded.relationship)
         assertEquals(RegistrationApprovalStatus.Approved, decoded.registrationStatus)
         assertEquals(TransportationPaymentStatus.Paid, decoded.paymentStatus)
         assertEquals("pi_123", decoded.paymentReference)
@@ -108,6 +119,7 @@ class CampingAttendeePayloadTest {
             church = "Paris Central SDA",
             age = 20,
             languages = listOf("en"),
+            allergies = listOf("peanuts", "Kiwi"),
             registrationStatus = RegistrationApprovalStatus.Pending,
             preferredLanguage = "en",
         )

@@ -23,6 +23,8 @@ import fr.ziyon.campzone.data.model.TransportationMode
 import fr.ziyon.campzone.data.model.UserVehicle
 import fr.ziyon.campzone.data.model.VehicleStatus
 import fr.ziyon.campzone.data.model.VehicleTokenFactory
+import fr.ziyon.campzone.data.notifications.FakeNotificationSettingsService
+import fr.ziyon.campzone.data.notifications.NotificationSettingsService
 import fr.ziyon.campzone.data.vehicle.UserVehicleService
 import fr.ziyon.campzone.data.vehicle.VehicleService
 import java.util.Locale
@@ -123,6 +125,7 @@ class CampingRegistrationViewModel @Inject constructor(
     private val vehicleService: VehicleService,
     private val userVehicleService: UserVehicleService,
     private val notificationDispatcher: RegistrationNotificationDispatcher,
+    private val notificationSettingsService: NotificationSettingsService = FakeNotificationSettingsService(),
     private val analyticsService: AnalyticsService = NoOpAnalyticsService,
 ) : ViewModel() {
 
@@ -371,6 +374,7 @@ class CampingRegistrationViewModel @Inject constructor(
                     submissions = submissions,
                     requestedBy = user,
                 )
+                syncRegistrationNotificationChannel(updatedCamping.id, user)
                 onFinished(updatedCamping.requiresPendingRegistrationPayment(selected))
             }.onFailure { error ->
                 _uiState.update {
@@ -380,6 +384,25 @@ class CampingRegistrationViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    private suspend fun syncRegistrationNotificationChannel(
+        campingId: String,
+        user: AuthenticatedUser,
+    ) {
+        runCatching {
+            val settings = notificationSettingsService.load(user.uid, user.role)
+            val subscribed = (settings.subscribedCampingIds + campingId)
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+                .sorted()
+            notificationSettingsService.save(
+                settings.copy(subscribedCampingIds = subscribed),
+                uid = user.uid,
+                role = user.role,
+            )
         }
     }
 

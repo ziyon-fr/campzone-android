@@ -56,10 +56,11 @@ data class ChildFormState(
     val ageText: String = "",
     val gender: UserGender = UserGender.PreferNotToSay,
     val church: String = "",
-    val preferredLanguage: PreferredLanguage = PreferredLanguage.French,
+    val preferredLanguage: PreferredLanguage = PreferredLanguage.English,
     val emergencyContactName: String = "",
     val emergencyContactPhone: String = "",
     val medicalNotes: String = "",
+    val allergies: List<String> = emptyList(),
     val relationship: FamilyRelationship = FamilyRelationship.Parent,
     val customRelationshipLabel: String = "",
     val hasGuardianConsent: Boolean = false,
@@ -154,7 +155,7 @@ class FamilyViewModel @Inject constructor(
         val form = existing?.let(::ChildFormState) ?: ChildFormState(
             church = user.church,
             preferredLanguage = PreferredLanguage.fromWire(user.preferredLanguage)
-                ?: PreferredLanguage.French,
+                ?: PreferredLanguage.English,
         )
         _uiState.value = _uiState.value.copy(
             editor = ChildEditorState(
@@ -406,10 +407,11 @@ internal fun ChildFormState(child: ChildParticipant): ChildFormState =
         gender = child.gender,
         church = child.church,
         preferredLanguage = PreferredLanguage.fromWire(child.preferredLanguage)
-            ?: PreferredLanguage.French,
+            ?: PreferredLanguage.English,
         emergencyContactName = child.emergencyContactName,
         emergencyContactPhone = child.emergencyContactPhone,
         medicalNotes = child.medicalNotes,
+        allergies = child.allergies,
         relationship = child.relationship,
         customRelationshipLabel = child.customRelationshipLabel,
         hasGuardianConsent = child.guardianConsentAt != null,
@@ -429,6 +431,7 @@ internal fun ChildFormState.toChild(id: String, guardianId: String): ChildPartic
         emergencyContactName = emergencyContactName.trim(),
         emergencyContactPhone = emergencyContactPhone.trim(),
         medicalNotes = medicalNotes.trim(),
+        allergies = fr.ziyon.campzone.data.profile.AllergyFormatter.cleaned(allergies),
         relationship = relationship,
         customRelationshipLabel = if (relationship.requiresCustomLabel) customRelationshipLabel.trim() else "",
         guardianConsentAt = if (hasGuardianConsent) Date() else null,

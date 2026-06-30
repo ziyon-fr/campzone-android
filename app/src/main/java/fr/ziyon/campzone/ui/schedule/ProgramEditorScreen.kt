@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -41,6 +42,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimeInput
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TimePickerDefaults
 import androidx.compose.material3.TopAppBar
@@ -62,6 +64,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzButton
@@ -742,45 +745,67 @@ private fun TimePickerDialog(
 ) {
     val state = rememberTimePickerState(initialHour = initialHour, initialMinute = initialMinute)
     val colors = MaterialTheme.czColors
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(CzRadius.xl),
-            color = colors.background,
+    val pickerColors = TimePickerDefaults.colors(
+        clockDialColor = colors.surface,
+        selectorColor = colors.ember,
+        containerColor = colors.background,
+        periodSelectorBorderColor = colors.divider,
+        clockDialSelectedContentColor = Color.White,
+        clockDialUnselectedContentColor = colors.textPrimary,
+        timeSelectorSelectedContainerColor = colors.ember.copy(alpha = 0.12f),
+        timeSelectorUnselectedContainerColor = colors.surface,
+        timeSelectorSelectedContentColor = colors.ember,
+        timeSelectorUnselectedContentColor = colors.textPrimary,
+    )
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = CzSpacing.base),
+            contentAlignment = Alignment.Center,
         ) {
-            Column(
-                modifier = Modifier.padding(CzSpacing.base),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(CzSpacing.base),
+            val compact = maxWidth < 390.dp
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = if (compact) 0.dp else CzSpacing.xl),
+                shape = RoundedCornerShape(CzRadius.xl),
+                color = colors.background,
             ) {
-                TimePicker(
-                    state = state,
-                    colors = TimePickerDefaults.colors(
-                        clockDialColor = colors.surface,
-                        selectorColor = colors.ember,
-                        containerColor = colors.background,
-                        periodSelectorBorderColor = colors.divider,
-                        clockDialSelectedContentColor = Color.White,
-                        clockDialUnselectedContentColor = colors.textPrimary,
-                        timeSelectorSelectedContainerColor = colors.ember.copy(alpha = 0.12f),
-                        timeSelectorUnselectedContainerColor = colors.surface,
-                        timeSelectorSelectedContentColor = colors.ember,
-                        timeSelectorUnselectedContentColor = colors.textPrimary,
-                    ),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier.padding(CzSpacing.base),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(CzSpacing.base),
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(stringResource(R.string.common_cancel), color = colors.textSecondary)
+                    if (compact) {
+                        TimeInput(
+                            state = state,
+                            colors = pickerColors,
+                        )
+                    } else {
+                        TimePicker(
+                            state = state,
+                            colors = pickerColors,
+                        )
                     }
-                    Spacer(modifier = Modifier.size(CzSpacing.sm))
-                    CzButton(
-                        text = stringResource(R.string.common_ok),
-                        onClick = { onConfirm(state.hour, state.minute) },
-                        variant = CzButtonVariant.Primary,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = onDismiss) {
+                            Text(stringResource(R.string.common_cancel), color = colors.textSecondary)
+                        }
+                        Spacer(modifier = Modifier.size(CzSpacing.sm))
+                        CzButton(
+                            text = stringResource(R.string.common_ok),
+                            onClick = { onConfirm(state.hour, state.minute) },
+                            variant = CzButtonVariant.Primary,
+                        )
+                    }
                 }
             }
         }

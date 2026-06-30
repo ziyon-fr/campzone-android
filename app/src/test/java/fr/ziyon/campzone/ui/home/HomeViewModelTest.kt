@@ -67,7 +67,7 @@ class HomeViewModelTest {
 
         val loaded = viewModel.uiState.value.phase as HomePhase.Loaded
         assertNull(loaded.featuredCamping)
-        assertEquals(listOf("global-new", "global-old"), loaded.announcements.map { it.id })
+        assertEquals(listOf("global-new", "camping", "global-old"), loaded.announcements.map { it.id })
     }
 
     @Test
@@ -183,6 +183,89 @@ class HomeViewModelTest {
         assertEquals("user-1", loaded.livePassInfo.checkInRecord?.attendeeId)
         assertEquals("Trail Group 4", loaded.livePassInfo.teamName)
         assertEquals("Cabin 7", loaded.livePassInfo.lodgingName)
+    }
+
+    @Test
+    fun livePassIncludesApprovedSelfAndFamilyInIosOrder() = runTest {
+        val activeCamping = camping(
+            id = "active",
+            start = Date(Date().time - 86_400_000),
+            end = Date(Date().time + 86_400_000),
+            attendees = listOf(
+                attendee(
+                    id = "child-theo",
+                    userId = "child-theo",
+                    status = RegistrationApprovalStatus.Approved,
+                    displayName = "Theo Ferreira",
+                    participantKind = RegistrationParticipantKind.Child,
+                    guardianId = "user-1",
+                ),
+                attendee(
+                    id = "user-1",
+                    userId = "user-1",
+                    status = RegistrationApprovalStatus.Approved,
+                    displayName = "Zoe Ferreira",
+                ),
+                attendee(
+                    id = "child-lina",
+                    userId = "child-lina",
+                    status = RegistrationApprovalStatus.Approved,
+                    displayName = "Lina Ferreira",
+                    participantKind = RegistrationParticipantKind.Child,
+                    guardianId = "user-1",
+                ),
+                attendee(
+                    id = "child-pending",
+                    userId = "child-pending",
+                    status = RegistrationApprovalStatus.Pending,
+                    displayName = "Pending Ferreira",
+                    participantKind = RegistrationParticipantKind.Child,
+                    guardianId = "user-1",
+                ),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            campingService = FakeCampingService(initial = listOf(activeCamping)),
+            dashboardRepository = FakeMainDashboardRepository(featuredCamping = activeCamping),
+            scheduleService = FakeScheduleService(),
+            announcementService = FakeAnnouncementService(mutableListOf()),
+            checkInService = FakeCheckInService(),
+            teamService = FakeTeamService(
+                mutableListOf(
+                    Team(
+                        id = "team-1",
+                        campingId = activeCamping.id,
+                        name = "Trail Group 4",
+                        members = listOf(
+                            TeamMember(
+                                id = "child-theo",
+                                userId = "child-theo",
+                                displayName = "Theo Ferreira",
+                                church = "Paris Central",
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            lodgingService = FakeLodgingService(
+                initial = listOf(
+                    LodgingUnit(
+                        id = "tent-a",
+                        campingId = activeCamping.id,
+                        name = "Tent Alpha",
+                        occupantIds = listOf("child-lina"),
+                    ),
+                ),
+            ),
+        )
+
+        viewModel.loadHome(forUserId = "user-1")
+        advanceUntilIdle()
+
+        val passes = (viewModel.uiState.value.phase as HomePhase.Loaded).livePassInfo.passes
+        assertEquals(listOf("user-1", "child-lina", "child-theo"), passes.map { it.attendee.id })
+        assertEquals("Tent Alpha", passes.first { it.attendee.id == "child-lina" }.lodgingName)
+        assertEquals("Trail Group 4", passes.first { it.attendee.id == "child-theo" }.teamName)
     }
 
     @Test
@@ -348,15 +431,19 @@ class HomeViewModelTest {
         id: String,
         userId: String,
         status: RegistrationApprovalStatus,
+        displayName: String = "Camper",
+        participantKind: RegistrationParticipantKind = RegistrationParticipantKind.SelfParticipant,
+        guardianId: String? = null,
     ) = CampingAttendee(
         id = id,
         userId = userId,
-        displayName = "Camper",
+        displayName = displayName,
         church = "Paris Central",
         age = 16,
         languages = listOf("en"),
         registrationStatus = status,
-        participantKind = RegistrationParticipantKind.SelfParticipant,
+        participantKind = participantKind,
+        guardianId = guardianId,
     )
 
     private class FakeMainDashboardRepository(

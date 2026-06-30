@@ -122,6 +122,7 @@ data class VehicleFormInput(
     val hasAvailableSeats: Boolean,
     val notes: String?,
     val userVehicleId: String? = null,
+    val passengers: List<CampingAttendee> = emptyList(),
 )
 
 data class SavedVehicleUiState(
@@ -208,7 +209,7 @@ class VehicleViewModel @Inject constructor(
                 .onFailure { error ->
                     loadedCampingKey = null
                     _uiState.value = VehicleUiState(
-                        loadState = VehicleLoadState.Error(error.message ?: "Vehicles could not be loaded."),
+                        loadState = VehicleLoadState.Error(error.message ?: stringProvider.get(R.string.vehicle_load_error)),
                     )
                 }
         }
@@ -277,7 +278,10 @@ class VehicleViewModel @Inject constructor(
         input: VehicleFormInput,
         onCreated: (CampingVehicle) -> Unit,
     ) {
-        val occupied = minOf(input.totalSeats, maxOf(input.peopleInCar, 1))
+        val occupied = minOf(
+            input.totalSeats,
+            maxOf(input.peopleInCar, input.passengers.size + 1, 1),
+        )
         val vehicle = CampingVehicle(
             campingId = campingId,
             ownerUserId = user.uid,
@@ -293,6 +297,8 @@ class VehicleViewModel @Inject constructor(
             totalSeats = input.totalSeats,
             occupiedSeats = occupied,
             hasAvailableSeats = input.hasAvailableSeats,
+            passengerRegistrationIds = input.passengers.map { it.id },
+            passengerNames = input.passengers.map { it.displayName },
             qrToken = VehicleTokenFactory.makeToken(),
             invitationCode = VehicleTokenFactory.makeInvitationCode(),
             status = VehicleStatus.Pending,
@@ -315,12 +321,23 @@ class VehicleViewModel @Inject constructor(
                     needsTransportHelp = false,
                     notes = input.notes.clean(),
                 )
+                input.passengers.forEach { passenger ->
+                    campingService.updateRegistrationTransport(
+                        campingId = campingId,
+                        attendeeId = passenger.id,
+                        transportationMode = TransportationMode.Carpool,
+                        vehicleId = created.id,
+                        isDriver = false,
+                        needsTransportHelp = false,
+                        notes = passenger.transportationNotes,
+                    )
+                }
                 created
             }.onSuccess { created ->
                 _uiState.update {
                     it.copy(
                         savingVehicle = false,
-                        operationMessage = "Your car is ready. Show the QR at arrival.",
+                        operationMessage = stringProvider.get(R.string.vehicle_car_ready_message),
                     )
                 }
                 refreshCamping(campingId)
@@ -329,7 +346,7 @@ class VehicleViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         savingVehicle = false,
-                        operationError = error.message ?: "Could not create the vehicle.",
+                        operationError = error.message ?: stringProvider.get(R.string.vehicle_create_error),
                     )
                 }
             }
@@ -347,7 +364,7 @@ class VehicleViewModel @Inject constructor(
                 .onSuccess { updated ->
                     upsert(updated)
                     _uiState.update {
-                        it.copy(savingVehicle = false, operationMessage = "Car details updated.")
+                        it.copy(savingVehicle = false, operationMessage = stringProvider.get(R.string.vehicle_details_updated_message))
                     }
                     onSaved()
                 }
@@ -355,7 +372,7 @@ class VehicleViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             savingVehicle = false,
-                            operationError = error.message ?: "Could not save the vehicle.",
+                            operationError = error.message ?: stringProvider.get(R.string.vehicle_save_error),
                         )
                     }
                 }
@@ -366,7 +383,7 @@ class VehicleViewModel @Inject constructor(
         viewModelScope.launch {
             performVehicleAction(
                 action = { vehicleService.cancelVehicle(vehicle.campingId, vehicle.id) },
-                success = "Car cancelled.",
+                success = stringProvider.get(R.string.vehicle_cancelled_message),
             )
             if (attendeeId != null) {
                 runCatching {
@@ -380,8 +397,21 @@ class VehicleViewModel @Inject constructor(
                         notes = null,
                     )
                 }
-                refreshCamping(vehicle.campingId)
             }
+            vehicle.passengerRegistrationIds.forEach { passengerId ->
+                runCatching {
+                    campingService.updateRegistrationTransport(
+                        campingId = vehicle.campingId,
+                        attendeeId = passengerId,
+                        transportationMode = null,
+                        vehicleId = null,
+                        isDriver = false,
+                        needsTransportHelp = false,
+                        notes = null,
+                    )
+                }
+            }
+            refreshCamping(vehicle.campingId)
         }
     }
 
@@ -394,13 +424,13 @@ class VehicleViewModel @Inject constructor(
                         state.copy(
                             isUpdating = false,
                             vehicles = state.vehicles.filterNot { it.id == vehicle.id },
-                            operationMessage = "Car removed.",
+                            operationMessage = stringProvider.get(R.string.vehicle_removed_message),
                         )
                     }
                 }
                 .onFailure { error ->
                     _uiState.update {
-                        it.copy(isUpdating = false, operationError = error.message ?: "Could not remove the car.")
+                        it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_remove_error))
                     }
                 }
         }
@@ -432,10 +462,10 @@ class VehicleViewModel @Inject constructor(
                     notes = null,
                 )
             }.onSuccess {
-                _uiState.update { it.copy(isUpdating = false, operationMessage = "Request sent to the driver.") }
+                _uiState.update { it.copy(isUpdating = false, operationMessage = stringProvider.get(R.string.vehicle_request_sent_driver)) }
                 refreshCamping(vehicle.campingId)
             }.onFailure { error ->
-                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: "Could not request this ride.") }
+                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_request_ride_error)) }
             }
         }
     }
@@ -443,14 +473,14 @@ class VehicleViewModel @Inject constructor(
     fun joinByInvitationCode(campingId: String, code: String, attendee: CampingAttendee) {
         val trimmed = code.trim()
         if (trimmed.isBlank()) {
-            _uiState.update { it.copy(operationError = "Enter the invitation code.") }
+            _uiState.update { it.copy(operationError = stringProvider.get(R.string.vehicle_invitation_code_required)) }
             return
         }
         viewModelScope.launch {
             _uiState.update { it.copy(isUpdating = true, operationError = null) }
             runCatching {
                 val vehicle = vehicleService.vehicleByInvitationCode(campingId, trimmed)
-                    ?: error("No car matches that code.")
+                    ?: error(stringProvider.get(R.string.vehicle_no_car_for_code))
                 val updated = vehicleService.requestJoin(campingId, vehicle.id, attendee.id, attendee.displayName)
                 notificationApi.dispatchTransportation(
                     TransportationNotification(
@@ -475,12 +505,12 @@ class VehicleViewModel @Inject constructor(
                     notes = null,
                 )
                 _uiState.update {
-                    it.copy(isUpdating = false, operationMessage = "Request sent to the driver.")
+                    it.copy(isUpdating = false, operationMessage = stringProvider.get(R.string.vehicle_request_sent_driver))
                 }
                 refreshCamping(campingId)
             }.onFailure { error ->
                 _uiState.update {
-                    it.copy(isUpdating = false, operationError = error.message ?: "Could not join by code.")
+                    it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_join_code_error))
                 }
             }
         }
@@ -490,7 +520,7 @@ class VehicleViewModel @Inject constructor(
         viewModelScope.launch {
             performVehicleAction(
                 action = { vehicleService.withdrawJoinRequest(vehicle.campingId, vehicle.id, attendeeId) },
-                success = "Request cancelled.",
+                success = stringProvider.get(R.string.vehicle_request_cancelled),
             )
         }
     }
@@ -498,9 +528,22 @@ class VehicleViewModel @Inject constructor(
     fun approvePassenger(vehicle: CampingVehicle, registrationId: String) {
         viewModelScope.launch {
             performVehicleAction(
-                action = { vehicleService.approvePassenger(vehicle.campingId, vehicle.id, registrationId) },
-                success = "Passenger approved.",
+                action = {
+                    val updated = vehicleService.approvePassenger(vehicle.campingId, vehicle.id, registrationId)
+                    campingService.updateRegistrationTransport(
+                        campingId = vehicle.campingId,
+                        attendeeId = registrationId,
+                        transportationMode = TransportationMode.Carpool,
+                        vehicleId = vehicle.id,
+                        isDriver = false,
+                        needsTransportHelp = false,
+                        notes = null,
+                    )
+                    updated
+                },
+                success = stringProvider.get(R.string.vehicle_passenger_approved_message),
             )
+            refreshCamping(vehicle.campingId)
         }
     }
 
@@ -508,7 +551,7 @@ class VehicleViewModel @Inject constructor(
         viewModelScope.launch {
             performVehicleAction(
                 action = { vehicleService.denyPassenger(vehicle.campingId, vehicle.id, registrationId) },
-                success = "Request declined.",
+                success = stringProvider.get(R.string.vehicle_request_declined_message),
             )
         }
     }
@@ -516,13 +559,56 @@ class VehicleViewModel @Inject constructor(
     fun removePassenger(vehicle: CampingVehicle, registrationId: String) {
         viewModelScope.launch {
             performVehicleAction(
-                action = { vehicleService.removePassenger(vehicle.campingId, vehicle.id, registrationId) },
-                success = "Passenger removed.",
+                action = {
+                    val updated = vehicleService.removePassenger(vehicle.campingId, vehicle.id, registrationId)
+                    campingService.updateRegistrationTransport(
+                        campingId = vehicle.campingId,
+                        attendeeId = registrationId,
+                        transportationMode = null,
+                        vehicleId = null,
+                        isDriver = false,
+                        needsTransportHelp = false,
+                        notes = null,
+                    )
+                    updated
+                },
+                success = stringProvider.get(R.string.vehicle_passenger_removed_message),
             )
+            refreshCamping(vehicle.campingId)
         }
     }
 
     fun addPassenger(vehicle: CampingVehicle, attendee: CampingAttendee) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUpdating = true, operationError = null) }
+            runCatching {
+                val updated = vehicleService.addPassenger(
+                    vehicle.campingId,
+                    vehicle.id,
+                    attendee.id,
+                    attendee.displayName,
+                )
+                campingService.updateRegistrationTransport(
+                    campingId = vehicle.campingId,
+                    attendeeId = attendee.id,
+                    transportationMode = TransportationMode.Carpool,
+                    vehicleId = vehicle.id,
+                    isDriver = false,
+                    needsTransportHelp = false,
+                    notes = attendee.transportationNotes,
+                )
+                updated
+            }.onSuccess { updated ->
+                upsert(updated)
+                refreshCamping(vehicle.campingId)
+                _uiState.update { it.copy(isUpdating = false, operationMessage = stringProvider.get(R.string.vehicle_passenger_added_message, attendee.displayName)) }
+            }.onFailure { error ->
+                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_add_passenger_error)) }
+            }
+        }
+    }
+
+    fun invitePassenger(vehicle: CampingVehicle, attendee: CampingAttendee) {
         viewModelScope.launch {
             _uiState.update { it.copy(isUpdating = true, operationError = null) }
             runCatching {
@@ -537,9 +623,9 @@ class VehicleViewModel @Inject constructor(
                     ),
                 )
             }.onSuccess {
-                _uiState.update { it.copy(isUpdating = false, operationMessage = "Invitation sent to ${attendee.displayName}.") }
+                _uiState.update { it.copy(isUpdating = false, operationMessage = stringProvider.get(R.string.vehicle_invitation_sent_message, attendee.displayName)) }
             }.onFailure { error ->
-                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: "Could not send the invitation.") }
+                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_invitation_send_error)) }
             }
         }
     }
@@ -548,6 +634,24 @@ class VehicleViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isUpdating = true, operationError = null) }
             runCatching {
+                if (accept) {
+                    val updated = vehicleService.addPassenger(
+                        vehicle.campingId,
+                        vehicle.id,
+                        attendee.id,
+                        attendee.displayName,
+                    )
+                    campingService.updateRegistrationTransport(
+                        campingId = vehicle.campingId,
+                        attendeeId = attendee.id,
+                        transportationMode = TransportationMode.Carpool,
+                        vehicleId = vehicle.id,
+                        isDriver = false,
+                        needsTransportHelp = false,
+                        notes = attendee.transportationNotes,
+                    )
+                    upsert(updated)
+                }
                 notificationApi.dispatchTransportation(
                     TransportationNotification(
                         event = if (accept) "invitation_accepted" else "invitation_declined",
@@ -562,12 +666,14 @@ class VehicleViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isUpdating = false,
-                        operationMessage = if (accept) "Ride invitation accepted." else "Ride invitation declined.",
+                        operationMessage = stringProvider.get(
+                            if (accept) R.string.vehicle_invitation_accepted_message else R.string.vehicle_invitation_declined_message,
+                        ),
                     )
                 }
                 refreshCamping(vehicle.campingId)
             }.onFailure { error ->
-                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: "Could not respond to the invitation.") }
+                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_invitation_response_error)) }
             }
         }
     }
@@ -581,11 +687,15 @@ class VehicleViewModel @Inject constructor(
             isDriver = false,
             needsTransportHelp = true,
             notes = notes,
-            success = "Transport help requested.",
+            success = stringProvider.get(R.string.vehicle_transport_help_requested_message),
         )
     }
 
-    fun clearTransportIntent(campingId: String, attendeeId: String, success: String = "Transport choice cleared.") {
+    fun clearTransportIntent(
+        campingId: String,
+        attendeeId: String,
+        success: String? = null,
+    ) {
         updateTransportIntent(
             campingId = campingId,
             attendeeId = attendeeId,
@@ -594,7 +704,7 @@ class VehicleViewModel @Inject constructor(
             isDriver = false,
             needsTransportHelp = false,
             notes = null,
-            success = success,
+            success = success ?: stringProvider.get(R.string.vehicle_transport_choice_cleared),
         )
     }
 
@@ -631,7 +741,7 @@ class VehicleViewModel @Inject constructor(
                 loadDashboardExtras(campingId)
             }.onFailure { error ->
                 _uiState.update {
-                    it.copy(isUpdating = false, operationError = error.message ?: "Could not update transport.")
+                    it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_update_transport_error))
                 }
             }
         }
@@ -703,9 +813,9 @@ class VehicleViewModel @Inject constructor(
                         it.copy(
                             isUpdating = false,
                             operationMessage = if (missing.isEmpty()) {
-                                "Arrival confirmed. Everyone is here."
+                                stringProvider.get(R.string.vehicle_arrival_all_here_message)
                             } else {
-                                "Arrival confirmed. Some passengers are missing."
+                                stringProvider.get(R.string.vehicle_arrival_missing_passengers_message)
                             },
                         )
                     }
@@ -713,7 +823,7 @@ class VehicleViewModel @Inject constructor(
                 }
                 .onFailure { error ->
                     _uiState.update {
-                        it.copy(isUpdating = false, operationError = error.message ?: "Could not confirm arrival.")
+                        it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_confirm_arrival_error))
                     }
                 }
         }
@@ -806,7 +916,7 @@ class VehicleViewModel @Inject constructor(
             }
             .onFailure { error ->
                 _uiState.update {
-                    it.copy(isUpdating = false, operationError = error.message ?: "Vehicle update failed.")
+                    it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_update_failed))
                 }
             }
     }

@@ -3,8 +3,12 @@ package fr.ziyon.campzone.ui.teams
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.data.games.GameService
+import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.CampingAttendee
+import fr.ziyon.campzone.data.model.PointRuleVisibility
 import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.model.TeamMemberRole
 import fr.ziyon.campzone.data.model.TeamPenalty
@@ -21,10 +25,13 @@ import fr.ziyon.campzone.data.teams.TeamService
 import java.util.Date
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 // ── UI state ──────────────────────────────────────────────────────────────────
@@ -52,11 +59,35 @@ data class TeamForm(
         get() = buildList { if (name.isBlank()) add("Team name is required.") }
 }
 
+private data class AutoBalancePreviewSignature(
+    val teamIds: List<String>,
+    val attendeeKeys: List<String>,
+) {
+    companion object {
+        fun from(attendees: List<CampingAttendee>, teamIds: List<String>) = AutoBalancePreviewSignature(
+            teamIds = teamIds.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+            attendeeKeys = attendees.map { attendee ->
+                listOf(
+                    attendee.id,
+                    attendee.userId,
+                    attendee.registrationStatus.wireValue,
+                    attendee.church,
+                    attendee.preferredLanguage,
+                    attendee.ageGroup.wireValue,
+                    attendee.gender?.wireValue ?: "unknown",
+                    attendee.languages.joinToString(","),
+                ).joinToString("|")
+            },
+        )
+    }
+}
+
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
 @HiltViewModel
 class TeamViewModel @Inject constructor(
     private val teamService: TeamService,
+    private val gameService: GameService,
     private val imageUploader: ImageUploader,
     private val teamNotificationDispatcher: TeamNotificationDispatcher,
 ) : ViewModel() {
@@ -82,21 +113,34 @@ class TeamViewModel @Inject constructor(
     private val _autoBalancePreview = MutableStateFlow<TeamBalanceResult?>(null)
     val autoBalancePreview: StateFlow<TeamBalanceResult?> = _autoBalancePreview.asStateFlow()
 
+    private val _isAutoBalancePreviewRunning = MutableStateFlow(false)
+    val isAutoBalancePreviewRunning: StateFlow<Boolean> = _isAutoBalancePreviewRunning.asStateFlow()
+
     private val _editingTeamId = MutableStateFlow<String?>(null)
     val editingTeamId: StateFlow<String?> = _editingTeamId.asStateFlow()
 
     private val _allTeams = MutableStateFlow<Map<String, List<Team>>>(emptyMap())
     private var observeJob: Job? = null
+    private var autoBalancePreviewJob: Job? = null
+    private var autoBalancePreviewSignature: AutoBalancePreviewSignature? = null
+    private var autoBalancePreviewRunId = 0
     private var observingCampingId: String? = null
     private var loadedCampingIds = mutableSetOf<String>()
 
     // ── Load / observe ────────────────────────────────────────────────────────
 
     fun startObserving(campingId: String) {
-        if (observeJob?.isActive == true && observingCampingId == campingId) return
+        if (observeJob?.isActive == true && observingCampingId == campingId) {
+            if (loadedCampingIds.contains(campingId)) publishState(campingId)
+            return
+        }
         observeJob?.cancel()
         observingCampingId = campingId
-        _uiState.value = TeamsUiState.Loading
+        if (loadedCampingIds.contains(campingId)) {
+            publishState(campingId)
+        } else {
+            _uiState.value = TeamsUiState.Loading
+        }
         observeJob = viewModelScope.launch {
             try {
                 teamService.observeTeams(campingId).collect { teams ->
@@ -104,6 +148,8 @@ class TeamViewModel @Inject constructor(
                     loadedCampingIds.add(campingId)
                     publishState(campingId)
                 }
+            } catch (_: CancellationException) {
+                // Listener teardown is a normal lifecycle event, not a load failure.
             } catch (e: Exception) {
                 _uiState.value = TeamsUiState.Error(e.message ?: "Failed to load teams.")
             }
@@ -117,7 +163,10 @@ class TeamViewModel @Inject constructor(
     }
 
     fun loadIfNeeded(campingId: String) {
-        if (loadedCampingIds.contains(campingId)) return
+        if (loadedCampingIds.contains(campingId)) {
+            publishState(campingId)
+            return
+        }
         startObserving(campingId)
     }
 
@@ -184,7 +233,13 @@ class TeamViewModel @Inject constructor(
 
     fun clearOperationError() { _operationError.value = null }
     fun clearOperationMessage() { _operationMessage.value = null }
-    fun clearAutoBalancePreview() { _autoBalancePreview.value = null }
+    fun clearAutoBalancePreview() {
+        autoBalancePreviewJob?.cancel()
+        autoBalancePreviewJob = null
+        autoBalancePreviewSignature = null
+        _isAutoBalancePreviewRunning.value = false
+        _autoBalancePreview.value = null
+    }
 
     // ── Save ──────────────────────────────────────────────────────────────────
 
@@ -352,16 +407,42 @@ class TeamViewModel @Inject constructor(
 
     // ── Score / penalty ───────────────────────────────────────────────────────
 
-    fun updateTeamScore(teamId: String, campingId: String, points: Int) {
+    fun updateTeamScore(
+        teamId: String,
+        campingId: String,
+        points: Int,
+        reason: String,
+        actor: AuthenticatedUser,
+    ) {
+        val trimmedReason = reason.trim()
+        if (points == 0 || trimmedReason.isEmpty()) return
         viewModelScope.launch {
             _isSaving.value = true
             _operationError.value = null
             try {
                 val saved = teamService.updateTeamScore(
-                    TeamScoreRequest(teamId = teamId, campingId = campingId, points = points, reason = "")
+                    TeamScoreRequest(
+                        teamId = teamId,
+                        campingId = campingId,
+                        points = points,
+                        reason = trimmedReason,
+                    )
                 )
                 updateLocal(campingId, saved)
                 publishState(campingId)
+                recordManualAdjustment(
+                    campingId = campingId,
+                    name = "Manual adjustment",
+                    points = points,
+                    reason = trimmedReason,
+                    targetTeamId = saved.id,
+                    targetTeamName = saved.name,
+                    targetUserId = null,
+                    targetUserName = null,
+                    previousScore = saved.totalScore - points,
+                    newScore = saved.totalScore,
+                    actor = actor,
+                )
                 _operationMessage.value = "Score updated."
                 dispatchTeamUpdate(
                     TeamNotificationRequest(
@@ -371,6 +452,7 @@ class TeamViewModel @Inject constructor(
                         event = TeamNotificationEvent.ScoreChanged,
                         body = "${saved.name} score changed by ${points.signedForNotification()}.",
                         pointsDelta = points,
+                        reason = trimmedReason,
                     ),
                 )
             } catch (e: Exception) {
@@ -381,21 +463,41 @@ class TeamViewModel @Inject constructor(
         }
     }
 
-    fun applyPenalty(teamId: String, campingId: String, points: Int, reason: String) {
-        if (points <= 0) return
+    fun applyPenalty(
+        teamId: String,
+        campingId: String,
+        points: Int,
+        reason: String,
+        actor: AuthenticatedUser,
+    ) {
+        val trimmedReason = reason.trim()
+        if (points <= 0 || trimmedReason.isEmpty()) return
         viewModelScope.launch {
             _isSaving.value = true
             _operationError.value = null
             try {
                 val penalty = TeamPenalty(
                     id = UUID.randomUUID().toString(),
-                    reason = reason.trim(),
+                    reason = trimmedReason,
                     points = points,
                     createdAt = Date(),
                 )
                 val saved = teamService.applyPenalty(penalty, teamId, campingId)
                 updateLocal(campingId, saved)
                 publishState(campingId)
+                recordManualAdjustment(
+                    campingId = campingId,
+                    name = "Penalty",
+                    points = -points,
+                    reason = trimmedReason,
+                    targetTeamId = saved.id,
+                    targetTeamName = saved.name,
+                    targetUserId = null,
+                    targetUserName = null,
+                    previousScore = saved.totalScore + points,
+                    newScore = saved.totalScore,
+                    actor = actor,
+                )
                 _operationMessage.value = "Penalty applied."
                 dispatchTeamUpdate(
                     TeamNotificationRequest(
@@ -405,7 +507,7 @@ class TeamViewModel @Inject constructor(
                         event = TeamNotificationEvent.PenaltyApplied,
                         body = "${saved.name} received a $points-point penalty.",
                         pointsDelta = -points,
-                        reason = reason.trim(),
+                        reason = trimmedReason,
                     ),
                 )
             } catch (e: Exception) {
@@ -416,8 +518,16 @@ class TeamViewModel @Inject constructor(
         }
     }
 
-    fun updateMemberScore(memberId: String, teamId: String, campingId: String, delta: Int) {
-        if (delta == 0) return
+    fun updateMemberScore(
+        memberId: String,
+        teamId: String,
+        campingId: String,
+        delta: Int,
+        reason: String,
+        actor: AuthenticatedUser,
+    ) {
+        val trimmedReason = reason.trim()
+        if (delta == 0 || trimmedReason.isEmpty()) return
         viewModelScope.launch {
             _isSaving.value = true
             _operationError.value = null
@@ -427,6 +537,19 @@ class TeamViewModel @Inject constructor(
                 publishState(campingId)
                 _operationMessage.value = "Personal score updated."
                 saved.members.firstOrNull { it.id == memberId }?.let { member ->
+                    recordManualAdjustment(
+                        campingId = campingId,
+                        name = "Manual adjustment",
+                        points = delta,
+                        reason = trimmedReason,
+                        targetTeamId = null,
+                        targetTeamName = null,
+                        targetUserId = member.userId,
+                        targetUserName = member.displayName,
+                        previousScore = member.personalScore - delta,
+                        newScore = member.personalScore,
+                        actor = actor,
+                    )
                     dispatchTeamUpdate(
                         TeamNotificationRequest(
                             campingId = campingId,
@@ -437,6 +560,7 @@ class TeamViewModel @Inject constructor(
                             memberId = member.userId,
                             memberName = member.displayName,
                             pointsDelta = delta,
+                            reason = trimmedReason,
                         ),
                     )
                 }
@@ -449,23 +573,56 @@ class TeamViewModel @Inject constructor(
     }
 
     fun previewAutoBalance(attendees: List<CampingAttendee>, teamIds: List<String>) {
-        val result = TeamBalancer().balance(attendees, teamIds)
-        _autoBalancePreview.value = result
+        autoBalancePreviewJob?.cancel()
+        val signature = AutoBalancePreviewSignature.from(attendees, teamIds)
+        val runId = ++autoBalancePreviewRunId
+        _autoBalancePreview.value = null
+        autoBalancePreviewSignature = null
+        _operationError.value = null
+        _isAutoBalancePreviewRunning.value = true
+        autoBalancePreviewJob = viewModelScope.launch(Dispatchers.Default) {
+            try {
+                val result = TeamBalancer().balance(attendees, teamIds) { !isActive }
+                if (!isActive || autoBalancePreviewRunId != runId) return@launch
+                autoBalancePreviewSignature = signature
+                _autoBalancePreview.value = result
+            } catch (_: CancellationException) {
+                // Superseded by a newer preview request.
+            } catch (e: Exception) {
+                if (autoBalancePreviewRunId == runId) {
+                    _operationError.value = e.message ?: "Could not preview team balance."
+                }
+            } finally {
+                if (autoBalancePreviewRunId == runId) {
+                    _isAutoBalancePreviewRunning.value = false
+                    autoBalancePreviewJob = null
+                }
+            }
+        }
     }
 
     fun applyAutoBalance(
         campingId: String,
+        attendees: List<CampingAttendee>,
+        teamIds: List<String>,
         onSuccess: () -> Unit = {},
     ) {
         val preview = _autoBalancePreview.value ?: return
         if (preview.assignmentsByTeamId.isEmpty()) return
+        val currentSignature = AutoBalancePreviewSignature.from(attendees, teamIds)
+        if (autoBalancePreviewSignature != currentSignature) {
+            _autoBalancePreview.value = null
+            autoBalancePreviewSignature = null
+            _operationError.value = "Preview is out of date. Run it again before applying."
+            return
+        }
         viewModelScope.launch {
             _isSaving.value = true
             _operationError.value = null
             try {
                 var latestTeams = teams(campingId)
-                preview.assignmentsByTeamId.forEach { (teamId, attendees) ->
-                    attendees.forEach { attendee ->
+                currentSignature.teamIds.forEach { teamId ->
+                    preview.assignmentsByTeamId[teamId].orEmpty().forEach { attendee ->
                         val member = attendee.toTeamMember()
                         latestTeams = teamService.assignMember(member, teamId, campingId)
                         latestTeams.firstOrNull { it.id == teamId }?.let { team ->
@@ -486,6 +643,7 @@ class TeamViewModel @Inject constructor(
                 _allTeams.value = _allTeams.value + (campingId to latestTeams)
                 publishState(campingId)
                 _autoBalancePreview.value = null
+                autoBalancePreviewSignature = null
                 _operationMessage.value = "Teams auto-balanced."
                 onSuccess()
             } catch (e: Exception) {
@@ -544,6 +702,46 @@ class TeamViewModel @Inject constructor(
 
     private suspend fun dispatchTeamUpdate(request: TeamNotificationRequest) {
         runCatching { teamNotificationDispatcher.dispatchTeamUpdate(request) }
+    }
+
+    /**
+     * Appends the audit record after the score mutation succeeds. This is
+     * intentionally best-effort: Firestore grants team management and point
+     * assignment through separate gates, so a denied ledger write must not make
+     * an already-persisted team change look rolled back.
+     */
+    private suspend fun recordManualAdjustment(
+        campingId: String,
+        name: String,
+        points: Int,
+        reason: String,
+        targetTeamId: String?,
+        targetTeamName: String?,
+        targetUserId: String?,
+        targetUserName: String?,
+        previousScore: Int,
+        newScore: Int,
+        actor: AuthenticatedUser,
+    ) {
+        val activity = Activity(
+            id = UUID.randomUUID().toString(),
+            campingId = campingId,
+            gameId = null,
+            name = name,
+            points = points,
+            reason = reason,
+            previousScore = previousScore,
+            newScore = newScore,
+            createdBy = actor.uid,
+            createdByName = actor.preferredDisplayName,
+            createdAt = Date(),
+            targetTeamId = targetTeamId,
+            targetTeamName = targetTeamName,
+            targetUserId = targetUserId,
+            targetUserName = targetUserName,
+            visibility = PointRuleVisibility.Immediate,
+        )
+        runCatching { gameService.recordActivity(activity) }
     }
 }
 

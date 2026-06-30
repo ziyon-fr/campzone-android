@@ -175,4 +175,31 @@ class GameActivityTest {
         assertEquals(45, decoded.newScore)
         assertEquals("Eagles", decoded.targetTeamName)
     }
+
+    @Test
+    fun manualActivityOmitsGameIdAndStillDecodes() {
+        val activity = Activity(
+            id = "manual-1",
+            campingId = "camp-1",
+            gameId = null,
+            name = "Manual adjustment",
+            points = 5,
+            reason = "Helped with setup",
+            previousScore = 10,
+            newScore = 15,
+            createdBy = "leader-1",
+            createdByName = "Leader",
+            createdAt = Date(1_700_000_200_000L),
+            targetUserId = "member-1",
+            targetUserName = "Ana",
+        )
+
+        val payload = ActivityPayload.activityPayload(activity)
+
+        assertFalse(payload.containsKey("gameID"))
+        val decoded = payload.toActivityOrNull(activity.id)!!
+        assertEquals(null, decoded.gameId)
+        assertEquals("Helped with setup", decoded.reason)
+        assertEquals("member-1", decoded.targetUserId)
+    }
 }

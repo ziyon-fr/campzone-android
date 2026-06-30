@@ -73,7 +73,11 @@ internal fun selectFeaturedCamping(
     var dateFallback: Camping? = null
 
     for (camping in campingsInEndDateOrder) {
-        if (camping.endDate.before(now) || camping.registrationStatus == CampingRegistrationStatus.Cancelled) {
+        if (
+            !camping.isPublished ||
+            camping.endDate.before(now) ||
+            camping.registrationStatus == CampingRegistrationStatus.Cancelled
+        ) {
             continue
         }
 
