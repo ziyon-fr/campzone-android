@@ -19,8 +19,8 @@ android {
         minSdk = 24
         //noinspection OldTargetApi
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.0.3.2"
+        versionCode = 7
+        versionName = "1.0.3.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -98,7 +98,7 @@ dependencies {
     // osmdroid (OpenStreetMap — key-free in-app venue map preview)
     implementation(libs.osmdroid.android)
 
-    // Markwon (Markdown → Spanned for announcement/camping body, including tables)
+    // Markdown (Markdown → Spanned for announcement/camping body, including tables)
     implementation(libs.markwon.core)
     implementation(libs.markwon.ext.tables)
 
