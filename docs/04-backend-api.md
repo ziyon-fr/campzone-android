@@ -52,6 +52,8 @@
 | POST | `/notifications/dispatch/team` | push + feed: team update (leadership) |
 | POST | `/notifications/dispatch/registration` | push + feed: registration request (any registrant) |
 | POST | `/notifications/dispatch/badge` | push + feed: badge award (leadership/system) |
+| POST | `/notifications/dispatch/transportation` | push + feed: vehicle invitation/request direct-user event |
+| POST | `/notifications/dispatch/checklist` | push + feed: shared packing checklist direct-user event |
 | POST | `/cloudinary/sign` | signed Cloudinary upload descriptor |
 | POST | `/cloudinary/destroy` | delete a Cloudinary asset |
 | GET | `/api/badges/evaluate` | cron: bounded badge sweep (`CRON_SECRET`) |
@@ -190,6 +192,19 @@ to any signed-in registrant.
   with `kind:"badge"`, and includes a `campzone://achievements/<uid>`
   deep link so tapping opens the badges view. Privileged leaders/game
   masters and backend `system` callers can dispatch it.
+- `dispatch/transportation` - `{ campingID, vehicleID, registrationID,
+  event, participantName?, driverName? }`. Family-targeted registrations
+  resolve two identities: notification recipient = the guardian/main account
+  (`recipientUserID` / `campzone_user_<guardianID>`), action subject =
+  `registrationID`/`actionSubjectRegistrationID`. The push title/body include
+  the participant name, e.g. `Transportation invitation for Lucas`.
+- `dispatch/checklist` - `{ campingID, shareID|packingShareID,
+  registrationID?|actionSubjectRegistrationID?, recipientUserID? }`. The
+  backend loads `packingShares/{shareID}`, requires the caller to own the
+  share or be privileged, and sends a direct-user row with `kind:"checklist"`.
+  When a child/family registration is supplied, the guardian receives the
+  notification while the deeplink carries the child registration id so import
+  actions write to that child's checklist.
 - Registration approval notifications are **backend-triggered** from
   registration status transitions into `approved` (including Stripe
   payment auto-approval). Clients do not call a new endpoint. Payloads

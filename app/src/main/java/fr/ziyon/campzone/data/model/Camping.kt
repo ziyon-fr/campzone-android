@@ -155,7 +155,13 @@ data class Camping(
 data class OrganizerLevel(
     val type: OrganizerType,
     val value: String,
-)
+) {
+    val normalizedValue: String
+        get() = value.trim()
+
+    val hasOrganizationName: Boolean
+        get() = normalizedValue.isNotEmpty()
+}
 
 data class WinnerRevealPolicy(
     val isRevealed: Boolean = false,

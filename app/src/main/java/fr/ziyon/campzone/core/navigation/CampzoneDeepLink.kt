@@ -64,15 +64,27 @@ sealed interface CampzoneDeepLink {
         val vehicleId: String,
         val registrationId: String,
     ) : CampzoneDeepLink
-    data class PackingShare(val campingId: String, val shareId: String) : CampzoneDeepLink
+    data class PackingShare(
+        val campingId: String,
+        val shareId: String,
+        val registrationId: String? = null,
+    ) : CampzoneDeepLink
 
     fun canonicalShareUrlOrNull(): String? = when (this) {
         is Announcement -> "https://${Companion.WebHost}/announcements/${id.asUrlSegment()}"
         is Camping -> "https://${Companion.WebHost}/campings/${id.asUrlSegment()}"
         is Achievements -> "https://${Companion.WebHost}/badges/${userId.asUrlSegment()}"
-        is Achievement -> "https://${Companion.WebHost}/badges/${userId.asUrlSegment()}?achievementID=${achievementId.asUrlSegment()}"
-        is TransportationJoin -> "https://${Companion.WebHost}/transportation-join/${campingId.asUrlSegment()}?code=${invitationCode.asUrlSegment()}"
-        is PackingShare -> "https://${Companion.WebHost}/packing-share/${shareId.asUrlSegment()}?c=${campingId.asUrlSegment()}"
+        is Achievement ->
+            "https://${Companion.WebHost}/badges/${userId.asUrlSegment()}?achievementID=${achievementId.asUrlSegment()}"
+        is TransportationJoin ->
+            "https://${Companion.WebHost}/transportation-join/${campingId.asUrlSegment()}?code=${invitationCode.asUrlSegment()}"
+        is PackingShare -> buildString {
+            append("https://${Companion.WebHost}/packing-share/${shareId.asUrlSegment()}")
+            append("?c=${campingId.asUrlSegment()}")
+            registrationId?.takeUnless { it.isBlank() }?.let {
+                append("&registrationID=${it.asUrlSegment()}")
+            }
+        }
         is CampingChat,
         is Poll,
         is RegistrationReview,
@@ -254,7 +266,11 @@ sealed interface CampzoneDeepLink {
                 "packing-share" -> {
                     val shareId = pathId ?: query.firstValue("shareID", "s") ?: return null
                     val campingId = query.firstValue("campingID", "c") ?: return null
-                    PackingShare(campingId, shareId)
+                    PackingShare(
+                        campingId = campingId,
+                        shareId = shareId,
+                        registrationId = query.firstValue("registrationID", "r", "actionSubjectRegistrationID"),
+                    )
                 }
 
                 else -> null
@@ -272,6 +288,8 @@ sealed interface CampzoneDeepLink {
             val achievementId = payload.firstValue("achievementID", "badgeID")
             val vehicleId = payload.firstValue("vehicleID")
             val registrationId = payload.firstValue("registrationID")
+            val shareId = payload.firstValue("shareID", "packingShareID")
+            val actionSubjectRegistrationId = payload.firstValue("actionSubjectRegistrationID", "registrationID")
             val announcementId = payload.firstValue("announcementID")
             val event = payload.firstValue("event")?.lowercase(Locale.ROOT)
             val recipientUserId = payload.firstValue("recipientUserID", "userID", "uid")
@@ -314,6 +332,12 @@ sealed interface CampzoneDeepLink {
                         else -> Transportation(it)
                     }
                 }
+                "checklist", "packing_share", "packingshare", "packing" ->
+                    if (campingId != null && shareId != null) {
+                        PackingShare(campingId, shareId, actionSubjectRegistrationId)
+                    } else {
+                        null
+                    }
                 "team_update", "teamupdate" -> campingId?.let {
                     when {
                         event.isPointEvent() -> TeamPoints(campingId = it, teamId = teamId)
@@ -329,6 +353,8 @@ sealed interface CampzoneDeepLink {
                     programId = programId,
                     announcementId = announcementId,
                     messageId = payload.firstValue("messageID"),
+                    shareId = shareId,
+                    actionSubjectRegistrationId = actionSubjectRegistrationId,
                 )
             }
         }
@@ -340,12 +366,15 @@ sealed interface CampzoneDeepLink {
             programId: String?,
             announcementId: String?,
             messageId: String?,
+            shareId: String?,
+            actionSubjectRegistrationId: String?,
         ): CampzoneDeepLink? = when {
             announcementId != null -> Announcement(announcementId)
             messageId != null && campingId != null -> {
                 if (teamId.isNullOrBlank()) CampingChat(campingId) else TeamChat(campingId, teamId)
             }
 
+            shareId != null && campingId != null -> PackingShare(campingId, shareId, actionSubjectRegistrationId)
             pollId != null && campingId != null -> Poll(campingId, pollId)
             programId != null && campingId != null -> ScheduleProgram(campingId, programId)
             campingId != null -> Camping(campingId)

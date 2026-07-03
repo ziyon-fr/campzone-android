@@ -89,6 +89,24 @@ class VehicleModelTest {
     }
 
     @Test
+    fun offeredSeatCountFallsBackToAvailableWhenUnset() {
+        val vehicle = sampleVehicle(totalSeats = 5, occupiedSeats = 3)
+
+        assertNull(vehicle.offeredSeats)
+        assertEquals(2, vehicle.offeredSeatCount)
+        assertEquals(0, vehicle.copy(hasAvailableSeats = false).offeredSeatCount)
+    }
+
+    @Test
+    fun offeredSeatCountRespectsExplicitCap() {
+        val vehicle = sampleVehicle(totalSeats = 5, occupiedSeats = 3, offeredSeats = 1)
+
+        assertEquals(1, vehicle.offeredSeatCount)
+        assertEquals(2, vehicle.copy(offeredSeats = 9).offeredSeatCount)
+        assertEquals(0, vehicle.copy(offeredSeats = 0).offeredSeatCount)
+    }
+
+    @Test
     fun passengerMutationsKeepListsAlignedAndOccupancyBounded() {
         val vehicle = sampleVehicle(
             totalSeats = 2,
@@ -114,8 +132,63 @@ class VehicleModelTest {
     }
 
     @Test
+    fun passengerMutationsUpdateExplicitOfferedSeatsButKeepLegacyNil() {
+        val cappedOffer = sampleVehicle(
+            totalSeats = 5,
+            occupiedSeats = 1,
+            offeredSeats = 2,
+        )
+
+        val first = VehicleMutation.addingPassenger(cappedOffer, "p1", "Joao")
+        assertEquals(1, first.offeredSeats)
+        val second = VehicleMutation.addingPassenger(first, "p2", "Maria")
+        assertEquals(0, second.offeredSeats)
+        val third = VehicleMutation.addingPassenger(second, "p3", "Alex")
+        assertEquals(0, third.offeredSeats)
+        assertEquals(0, third.offeredSeatCount)
+
+        val restored = VehicleMutation.removingPassenger(third, "p2")
+        assertEquals(1, restored.offeredSeats)
+
+        val legacy = VehicleMutation.addingPassenger(
+            sampleVehicle(totalSeats = 5, occupiedSeats = 1, offeredSeats = null),
+            "p1",
+            "Joao",
+        )
+        assertNull(legacy.offeredSeats)
+        assertEquals(3, legacy.offeredSeatCount)
+    }
+
+    @Test
+    fun assignmentConflictIncludesOtherActiveDriversPassengersAndPendingRequests() {
+        val target = sampleVehicle(id = "veh-1")
+        val otherPassenger = sampleVehicle(
+            id = "veh-2",
+            passengerRegistrationIds = listOf("p1"),
+            passengerNames = listOf("Joao"),
+        )
+        val otherPending = sampleVehicle(
+            id = "veh-3",
+            pendingPassengerRegistrationIds = listOf("p2"),
+            pendingPassengerNames = listOf("Maria"),
+        )
+        val cancelled = sampleVehicle(
+            id = "veh-4",
+            driverUserId = "cancelled-driver",
+            driverRegistrationId = "p3",
+            status = VehicleStatus.Cancelled,
+        )
+        val vehicles = listOf(target, otherPassenger, otherPending, cancelled)
+
+        assertTrue(VehicleMutation.hasActiveAssignmentConflict(vehicles, listOf("p1"), excludingVehicleId = target.id))
+        assertTrue(VehicleMutation.hasActiveAssignmentConflict(vehicles, listOf("p2"), excludingVehicleId = target.id))
+        assertFalse(VehicleMutation.hasActiveAssignmentConflict(vehicles, listOf("p3"), excludingVehicleId = target.id))
+        assertFalse(VehicleMutation.hasActiveAssignmentConflict(vehicles, listOf("p1"), excludingVehicleId = otherPassenger.id))
+    }
+
+    @Test
     fun vehiclePayloadUsesExactFirestoreKeysAndOmitsTokenFromArrivalPatch() {
-        val vehicle = sampleVehicle(invitationCode = "abc234")
+        val vehicle = sampleVehicle(invitationCode = "abc234", offeredSeats = 2)
         val payload = VehiclePayload.vehiclePayload(vehicle, TS, includeCreatedAt = true)
 
         assertEquals("camp-1", payload["campingID"])
@@ -123,6 +196,7 @@ class VehicleModelTest {
         assertEquals("driver-reg", payload["driverRegistrationID"])
         assertEquals("AB-123-CD", payload["plateNumber"])
         assertEquals("ABC234", payload["invitationCode"])
+        assertEquals(2, payload["offeredSeats"])
         assertEquals("pending", payload["status"])
         assertEquals(TS, payload["createdAt"])
         assertEquals(TS, payload["updatedAt"])
@@ -154,6 +228,7 @@ class VehicleModelTest {
                 brand = null,
                 notes = "",
                 status = VehicleStatus.Confirmed,
+                offeredSeats = 1,
             ),
             serverTimestamp = TS,
             deleteField = DEL,
@@ -161,6 +236,7 @@ class VehicleModelTest {
 
         assertEquals("AB-123-CD", payload["plateNumber"])
         assertEquals("confirmed", payload["status"])
+        assertEquals(1, payload["offeredSeats"])
         assertEquals(DEL, payload["brand"])
         assertEquals(DEL, payload["notes"])
         assertFalse(payload.containsKey("id"))
@@ -173,8 +249,34 @@ class VehicleModelTest {
         assertFalse(payload.containsKey("createdAt"))
     }
 
+    @Test
+    fun passengerPayloadStaysWithinSelfRemovalAllowlist() {
+        val removed = VehicleMutation.removingPassenger(
+            sampleVehicle(
+                totalSeats = 5,
+                occupiedSeats = 3,
+                passengerRegistrationIds = listOf("p1", "p2"),
+                passengerNames = listOf("Joao", "Maria"),
+                offeredSeats = 1,
+            ),
+            "p1",
+        )
+        val payload = VehiclePayload.passengerPayload(removed, TS, DEL)
+
+        assertEquals(2, payload["occupiedSeats"])
+        assertEquals(2, payload["offeredSeats"])
+        assertEquals(listOf("p2"), payload["passengerRegistrationIDs"])
+        assertEquals(listOf("Maria"), payload["passengerNames"])
+        assertFalse(payload.containsKey("plateNumber"))
+        assertFalse(payload.containsKey("driverUserID"))
+        assertFalse(payload.containsKey("qrToken"))
+    }
+
     private fun sampleVehicle(
+        id: String = "veh-1",
         plateNumber: String = "AB-123-CD",
+        driverUserId: String = "driver-user",
+        driverRegistrationId: String = "driver-reg",
         totalSeats: Int = 5,
         occupiedSeats: Int = 1,
         passengerRegistrationIds: List<String> = emptyList(),
@@ -182,12 +284,14 @@ class VehicleModelTest {
         pendingPassengerRegistrationIds: List<String> = emptyList(),
         pendingPassengerNames: List<String> = emptyList(),
         invitationCode: String? = "INV234",
+        offeredSeats: Int? = null,
+        status: VehicleStatus = VehicleStatus.Pending,
     ) = CampingVehicle(
-        id = "veh-1",
+        id = id,
         campingId = "camp-1",
-        ownerUserId = "driver-user",
-        driverUserId = "driver-user",
-        driverRegistrationId = "driver-reg",
+        ownerUserId = driverUserId,
+        driverUserId = driverUserId,
+        driverRegistrationId = driverRegistrationId,
         driverName = "Driver",
         driverPhotoUrl = "https://example.com/driver.jpg",
         plateNumber = plateNumber,
@@ -197,12 +301,14 @@ class VehicleModelTest {
         totalSeats = totalSeats,
         occupiedSeats = occupiedSeats,
         hasAvailableSeats = true,
+        offeredSeats = offeredSeats,
         passengerRegistrationIds = passengerRegistrationIds,
         passengerNames = passengerNames,
         pendingPassengerRegistrationIds = pendingPassengerRegistrationIds,
         pendingPassengerNames = pendingPassengerNames,
         qrToken = "a".repeat(64),
         invitationCode = invitationCode,
+        status = status,
     )
 
     private companion object {

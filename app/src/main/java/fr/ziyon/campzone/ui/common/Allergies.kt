@@ -17,6 +17,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -43,8 +44,24 @@ fun AllergiesEditor(
     modifier: Modifier = Modifier,
 ) {
     var customText by rememberSaveable { mutableStateOf("") }
+    var currentSelection by rememberSaveable {
+        mutableStateOf(AllergyFormatter.cleaned(selected))
+    }
     val haptics = LocalHapticFeedback.current
     val displayNames = CommonAllergy.entries.associateWith { allergy -> allergy.localizedName() }
+
+    LaunchedEffect(selected) {
+        val cleaned = AllergyFormatter.cleaned(selected)
+        if (cleaned != currentSelection) {
+            currentSelection = cleaned
+        }
+    }
+
+    fun emitSelection(tokens: List<String>) {
+        val cleaned = AllergyFormatter.cleaned(tokens)
+        currentSelection = cleaned
+        onSelectedChange(cleaned)
+    }
 
     fun matchesPreset(token: String, allergy: CommonAllergy): Boolean =
         token.equals(allergy.wireValue, ignoreCase = true) ||
@@ -52,9 +69,9 @@ fun AllergiesEditor(
 
     fun toggle(allergy: CommonAllergy) {
         haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
-        onSelectedChange(
+        emitSelection(
             AllergyFormatter.toggledPreset(
-                tokens = selected,
+                tokens = currentSelection,
                 allergy = allergy,
                 displayName = displayNames.getValue(allergy),
             ),
@@ -63,8 +80,8 @@ fun AllergiesEditor(
 
     fun addCustom() {
         val token = AllergyFormatter.normalizedToken(customText) { displayNames.getValue(it) } ?: return
-        if (selected.none { it.equals(token, ignoreCase = true) }) {
-            onSelectedChange(AllergyFormatter.cleaned(selected + token))
+        if (currentSelection.none { it.equals(token, ignoreCase = true) }) {
+            emitSelection(currentSelection + token)
         }
         customText = ""
     }
@@ -76,17 +93,17 @@ fun AllergiesEditor(
         AllergyGroup(
             title = stringResource(R.string.allergies_food),
             allergies = CommonAllergy.foodAllergies,
-            selected = selected,
+            selected = currentSelection,
             onToggle = ::toggle,
         )
         AllergyGroup(
             title = stringResource(R.string.allergies_environmental_other),
             allergies = CommonAllergy.otherAllergies,
-            selected = selected,
+            selected = currentSelection,
             onToggle = ::toggle,
         )
 
-        val customTokens = selected.filter { token ->
+        val customTokens = currentSelection.filter { token ->
             CommonAllergy.entries.none { allergy -> matchesPreset(token, allergy) }
         }
         if (customTokens.isNotEmpty()) {
@@ -104,7 +121,7 @@ fun AllergiesEditor(
                     InputChip(
                         selected = true,
                         onClick = {
-                            onSelectedChange(selected.filterNot { it == token })
+                            emitSelection(currentSelection.filterNot { it == token })
                         },
                         label = { Text(token) },
                         trailingIcon = {

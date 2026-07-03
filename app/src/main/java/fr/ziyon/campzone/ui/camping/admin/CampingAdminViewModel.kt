@@ -173,8 +173,8 @@ class CampingAdminViewModel @Inject constructor(
         if (form.title.isBlank()) add("Title is required.")
         if (form.description.isBlank()) add("Description is required.")
         if (form.location.isBlank()) add("Location is required.")
-        if (form.organizerType == OrganizerType.Church && form.organizerName.isBlank()) {
-            add("Church name is required.")
+        if (!form.organizerLevel.hasOrganizationName) {
+            add("Organization name is required.")
         }
         if (form.endDate.before(form.startDate)) add("End date must be after start date.")
         val cap = form.participantCapacityText.trim()

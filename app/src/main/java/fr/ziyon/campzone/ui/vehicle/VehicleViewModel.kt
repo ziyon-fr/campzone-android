@@ -18,6 +18,7 @@ import fr.ziyon.campzone.data.model.TransportationMode
 import fr.ziyon.campzone.data.model.UserVehicle
 import fr.ziyon.campzone.data.model.VehicleCheckIn
 import fr.ziyon.campzone.data.model.VehicleCheckInPayload
+import fr.ziyon.campzone.data.model.VehicleMutation
 import fr.ziyon.campzone.data.model.VehicleScanResult
 import fr.ziyon.campzone.data.model.VehicleStatus
 import fr.ziyon.campzone.data.model.VehicleTokenFactory
@@ -82,8 +83,8 @@ data class VehicleUiState(
             arrivedVehicles = arrivedVehicles.size,
             peopleExpected = activeVehicles.sumOf { it.expectedRegisteredCount },
             peopleArrived = arrivedVehicles.sumOf { it.expectedRegisteredCount },
-            vehiclesWithSeats = activeVehicles.count { it.hasAvailableSeats && it.availableSeats > 0 },
-            seatsAvailable = activeVehicles.filter { it.hasAvailableSeats }.sumOf { it.availableSeats },
+            vehiclesWithSeats = activeVehicles.count { it.offeredSeatCount > 0 },
+            seatsAvailable = activeVehicles.sumOf { it.offeredSeatCount },
             peopleNeedingTransport = peopleNeedingTransport.size,
         )
 
@@ -95,6 +96,24 @@ data class VehicleUiState(
                 it.participantKind == RegistrationParticipantKind.SelfParticipant &&
                 (it.id == user.uid || it.userId == user.uid)
         }
+
+    fun actionSubjectAttendee(
+        user: AuthenticatedUser,
+        initialDecisionKind: String?,
+        initialRegistrationId: String?,
+    ): CampingAttendee? {
+        val isInvitation = initialDecisionKind?.trim()?.lowercase(Locale.ROOT) == "invitation"
+        if (isInvitation && !initialRegistrationId.isNullOrBlank()) {
+            camping?.attendees?.firstOrNull {
+                it.canActAsInvitationSubject(
+                    registrationId = initialRegistrationId,
+                    userId = user.uid,
+                )
+            }?.let { return it }
+        }
+
+        return selfAttendee(user)
+    }
 
     fun vehicleDriven(registrationId: String): CampingVehicle? =
         vehicles.firstOrNull {
@@ -110,9 +129,23 @@ data class VehicleUiState(
         vehicles.firstOrNull {
             it.status != VehicleStatus.Cancelled && registrationId in it.pendingPassengerRegistrationIds
         }
+
+    fun isRegistrationClaimed(registrationId: String): Boolean =
+        activeVehicles.any { it.claimsRegistration(registrationId) }
+
+    private fun CampingAttendee.canActAsInvitationSubject(
+        registrationId: String,
+        userId: String,
+    ): Boolean {
+        if (id != registrationId || registrationStatus != RegistrationApprovalStatus.Approved) return false
+        if (participantKind == RegistrationParticipantKind.Child && guardianId == userId) return true
+        return participantKind == RegistrationParticipantKind.SelfParticipant &&
+            (this.userId == userId || id == userId)
+    }
 }
 
 data class VehicleFormInput(
+    val driverName: String,
     val plateNumber: String,
     val brand: String?,
     val model: String?,
@@ -120,6 +153,7 @@ data class VehicleFormInput(
     val totalSeats: Int,
     val peopleInCar: Int,
     val hasAvailableSeats: Boolean,
+    val offeredSeats: Int? = null,
     val notes: String?,
     val userVehicleId: String? = null,
     val passengers: List<CampingAttendee> = emptyList(),
@@ -282,13 +316,20 @@ class VehicleViewModel @Inject constructor(
             input.totalSeats,
             maxOf(input.peopleInCar, input.passengers.size + 1, 1),
         )
+        val claimedRegistrationIds = listOf(attendee.id) + input.passengers.map { it.id }
+        if (VehicleMutation.hasActiveAssignmentConflict(_uiState.value.activeVehicles, claimedRegistrationIds)) {
+            _uiState.update { state ->
+                state.copy(operationError = stringProvider.get(R.string.vehicle_assignment_conflict_error))
+            }
+            return
+        }
         val vehicle = CampingVehicle(
             campingId = campingId,
             ownerUserId = user.uid,
             userVehicleId = input.userVehicleId,
             driverUserId = user.uid,
             driverRegistrationId = attendee.id,
-            driverName = user.preferredDisplayName.ifBlank { attendee.displayName },
+            driverName = input.driverName.ifBlank { user.preferredDisplayName.ifBlank { attendee.displayName } },
             driverPhotoUrl = user.photoUrl ?: attendee.photoUrl,
             plateNumber = input.plateNumber,
             brand = input.brand.clean(),
@@ -297,6 +338,7 @@ class VehicleViewModel @Inject constructor(
             totalSeats = input.totalSeats,
             occupiedSeats = occupied,
             hasAvailableSeats = input.hasAvailableSeats,
+            offeredSeats = input.offeredSeats?.takeIf { input.hasAvailableSeats },
             passengerRegistrationIds = input.passengers.map { it.id },
             passengerNames = input.passengers.map { it.displayName },
             qrToken = VehicleTokenFactory.makeToken(),
@@ -465,7 +507,7 @@ class VehicleViewModel @Inject constructor(
                 _uiState.update { it.copy(isUpdating = false, operationMessage = stringProvider.get(R.string.vehicle_request_sent_driver)) }
                 refreshCamping(vehicle.campingId)
             }.onFailure { error ->
-                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_request_ride_error)) }
+                _uiState.update { it.copy(isUpdating = false, operationError = vehicleError(error, R.string.vehicle_request_ride_error)) }
             }
         }
     }
@@ -510,7 +552,7 @@ class VehicleViewModel @Inject constructor(
                 refreshCamping(campingId)
             }.onFailure { error ->
                 _uiState.update {
-                    it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_join_code_error))
+                    it.copy(isUpdating = false, operationError = vehicleError(error, R.string.vehicle_join_code_error))
                 }
             }
         }
@@ -603,7 +645,7 @@ class VehicleViewModel @Inject constructor(
                 refreshCamping(vehicle.campingId)
                 _uiState.update { it.copy(isUpdating = false, operationMessage = stringProvider.get(R.string.vehicle_passenger_added_message, attendee.displayName)) }
             }.onFailure { error ->
-                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_add_passenger_error)) }
+                _uiState.update { it.copy(isUpdating = false, operationError = vehicleError(error, R.string.vehicle_add_passenger_error)) }
             }
         }
     }
@@ -673,7 +715,7 @@ class VehicleViewModel @Inject constructor(
                 }
                 refreshCamping(vehicle.campingId)
             }.onFailure { error ->
-                _uiState.update { it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_invitation_response_error)) }
+                _uiState.update { it.copy(isUpdating = false, operationError = vehicleError(error, R.string.vehicle_invitation_response_error)) }
             }
         }
     }
@@ -916,10 +958,17 @@ class VehicleViewModel @Inject constructor(
             }
             .onFailure { error ->
                 _uiState.update {
-                    it.copy(isUpdating = false, operationError = error.message ?: stringProvider.get(R.string.vehicle_update_failed))
+                    it.copy(isUpdating = false, operationError = vehicleError(error, R.string.vehicle_update_failed))
                 }
             }
     }
+
+    private fun vehicleError(error: Throwable, fallbackResId: Int): String =
+        if (error.message == AssignmentConflictMessage) {
+            stringProvider.get(R.string.vehicle_assignment_conflict_error)
+        } else {
+            error.message ?: stringProvider.get(fallbackResId)
+        }
 
     private fun upsert(vehicle: CampingVehicle) {
         _uiState.update { state ->
@@ -933,6 +982,7 @@ class VehicleViewModel @Inject constructor(
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
+        const val AssignmentConflictMessage = "This participant is already assigned to another car."
     }
 }
 

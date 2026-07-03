@@ -653,6 +653,8 @@
     <string name="checkin_method_manual">Manual</string>
     <string name="checkin_arrival_section">Check-in de chegada</string>
     <string name="checkin_bus_tickets_section">Passagens de ônibus</string>
+    <string name="checkin_tickets_section">Bilhetes</string>
+    <string name="checkin_tickets_loading">Carregando bilhetes de transporte…</string>
     <!-- Lodging (D3) -->
     <string name="lodging_title">Acomodação</string>
     <string name="lodging_entry_subtitle">Barracas, cabanas e quartos · quem dorme onde</string>
@@ -1248,6 +1250,7 @@
     <string name="vehicle_request_declined_message">Pedido recusado.</string>
     <string name="vehicle_passenger_removed_message">Passageiro removido.</string>
     <string name="vehicle_passenger_added_message">%1$s adicionado ao carro.</string>
+    <string name="vehicle_assignment_conflict_error">Este participante já está atribuído a outro carro.</string>
     <string name="vehicle_add_passenger_error">Não foi possível adicionar o passageiro.</string>
     <string name="vehicle_invitation_sent_message">Convite enviado para %1$s.</string>
     <string name="vehicle_invitation_send_error">Não foi possível enviar o convite.</string>
@@ -1263,18 +1266,46 @@
     <string name="vehicle_you_are_passenger">Você é passageiro</string>
     <string name="vehicle_driver">Motorista</string>
     <string name="vehicle_passenger">Passageiro</string>
-    <string name="vehicle_passenger_change_hint">Para alterar ou sair deste carro, fale com o motorista ou com um líder do camp.</string>
+    <string name="vehicle_leave_car">Sair do carro</string>
+    <string name="vehicle_passenger_change_hint">Você pode sair deste carro por conta própria. O motorista ou um líder do camp também pode remover você.</string>
     <string name="vehicle_cars_with_free_seats">Carros com lugares livres</string>
     <string name="vehicle_no_free_seats_hint">Ainda não há carros com lugares livres. Tente um código de convite.</string>
     <string name="vehicle_free_seats_count">%1$d lugar(es) livre(s)</string>
     <string name="vehicle_request">Solicitar</string>
     <string name="vehicle_have_invitation_code">Tem um código de convite?</string>
     <string name="vehicle_saved_vehicles">Veículos salvos</string>
+    <string name="vehicle_use_saved_car">Usar um carro salvo</string>
+    <string name="vehicle_form_car_title">Seu carro</string>
+    <string name="vehicle_form_car_subtitle">Diga-nos qual carro você vai dirigir.</string>
+    <string name="vehicle_form_seats_title">Lugares</string>
+    <string name="vehicle_form_seats_subtitle">Qual é a capacidade do carro e quantas pessoas vão com você?</string>
+    <string name="vehicle_form_notes_title">Notas</string>
+    <string name="vehicle_form_notes_subtitle">Algo que a equipe deva saber? Ponto de encontro, hora de partida… (opcional)</string>
+    <string name="vehicle_form_review_title">Tudo pronto?</string>
+    <string name="vehicle_form_review_subtitle">Revise os detalhes antes de gerar seu QR code.</string>
+    <string name="vehicle_brand_optional">Marca (opcional)</string>
+    <string name="vehicle_model_optional">Modelo (opcional)</string>
+    <string name="vehicle_color_optional">Cor (opcional)</string>
+    <string name="vehicle_car_capacity">Capacidade do carro</string>
+    <string name="vehicle_car_capacity_subtitle">Total de lugares</string>
+    <string name="vehicle_people_travelling">Pessoas viajando</string>
+    <string name="vehicle_people_travelling_subtitle">Motorista incluído</string>
+    <string name="vehicle_family_participants_subtitle">Adicione participantes da família diretamente ao seu carro, sem convite.</string>
+    <string name="vehicle_offer_ride">Oferecer carona</string>
+    <string name="vehicle_car_full">O carro está cheio</string>
+    <string name="vehicle_one_free_seat">1 lugar livre</string>
+    <string name="vehicle_free_seats_plain">%1$d lugares livres</string>
+    <string name="vehicle_seats_offered_subtitle">Quantos lugares abrir</string>
+    <string name="vehicle_offering_seats">Lugares oferecidos</string>
+    <string name="vehicle_review_offering_seats_yes">Sim · %1$d oferecido(s)</string>
+    <string name="vehicle_review_qr_hint">Um QR code único é gerado para este carro. Mostre-o na entrada do camp.</string>
+    <string name="vehicle_generate_qr_code">Gerar QR Code</string>
     <string name="vehicle_total_seats">Total de lugares</string>
     <string name="vehicle_people_in_car">Pessoas no carro</string>
     <string name="vehicle_family_participants">Participantes da família</string>
     <string name="vehicle_seats_for_others">Lugares para outros</string>
     <string name="vehicle_seats_for_others_subtitle">Permita que participantes aprovados solicitem um lugar.</string>
+    <string name="vehicle_offered_seats">Lugares oferecidos</string>
     <string name="vehicle_notes">Notas</string>
     <string name="vehicle_plate">Placa</string>
     <string name="vehicle_vehicle_label">Veículo</string>
@@ -1911,6 +1942,7 @@
     <string name="auth_password">Senha</string>
     <string name="auth_password_placeholder">Sua senha</string>
     <string name="auth_sign_in">Entrar</string>
+    <string name="auth_sign_in_cta">Entrar</string>
     <string name="auth_create_account">Criar conta</string>
     <string name="auth_sending">Enviando…</string>
     <string name="auth_forgot_password">Esqueceu a senha?</string>
@@ -2137,6 +2169,8 @@
     <string name="songbook_auto_scroll">Rolagem automatica</string>
     <string name="songbook_start_auto_scroll">Iniciar rolagem automatica</string>
     <string name="songbook_stop_auto_scroll">Parar rolagem automatica</string>
+    <string name="songbook_enter_full_screen_performance">Abrir desempenho em tela cheia</string>
+    <string name="songbook_exit_full_screen_performance">Sair do desempenho em tela cheia</string>
     <string name="songbook_no_chord_sheet">Nenhuma cifra disponivel.</string>
     <string name="songbook_open_sheet_pdf">Abrir partitura PDF</string>
     <string name="songbook_theme_song">Musica tema</string>
@@ -2310,7 +2344,7 @@
     <string name="camping_admin_title_required">O titulo e obrigatorio.</string>
     <string name="camping_admin_description_required">A descricao e obrigatoria.</string>
     <string name="camping_admin_location_required">A localizacao e obrigatoria.</string>
-    <string name="camping_admin_church_required">O nome da igreja e obrigatorio.</string>
+    <string name="camping_admin_church_required">O nome da organizacao e obrigatorio.</string>
     <string name="camping_admin_end_after_start">A data de termino deve ser depois da data de inicio.</string>
     <string name="camping_admin_capacity_positive">A capacidade deve ser um numero positivo.</string>
     <string name="registration_load_error">Nao foi possivel carregar o acampamento.</string>
@@ -2376,6 +2410,7 @@
     <string name="common_no_results_message">Tente outro termo de busca.</string>
     <string name="common_untitled">Sem título</string>
     <string name="auth_tagline">Conecte seu camp</string>
+    <string name="auth_sign_in_tagline">Bem-vindo, a aventura espera por você</string>
     <string name="auth_or_use_email">ou use e-mail</string>
     <string name="schedule_add_program">+ Adicionar programa</string>
     <string name="schedule_overview_summary">%1$s · %2$s</string>
@@ -2722,4 +2757,8 @@
     <string name="admin_analytics_weekly">Inscrições semanais</string>
     <string name="admin_analytics_top_camps">Desempenho dos acampamentos</string>
     <string name="admin_analytics_camp_summary">%1$d inscrições · %2$d aprovadas · %3$d pendentes · %4$d interações</string>
+    <plurals name="food_menu_participant_allergy_count">
+        <item quantity="one">%1$d participante com restrições alimentares</item>
+        <item quantity="other">%1$d participantes com restrições alimentares</item>
+    </plurals>
 </resources>

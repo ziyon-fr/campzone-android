@@ -50,10 +50,12 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
@@ -701,15 +703,31 @@ private fun FoodAllergenDialog(
     onSelectedChange: (List<String>) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var customText by remember { mutableStateOf("") }
+    var customText by rememberSaveable { mutableStateOf("") }
+    var currentSelection by rememberSaveable {
+        mutableStateOf(AllergyFormatter.cleaned(selected))
+    }
     val foodNames = mutableMapOf<CommonAllergy, String>()
     CommonAllergy.foodAllergies.forEach { allergy ->
         foodNames[allergy] = allergyDisplayName(allergy.wireValue)
     }
 
+    LaunchedEffect(selected) {
+        val cleaned = AllergyFormatter.cleaned(selected)
+        if (cleaned != currentSelection) {
+            currentSelection = cleaned
+        }
+    }
+
+    fun emitSelection(tokens: List<String>) {
+        val cleaned = AllergyFormatter.cleaned(tokens)
+        currentSelection = cleaned
+        onSelectedChange(cleaned)
+    }
+
     fun add(token: String) {
-        if (selected.none { it.equals(token, ignoreCase = true) }) {
-            onSelectedChange(AllergyFormatter.cleaned(selected + token))
+        if (currentSelection.none { it.equals(token, ignoreCase = true) }) {
+            emitSelection(currentSelection + token)
         }
     }
 
@@ -729,7 +747,7 @@ private fun FoodAllergenDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
             ) {
-                if (selected.isEmpty()) {
+                if (currentSelection.isEmpty()) {
                     Text(
                         stringResource(R.string.food_menu_no_allergens),
                         color = MaterialTheme.czColors.textSecondary,
@@ -739,10 +757,10 @@ private fun FoodAllergenDialog(
                         horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
                         verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
                     ) {
-                        selected.forEach { token ->
+                        currentSelection.forEach { token ->
                             InputChip(
                                 selected = true,
-                                onClick = { onSelectedChange(selected.filterNot { it == token }) },
+                                onClick = { emitSelection(currentSelection.filterNot { it == token }) },
                                 label = { Text(allergyDisplayName(token)) },
                                 trailingIcon = { Icon(Icons.Rounded.Close, contentDescription = null) },
                             )
@@ -759,7 +777,7 @@ private fun FoodAllergenDialog(
                     verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
                 ) {
                     CommonAllergy.foodAllergies
-                        .filter { allergy -> selected.none { it.equals(allergy.wireValue, ignoreCase = true) } }
+                        .filter { allergy -> currentSelection.none { it.equals(allergy.wireValue, ignoreCase = true) } }
                         .forEach { allergy ->
                             FilterChip(
                                 selected = false,

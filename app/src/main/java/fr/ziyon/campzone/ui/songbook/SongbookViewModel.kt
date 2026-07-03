@@ -989,11 +989,11 @@ class SongbookViewModel @Inject constructor(
 
 internal object ChordProParser {
     private val bracketRegex = Regex("""\[(.+?)]""")
+    private val leadingSectionRegex = Regex("""^\s*\[([^\]]+)]""")
     private val sectionWords = setOf(
         "intro", "verse", "pre-chorus", "prechorus", "chorus", "bridge",
         "instrumental", "outro", "tag", "ending",
     )
-    private val chordRegex = Regex("""^[A-G](#|b|♯|♭)?([a-zA-Z0-9()+°Δø#♯b♭]*)?(/[A-G](#|b|♯|♭)?)?$""")
 
     fun parse(text: String, existingId: String = UUID.randomUUID().toString()): ChordSheet {
         val lines = text.lines().flatMap(::parseLine)
@@ -1040,17 +1040,44 @@ internal object ChordProParser {
             }
         }
 
+        val leadingSection = leadingSectionRegex.find(raw)
+        if (leadingSection != null && isSectionHeader(leadingSection.groupValues[1])) {
+            val header = ChordLine(
+                id = UUID.randomUUID().toString(),
+                text = "[${leadingSection.groupValues[1].trim()}]",
+                isSectionHeader = true,
+            )
+            val trailingStart = leadingSection.range.last + 1
+            val trailingText = raw.substring(trailingStart)
+            val trailingTokens = ChordSymbolParser.chordTokensIn(trailingText)
+            if (trailingTokens.isEmpty()) return listOf(header)
+
+            return listOf(
+                header,
+                ChordLine(
+                    id = UUID.randomUUID().toString(),
+                    text = "",
+                    chords = trailingTokens.map { token ->
+                        Chord(
+                            id = UUID.randomUUID().toString(),
+                            chord = token.symbol,
+                            position = trailingStart + token.start,
+                        )
+                    },
+                ),
+            )
+        }
+
         val inline = parseInlineChordPro(raw)
         if (inline != null) return inline
 
         if (looksLikeChordLine(trimmed)) {
-            val chords = raw.split(Regex("""\s+"""))
-                .filter { it.isNotBlank() && isChord(it.trim()) }
-                .mapIndexed { index, chord ->
+            val chords = ChordSymbolParser.chordTokensIn(raw)
+                .map { token ->
                     Chord(
                         id = UUID.randomUUID().toString(),
-                        chord = chord.trim(),
-                        position = index * 4,
+                        chord = token.symbol,
+                        position = token.start,
                     )
                 }
             return listOf(
@@ -1076,10 +1103,11 @@ internal object ChordProParser {
         matches.forEach { match ->
             output.append(raw.substring(cursor, match.range.first))
             val token = match.groupValues[1].trim()
-            if (isChord(token)) {
+            val parsedChord = ChordSymbolParser.parseOrNull(token)
+            if (parsedChord != null) {
                 chords += Chord(
                     id = UUID.randomUUID().toString(),
-                    chord = token,
+                    chord = parsedChord.canonicalSymbol,
                     position = output.length,
                 )
             } else if (output.toString().isBlank() && isSectionHeader(token)) {
@@ -1133,9 +1161,19 @@ internal object ChordProParser {
     }
 
     private fun looksLikeChordLine(text: String): Boolean {
-        val tokens = text.split(Regex("""\s+""")).filter { it.isNotBlank() }
-        if (tokens.isEmpty()) return false
-        return tokens.count { isChord(it) }.toDouble() / tokens.size >= 0.65
+        val semanticTokens = text.split(Regex("""\s+"""))
+            .map { stripChartPunctuation(it) }
+            .filter { it.isNotBlank() }
+        if (semanticTokens.isEmpty()) return false
+
+        val chordTokens = ChordSymbolParser.chordTokensIn(text)
+        if (chordTokens.isEmpty()) return false
+
+        val validChordTokens = semanticTokens.count { isChord(it) }
+        val chordRatio = validChordTokens.toDouble() / semanticTokens.size
+        val musicRatio = semanticTokens.sumOf(::countMusicCharacters).toDouble() / text.trim().length.coerceAtLeast(1)
+
+        return chordRatio >= 0.65 || (chordRatio >= 0.45 && musicRatio >= 0.18)
     }
 
     private fun isSectionHeader(text: String): Boolean {
@@ -1145,7 +1183,22 @@ internal object ChordProParser {
         return normalized in sectionWords
     }
 
-    private fun isChord(text: String): Boolean = chordRegex.matches(text.trim())
+    private fun isChord(text: String): Boolean =
+        ChordSymbolParser.isChord(stripChartPunctuation(text))
+
+    private fun stripChartPunctuation(token: String): String {
+        var stripped = token.trim().trim { it in "|:[]{};," }
+        if (stripped.length > 2 && stripped.first() == '(' && stripped.last() == ')') {
+            val inner = stripped.substring(1, stripped.lastIndex)
+            if (ChordSymbolParser.isChord(inner)) stripped = inner
+        }
+        return stripped
+    }
+
+    private fun countMusicCharacters(text: String): Int =
+        text.count { char ->
+            char.isDigit() || char in setOf('#', '♯', 'b', '♭', '/', '°', 'º', 'ø', 'Δ', '+', '-', '(', ')', ',')
+        }
 
     private fun detectOriginalKey(lines: List<ChordLine>): String =
         lines.asSequence()

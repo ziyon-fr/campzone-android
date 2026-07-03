@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.rounded.AlternateEmail
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Campaign
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Groups
@@ -266,6 +267,7 @@ private fun AppNotificationKind.icon(): ImageVector = when (this) {
     AppNotificationKind.Badge -> Icons.Rounded.WorkspacePremium
     AppNotificationKind.ChatMessage -> Icons.AutoMirrored.Rounded.Chat
     AppNotificationKind.ChatMention -> Icons.Rounded.AlternateEmail
+    AppNotificationKind.Checklist -> Icons.Rounded.CheckCircle
     AppNotificationKind.Poll -> Icons.Rounded.BarChart
     AppNotificationKind.Registration -> Icons.Rounded.PersonAdd
     AppNotificationKind.ScheduleReminder -> Icons.Rounded.Schedule
@@ -278,6 +280,7 @@ private fun AppNotificationKind.labelRes(): Int = when (this) {
     AppNotificationKind.Announcement -> R.string.notif_cat_announcements_title
     AppNotificationKind.Badge -> R.string.badges_badge
     AppNotificationKind.ChatMessage, AppNotificationKind.ChatMention -> R.string.notif_cat_chat_title
+    AppNotificationKind.Checklist -> R.string.packing_title
     AppNotificationKind.Poll -> R.string.notif_channel_poll
     AppNotificationKind.Registration -> R.string.notif_channel_registration
     AppNotificationKind.ScheduleReminder -> R.string.notif_cat_reminders_title

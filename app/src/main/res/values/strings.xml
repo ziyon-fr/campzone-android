@@ -667,6 +667,8 @@
     <string name="checkin_method_manual">Manual</string>
     <string name="checkin_arrival_section">Arrival Check-In</string>
     <string name="checkin_bus_tickets_section">Bus Tickets</string>
+    <string name="checkin_tickets_section">Tickets</string>
+    <string name="checkin_tickets_loading">Loading transportation tickets…</string>
     <!-- Lodging (D3) -->
     <string name="lodging_title">Lodging</string>
     <string name="lodging_entry_subtitle">Tents, cabins &amp; rooms · who sleeps where</string>
@@ -1258,6 +1260,7 @@
     <string name="vehicle_request_declined_message">Request declined.</string>
     <string name="vehicle_passenger_removed_message">Passenger removed.</string>
     <string name="vehicle_passenger_added_message">%1$s added to the car.</string>
+    <string name="vehicle_assignment_conflict_error">This participant is already assigned to another car.</string>
     <string name="vehicle_add_passenger_error">Could not add the passenger.</string>
     <string name="vehicle_invitation_sent_message">Invitation sent to %1$s.</string>
     <string name="vehicle_invitation_send_error">Could not send the invitation.</string>
@@ -1273,18 +1276,46 @@
     <string name="vehicle_you_are_passenger">You\'re a passenger</string>
     <string name="vehicle_driver">Driver</string>
     <string name="vehicle_passenger">Passenger</string>
-    <string name="vehicle_passenger_change_hint">To change or leave this car, ask the driver or a camp leader.</string>
+    <string name="vehicle_leave_car">Leave car</string>
+    <string name="vehicle_passenger_change_hint">You can leave this car yourself. The driver or a camp leader can also remove you.</string>
     <string name="vehicle_cars_with_free_seats">Cars with free seats</string>
     <string name="vehicle_no_free_seats_hint">No cars with free seats yet. Try an invitation code.</string>
     <string name="vehicle_free_seats_count">%1$d free seat(s)</string>
     <string name="vehicle_request">Request</string>
     <string name="vehicle_have_invitation_code">Have an invitation code?</string>
     <string name="vehicle_saved_vehicles">Saved vehicles</string>
+    <string name="vehicle_use_saved_car">Use a saved car</string>
+    <string name="vehicle_form_car_title">Your car</string>
+    <string name="vehicle_form_car_subtitle">Tell us which car you are driving.</string>
+    <string name="vehicle_form_seats_title">Seats</string>
+    <string name="vehicle_form_seats_subtitle">How big is the car and how many are coming with you?</string>
+    <string name="vehicle_form_notes_title">Notes</string>
+    <string name="vehicle_form_notes_subtitle">Anything the team should know? Pickup point, departure time… (optional)</string>
+    <string name="vehicle_form_review_title">All set?</string>
+    <string name="vehicle_form_review_subtitle">Review the details before generating your QR code.</string>
+    <string name="vehicle_brand_optional">Brand (optional)</string>
+    <string name="vehicle_model_optional">Model (optional)</string>
+    <string name="vehicle_color_optional">Color (optional)</string>
+    <string name="vehicle_car_capacity">Car capacity</string>
+    <string name="vehicle_car_capacity_subtitle">Seats in total</string>
+    <string name="vehicle_people_travelling">People travelling</string>
+    <string name="vehicle_people_travelling_subtitle">Driver included</string>
+    <string name="vehicle_family_participants_subtitle">Add family participants directly to your car without an invitation.</string>
+    <string name="vehicle_offer_ride">Offer a ride</string>
+    <string name="vehicle_car_full">The car is full</string>
+    <string name="vehicle_one_free_seat">1 free seat</string>
+    <string name="vehicle_free_seats_plain">%1$d free seats</string>
+    <string name="vehicle_seats_offered_subtitle">How many to open up</string>
+    <string name="vehicle_offering_seats">Offering seats</string>
+    <string name="vehicle_review_offering_seats_yes">Yes · %1$d offered</string>
+    <string name="vehicle_review_qr_hint">A unique QR code is generated for this car. Show it at the camp gate.</string>
+    <string name="vehicle_generate_qr_code">Generate QR Code</string>
     <string name="vehicle_total_seats">Total seats</string>
     <string name="vehicle_people_in_car">People in the car</string>
     <string name="vehicle_family_participants">Family participants</string>
     <string name="vehicle_seats_for_others">Seats for others</string>
     <string name="vehicle_seats_for_others_subtitle">Let approved participants request a seat.</string>
+    <string name="vehicle_offered_seats">Seats offered</string>
     <string name="vehicle_notes">Notes</string>
     <string name="vehicle_plate">Plate</string>
     <string name="vehicle_vehicle_label">Vehicle</string>
@@ -1927,6 +1958,7 @@
     <string name="auth_password">Password</string>
     <string name="auth_password_placeholder">Your password</string>
     <string name="auth_sign_in">Sign in</string>
+    <string name="auth_sign_in_cta">Sign In</string>
     <string name="auth_create_account">Create account</string>
     <string name="auth_sending">Sending…</string>
     <string name="auth_forgot_password">Forgot password?</string>
@@ -2153,6 +2185,8 @@
     <string name="songbook_auto_scroll">Auto-scroll</string>
     <string name="songbook_start_auto_scroll">Start auto-scroll</string>
     <string name="songbook_stop_auto_scroll">Stop auto-scroll</string>
+    <string name="songbook_enter_full_screen_performance">Enter full-screen performance</string>
+    <string name="songbook_exit_full_screen_performance">Exit full-screen performance</string>
     <string name="songbook_no_chord_sheet">No chord sheet available.</string>
     <string name="songbook_open_sheet_pdf">Open Sheet PDF</string>
     <string name="songbook_theme_song">Theme Song</string>
@@ -2326,7 +2360,7 @@
     <string name="camping_admin_title_required">Title is required.</string>
     <string name="camping_admin_description_required">Description is required.</string>
     <string name="camping_admin_location_required">Location is required.</string>
-    <string name="camping_admin_church_required">Church name is required.</string>
+    <string name="camping_admin_church_required">Organization name is required.</string>
     <string name="camping_admin_end_after_start">End date must be after start date.</string>
     <string name="camping_admin_capacity_positive">Capacity must be a positive number.</string>
     <string name="registration_load_error">Camping could not be loaded.</string>
@@ -2391,6 +2425,7 @@
     <string name="common_no_results_message">Try a different search term.</string>
     <string name="common_untitled">Untitled</string>
     <string name="auth_tagline">Connect your camp</string>
+    <string name="auth_sign_in_tagline">Welcome, Adventure awaits</string>
     <string name="auth_or_use_email">or use email</string>
     <string name="schedule_add_program">+ Add Program</string>
     <string name="schedule_overview_summary">%1$s · %2$s</string>
@@ -2730,4 +2765,8 @@
     <string name="admin_analytics_weekly">Weekly registrations</string>
     <string name="admin_analytics_top_camps">Camping performance</string>
     <string name="admin_analytics_camp_summary">%1$d registrations · %2$d approved · %3$d pending · %4$d engagement events</string>
+    <plurals name="food_menu_participant_allergy_count">
+        <item quantity="one">%1$d participant with food restrictions</item>
+        <item quantity="other">%1$d participants with food restrictions</item>
+    </plurals>
 </resources>

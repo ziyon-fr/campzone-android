@@ -1877,14 +1877,22 @@ fun CampzoneNavigationShell(
                 arguments = listOf(
                     navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
                     navArgument(AppRouteArgs.ShareId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.RegistrationId) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
                 ),
             ) { backStackEntry ->
                 val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
                 val shareId = backStackEntry.stringArg(AppRouteArgs.ShareId)
+                val subjectRegistrationId = backStackEntry.arguments
+                    ?.getString(AppRouteArgs.RegistrationId)
+                    ?.takeUnless { it.isBlank() }
                 PackingShareImportRoute(
                     campingId = campingId,
                     shareId = shareId,
-                    userId = authenticatedUser.uid,
+                    userId = subjectRegistrationId ?: authenticatedUser.uid,
                     onBack = { navController.popBackStack() },
                     onOpenChecklist = { navController.navigate(AppRoute.CampingPackingChecklist(campingId).route) },
                 )
@@ -1934,6 +1942,9 @@ fun CampzoneNavigationShell(
                     onBack = { navController.popBackStack() },
                     onOpenEditor = {
                         navController.navigate(AppRoute.CampingFoodMenuEditor(campingId).route)
+                    },
+                    onOpenAttendee = { attendeeId ->
+                        navController.navigate(AppRoute.AttendeeProfile(campingId, attendeeId).route)
                     },
                 )
             }

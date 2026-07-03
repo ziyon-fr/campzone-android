@@ -59,7 +59,7 @@ internal object CampingPayload {
     fun organizerLevelMap(level: OrganizerLevel): Map<String, Any?> =
         linkedMapOf(
             "type" to level.type.wireValue,
-            "value" to level.value.trim(),
+            "value" to level.normalizedValue,
         )
 
     fun priceItemMap(item: CampingPriceItem): Map<String, Any?> {

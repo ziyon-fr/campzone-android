@@ -23,6 +23,7 @@ class AppNotificationDeepLinkTest {
         achievementId: String? = null,
         vehicleId: String? = null,
         registrationId: String? = null,
+        shareId: String? = null,
         deepLinkUrl: String? = null,
         mentionedUserIds: List<String> = emptyList(),
     ) = AppNotification(
@@ -44,6 +45,7 @@ class AppNotificationDeepLinkTest {
         achievementId = achievementId,
         vehicleId = vehicleId,
         registrationId = registrationId,
+        shareId = shareId,
         deepLinkUrl = deepLinkUrl,
         mentionedUserIds = mentionedUserIds,
     )
@@ -56,6 +58,7 @@ class AppNotificationDeepLinkTest {
         assertEquals(AppNotificationKind.ChatMention, AppNotificationKind.fromWire("chatmention"))
         assertEquals(AppNotificationKind.Badge, AppNotificationKind.fromWire("achievement_badge"))
         assertEquals(AppNotificationKind.Transportation, AppNotificationKind.fromWire("transportation"))
+        assertEquals(AppNotificationKind.Checklist, AppNotificationKind.fromWire("packing_share"))
     }
 
     @Test
@@ -78,6 +81,20 @@ class AppNotificationDeepLinkTest {
             registrationId = "reg-1",
         ).deepLink()
         assertEquals(CampzoneDeepLink.TransportationInvitation("camp-1", "car-1", "reg-1"), link)
+    }
+
+    @Test
+    fun checklistDeepLinkPreservesActionSubjectRegistration() {
+        val link = notification(
+            AppNotificationKind.Checklist,
+            topic = "campzone_user_guardian-1",
+            campingId = "camp-1",
+            recipientUserId = "guardian-1",
+            registrationId = "child-emma",
+            shareId = "share-1",
+        ).deepLink()
+
+        assertEquals(CampzoneDeepLink.PackingShare("camp-1", "share-1", "child-emma"), link)
     }
 
     @Test

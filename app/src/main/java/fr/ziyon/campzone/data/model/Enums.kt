@@ -362,6 +362,7 @@ enum class AppNotificationKind(val wireValue: String) {
     Badge("badge"),
     ChatMessage("chat_message"),
     ChatMention("chat_mention"),
+    Checklist("checklist"),
     Poll("poll"),
     Registration("registration"),
     ScheduleReminder("schedule_reminder"),
@@ -376,6 +377,7 @@ enum class AppNotificationKind(val wireValue: String) {
                 "badge", "achievement", "achievement_badge" -> Badge
                 "chat_message", "chatmessage" -> ChatMessage
                 "chat_mention", "chatmention" -> ChatMention
+                "checklist", "packing_share", "packingshare", "packing" -> Checklist
                 "poll" -> Poll
                 "registration", "registration_request" -> Registration
                 "schedule_reminder", "schedulereminder" -> ScheduleReminder

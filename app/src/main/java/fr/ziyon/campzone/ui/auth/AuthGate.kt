@@ -88,6 +88,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -557,7 +558,7 @@ private fun AuthBrandSection(modifier: Modifier = Modifier) {
             textAlign = TextAlign.Center,
         )
         Text(
-            text = stringResource(R.string.auth_tagline),
+            text = stringResource(R.string.auth_sign_in_tagline),
             color = if (dark) AuthAmber.copy(alpha = 0.72f) else Color(0xFF5A3010).copy(alpha = 0.72f),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
@@ -581,6 +582,8 @@ private fun AuthGlassPanel(
     val shape = RoundedCornerShape(CzRadius.xl)
     val isProviderBusy = uiState.isSigningInWithGoogle || uiState.isSigningInWithApple
     val isEmailBusy = uiState.isSigningInWithEmail || uiState.isSendingPasswordReset
+    val appleContainerColor = if (dark) Color.White else Color.Black
+    val appleContentColor = if (dark) Color.Black else Color.White
 
     Column(
         modifier = modifier
@@ -596,8 +599,6 @@ private fun AuthGlassPanel(
             AuthMessageBanner(
                 message = uiState.errorMessage,
                 kind = AuthBannerKind.Error,
-                actionLabel = stringResource(R.string.common_ok),
-                onAction = onDismissError,
             )
         }
 
@@ -607,14 +608,15 @@ private fun AuthGlassPanel(
             onClick = onAppleSignIn,
             isLoading = uiState.isSigningInWithApple,
             enabled = !uiState.isSigningInWithGoogle && !isEmailBusy,
-            containerColor = Color.White,
-            contentColor = Color(0xFF111111),
-            borderColor = Color.White.copy(alpha = 0.7f),
+            containerColor = appleContainerColor,
+            contentColor = appleContentColor,
+            borderColor = appleContainerColor.copy(alpha = 0.7f),
+            markStyle = ProviderMarkStyle.Plain,
         )
 
         AuthProviderButton(
             title = stringResource(R.string.auth_continue_google),
-            mark = "G",
+            mark = "g",
             onClick = onGoogleSignIn,
             isLoading = uiState.isSigningInWithGoogle,
             enabled = !uiState.isSigningInWithApple && !isEmailBusy,
@@ -651,6 +653,7 @@ private fun AuthProviderButton(
     contentColor: Color,
     borderColor: Color,
     modifier: Modifier = Modifier,
+    markStyle: ProviderMarkStyle = ProviderMarkStyle.Circle,
 ) {
     Button(
         onClick = onClick,
@@ -683,18 +686,32 @@ private fun AuthProviderButton(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(contentColor.copy(alpha = if (contentColor == Color.Black) 0.08f else 0.12f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = mark,
-                            color = contentColor,
-                            style = MaterialTheme.typography.labelLarge,
-                        )
+                    when (markStyle) {
+                        ProviderMarkStyle.Circle -> {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(contentColor.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = mark,
+                                    color = contentColor,
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
+                        }
+
+                        ProviderMarkStyle.Plain -> {
+                            Text(
+                                text = mark,
+                                modifier = Modifier.width(24.dp),
+                                color = contentColor,
+                                style = MaterialTheme.typography.titleSmall,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                     }
                     androidx.compose.foundation.layout.Spacer(Modifier.width(CzSpacing.sm))
                     Text(
@@ -705,6 +722,11 @@ private fun AuthProviderButton(
             }
         }
     }
+}
+
+private enum class ProviderMarkStyle {
+    Circle,
+    Plain,
 }
 
 @Composable
@@ -874,7 +896,7 @@ private fun EmailAuthForm(
                 )
             } else {
                 Text(
-                    text = stringResource(if (mode == EmailMode.SignIn) R.string.auth_sign_in else R.string.auth_create_account),
+                    text = stringResource(if (mode == EmailMode.SignIn) R.string.auth_sign_in_cta else R.string.auth_create_account),
                     style = MaterialTheme.typography.titleSmall,
                 )
             }
@@ -897,6 +919,7 @@ private fun EmailAuthForm(
                 Text(
                     text = stringResource(if (isSendingReset) R.string.auth_sending else R.string.auth_forgot_password),
                     style = MaterialTheme.typography.labelMedium,
+                    textDecoration = TextDecoration.Underline,
                 )
             }
         }

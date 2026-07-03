@@ -1,6 +1,7 @@
 package fr.ziyon.campzone.ui.schedule.food
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -60,6 +62,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.Modifier
@@ -99,12 +102,14 @@ fun FoodMenuRoute(
     authenticatedUser: AuthenticatedUser,
     onBack: () -> Unit,
     onOpenEditor: (entryId: String?) -> Unit,
+    onOpenAttendee: (String) -> Unit = {},
     viewModel: FoodMenuViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val canManage by viewModel.canManageFoodMenu.collectAsState()
     val operationError by viewModel.operationError.collectAsState()
     val operationMessage by viewModel.operationMessage.collectAsState()
+    val participantAllergies by viewModel.participantAllergies.collectAsState()
     val foodAllergies = authenticatedUser.allergies.filter { CommonAllergy.fromWire(it)?.isFood != false }
 
     LaunchedEffect(campingId) { viewModel.loadIfNeeded(campingId, authenticatedUser) }
@@ -114,6 +119,7 @@ fun FoodMenuRoute(
         canManageFoodMenu = canManage,
         daySections = viewModel.daySections(),
         userAllergies = foodAllergies,
+        participantAllergies = participantAllergies,
         operationError = operationError,
         operationMessage = operationMessage,
         onBack = onBack,
@@ -126,6 +132,7 @@ fun FoodMenuRoute(
             onOpenEditor(entry.id)
         },
         onDeleteEntry = { entryId -> viewModel.deleteEntry(entryId, campingId) },
+        onOpenAttendee = onOpenAttendee,
         onRetry = { viewModel.load(campingId, authenticatedUser) },
         onClearError = viewModel::clearOperationError,
         onClearMessage = viewModel::clearOperationMessage,
@@ -139,12 +146,14 @@ fun FoodMenuScreen(
     canManageFoodMenu: Boolean,
     daySections: List<FoodMenuDaySection>,
     userAllergies: List<String> = emptyList(),
+    participantAllergies: List<ParticipantAllergySummary> = emptyList(),
     operationError: String?,
     operationMessage: String?,
     onBack: () -> Unit,
     onAddEntry: () -> Unit,
     onEditEntry: (FoodMenuEntry) -> Unit,
     onDeleteEntry: (String) -> Unit,
+    onOpenAttendee: (String) -> Unit = {},
     onRetry: () -> Unit,
     onClearError: () -> Unit,
     onClearMessage: () -> Unit,
@@ -152,7 +161,17 @@ fun FoodMenuScreen(
 ) {
     val colors = MaterialTheme.czColors
     val addMenuDescription = stringResource(R.string.schedule_add_menu_cd)
+    val participantAllergyDescription = stringResource(R.string.food_menu_participant_allergies)
     val snackbarHostState = remember { SnackbarHostState() }
+    var showParticipantAllergies by remember { mutableStateOf(false) }
+
+    if (showParticipantAllergies) {
+        ParticipantAllergyDialog(
+            summaries = participantAllergies,
+            onOpenAttendee = onOpenAttendee,
+            onDismiss = { showParticipantAllergies = false },
+        )
+    }
 
     LaunchedEffect(operationMessage) {
         if (operationMessage != null) {
@@ -192,6 +211,18 @@ fun FoodMenuScreen(
                 },
                 actions = {
                     if (canManageFoodMenu) {
+                        IconButton(
+                            onClick = { showParticipantAllergies = true },
+                            modifier = Modifier.semantics {
+                                contentDescription = participantAllergyDescription
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.WarningAmber,
+                                contentDescription = null,
+                                tint = colors.amber,
+                            )
+                        }
                         IconButton(
                             onClick = onAddEntry,
                             modifier = Modifier.semantics { contentDescription = addMenuDescription },
@@ -249,6 +280,7 @@ fun FoodMenuScreen(
                 is FoodMenuUiState.Loaded -> FoodMenuContent(
                     daySections = daySections,
                     userAllergies = userAllergies,
+                    participantAllergies = participantAllergies,
                     canManage = canManageFoodMenu,
                     onEditEntry = onEditEntry,
                     onDeleteEntry = onDeleteEntry,
@@ -262,6 +294,7 @@ fun FoodMenuScreen(
 private fun FoodMenuContent(
     daySections: List<FoodMenuDaySection>,
     userAllergies: List<String>,
+    participantAllergies: List<ParticipantAllergySummary>,
     canManage: Boolean,
     onEditEntry: (FoodMenuEntry) -> Unit,
     onDeleteEntry: (String) -> Unit,
@@ -316,6 +349,34 @@ private fun FoodMenuContent(
             }
         }
 
+        if (canManage && participantAllergies.isNotEmpty()) {
+            Surface(
+                color = MaterialTheme.czColors.amber.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(CzRadius.lg),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.xs),
+            ) {
+                Row(
+                    modifier = Modifier.padding(CzSpacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                ) {
+                    Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = MaterialTheme.czColors.amber)
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.food_menu_participant_allergy_count,
+                            participantAllergies.size,
+                            participantAllergies.size,
+                        ),
+                        color = MaterialTheme.czColors.textPrimary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+
         LazyRow(
             contentPadding = PaddingValues(horizontal = CzSpacing.lg),
             horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
@@ -349,6 +410,91 @@ private fun FoodMenuContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ParticipantAllergyDialog(
+    summaries: List<ParticipantAllergySummary>,
+    onOpenAttendee: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.food_menu_participant_allergies)) },
+        text = {
+            if (summaries.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.food_menu_no_participant_allergies),
+                    color = MaterialTheme.czColors.textSecondary,
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp),
+                    verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                ) {
+                    items(summaries, key = { it.attendeeId }) { summary ->
+                        ParticipantAllergyRow(
+                            summary = summary,
+                            onClick = {
+                                onDismiss()
+                                onOpenAttendee(summary.attendeeId)
+                            },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_done))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ParticipantAllergyRow(
+    summary: ParticipantAllergySummary,
+    onClick: () -> Unit,
+) {
+    val locale = LocalLocale.current.platformLocale
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CzRadius.md))
+            .clickable(onClick = onClick)
+            .background(MaterialTheme.czColors.surface)
+            .padding(CzSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.czColors.amber.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = summary.attendeeName.trim().take(1).uppercase(locale),
+                color = MaterialTheme.czColors.amber,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+        ) {
+            Text(
+                text = summary.attendeeName,
+                color = MaterialTheme.czColors.textPrimary,
+                fontWeight = FontWeight.SemiBold,
+            )
+            AllergyChips(tokens = summary.allergies)
+        }
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.czColors.textSecondary)
     }
 }
 

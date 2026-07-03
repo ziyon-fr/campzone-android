@@ -481,8 +481,21 @@ sealed interface AppRoute {
         override val route = "${CampingPackingChecklist(campingId).route}/${AppRoutePath.CampingEdit}"
     }
 
-    data class CampingPackingShareImport(val campingId: String, val shareId: String) : AppRoute {
-        override val route = "${CampingPackingChecklist(campingId).route}/${AppRoutePath.PackingShare}/${shareId.asRouteSegment()}"
+    data class CampingPackingShareImport(
+        val campingId: String,
+        val shareId: String,
+        val registrationId: String? = null,
+    ) : AppRoute {
+        override val route = buildString {
+            append(CampingPackingChecklist(campingId).route)
+            append("/")
+            append(AppRoutePath.PackingShare)
+            append("/")
+            append(shareId.asRouteSegment())
+            registrationId?.takeUnless { it.isBlank() }?.let {
+                append("?${AppRouteArgs.RegistrationId}=${it.asRouteSegment()}")
+            }
+        }
     }
 
     data class CampingGames(val campingId: String) : AppRoute {
@@ -691,7 +704,8 @@ internal object AppRoutePattern {
     const val CampingGuidelines = "$CampingDetail/${AppRoutePath.Guidelines}"
     const val CampingPackingChecklist = "$CampingDetail/${AppRoutePath.PackingChecklist}"
     const val CampingPackingChecklistEditor = "$CampingPackingChecklist/${AppRoutePath.CampingEdit}"
-    const val CampingPackingShareImport = "$CampingPackingChecklist/${AppRoutePath.PackingShare}/{${AppRouteArgs.ShareId}}"
+    const val CampingPackingShareImport =
+        "$CampingPackingChecklist/${AppRoutePath.PackingShare}/{${AppRouteArgs.ShareId}}?${AppRouteArgs.RegistrationId}={${AppRouteArgs.RegistrationId}}"
     const val CampingSupport = "$CampingDetail/${AppRoutePath.Support}"
     const val AnnouncementComposer = "${AppRoutePath.Announcements}/${AppRoutePath.AnnouncementComposer}"
     const val CampingGames = "$CampingDetail/${AppRoutePath.Games}"

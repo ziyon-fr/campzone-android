@@ -155,7 +155,9 @@ class FirestoreVehicleService @Inject constructor(
         registrationId: String,
         name: String,
     ): CampingVehicle {
-        val updated = VehicleMutation.addingPassenger(vehicle(campingId, vehicleId), registrationId, name)
+        val current = vehicle(campingId, vehicleId)
+        ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
+        val updated = VehicleMutation.addingPassenger(current, registrationId, name)
         return updateVehicle(updated)
     }
 
@@ -165,7 +167,17 @@ class FirestoreVehicleService @Inject constructor(
         registrationId: String,
     ): CampingVehicle {
         val updated = VehicleMutation.removingPassenger(vehicle(campingId, vehicleId), registrationId)
-        return updateVehicle(updated)
+        collection(campingId).document(vehicleId)
+            .set(
+                VehiclePayload.passengerPayload(
+                    vehicle = updated,
+                    serverTimestamp = FieldValue.serverTimestamp(),
+                    deleteField = FieldValue.delete(),
+                ),
+                SetOptions.merge(),
+            )
+            .await()
+        return vehicle(campingId, vehicleId)
     }
 
     override suspend fun requestJoin(
@@ -174,7 +186,9 @@ class FirestoreVehicleService @Inject constructor(
         registrationId: String,
         name: String,
     ): CampingVehicle {
-        val updated = VehicleMutation.addingPending(vehicle(campingId, vehicleId), registrationId, name)
+        val current = vehicle(campingId, vehicleId)
+        ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
+        val updated = VehicleMutation.addingPending(current, registrationId, name)
         collection(campingId).document(vehicleId)
             .set(VehiclePayload.pendingPayload(updated, FieldValue.serverTimestamp()), SetOptions.merge())
             .await()
@@ -199,6 +213,7 @@ class FirestoreVehicleService @Inject constructor(
         registrationId: String,
     ): CampingVehicle {
         val vehicle = vehicle(campingId, vehicleId)
+        ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
         val name = vehicle.pendingPassengers.firstOrNull { it.id == registrationId }?.name.orEmpty()
         return updateVehicle(VehicleMutation.addingPassenger(vehicle, registrationId, name))
     }
@@ -237,7 +252,7 @@ class FirestoreVehicleService @Inject constructor(
             .await()
             .documents
             .mapNotNull { it.data?.toCampingVehicleOrNull(it.id) }
-            .filter { it.status != VehicleStatus.Cancelled && it.availableSeats > 0 }
+            .filter { it.status != VehicleStatus.Cancelled && it.offeredSeatCount > 0 }
             .sortedForVehicleDisplay()
 
     override suspend fun peopleNeedingTransport(campingId: String): List<CampingAttendee> =
@@ -250,6 +265,21 @@ class FirestoreVehicleService @Inject constructor(
             .documents
             .mapNotNull { it.data?.toCampingAttendeeOrNull(it.id) }
             .sortedBy { it.displayName.lowercase() }
+
+    private suspend fun ensureNoAssignmentConflict(
+        campingId: String,
+        registrationIds: List<String>,
+        excludingVehicleId: String?,
+    ) {
+        val vehicles = collection(campingId)
+            .get()
+            .await()
+            .documents
+            .mapNotNull { it.data?.toCampingVehicleOrNull(it.id) }
+        if (VehicleMutation.hasActiveAssignmentConflict(vehicles, registrationIds, excludingVehicleId)) {
+            error("This participant is already assigned to another car.")
+        }
+    }
 
     private fun collection(campingId: String) = firestore
         .collection(Collection.Campings)
@@ -400,8 +430,10 @@ class FakeVehicleService(
         vehicleId: String,
         registrationId: String,
         name: String,
-    ): CampingVehicle =
-        updateVehicle(VehicleMutation.addingPassenger(vehicle(campingId, vehicleId), registrationId, name))
+    ): CampingVehicle {
+        ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
+        return updateVehicle(VehicleMutation.addingPassenger(vehicle(campingId, vehicleId), registrationId, name))
+    }
 
     override suspend fun removePassenger(
         campingId: String,
@@ -415,8 +447,10 @@ class FakeVehicleService(
         vehicleId: String,
         registrationId: String,
         name: String,
-    ): CampingVehicle =
-        updateVehicle(VehicleMutation.addingPending(vehicle(campingId, vehicleId), registrationId, name))
+    ): CampingVehicle {
+        ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
+        return updateVehicle(VehicleMutation.addingPending(vehicle(campingId, vehicleId), registrationId, name))
+    }
 
     override suspend fun withdrawJoinRequest(
         campingId: String,
@@ -427,6 +461,7 @@ class FakeVehicleService(
 
     override suspend fun approvePassenger(campingId: String, vehicleId: String, registrationId: String): CampingVehicle {
         val vehicle = vehicle(campingId, vehicleId)
+        ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
         val name = vehicle.pendingPassengers.firstOrNull { it.id == registrationId }?.name.orEmpty()
         return updateVehicle(VehicleMutation.addingPassenger(vehicle, registrationId, name))
     }
@@ -457,7 +492,7 @@ class FakeVehicleService(
     override suspend fun vehiclesWithAvailableSeats(campingId: String): List<CampingVehicle> {
         checkFailure()
         return store.values
-            .filter { it.campingId == campingId && it.status != VehicleStatus.Cancelled && it.hasAvailableSeats && it.availableSeats > 0 }
+            .filter { it.campingId == campingId && it.status != VehicleStatus.Cancelled && it.offeredSeatCount > 0 }
             .sortedForVehicleDisplay()
     }
 
@@ -468,6 +503,17 @@ class FakeVehicleService(
 
     private fun checkFailure() {
         if (shouldFail) error("Vehicle service failed.")
+    }
+
+    private fun ensureNoAssignmentConflict(
+        campingId: String,
+        registrationIds: List<String>,
+        excludingVehicleId: String?,
+    ) {
+        val vehicles = store.values.filter { it.campingId == campingId }
+        if (VehicleMutation.hasActiveAssignmentConflict(vehicles, registrationIds, excludingVehicleId)) {
+            error("This participant is already assigned to another car.")
+        }
     }
 }
 

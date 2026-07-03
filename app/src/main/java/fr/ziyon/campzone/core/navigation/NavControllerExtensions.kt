@@ -108,7 +108,13 @@ fun NavHostController.navigateToDeepLink(deepLink: CampzoneDeepLink) {
         is CampzoneDeepLink.PackingShare -> {
             selectTabForDeepLink(AppRoute.Campings)
             navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
-            navigateTyped(AppRoute.CampingPackingShareImport(deepLink.campingId, deepLink.shareId))
+            navigateTyped(
+                AppRoute.CampingPackingShareImport(
+                    campingId = deepLink.campingId,
+                    shareId = deepLink.shareId,
+                    registrationId = deepLink.registrationId,
+                ),
+            )
         }
     }
 }

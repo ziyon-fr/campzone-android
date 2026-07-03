@@ -92,6 +92,27 @@ class CampingPayloadTest {
     }
 
     @Test
+    fun organizerLevelValueIsTrimmedOnEncodeAndDecode() {
+        val payload = CampingPayload.campingPayload(
+            camping = fullCamping().copy(
+                organizerLevel = OrganizerLevel(OrganizerType.Regional, "  South Region  "),
+            ),
+            serverTimestamp = TS,
+            deleteField = DEL,
+            includeCreatedAt = false,
+        )
+
+        assertEquals(
+            mapOf("type" to "regional", "value" to "South Region"),
+            payload["organizerLevel"],
+        )
+
+        val decoded = payload.toCampingOrNull("summer-2026")!!
+        assertEquals(OrganizerLevel(OrganizerType.Regional, "South Region"), decoded.organizerLevel)
+        assertTrue(decoded.organizerLevel.hasOrganizationName)
+    }
+
+    @Test
     fun registrationDeadlineWritesWhenSetAndDeletesWhenNil() {
         val deadline = Date(5_000_000)
         val withDeadline = CampingPayload.campingPayload(

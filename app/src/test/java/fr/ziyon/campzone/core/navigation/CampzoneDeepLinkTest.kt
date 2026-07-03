@@ -200,6 +200,17 @@ class CampzoneDeepLinkTest {
                 mapOf("type" to "team_update", "campingID" to "c1", "teamID" to "t1"),
             ),
         )
+        assertEquals(
+            CampzoneDeepLink.PackingShare("c1", "share-1", "child-emma"),
+            CampzoneDeepLink.fromPayload(
+                mapOf(
+                    "type" to "checklist",
+                    "campingID" to "c1",
+                    "shareID" to "share-1",
+                    "actionSubjectRegistrationID" to "child-emma",
+                ),
+            ),
+        )
     }
 
     @Test
@@ -219,6 +230,16 @@ class CampzoneDeepLinkTest {
         assertEquals(
             CampzoneDeepLink.ScheduleProgram("c1", "program-1"),
             CampzoneDeepLink.fromPayload(mapOf("programID" to "program-1", "campingID" to "c1")),
+        )
+        assertEquals(
+            CampzoneDeepLink.PackingShare("c1", "share-1", "child-emma"),
+            CampzoneDeepLink.fromPayload(
+                mapOf(
+                    "campingID" to "c1",
+                    "packingShareID" to "share-1",
+                    "actionSubjectRegistrationID" to "child-emma",
+                ),
+            ),
         )
         assertEquals(
             CampzoneDeepLink.Camping("c1"),
@@ -294,6 +315,19 @@ class CampzoneDeepLinkTest {
         assertEquals(
             link,
             CampzoneDeepLink.fromCampzoneUrl("campzone://packing-share/share-1?c=camp-1"),
+        )
+
+        val familyLink = CampzoneDeepLink.PackingShare("camp-1", "share-1", "child-emma")
+        assertEquals(
+            "https://campzone-web.vercel.app/packing-share/share-1?c=camp-1&registrationID=child-emma",
+            familyLink.canonicalShareUrlOrNull(),
+        )
+        assertEquals(familyLink, CampzoneDeepLink.fromCampzoneUrl(familyLink.canonicalShareUrlOrNull()))
+        assertEquals(
+            familyLink,
+            CampzoneDeepLink.fromCampzoneUrl(
+                "campzone://packing-share/share-1?c=camp-1&registrationID=child-emma",
+            ),
         )
     }
 }

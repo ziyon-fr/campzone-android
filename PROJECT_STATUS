@@ -1,3 +1,139 @@
+# Project Status - My QR Passes iOS parity fix
+
+Updated: 2026-07-02
+
+- Source of truth audited: Android `CLAUDE.md`, required shared docs, and iOS
+  `Features/CheckIn/View/CheckInQRView.swift` plus
+  `Features/CheckIn/View/BookingTickets.swift`.
+- Updated Android My QR Passes to match the iOS structure: status banner first,
+  Arrival Check-In section with a single card or horizontal family-pass pager,
+  transportation ticket section with loading/error/empty handling and
+  single-card or horizontal ticket pager, then the embedded My Transportation
+  and My Lodging cards.
+- Adjusted pass visuals toward iOS by using compact leading participant badges,
+  iOS-style pager dots, localized `Tickets` / loading copy in EN/FR/PT/PT-BR,
+  and removing the extra instruction card that is not rendered by the current
+  iOS screen.
+- Verification (Android Studio JBR): `:app:compileDebugKotlin`,
+  `:app:lintDebug`, and `git diff --check` passed. Device screenshot
+  comparison against iOS remains the final visual parity check.
+
+---
+
+# Project Status - Vehicle offers, passenger removal, and Food Menu allergy parity
+
+Updated: 2026-07-02
+
+- Source of truth audited: Android `CLAUDE.md`, the shared docs/tracker, current
+  iOS `CampingVehicle`, `VehicleObserver`, `VehicleService`,
+  `VehicleFormView`, `MyTransportationView`, `FoodMenuView`,
+  `ParticipantAllergyListView`, `AppNotification`, `CampzoneDeepLink`,
+  `PackingShareImportView`, team reassignment helpers, organizer-level
+  validation, and Firestore RBAC tests.
+- Ported the iOS vehicle carpool offer contract into Android. `offeredSeats`
+  is now decoded, derived with legacy fallback, clamped, consumed/restored by
+  passenger mutations, written/deleted by create/update/cancel payloads, used by
+  open-seat queries/dashboard counts, exposed in the vehicle form, localized in
+  EN/FR/PT/PT-BR, and documented in the Firestore/RBAC docs.
+- Patched the vehicle passenger contract on both platforms: an approved
+  passenger can now leave their assigned car from My Transportation, while the
+  car driver and camp managers keep the existing remove-passenger controls.
+  Passenger removal writes a narrow passenger-array/seat-count payload, and
+  Firestore rules allow signed-in passengers to remove only their own approved
+  seat.
+- Add/request/approve paths now reject a registration already claimed by another
+  active vehicle as driver, approved passenger, or pending requester. Normal
+  vehicle creation screens filter already-claimed family members and block
+  duplicate loaded-state creates; registration-time own-car creation remains a
+  single write for pending-registration compatibility.
+- Exposed the iOS manager participant-allergy list in Android Food Menu: the
+  top bar shows an allergy action for managers, the screen surfaces a
+  participant restriction count, the dialog lists attendees with food-relevant
+  allergy chips, and rows navigate into attendee profiles.
+- Confirmed the current Android code already matches the iOS checklist-share
+  notification/deep-link subject-registration fallback, pending team
+  reassignment/add-member behavior, organizer-level normalization/validation,
+  allergy multi-select stale-selection fix, and Songbook parser/performance
+  entries tracked on 2026-07-01.
+- Fixed errors found during verification: Android lint's non-observable locale
+  read in the new Food Menu allergy row, iOS trailing-whitespace diff-check
+  failures, and an iOS Food Menu accessibility typo.
+- Verification (Android Studio JBR + iPhone 17 simulator): focused
+  `VehicleModelTest`/`VehicleUiStateTest`, full `:app:testDebugUnitTest`,
+  `:app:assembleDebug`, `:app:lintDebug`, Android `git diff --check`, iOS app
+  build, targeted iOS unit slices for notifications/camping/chords/packing/
+  vehicles, iOS `Localizable.xcstrings` JSON parse, iOS `git diff --check`, and
+  Firebase RBAC tests all passed for the vehicle-offer/Food Menu pass. The
+  passenger self-removal follow-up passed focused Android vehicle tests,
+  Firebase RBAC tests, targeted iOS vehicle tests, Android XML validation, iOS
+  localization JSON validation, and scoped Android/iOS diff checks. Device
+  visual checks for the new Food Menu manager allergy dialog and full
+  transportation workflows remain in tracker `VERIFY`.
+
+---
+
+# Project Status - Songbook chord parser, performance, and layout parity
+
+Updated: 2026-07-01
+
+- Source of truth audited: Android `CLAUDE.md`, shared docs/tracker, iOS
+  `ChordParser.swift`, `ChordSymbolParser` behavior from the WorshipPlus port,
+  `SmoothScrollView.swift`, and `ChordsPerformanceView.swift`.
+- Replaced Android's permissive Songbook chord recognition with a stricter
+  `ChordSymbolParser` used by `ChordProParser` for inline ChordPro tokens,
+  chord-only lines, section headers with trailing chords, validation, and
+  transposition. Worship-style symbols such as `D4`, `Bb2/D`,
+  `C7(b9,#11)`, `F#7(5+)`, `C6/9`, `G7alt`, `Eø7`, and `Cno3` now parse
+  without eating lyric fragments such as `D/Amazing`.
+- Matched the iOS performance fix by driving Android auto-scroll from Compose
+  frame timestamps and accumulating fractional pixels, so speeds below `0.4x`
+  keep moving instead of appearing stuck.
+- Added the iOS-equivalent full-screen performance option: the normal chords
+  view opens a full-screen dialog with the current transpose and speed, hides
+  the normal top chrome, and provides a close control.
+- Fixed the Android layout bugs shown in the 2026-07-01 screenshots: the
+  full-screen performance dialog now hides/restores Android system bars, applies
+  safe drawing insets, reserves top space for the close button, and keeps the
+  close button from covering the transpose controls.
+- The auto-scroll controls now reserve their own bottom row instead of floating
+  over the currently visible chord text, and the speed control uses a compact
+  custom slider with a thinner track/smaller thumb instead of the oversized
+  Material slider.
+- Verification (Android Studio JBR): focused `ChordProParserTest`,
+  focused `SongbookViewModelTest`, full `:app:testDebugUnitTest`,
+  `:app:lintDebug`, `:app:assembleDebug`, and `git diff --check` passed for the
+  parser/performance change. After the screenshot-driven layout follow-up,
+  `:app:compileDebugKotlin`, `:app:lintDebug`, `:app:assembleDebug`, and
+  `git diff --check` passed. Real-device visual comparison for full-screen
+  performance and very-low-speed scrolling remains a device/UI parity check.
+
+---
+
+# Project Status - Allergy multi-select parity fix
+
+Updated: 2026-07-01
+
+- Source of truth audited: Android `CLAUDE.md`, required shared contract docs,
+  iOS `AllergiesEditor.swift` / `Allergy.swift`, and the Android profile,
+  family, registration, profile-payload, and food-menu allergen paths.
+- Fixed the shared Android `AllergiesEditor` so preset/custom allergy taps merge
+  against the latest in-component selection before emitting to the parent. This
+  preserves multiple allergy selections in profile and family editors even when
+  chips are tapped before the parent recomposes.
+- Applied the same stale-selection guard to the Food Menu allergen dialog, so
+  multiple dish allergens can be added/removed without replacing the previous
+  chip from an older composition snapshot.
+- Corrected `docs/02-firestore-schema.md` denormalization table to list
+  `allergies` in the registration profile fan-out, matching `docs/07`, the
+  existing Android payload tests, and the iOS profile service.
+- Verification (Android Studio JBR): focused `AllergyTest` and
+  `UserProfilePayloadTest`, `:app:compileDebugKotlin`, `:app:lintDebug`,
+  `:app:assembleDebug`, and `git diff --check` passed. A plain Gradle test run
+  without `JAVA_HOME` still fails on this machine because no default Java
+  runtime is discoverable.
+
+---
+
 # Project Status - Splash camp-scene iOS parity rewrite
 
 Updated: 2026-06-29
@@ -1339,3 +1475,30 @@ report model were already shipped; D7 reuses them.
   - Translatable EN/FR/PT/PT-BR string-key parity SUCCESSFUL.
   - Full `./gradlew testDebugUnitTest --console=plain` SUCCESSFUL.
   - `./gradlew lintDebug assembleDebug --console=plain` SUCCESSFUL.
+
+---
+
+# Project Status - Family-Member Notification Routing
+
+- Updated: 2026-07-01 CEST
+- Branch/worktree: continued on existing dirty checkout
+  `venue-map-games-locations-instructions`; unrelated dirty files were
+  preserved.
+- Source of truth checked: `CLAUDE.md`, shared notification/deep-link docs,
+  iOS `CampzoneDeepLink`/notification/transportation routing, and the
+  notification backend dispatch service.
+- Scope shipped:
+  - Android notification/deeplink routing now preserves three identities for
+    family-targeted actions: notification recipient (`recipientUserID`),
+    action subject (`registrationID`/`actionSubjectRegistrationID`), and the
+    active app user.
+  - Checklist notifications accept `checklist`/`packing_share` payloads,
+    carry `shareID`/`packingShareID`, and import into the child registration's
+    checklist when a family subject is present.
+  - Transportation invitation deeplinks now resolve the child attendee only for
+    guardian-actionable invitation routes; ordinary transport and request flows
+    continue to use the signed-in user's own attendee.
+  - Updated `docs/02`, `docs/03`, `docs/04`, and `docs/05` with the family
+    notification/action-subject contract.
+- Verification (JAVA_HOME = Android Studio JBR):
+  - `./gradlew testDebugUnitTest --tests 'fr.ziyon.campzone.core.navigation.CampzoneDeepLinkTest' --tests 'fr.ziyon.campzone.data.model.AppNotificationDeepLinkTest' --tests 'fr.ziyon.campzone.data.model.AppNotificationTest' --tests 'fr.ziyon.campzone.data.model.EnumWireValueTest' --tests 'fr.ziyon.campzone.ui.vehicle.VehicleUiStateTest' --console=plain` SUCCESSFUL.

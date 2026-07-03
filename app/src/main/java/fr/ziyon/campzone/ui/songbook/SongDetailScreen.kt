@@ -1,5 +1,8 @@
 package fr.ziyon.campzone.ui.songbook
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -21,11 +24,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -47,6 +52,8 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.SlowMotionVideo
 import androidx.compose.material.icons.rounded.TextIncrease
@@ -62,18 +69,19 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
@@ -87,6 +95,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -95,6 +105,8 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzRadius
@@ -107,8 +119,11 @@ import fr.ziyon.campzone.data.model.Song
 import fr.ziyon.campzone.data.model.SongAudio
 import fr.ziyon.campzone.data.model.SongLyricsPart
 import fr.ziyon.campzone.data.model.SongLyricsPartKind
-import kotlinx.coroutines.delay
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private enum class SongDisplayMode(@param:androidx.annotation.StringRes val titleRes: Int) {
     Lyrics(R.string.songbook_lyrics),
@@ -736,80 +751,228 @@ private fun ChordsPanel(song: Song, textSize: Float) {
             .distinct()
             .sorted()
     }
-    val scrollState = rememberScrollState()
     var transposeOffset by remember(song.id) { mutableStateOf(0) }
-    var isAutoScrolling by remember(song.id) { mutableStateOf(false) }
     var scrollSpeed by remember(song.id) { mutableFloatStateOf(1f) }
+    var isFullScreen by remember(song.id) { mutableStateOf(false) }
     val keyName = song.chordSheet.originalKey.ifBlank { "C" }
 
-    LaunchedEffect(isAutoScrolling, scrollSpeed, scrollState.maxValue) {
-        while (isAutoScrolling) {
-            if (scrollState.value >= scrollState.maxValue) {
-                isAutoScrolling = false
-            } else {
-                scrollState.scrollBy(28f * scrollSpeed / 10f)
-                delay(100)
+    ChordsPerformanceContent(
+        lines = lines,
+        uniqueChords = uniqueChords,
+        rawChords = song.chords,
+        textSize = textSize,
+        keyName = keyName,
+        transposeOffset = transposeOffset,
+        onTranspose = { delta -> transposeOffset = (transposeOffset + delta).coerceIn(-12, 12) },
+        scrollSpeed = scrollSpeed,
+        onSpeedChange = { scrollSpeed = it },
+        isFullScreen = false,
+        onEnterFullScreen = { isFullScreen = true },
+    )
+
+    if (isFullScreen) {
+        Dialog(
+            onDismissRequest = { isFullScreen = false },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false,
+            ),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(colors.background),
+            ) {
+                ChordsPerformanceContent(
+                    lines = lines,
+                    uniqueChords = uniqueChords,
+                    rawChords = song.chords,
+                    textSize = textSize,
+                    keyName = keyName,
+                    transposeOffset = transposeOffset,
+                    onTranspose = { delta -> transposeOffset = (transposeOffset + delta).coerceIn(-12, 12) },
+                    scrollSpeed = scrollSpeed,
+                    onSpeedChange = { scrollSpeed = it },
+                    isFullScreen = true,
+                    onExitFullScreen = { isFullScreen = false },
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun ChordsPerformanceContent(
+    lines: List<ChordLine>,
+    uniqueChords: List<String>,
+    rawChords: String,
+    textSize: Float,
+    keyName: String,
+    transposeOffset: Int,
+    onTranspose: (Int) -> Unit,
+    scrollSpeed: Float,
+    onSpeedChange: (Float) -> Unit,
+    isFullScreen: Boolean,
+    onEnterFullScreen: (() -> Unit)? = null,
+    onExitFullScreen: (() -> Unit)? = null,
+) {
+    val colors = MaterialTheme.czColors
+    val scrollState = rememberScrollState()
+    val density = LocalDensity.current
+    val safeDrawingPadding = WindowInsets.safeDrawing.asPaddingValues()
+    val topInset = if (isFullScreen) safeDrawingPadding.calculateTopPadding().coerceAtLeast(CzSpacing.lg) else 0.dp
+    val bottomInset = if (isFullScreen) safeDrawingPadding.calculateBottomPadding().coerceAtLeast(CzSpacing.sm) else 0.dp
+    val fullScreenTopReserve = if (isFullScreen) topInset + 58.dp else 0.dp
+    var isAutoScrolling by remember(isFullScreen) { mutableStateOf(false) }
+    val pixelsPerSecond = with(density) { 28.dp.toPx() } * scrollSpeed
+
+    FullScreenSystemBarsEffect(enabled = isFullScreen)
+
+    LaunchedEffect(isAutoScrolling, pixelsPerSecond, scrollState.maxValue) {
+        var lastFrameNanos: Long? = null
+        var pendingScrollPixels = 0f
+
+        while (isAutoScrolling) {
+            if (scrollState.maxValue <= 0 || scrollState.value >= scrollState.maxValue) {
+                isAutoScrolling = false
+                break
+            }
+
+            val frameNanos = withFrameNanos { it }
+            val elapsedSeconds = lastFrameNanos
+                ?.let { ((frameNanos - it) / 1_000_000_000f).coerceIn(0f, 0.1f) }
+                ?: (1f / 60f)
+            lastFrameNanos = frameNanos
+
+            pendingScrollPixels += pixelsPerSecond * elapsedSeconds
+            if (pendingScrollPixels < 1f) continue
+
+            scrollState.scrollBy(pendingScrollPixels)
+            pendingScrollPixels = 0f
         }
     }
 
     Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.md),
-            verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
+                .fillMaxSize(),
         ) {
-            TransposeBar(
-                keyName = keyName,
-                transposeOffset = transposeOffset,
-                onTranspose = { delta -> transposeOffset = (transposeOffset + delta).coerceIn(-12, 12) },
-            )
-
-            if (uniqueChords.isEmpty()) {
-                Text(
-                    text = song.chords.ifBlank { stringResource(R.string.songbook_no_chord_sheet) },
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = textSize.sp,
-                    color = if (song.chords.isBlank()) colors.textSecondary else colors.textPrimary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(CzRadius.md))
-                        .background(colors.surface)
-                        .padding(CzSpacing.md),
-                )
-            } else {
-                ChordStrip(
-                    chords = uniqueChords,
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = CzSpacing.lg)
+                    .padding(
+                        top = CzSpacing.md + fullScreenTopReserve,
+                        bottom = CzSpacing.lg,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
+            ) {
+                TransposeBar(
+                    keyName = keyName,
                     transposeOffset = transposeOffset,
-                    originalKey = keyName,
+                    onTranspose = onTranspose,
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-                    lines.forEach { line ->
-                        RenderedChordLine(
-                            line = line,
-                            textSize = textSize,
-                            transposeOffset = transposeOffset,
-                            originalKey = keyName,
-                        )
+
+                if (uniqueChords.isEmpty()) {
+                    Text(
+                        text = rawChords.ifBlank { stringResource(R.string.songbook_no_chord_sheet) },
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = textSize.sp,
+                        color = if (rawChords.isBlank()) colors.textSecondary else colors.textPrimary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(CzRadius.md))
+                            .background(colors.surface)
+                            .padding(CzSpacing.md),
+                    )
+                } else {
+                    ChordStrip(
+                        chords = uniqueChords,
+                        transposeOffset = transposeOffset,
+                        originalKey = keyName,
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+                        lines.forEach { line ->
+                            RenderedChordLine(
+                                line = line,
+                                textSize = textSize,
+                                transposeOffset = transposeOffset,
+                                originalKey = keyName,
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(Modifier.height(96.dp))
+            AutoScrollBar(
+                isAutoScrolling = isAutoScrolling,
+                scrollSpeed = scrollSpeed,
+                onToggle = { isAutoScrolling = !isAutoScrolling },
+                onSpeedChange = onSpeedChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = CzSpacing.base)
+                    .padding(bottom = CzSpacing.sm + bottomInset),
+                showFullScreenButton = !isFullScreen && onEnterFullScreen != null,
+                onEnterFullScreen = {
+                    isAutoScrolling = false
+                    onEnterFullScreen?.invoke()
+                },
+            )
         }
 
-        AutoScrollBar(
-            isAutoScrolling = isAutoScrolling,
-            scrollSpeed = scrollSpeed,
-            onToggle = { isAutoScrolling = !isAutoScrolling },
-            onSpeedChange = { scrollSpeed = it },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = CzSpacing.base, vertical = CzSpacing.sm),
-        )
+        if (isFullScreen && onExitFullScreen != null) {
+            IconButton(
+                onClick = {
+                    isAutoScrolling = false
+                    onExitFullScreen()
+                },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = topInset + CzSpacing.sm, end = CzSpacing.lg)
+                    .size(46.dp)
+                    .shadow(12.dp, CircleShape)
+                    .clip(CircleShape)
+                    .background(colors.card)
+                    .border(BorderStroke(1.dp, colors.divider), CircleShape),
+            ) {
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = stringResource(R.string.songbook_exit_full_screen_performance),
+                    tint = colors.textPrimary,
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun FullScreenSystemBarsEffect(enabled: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(enabled, view) {
+        if (!enabled) {
+            onDispose {}
+        } else {
+            val window = view.context.findActivity()?.window
+            val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+            val previousBehavior = controller?.systemBarsBehavior
+            controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller?.hide(WindowInsetsCompat.Type.systemBars())
+            onDispose {
+                controller?.show(WindowInsetsCompat.Type.systemBars())
+                if (previousBehavior != null) {
+                    controller.systemBarsBehavior = previousBehavior
+                }
+            }
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 @Composable
@@ -916,10 +1079,13 @@ private fun AutoScrollBar(
     onToggle: () -> Unit,
     onSpeedChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
+    showFullScreenButton: Boolean = false,
+    onEnterFullScreen: () -> Unit = {},
 ) {
     val colors = MaterialTheme.czColors
     Row(
         modifier = modifier
+            .shadow(16.dp, CircleShape, clip = false)
             .clip(CircleShape)
             .background(colors.card)
             .border(BorderStroke(1.dp, colors.divider), CircleShape)
@@ -948,6 +1114,8 @@ private fun AutoScrollBar(
                     style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold),
                     color = colors.textPrimary,
                     modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     String.format(Locale.US, "%.1fx", scrollSpeed),
@@ -957,13 +1125,102 @@ private fun AutoScrollBar(
                     color = colors.accent,
                 )
             }
-            Slider(
+            CompactAutoScrollSlider(
                 value = scrollSpeed,
                 onValueChange = onSpeedChange,
-                valueRange = 0.2f..3f,
-                steps = 27,
             )
         }
+        if (showFullScreenButton) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(colors.surface)
+                    .border(BorderStroke(1.dp, colors.divider), CircleShape)
+                    .clickable(onClick = onEnterFullScreen),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Rounded.Fullscreen,
+                    contentDescription = stringResource(R.string.songbook_enter_full_screen_performance),
+                    tint = colors.accent,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactAutoScrollSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    valueRange: ClosedFloatingPointRange<Float> = 0.2f..3f,
+    step: Float = 0.1f,
+) {
+    val colors = MaterialTheme.czColors
+    val label = stringResource(R.string.songbook_auto_scroll)
+    var widthPx by remember { mutableFloatStateOf(0f) }
+
+    fun valueAt(x: Float): Float {
+        if (widthPx <= 0f) return value
+        val fraction = (x / widthPx).coerceIn(0f, 1f)
+        val raw = valueRange.start + (valueRange.endInclusive - valueRange.start) * fraction
+        val stepped = valueRange.start + (((raw - valueRange.start) / step).roundToInt() * step)
+        return stepped.coerceIn(valueRange.start, valueRange.endInclusive)
+    }
+
+    val inputModifier = Modifier
+        .pointerInput(widthPx, valueRange, step) {
+            detectTapGestures { offset -> onValueChange(valueAt(offset.x)) }
+        }
+        .pointerInput(widthPx, valueRange, step) {
+            detectDragGestures { change, _ ->
+                change.consume()
+                onValueChange(valueAt(change.position.x))
+            }
+        }
+
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(28.dp)
+            .onSizeChanged { widthPx = it.width.toFloat() }
+            .semantics { contentDescription = label }
+            .then(inputModifier),
+    ) {
+        val thumbRadius = 7.dp.toPx()
+        val trackStart = thumbRadius
+        val trackEnd = (size.width - thumbRadius).coerceAtLeast(trackStart)
+        val trackWidth = (trackEnd - trackStart).coerceAtLeast(0f)
+        val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
+        val centerY = size.height / 2f
+        val trackHeight = 6.dp.toPx()
+        val trackRadius = trackHeight / 2f
+        val thumbX = trackStart + trackWidth * fraction
+
+        drawRoundRect(
+            color = colors.textPrimary.copy(alpha = 0.14f),
+            topLeft = Offset(trackStart, centerY - trackRadius),
+            size = Size(trackWidth, trackHeight),
+            cornerRadius = CornerRadius(trackRadius, trackRadius),
+        )
+        drawRoundRect(
+            color = colors.accent.copy(alpha = 0.92f),
+            topLeft = Offset(trackStart, centerY - trackRadius),
+            size = Size((thumbX - trackStart).coerceIn(0f, trackWidth), trackHeight),
+            cornerRadius = CornerRadius(trackRadius, trackRadius),
+        )
+        drawCircle(
+            color = Color.Black.copy(alpha = 0.16f),
+            radius = thumbRadius + 1.dp.toPx(),
+            center = Offset(thumbX, centerY + 1.dp.toPx()),
+        )
+        drawCircle(
+            color = colors.textPrimary,
+            radius = thumbRadius,
+            center = Offset(thumbX, centerY),
+        )
     }
 }
 
@@ -1028,60 +1285,5 @@ private fun Int.formatTranspose(): String = when {
 }
 
 private fun transposeChordSymbol(symbol: String, semitones: Int, originalKey: String): String {
-    if (semitones == 0) return symbol
-    val match = chordSymbolRegex.matchEntire(symbol.trim()) ?: return symbol
-    val root = match.groupValues[1] + match.groupValues[2]
-    val quality = match.groupValues[3]
-    val bassRoot = match.groupValues[4].takeIf { it.isNotBlank() }
-    val bassAccidental = match.groupValues[5]
-    val trailing = match.groupValues[6]
-    val preferFlats = originalKey.contains("b", ignoreCase = true) ||
-        originalKey in setOf("F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb")
-    val transposedRoot = transposePitch(root, semitones, preferFlats) ?: root
-    val transposedBass = bassRoot?.let { transposePitch(it + bassAccidental, semitones, preferFlats) ?: it + bassAccidental }
-    return buildString {
-        append(transposedRoot)
-        append(quality)
-        if (transposedBass != null) append('/').append(transposedBass)
-        append(trailing)
-    }
+    return ChordSymbolParser.transpose(symbol, semitones, originalKey)
 }
-
-private fun transposePitch(raw: String, semitones: Int, preferFlats: Boolean): String? {
-    val normalized = raw
-        .replace("♯", "#")
-        .replace("♭", "b")
-        .replaceFirstChar { it.uppercase() }
-    val index = pitchIndex[normalized] ?: return null
-    val next = (index + semitones).floorMod(12)
-    return if (preferFlats) flatPitches[next] else sharpPitches[next]
-}
-
-private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus
-
-private val sharpPitches = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
-private val flatPitches = listOf("C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B")
-private val pitchIndex = mapOf(
-    "C" to 0,
-    "B#" to 0,
-    "C#" to 1,
-    "Db" to 1,
-    "D" to 2,
-    "D#" to 3,
-    "Eb" to 3,
-    "E" to 4,
-    "Fb" to 4,
-    "E#" to 5,
-    "F" to 5,
-    "F#" to 6,
-    "Gb" to 6,
-    "G" to 7,
-    "G#" to 8,
-    "Ab" to 8,
-    "A" to 9,
-    "A#" to 10,
-    "Bb" to 10,
-    "B" to 11,
-    "Cb" to 11,
-)
-private val chordSymbolRegex = Regex("""^([A-Ga-g])([#b♯♭]?)([^/]*)(?:/([A-Ga-g])([#b♯♭]?))?(.*)$""")

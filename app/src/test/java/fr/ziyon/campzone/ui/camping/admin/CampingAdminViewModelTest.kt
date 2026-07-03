@@ -68,6 +68,29 @@ class CampingAdminViewModelTest {
         assertEquals(CampingPublicationStatus.Draft, service.saved.single().publicationStatus)
     }
 
+    @Test
+    fun organizationNameIsRequiredForEveryOrganizerType() = runTest {
+        OrganizerType.entries.forEach { organizerType ->
+            val service = FakeCampingService()
+            val viewModel = CampingAdminViewModel(service, FakeImageUploader())
+            viewModel.prepareEditor(campingId = null)
+            viewModel.updateForm(
+                viewModel.uiState.value.form.copy(
+                    title = "Summer Camp",
+                    description = "A camp",
+                    location = "Lake Annecy",
+                    organizerType = organizerType,
+                    organizerName = "   ",
+                ),
+            )
+
+            viewModel.saveEditorForm(campingId = null) {}
+
+            assertTrue(service.saved.isEmpty())
+            assertTrue(viewModel.uiState.value.validationErrors.contains("Organization name is required."))
+        }
+    }
+
     private fun camping() = Camping(
         id = "camp-1",
         title = "Summer Camp",

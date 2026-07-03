@@ -62,6 +62,11 @@ class AppNotificationTest {
                 .toAppNotificationOrNull("n1")!!.kind,
         )
         assertEquals(
+            AppNotificationKind.Checklist,
+            mapOf("appID" to "campzone", "campingID" to "c1", "packingShareID" to "share-1")
+                .toAppNotificationOrNull("n1")!!.kind,
+        )
+        assertEquals(
             AppNotificationKind.ChatMessage,
             mapOf("appID" to "campzone", "campingID" to "c1").toAppNotificationOrNull("n1")!!.kind,
         )
@@ -115,5 +120,24 @@ class AppNotificationTest {
         assertEquals("u1", decoded.recipientUserId)
         assertEquals("camp-1", decoded.campingId)
         assertEquals("campzone://achievements/u1?displayName=Lea&campingID=camp-1", decoded.deepLinkUrl)
+    }
+
+    @Test
+    fun decodesChecklistFamilySubjectFields() {
+        val doc = mapOf(
+            "appID" to "campzone",
+            "topic" to "campzone_user_guardian-1",
+            "campingID" to "camp-1",
+            "packingShareID" to "share-1",
+            "actionSubjectRegistrationID" to "child-emma",
+            "recipientUserID" to "guardian-1",
+        )
+
+        val decoded = doc.toAppNotificationOrNull("n1")!!
+
+        assertEquals(AppNotificationKind.Checklist, decoded.kind)
+        assertEquals("share-1", decoded.shareId)
+        assertEquals("child-emma", decoded.registrationId)
+        assertEquals("guardian-1", decoded.recipientUserId)
     }
 }

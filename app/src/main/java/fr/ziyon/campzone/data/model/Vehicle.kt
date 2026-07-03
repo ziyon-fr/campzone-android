@@ -38,6 +38,7 @@ data class CampingVehicle(
     val totalSeats: Int,
     val occupiedSeats: Int,
     val hasAvailableSeats: Boolean,
+    val offeredSeats: Int? = null,
     val passengerRegistrationIds: List<String> = emptyList(),
     val passengerNames: List<String> = emptyList(),
     val pendingPassengerRegistrationIds: List<String> = emptyList(),
@@ -53,6 +54,13 @@ data class CampingVehicle(
 ) {
     val availableSeats: Int
         get() = max(0, totalSeats - occupiedSeats)
+
+    val offeredSeatCount: Int
+        get() {
+            if (!hasAvailableSeats) return 0
+            val explicitOffer = offeredSeats ?: return availableSeats
+            return min(availableSeats, max(0, explicitOffer))
+        }
 
     val hasArrived: Boolean
         get() = status == VehicleStatus.Arrived || arrivedAt != null
@@ -82,6 +90,10 @@ data class CampingVehicle(
 
     fun involves(registrationId: String): Boolean =
         driverRegistrationId == registrationId || registrationId in passengerRegistrationIds
+
+    fun claimsRegistration(registrationId: String): Boolean =
+        status != VehicleStatus.Cancelled &&
+            (involves(registrationId) || registrationId in pendingPassengerRegistrationIds)
 
     val validationError: VehicleValidationError?
         get() = when {
@@ -234,6 +246,14 @@ object VehicleTokenFactory {
 }
 
 object VehicleMutation {
+    fun hasActiveAssignmentConflict(
+        vehicles: List<CampingVehicle>,
+        registrationIds: List<String>,
+        excludingVehicleId: String? = null,
+    ): Boolean = vehicles.any { vehicle ->
+        vehicle.id != excludingVehicleId && registrationIds.any(vehicle::claimsRegistration)
+    }
+
     fun addingPassenger(
         vehicle: CampingVehicle,
         registrationId: String,
@@ -253,6 +273,7 @@ object VehicleMutation {
             passengerRegistrationIds = passengerIds,
             passengerNames = passengerNames,
             occupiedSeats = occupied,
+            offeredSeats = updated.offeredSeats?.let { max(0, it - 1) },
             updatedAt = Date(),
         )
     }
@@ -268,6 +289,7 @@ object VehicleMutation {
                 passengerRegistrationIds = updated.passengerRegistrationIds.filterIndexed { i, _ -> i != index },
                 passengerNames = updated.passengerNames.filterIndexed { i, _ -> i != index },
                 occupiedSeats = max(1, updated.occupiedSeats - 1),
+                offeredSeats = updated.offeredSeats?.let { min(updated.totalSeats, it + 1) },
             )
         }
         updated = removePending(updated, registrationId)
@@ -347,6 +369,7 @@ internal fun Map<String, Any?>.toCampingVehicleOrNull(documentId: String): Campi
         totalSeats = totalSeats.coerceIn(CampingVehicle.MinSeats, CampingVehicle.MaxSeats),
         occupiedSeats = occupiedSeats.coerceIn(1, totalSeats.coerceAtLeast(1)),
         hasAvailableSeats = boolValue("hasAvailableSeats") ?: (occupiedSeats < totalSeats),
+        offeredSeats = intValue("offeredSeats")?.coerceAtLeast(0),
         passengerRegistrationIds = stringListValue("passengerRegistrationIDs").distinct(),
         passengerNames = rawStringListValue("passengerNames"),
         pendingPassengerRegistrationIds = stringListValue("pendingPassengerRegistrationIDs").distinct(),
@@ -442,6 +465,7 @@ internal object VehiclePayload {
         vehicle.arrivedAt?.let { payload["arrivedAt"] = it }
         vehicle.checkedInByUid.clean()?.let { payload["checkedInByUID"] = it }
         vehicle.notes.clean()?.let { payload["notes"] = it }
+        vehicle.normalizedOfferedSeats()?.let { payload["offeredSeats"] = it }
         if (includeCreatedAt) payload["createdAt"] = serverTimestamp
         return payload
     }
@@ -462,6 +486,7 @@ internal object VehiclePayload {
                 vehicle.totalSeats.coerceIn(CampingVehicle.MinSeats, CampingVehicle.MaxSeats),
             ),
             "hasAvailableSeats" to vehicle.hasAvailableSeats,
+            "offeredSeats" to (vehicle.normalizedOfferedSeats() ?: deleteField),
             "passengerRegistrationIDs" to vehicle.passengerRegistrationIds.distinct(),
             "passengerNames" to vehicle.passengerNames,
             "pendingPassengerRegistrationIDs" to vehicle.pendingPassengerRegistrationIds.distinct(),
@@ -475,6 +500,7 @@ internal object VehiclePayload {
         linkedMapOf(
             "status" to VehicleStatus.Cancelled.wireValue,
             "hasAvailableSeats" to false,
+            "offeredSeats" to 0,
             "updatedAt" to serverTimestamp,
         )
 
@@ -483,6 +509,24 @@ internal object VehiclePayload {
         serverTimestamp: Any,
     ): Map<String, Any?> =
         linkedMapOf(
+            "pendingPassengerRegistrationIDs" to vehicle.pendingPassengerRegistrationIds.distinct(),
+            "pendingPassengerNames" to vehicle.pendingPassengerNames,
+            "updatedAt" to serverTimestamp,
+        )
+
+    fun passengerPayload(
+        vehicle: CampingVehicle,
+        serverTimestamp: Any,
+        deleteField: Any,
+    ): Map<String, Any?> =
+        linkedMapOf(
+            "occupiedSeats" to vehicle.occupiedSeats.coerceIn(
+                CampingVehicle.MinSeats,
+                vehicle.totalSeats.coerceIn(CampingVehicle.MinSeats, CampingVehicle.MaxSeats),
+            ),
+            "offeredSeats" to (vehicle.normalizedOfferedSeats() ?: deleteField),
+            "passengerRegistrationIDs" to vehicle.passengerRegistrationIds.distinct(),
+            "passengerNames" to vehicle.passengerNames,
             "pendingPassengerRegistrationIDs" to vehicle.pendingPassengerRegistrationIds.distinct(),
             "pendingPassengerNames" to vehicle.pendingPassengerNames,
             "updatedAt" to serverTimestamp,
@@ -517,6 +561,14 @@ internal object VehiclePayload {
         checkIn.notes.clean()?.let { payload["notes"] = it }
         return payload
     }
+}
+
+private fun CampingVehicle.normalizedOfferedSeats(): Int? {
+    if (!hasAvailableSeats) return null
+    val explicitOffer = offeredSeats ?: return null
+    return explicitOffer
+        .coerceAtLeast(0)
+        .coerceAtMost(availableSeats)
 }
 
 internal object UserVehiclePayload {

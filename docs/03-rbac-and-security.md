@@ -205,6 +205,16 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
     `isActive`/`canceledBy/At`/`cancelReason`); the deployed rules already
     accept these (iOS writes them) since they touch none of the immutable
     keys.
+  - `vehicles`: driver-owned carpool records. Drivers may edit their own
+    pending car fields, including the optional `offeredSeats` cap, but cannot
+    self-mark arrival or rewrite secure tokens; non-driver participants may
+    add/remove their own pending seat request where rules allow, and approved
+    passengers may remove only their own assigned seat through the narrow
+    passenger-array/seat-count patch.
+  - `packingChecklists/{userId}`: participant progress is normally keyed by
+    `auth.uid`; family-targeted checklist imports may instead use the child
+    registration id when `registrations/{sameId}.guardianID == auth.uid`.
+    Create/update must keep `campingID==path` and `userID==userId`.
   - `checkIns`: `read` `canManageCheckIns` OR own (`userID==auth.uid`)
     OR a guardian whose sibling `registrations/{sameId}.guardianID ==
     auth.uid` (single `get()`). `create` `canManageCheckIns`,

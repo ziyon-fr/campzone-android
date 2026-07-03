@@ -75,6 +75,7 @@ campings/{campingId}                                Camping (event)
   campings/{id}/polls/{pollId}/votes/{voterId}      PollVote
   campings/{id}/checkIns/{attendeeId}               CheckInRecord
   campings/{id}/transportationBookings/{bookingId}  TransportationBooking
+  campings/{id}/vehicles/{vehicleId}                 CampingVehicle carpool
   campings/{id}/lodging/{unitId}                    LodgingUnit
   campings/{id}/venueMap/config                     VenueMap (single doc)
   campings/{id}/feedback/{uid}                       CampFeedback
@@ -727,7 +728,12 @@ Results are merged & deduped by `id`, sorted `sentAt` desc. Tolerant decoder.
 | `achievementTitle` | string | `nil` | display title sent by the backend for badge notifications |
 | `role` | string | from topic | derived from topic prefix `campzone_role_` |
 | `recipientUserID` | string | `nil` | direct-user feed recipient for `campzone_user_<uid>` rows |
-| `registrationID` | string | `nil` | registration attendee doc id for registration request/approval rows |
+| `registrationID` | string | `nil` | registration attendee doc id for registration request/approval rows; for family-targeted checklist/transportation rows this is the action subject, not necessarily the active app user |
+| `shareID` / `packingShareID` | string | `nil` | shared packing checklist id; kind inference: → `checklist` |
+| `actionSubjectRegistrationID` | string | `nil` | family/member action subject registration id; notification recipient remains `recipientUserID` |
+| `actionSubjectUserID` | string | `nil` | user/child id of the action subject |
+| `actionSubjectName` | string | `nil` | display name used in notification copy, e.g. "Camping checklist shared with Emma" |
+| `actionSubjectGuardianID` | string | `nil` | guardian/main account used as notification recipient for child subjects |
 | `event` | string | `nil` | registration uses `request` or `approved`; team updates use event values from §04 |
 | `deepLink` | string | `nil` | optional direct app/web URL; clients prefer it over kind/id inference |
 | `senderId` | string | - | backend writes `senderId` (note casing) |
@@ -735,10 +741,11 @@ Results are merged & deduped by `id`, sorted `sentAt` desc. Tolerant decoder.
 
 `AppNotificationKind` raw: `announcement`, `badge` (also accepts
 `achievement`/`achievement_badge`), `chat_message` (also accepts
-`chatmessage`), `poll`, `schedule_reminder` (also `schedulereminder`),
-`unknown`. Kind inference order: explicit kind → `type` →
-`announcementID`→announcement → `pollID`→poll → `campingID`→chatMessage →
-`unknown`.
+`chatmessage`), `checklist` (also accepts `packing_share`/`packingshare`/
+`packing`), `poll`, `schedule_reminder` (also `schedulereminder`),
+`transportation`, `unknown`. Kind inference order: explicit kind → `type` →
+`announcementID`→announcement → `shareID`/`packingShareID`→checklist →
+`pollID`→poll → `campingID`→chatMessage → `unknown`.
 
 ---
 
@@ -823,6 +830,29 @@ outbound mirror + `updatedAt`. `updatePaymentStatus` sets
 `campingID`, `registrationID`, `participantID`, `userID`) unchanged. On create
 the booking is still `unpaid`/`not_boarded` (RBAC literals); a free organizer
 option is settled to `waived` afterward via the manager update path.
+
+### 7.2a `campings/{id}/vehicles/{vehicleId}` - CampingVehicle carpool record
+
+Android mirrors the current iOS carpool offer model here. `offeredSeats` is an
+optional integer cap on the public carpool offer. When absent on legacy records,
+clients treat all physically free seats (`totalSeats - occupiedSeats`) as
+offered. When `hasAvailableSeats == false`, clients treat the offered count as
+zero and omit/delete `offeredSeats` on normal edits. Passenger approval consumes
+one explicit offered seat, and passenger removal restores one, clamped by the
+physical capacity.
+
+| key | type | default | notes |
+| --- | --- | --- | --- |
+| `campingID` | string | path | required |
+| `ownerUserID` / `driverUserID` / `driverRegistrationID` | string | drop | driver identity |
+| `plateNumber` | string | drop | uppercased on write |
+| `totalSeats` / `occupiedSeats` | int | `1` | clamped to the client vehicle range |
+| `hasAvailableSeats` | bool | derived | public carpool toggle |
+| `offeredSeats` | int | `nil` | optional explicit public-seat cap; legacy nil means all free seats |
+| `passengerRegistrationIDs` / `pendingPassengerRegistrationIDs` | array\<string> | `[]` | approved and pending riders; one registration may only be claimed by one active vehicle at a time |
+| `qrToken` / `invitationCode` | string | drop / nil | secure scan token and optional join code |
+| `status` | string | `pending` | `pending`/`confirmed`/`arrived`/`cancelled` |
+| `createdAt` / `updatedAt` | timestamp | now | first create / every mutation |
 
 ### 7.3 `campings/{id}/lodging/{unitId}` - LodgingUnit
 
@@ -1025,7 +1055,7 @@ copies. Web/Android must do the same or data drifts:
 
 | Target (query) | Match | Keys written |
 | --- | --- | --- |
-| `registrations` (CG, `userID==uid`) | `userID` | `displayName`,`church`,`photoURL`,`preferredLanguage`,`languages`,`age`,`ageGroup`,`gender`,`updatedAt` |
+| `registrations` (CG, `userID==uid`) | `userID` | `displayName`,`church`,`photoURL`,`preferredLanguage`,`languages`,`age`,`ageGroup`,`gender`,`allergies`,`updatedAt` |
 | parent `campings/{id}` | - | `updatedAt` bump |
 | `teams` (CG, `members[].userID==uid`) | member | member `displayName`,`church`,`preferredLanguage`,`languages`,`age`,`ageGroup`,`gender`,`photoURL`; doc `members` rewrite + `updatedAt` |
 | `checkIns` (CG, `userID==uid`) | `userID` | `displayName`,`church`,`preferredLanguage`,`photoURL`,`updatedAt` |
