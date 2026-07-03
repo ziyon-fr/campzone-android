@@ -208,9 +208,10 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
   - `vehicles`: driver-owned carpool records. Drivers may edit their own
     pending car fields, including the optional `offeredSeats` cap, but cannot
     self-mark arrival or rewrite secure tokens; non-driver participants may
-    add/remove their own pending seat request where rules allow, and approved
-    passengers may remove only their own assigned seat through the narrow
-    passenger-array/seat-count patch.
+    add/remove their own pending seat request where rules allow, and new
+    self-service pending requests require the car to still have an offered
+    public seat. Approved passengers may remove only their own assigned seat
+    through the narrow passenger-array/seat-count patch.
   - `packingChecklists/{userId}`: participant progress is normally keyed by
     `auth.uid`; family-targeted checklist imports may instead use the child
     registration id when `registrations/{sameId}.guardianID == auth.uid`.

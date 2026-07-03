@@ -1251,6 +1251,7 @@
     <string name="vehicle_passenger_removed_message">Passageiro removido.</string>
     <string name="vehicle_passenger_added_message">%1$s adicionado ao carro.</string>
     <string name="vehicle_assignment_conflict_error">Este participante já está atribuído a outro carro.</string>
+    <string name="vehicle_seat_unavailable_error">Este carro não está oferecendo lugares livres.</string>
     <string name="vehicle_add_passenger_error">Não foi possível adicionar o passageiro.</string>
     <string name="vehicle_invitation_sent_message">Convite enviado para %1$s.</string>
     <string name="vehicle_invitation_send_error">Não foi possível enviar o convite.</string>

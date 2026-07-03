@@ -25,6 +25,8 @@ import fr.ziyon.campzone.data.model.VehicleTokenFactory
 import fr.ziyon.campzone.data.notifications.NotificationApi
 import fr.ziyon.campzone.data.notifications.TransportationNotification
 import fr.ziyon.campzone.data.vehicle.UserVehicleService
+import fr.ziyon.campzone.data.vehicle.VehicleAssignmentConflictMessage
+import fr.ziyon.campzone.data.vehicle.VehicleSeatUnavailableMessage
 import fr.ziyon.campzone.data.vehicle.VehicleService
 import fr.ziyon.campzone.ui.checkin.permissionContext
 import java.util.Date
@@ -651,6 +653,10 @@ class VehicleViewModel @Inject constructor(
     }
 
     fun invitePassenger(vehicle: CampingVehicle, attendee: CampingAttendee) {
+        if (!VehicleMutation.canAcceptNewPassenger(vehicle)) {
+            _uiState.update { it.copy(operationError = stringProvider.get(R.string.vehicle_seat_unavailable_error)) }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isUpdating = true, operationError = null) }
             runCatching {
@@ -964,10 +970,10 @@ class VehicleViewModel @Inject constructor(
     }
 
     private fun vehicleError(error: Throwable, fallbackResId: Int): String =
-        if (error.message == AssignmentConflictMessage) {
-            stringProvider.get(R.string.vehicle_assignment_conflict_error)
-        } else {
-            error.message ?: stringProvider.get(fallbackResId)
+        when (error.message) {
+            VehicleAssignmentConflictMessage -> stringProvider.get(R.string.vehicle_assignment_conflict_error)
+            VehicleSeatUnavailableMessage -> stringProvider.get(R.string.vehicle_seat_unavailable_error)
+            else -> error.message ?: stringProvider.get(fallbackResId)
         }
 
     private fun upsert(vehicle: CampingVehicle) {
@@ -982,7 +988,6 @@ class VehicleViewModel @Inject constructor(
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
-        const val AssignmentConflictMessage = "This participant is already assigned to another car."
     }
 }
 

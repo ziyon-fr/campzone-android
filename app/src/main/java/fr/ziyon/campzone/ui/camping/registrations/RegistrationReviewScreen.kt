@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.Info
@@ -72,6 +73,7 @@ fun RegistrationReviewRoute(
     focusedCampingId: String? = null,
     onBack: () -> Unit,
     onOpenCamping: (String) -> Unit,
+    onOpenAttendeeProfile: (String, String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RegistrationReviewViewModel = hiltViewModel(),
 ) {
@@ -100,6 +102,7 @@ fun RegistrationReviewRoute(
         onBack = onBack,
         onRetry = { viewModel.load(authenticatedUser, focusedCampingId) },
         onOpenCamping = onOpenCamping,
+        onOpenAttendeeProfile = onOpenAttendeeProfile,
         onApprove = { campingId, attendeeId ->
             viewModel.updateRegistration(campingId, attendeeId, RegistrationApprovalStatus.Approved)
         },
@@ -118,6 +121,7 @@ fun RegistrationReviewScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onOpenCamping: (String) -> Unit,
+    onOpenAttendeeProfile: (String, String) -> Unit,
     onApprove: (String, String) -> Unit,
     onReject: (String, String) -> Unit,
     modifier: Modifier = Modifier,
@@ -187,6 +191,7 @@ fun RegistrationReviewScreen(
                 campings = phase.campings,
                 isSaving = state.isSaving,
                 onOpenCamping = onOpenCamping,
+                onOpenAttendeeProfile = onOpenAttendeeProfile,
                 onApprove = onApprove,
                 onReject = onReject,
                 modifier = Modifier.padding(innerPadding),
@@ -200,6 +205,7 @@ private fun ReviewContent(
     campings: List<Camping>,
     isSaving: Boolean,
     onOpenCamping: (String) -> Unit,
+    onOpenAttendeeProfile: (String, String) -> Unit,
     onApprove: (String, String) -> Unit,
     onReject: (String, String) -> Unit,
     modifier: Modifier = Modifier,
@@ -220,6 +226,7 @@ private fun ReviewContent(
                     camping = camping,
                     isSaving = isSaving,
                     onOpenCamping = onOpenCamping,
+                    onOpenAttendeeProfile = onOpenAttendeeProfile,
                     onApprove = onApprove,
                     onReject = onReject,
                 )
@@ -233,6 +240,7 @@ private fun ReviewCampingSection(
     camping: Camping,
     isSaving: Boolean,
     onOpenCamping: (String) -> Unit,
+    onOpenAttendeeProfile: (String, String) -> Unit,
     onApprove: (String, String) -> Unit,
     onReject: (String, String) -> Unit,
 ) {
@@ -283,6 +291,7 @@ private fun ReviewCampingSection(
                     PendingRegistrationReviewRow(
                         attendee = attendee,
                         isSaving = isSaving,
+                        onOpenProfile = { onOpenAttendeeProfile(camping.id, attendee.id) },
                         onApprove = { onApprove(camping.id, attendee.id) },
                         onReject = { onReject(camping.id, attendee.id) },
                         modifier = Modifier.padding(horizontal = CzSpacing.md),
@@ -319,6 +328,7 @@ private fun ReviewCampingSection(
                         PendingRegistrationReviewRow(
                             attendee = attendee,
                             isSaving = isSaving,
+                            onOpenProfile = { onOpenAttendeeProfile(camping.id, attendee.id) },
                             onApprove = { onApprove(camping.id, attendee.id) },
                             onReject = { onReject(camping.id, attendee.id) },
                             modifier = Modifier.padding(horizontal = CzSpacing.md),
@@ -335,6 +345,7 @@ private fun ReviewCampingSection(
 private fun PendingRegistrationReviewRow(
     attendee: CampingAttendee,
     isSaving: Boolean,
+    onOpenProfile: () -> Unit,
     onApprove: () -> Unit,
     onReject: () -> Unit,
     modifier: Modifier = Modifier,
@@ -346,7 +357,20 @@ private fun PendingRegistrationReviewRow(
         border = BorderStroke(1.dp, MaterialTheme.czColors.warning.copy(alpha = 0.2f)),
     ) {
         Column {
-            RegistrationAttendeeRow(attendee)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenProfile),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RegistrationAttendeeRow(attendee, modifier = Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.textSecondary,
+                    modifier = Modifier.padding(end = CzSpacing.md).size(18.dp),
+                )
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

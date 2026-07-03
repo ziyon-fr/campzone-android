@@ -1,3 +1,56 @@
+# Project Status - Vehicle offer guards and registration review profile access
+
+Updated: 2026-07-03
+
+- Source of truth audited: iOS `VehicleService`, `VehicleObserver`,
+  `MyTransportationView`, `CampingVehiclesView`, `RegistrationReviewView`,
+  `AttendeeProfileDetailView`, Firestore vehicle RBAC rules/tests, and Android
+  `Vehicle.kt`, `VehicleService.kt`, `VehicleViewModel.kt`, `VehicleScreens.kt`,
+  `RegistrationReviewScreen.kt`, and navigation shell routes.
+- Add/request/approve/invite passenger paths now require the vehicle to have an
+  offered seat, not merely physical spare capacity. Cars that are full or whose
+  driver is not offering seats reject the action, preserve pending requests, and
+  surface localized feedback.
+- Driver/leader add-invite controls are hidden when `offeredSeatCount == 0`, and
+  vehicle summaries display the offered-seat count so private spare seats are
+  not advertised as public seats.
+- Firestore self-service pending request rules now require an offered seat for
+  new requests while still allowing users to withdraw their own pending request.
+- Registration review rows on both platforms now open the existing attendee
+  profile detail route for leadership reviewers; the profile screen keeps its
+  `canViewParticipantProfiles` guard.
+- Verification passed: focused iOS `VehicleModelTests`/`VehicleObserverTests`/
+  `AppPermissionTests`, Android `VehicleModelTest`/
+  `AppPermissionEvaluatorTest`/`RegistrationReviewViewModelTest`, Firebase RBAC
+  tests, iOS localization JSON parse, Android EN/FR/PT/PT-BR XML validation,
+  and scoped iOS/Android `git diff --check`.
+
+---
+
+# Project Status - Vehicle seat accounting fix
+
+Updated: 2026-07-03
+
+- Source of truth audited: church-admin feedback screenshot, iOS
+  `CampingVehicle`, `VehicleComponents`, `VehicleService`, `VehicleFormView`,
+  Firestore vehicle RBAC rules/tests, and Android `Vehicle.kt`,
+  `VehicleScreens.kt`, vehicle model tests, and vehicle schema docs.
+- Fixed the vehicle seat counter so the driver is always counted with approved
+  passengers. A stale record with 5 total seats, 3 approved passengers, and
+  stored `occupiedSeats = 3` now renders as 4 occupied / 1 free instead of
+  3 occupied / 2 free.
+- Preserved the driver-entered extra-occupant case by deriving occupied seats as
+  `max(stored occupiedSeats, driver + approved passengers)`, capped by total
+  seats, rather than replacing the field with only app registrations.
+- Add/remove/edit payloads on both platforms now write the corrected count back
+  to Firestore, and passenger self-removal rules permit the narrow corrected
+  post-removal count for legacy passenger-only records.
+- Verification: focused iOS `VehicleModelTests`/`VehicleObserverTests`,
+  Android `VehicleModelTest`/`VehicleUiStateTest`, and Firebase RBAC tests
+  passed. Scoped iOS/Android diff checks passed.
+
+---
+
 # Project Status - My QR Passes iOS parity fix
 
 Updated: 2026-07-02

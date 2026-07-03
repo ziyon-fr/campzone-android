@@ -958,6 +958,9 @@ fun CampzoneNavigationShell(
                     onOpenCamping = { campingId ->
                         navController.navigate(AppRoute.CampingDetail(campingId).route)
                     },
+                    onOpenAttendeeProfile = { campingId, attendeeId ->
+                        navController.navigate(AppRoute.AttendeeProfile(campingId, attendeeId).route)
+                    },
                 )
             }
             composable(
@@ -969,6 +972,9 @@ fun CampzoneNavigationShell(
                     focusedCampingId = backStackEntry.stringArg(AppRouteArgs.CampingId),
                     onBack = { navController.popBackStack() },
                     onOpenCamping = { navController.navigate(AppRoute.CampingDetail(it).route) },
+                    onOpenAttendeeProfile = { campingId, attendeeId ->
+                        navController.navigate(AppRoute.AttendeeProfile(campingId, attendeeId).route)
+                    },
                 )
             }
             composable(

@@ -52,8 +52,17 @@ data class CampingVehicle(
     val createdAt: Date = Date(),
     val updatedAt: Date = Date(),
 ) {
+    val expectedRegisteredCount: Int
+        get() = passengerRegistrationIds.size + 1
+
+    val registeredOccupantCount: Int
+        get() = min(totalSeats, max(1, expectedRegisteredCount))
+
+    val accountedOccupiedSeats: Int
+        get() = min(totalSeats, max(occupiedSeats, registeredOccupantCount))
+
     val availableSeats: Int
-        get() = max(0, totalSeats - occupiedSeats)
+        get() = max(0, totalSeats - accountedOccupiedSeats)
 
     val offeredSeatCount: Int
         get() {
@@ -64,9 +73,6 @@ data class CampingVehicle(
 
     val hasArrived: Boolean
         get() = status == VehicleStatus.Arrived || arrivedAt != null
-
-    val expectedRegisteredCount: Int
-        get() = passengerRegistrationIds.size + 1
 
     val maskedPlate: String
         get() {
@@ -246,6 +252,9 @@ object VehicleTokenFactory {
 }
 
 object VehicleMutation {
+    fun canAcceptNewPassenger(vehicle: CampingVehicle): Boolean =
+        vehicle.status != VehicleStatus.Cancelled && vehicle.offeredSeatCount > 0
+
     fun hasActiveAssignmentConflict(
         vehicles: List<CampingVehicle>,
         registrationIds: List<String>,
@@ -259,16 +268,22 @@ object VehicleMutation {
         registrationId: String,
         name: String,
     ): CampingVehicle {
-        var updated = removePending(vehicle, registrationId)
+        var updated = vehicle
         if (
             registrationId == updated.driverRegistrationId ||
             registrationId in updated.passengerRegistrationIds
         ) {
+            updated = removePending(updated, registrationId)
             return updated.copy(updatedAt = Date())
         }
+        if (!canAcceptNewPassenger(updated)) return updated
+        updated = removePending(updated, registrationId)
         val passengerIds = updated.passengerRegistrationIds + registrationId
         val passengerNames = updated.passengerNames + name
-        val occupied = min(updated.totalSeats, updated.occupiedSeats + 1)
+        val occupied = min(
+            updated.totalSeats,
+            max(updated.accountedOccupiedSeats + 1, updated.registeredOccupantCount + 1),
+        )
         return updated.copy(
             passengerRegistrationIds = passengerIds,
             passengerNames = passengerNames,
@@ -288,7 +303,10 @@ object VehicleMutation {
             updated = updated.copy(
                 passengerRegistrationIds = updated.passengerRegistrationIds.filterIndexed { i, _ -> i != index },
                 passengerNames = updated.passengerNames.filterIndexed { i, _ -> i != index },
-                occupiedSeats = max(1, updated.occupiedSeats - 1),
+                occupiedSeats = max(
+                    max(1, updated.accountedOccupiedSeats - 1),
+                    max(1, updated.passengerRegistrationIds.size),
+                ),
                 offeredSeats = updated.offeredSeats?.let { min(updated.totalSeats, it + 1) },
             )
         }
@@ -306,7 +324,8 @@ object VehicleMutation {
         if (
             registrationId == vehicle.driverRegistrationId ||
             registrationId in vehicle.passengerRegistrationIds ||
-            registrationId in vehicle.pendingPassengerRegistrationIds
+            registrationId in vehicle.pendingPassengerRegistrationIds ||
+            !canAcceptNewPassenger(vehicle)
         ) {
             return vehicle
         }
@@ -443,7 +462,7 @@ internal object VehiclePayload {
             "driverName" to vehicle.driverName.trim(),
             "plateNumber" to vehicle.plateNumber.trim().uppercase(Locale.ROOT),
             "totalSeats" to vehicle.totalSeats.coerceIn(CampingVehicle.MinSeats, CampingVehicle.MaxSeats),
-            "occupiedSeats" to vehicle.occupiedSeats.coerceIn(
+            "occupiedSeats" to vehicle.accountedOccupiedSeats.coerceIn(
                 CampingVehicle.MinSeats,
                 vehicle.totalSeats.coerceIn(CampingVehicle.MinSeats, CampingVehicle.MaxSeats),
             ),
@@ -481,7 +500,7 @@ internal object VehiclePayload {
             "model" to (vehicle.model.clean() ?: deleteField),
             "color" to (vehicle.color.clean() ?: deleteField),
             "totalSeats" to vehicle.totalSeats.coerceIn(CampingVehicle.MinSeats, CampingVehicle.MaxSeats),
-            "occupiedSeats" to vehicle.occupiedSeats.coerceIn(
+            "occupiedSeats" to vehicle.accountedOccupiedSeats.coerceIn(
                 CampingVehicle.MinSeats,
                 vehicle.totalSeats.coerceIn(CampingVehicle.MinSeats, CampingVehicle.MaxSeats),
             ),
@@ -520,7 +539,7 @@ internal object VehiclePayload {
         deleteField: Any,
     ): Map<String, Any?> =
         linkedMapOf(
-            "occupiedSeats" to vehicle.occupiedSeats.coerceIn(
+            "occupiedSeats" to vehicle.accountedOccupiedSeats.coerceIn(
                 CampingVehicle.MinSeats,
                 vehicle.totalSeats.coerceIn(CampingVehicle.MinSeats, CampingVehicle.MaxSeats),
             ),

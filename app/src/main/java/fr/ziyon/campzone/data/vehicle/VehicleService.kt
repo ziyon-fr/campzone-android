@@ -29,6 +29,9 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.tasks.await
 
+internal const val VehicleAssignmentConflictMessage = "This participant is already assigned to another car."
+internal const val VehicleSeatUnavailableMessage = "This car is not offering free seats."
+
 interface VehicleService {
     fun vehicles(campingId: String): Flow<List<CampingVehicle>>
     suspend fun vehicle(campingId: String, vehicleId: String): CampingVehicle
@@ -157,6 +160,7 @@ class FirestoreVehicleService @Inject constructor(
     ): CampingVehicle {
         val current = vehicle(campingId, vehicleId)
         ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
+        ensureCanAcceptPassenger(current, registrationId)
         val updated = VehicleMutation.addingPassenger(current, registrationId, name)
         return updateVehicle(updated)
     }
@@ -188,6 +192,7 @@ class FirestoreVehicleService @Inject constructor(
     ): CampingVehicle {
         val current = vehicle(campingId, vehicleId)
         ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
+        ensureCanAcceptPassenger(current, registrationId)
         val updated = VehicleMutation.addingPending(current, registrationId, name)
         collection(campingId).document(vehicleId)
             .set(VehiclePayload.pendingPayload(updated, FieldValue.serverTimestamp()), SetOptions.merge())
@@ -214,6 +219,7 @@ class FirestoreVehicleService @Inject constructor(
     ): CampingVehicle {
         val vehicle = vehicle(campingId, vehicleId)
         ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
+        ensureCanAcceptPassenger(vehicle, registrationId)
         val name = vehicle.pendingPassengers.firstOrNull { it.id == registrationId }?.name.orEmpty()
         return updateVehicle(VehicleMutation.addingPassenger(vehicle, registrationId, name))
     }
@@ -277,7 +283,7 @@ class FirestoreVehicleService @Inject constructor(
             .documents
             .mapNotNull { it.data?.toCampingVehicleOrNull(it.id) }
         if (VehicleMutation.hasActiveAssignmentConflict(vehicles, registrationIds, excludingVehicleId)) {
-            error("This participant is already assigned to another car.")
+            error(VehicleAssignmentConflictMessage)
         }
     }
 
@@ -431,8 +437,10 @@ class FakeVehicleService(
         registrationId: String,
         name: String,
     ): CampingVehicle {
+        val current = vehicle(campingId, vehicleId)
         ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
-        return updateVehicle(VehicleMutation.addingPassenger(vehicle(campingId, vehicleId), registrationId, name))
+        ensureCanAcceptPassenger(current, registrationId)
+        return updateVehicle(VehicleMutation.addingPassenger(current, registrationId, name))
     }
 
     override suspend fun removePassenger(
@@ -448,8 +456,10 @@ class FakeVehicleService(
         registrationId: String,
         name: String,
     ): CampingVehicle {
+        val current = vehicle(campingId, vehicleId)
         ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
-        return updateVehicle(VehicleMutation.addingPending(vehicle(campingId, vehicleId), registrationId, name))
+        ensureCanAcceptPassenger(current, registrationId)
+        return updateVehicle(VehicleMutation.addingPending(current, registrationId, name))
     }
 
     override suspend fun withdrawJoinRequest(
@@ -462,6 +472,7 @@ class FakeVehicleService(
     override suspend fun approvePassenger(campingId: String, vehicleId: String, registrationId: String): CampingVehicle {
         val vehicle = vehicle(campingId, vehicleId)
         ensureNoAssignmentConflict(campingId, listOf(registrationId), vehicleId)
+        ensureCanAcceptPassenger(vehicle, registrationId)
         val name = vehicle.pendingPassengers.firstOrNull { it.id == registrationId }?.name.orEmpty()
         return updateVehicle(VehicleMutation.addingPassenger(vehicle, registrationId, name))
     }
@@ -512,7 +523,7 @@ class FakeVehicleService(
     ) {
         val vehicles = store.values.filter { it.campingId == campingId }
         if (VehicleMutation.hasActiveAssignmentConflict(vehicles, registrationIds, excludingVehicleId)) {
-            error("This participant is already assigned to another car.")
+            error(VehicleAssignmentConflictMessage)
         }
     }
 }
@@ -568,6 +579,12 @@ private fun List<CampingVehicle>.sortedForVehicleDisplay(): List<CampingVehicle>
             .thenBy { it.hasArrived }
             .thenBy { it.driverName.lowercase() },
     )
+
+private fun ensureCanAcceptPassenger(vehicle: CampingVehicle, registrationId: String) {
+    if (registrationId !in vehicle.passengerRegistrationIds && !VehicleMutation.canAcceptNewPassenger(vehicle)) {
+        error(VehicleSeatUnavailableMessage)
+    }
+}
 
 private fun List<UserVehicle>.sortedForUserVehicleDisplay(): List<UserVehicle> =
     sortedWith(compareByDescending<UserVehicle> { it.isDefault }.thenBy { it.displayTitle.lowercase() })

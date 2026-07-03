@@ -232,10 +232,12 @@ class AppPermissionEvaluatorTest {
 
         assertTrue(evaluator.canManageSchedule(leader, ownChurchCamping))
         assertTrue(evaluator.canApproveRegistrations(leader, ownChurchCamping))
+        assertTrue(evaluator.canViewParticipantProfiles(leader, ownChurchCamping))
         assertTrue(evaluator.canManageAnnouncements(leader, ownChurchCamping))
         assertTrue(evaluator.canAssignPoints(leader, ownChurchCamping))
         assertTrue(evaluator.canManageTransportation(leader, ownChurchCamping))
         assertFalse(evaluator.canManageSchedule(leader, otherChurchCamping))
+        assertFalse(evaluator.canViewParticipantProfiles(leader, otherChurchCamping))
         assertFalse(evaluator.canManageAnnouncements(leader, otherChurchCamping))
         assertFalse(evaluator.canManageSchedule(leader, regionalCamping))
         assertFalse(evaluator.canManageAnnouncements(leader, regionalCamping))

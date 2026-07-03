@@ -1,6 +1,9 @@
 package fr.ziyon.campzone.data.model
 
+import fr.ziyon.campzone.data.vehicle.FakeVehicleService
+import fr.ziyon.campzone.data.vehicle.VehicleSeatUnavailableMessage
 import java.util.Date
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -66,6 +69,7 @@ class VehicleModelTest {
         )
 
         assertEquals(2, vehicle.availableSeats)
+        assertEquals(3, vehicle.accountedOccupiedSeats)
         assertEquals(3, vehicle.expectedRegisteredCount)
         assertEquals("*******CD", vehicle.maskedPlate)
         assertNull(vehicle.validationError)
@@ -89,6 +93,21 @@ class VehicleModelTest {
     }
 
     @Test
+    fun occupiedSeatsAlwaysCountsDriverAndApprovedPassengers() {
+        val vehicle = sampleVehicle(
+            totalSeats = 5,
+            occupiedSeats = 3,
+            passengerRegistrationIds = listOf("p1", "p2", "p3"),
+            passengerNames = listOf("One", "Two", "Three"),
+        )
+
+        assertEquals(4, vehicle.expectedRegisteredCount)
+        assertEquals(4, vehicle.accountedOccupiedSeats)
+        assertEquals(1, vehicle.availableSeats)
+        assertEquals(1, vehicle.offeredSeatCount)
+    }
+
+    @Test
     fun offeredSeatCountFallsBackToAvailableWhenUnset() {
         val vehicle = sampleVehicle(totalSeats = 5, occupiedSeats = 3)
 
@@ -109,7 +128,7 @@ class VehicleModelTest {
     @Test
     fun passengerMutationsKeepListsAlignedAndOccupancyBounded() {
         val vehicle = sampleVehicle(
-            totalSeats = 2,
+            totalSeats = 3,
             occupiedSeats = 1,
             pendingPassengerRegistrationIds = listOf("p1"),
             pendingPassengerNames = listOf("Joao"),
@@ -122,13 +141,55 @@ class VehicleModelTest {
         assertEquals(2, approved.occupiedSeats)
 
         val capped = VehicleMutation.addingPassenger(approved, "p2", "Maria")
-        assertEquals(2, capped.occupiedSeats)
+        assertEquals(3, capped.occupiedSeats)
         assertEquals(listOf("p1", "p2"), capped.passengerRegistrationIds)
 
         val removed = VehicleMutation.removingPassenger(capped, "p1")
         assertEquals(listOf("p2"), removed.passengerRegistrationIds)
         assertEquals(listOf("Maria"), removed.passengerNames)
-        assertEquals(1, removed.occupiedSeats)
+        assertEquals(2, removed.occupiedSeats)
+    }
+
+    @Test
+    fun passengerMutationsRequireOfferedSeatAndPreservePendingRequests() {
+        val notOffering = sampleVehicle(
+            totalSeats = 5,
+            occupiedSeats = 1,
+            hasAvailableSeats = false,
+        )
+
+        val pendingWhenNotOffering = VehicleMutation.addingPending(notOffering, "p1", "Joao")
+        assertEquals(emptyList<String>(), pendingWhenNotOffering.pendingPassengerRegistrationIds)
+
+        val exhaustedOffer = notOffering.copy(
+            hasAvailableSeats = true,
+            offeredSeats = 0,
+            pendingPassengerRegistrationIds = listOf("p1"),
+            pendingPassengerNames = listOf("Joao"),
+        )
+
+        val approvedWhenOfferExhausted = VehicleMutation.addingPassenger(exhaustedOffer, "p1", "Joao")
+        assertEquals(emptyList<String>(), approvedWhenOfferExhausted.passengerRegistrationIds)
+        assertEquals(listOf("p1"), approvedWhenOfferExhausted.pendingPassengerRegistrationIds)
+        assertEquals(1, approvedWhenOfferExhausted.occupiedSeats)
+    }
+
+    @Test
+    fun removingPassengerRepairsLegacyPassengerOnlyOccupiedSeats() {
+        val vehicle = sampleVehicle(
+            totalSeats = 5,
+            occupiedSeats = 3,
+            passengerRegistrationIds = listOf("p1", "p2", "p3"),
+            passengerNames = listOf("One", "Two", "Three"),
+            offeredSeats = 1,
+        )
+
+        val removed = VehicleMutation.removingPassenger(vehicle, "p1")
+
+        assertEquals(listOf("p2", "p3"), removed.passengerRegistrationIds)
+        assertEquals(3, removed.occupiedSeats)
+        assertEquals(2, removed.availableSeats)
+        assertEquals(2, removed.offeredSeats)
     }
 
     @Test
@@ -145,6 +206,7 @@ class VehicleModelTest {
         assertEquals(0, second.offeredSeats)
         val third = VehicleMutation.addingPassenger(second, "p3", "Alex")
         assertEquals(0, third.offeredSeats)
+        assertEquals(listOf("p1", "p2"), third.passengerRegistrationIds)
         assertEquals(0, third.offeredSeatCount)
 
         val restored = VehicleMutation.removingPassenger(third, "p2")
@@ -157,6 +219,32 @@ class VehicleModelTest {
         )
         assertNull(legacy.offeredSeats)
         assertEquals(3, legacy.offeredSeatCount)
+    }
+
+    @Test
+    fun vehicleServiceRejectsPassengerChangesWhenOfferUnavailable() = runTest {
+        val closedOffer = sampleVehicle(
+            hasAvailableSeats = false,
+            pendingPassengerRegistrationIds = listOf("p1"),
+            pendingPassengerNames = listOf("Joao"),
+        )
+        val service = FakeVehicleService(vehicles = listOf(closedOffer))
+
+        val requestError = runCatching {
+            service.requestJoin(closedOffer.campingId, closedOffer.id, "p2", "Maria")
+        }.exceptionOrNull()
+        assertEquals(VehicleSeatUnavailableMessage, requestError?.message)
+
+        val addError = runCatching {
+            service.addPassenger(closedOffer.campingId, closedOffer.id, "p2", "Maria")
+        }.exceptionOrNull()
+        assertEquals(VehicleSeatUnavailableMessage, addError?.message)
+
+        val approveError = runCatching {
+            service.approvePassenger(closedOffer.campingId, closedOffer.id, "p1")
+        }.exceptionOrNull()
+        assertEquals(VehicleSeatUnavailableMessage, approveError?.message)
+        assertEquals(listOf("p1"), service.vehicle(closedOffer.campingId, closedOffer.id).pendingPassengerRegistrationIds)
     }
 
     @Test
@@ -285,6 +373,7 @@ class VehicleModelTest {
         pendingPassengerNames: List<String> = emptyList(),
         invitationCode: String? = "INV234",
         offeredSeats: Int? = null,
+        hasAvailableSeats: Boolean = true,
         status: VehicleStatus = VehicleStatus.Pending,
     ) = CampingVehicle(
         id = id,
@@ -300,7 +389,7 @@ class VehicleModelTest {
         color = "Blue",
         totalSeats = totalSeats,
         occupiedSeats = occupiedSeats,
-        hasAvailableSeats = true,
+        hasAvailableSeats = hasAvailableSeats,
         offeredSeats = offeredSeats,
         passengerRegistrationIds = passengerRegistrationIds,
         passengerNames = passengerNames,

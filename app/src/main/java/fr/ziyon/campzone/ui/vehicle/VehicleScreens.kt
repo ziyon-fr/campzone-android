@@ -821,7 +821,7 @@ private fun DriverVehicleSection(
                     )
                 }
             }
-            if (vehicle.availableSeats > 0) {
+            if (vehicle.offeredSeatCount > 0) {
                 val candidates = state.camping?.attendees.orEmpty()
                     .filter { it.registrationStatus == RegistrationApprovalStatus.Approved }
                     .filterNot { it.id == attendee.id }
@@ -974,7 +974,7 @@ private fun VehicleFormContent(
     var model by remember(existing?.id) { mutableStateOf(existing?.model.orEmpty()) }
     var color by remember(existing?.id) { mutableStateOf(existing?.color.orEmpty()) }
     var totalSeats by remember(existing?.id) { mutableIntStateOf(existing?.totalSeats ?: 5) }
-    var peopleInCar by remember(existing?.id) { mutableIntStateOf(existing?.occupiedSeats ?: 1) }
+    var peopleInCar by remember(existing?.id) { mutableIntStateOf(existing?.accountedOccupiedSeats ?: 1) }
     var hasAvailableSeats by remember(existing?.id) { mutableStateOf(existing?.hasAvailableSeats ?: true) }
     var offeredSeats by remember(existing?.id) {
         mutableIntStateOf((existing?.offeredSeats ?: existing?.availableSeats ?: 1).coerceAtLeast(1))
@@ -1718,7 +1718,7 @@ private fun VehicleQrContent(vehicle: CampingVehicle, modifier: Modifier = Modif
         item("code") {
             VehicleCard {
                 ReviewLine(stringResource(R.string.vehicle_invitation_code), vehicle.invitationCode ?: stringResource(R.string.vehicle_unavailable_value))
-                ReviewLine(stringResource(R.string.vehicle_seats), "${vehicle.occupiedSeats}/${vehicle.totalSeats}")
+                ReviewLine(stringResource(R.string.vehicle_seats), "${vehicle.accountedOccupiedSeats}/${vehicle.totalSeats}")
                 if (vehicle.passengers.isNotEmpty()) {
                     Spacer(Modifier.height(CzSpacing.sm))
                     SectionTitle(stringResource(R.string.vehicle_passengers), Icons.Filled.Groups)
@@ -2475,7 +2475,7 @@ private fun VehicleRow(
                     if (showFullPlate) vehicle.plateNumber else vehicle.maskedPlate,
                     color = MaterialTheme.czColors.textSecondary,
                 )
-                Text(stringResource(R.string.vehicle_seats_fraction, vehicle.occupiedSeats, vehicle.totalSeats), color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.vehicle_seats_fraction, vehicle.accountedOccupiedSeats, vehicle.totalSeats), color = MaterialTheme.czColors.textSecondary, style = MaterialTheme.typography.bodySmall)
             }
             StatusPill(vehicle)
         }

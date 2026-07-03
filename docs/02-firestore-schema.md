@@ -835,18 +835,23 @@ option is settled to `waived` afterward via the manager update path.
 
 Android mirrors the current iOS carpool offer model here. `offeredSeats` is an
 optional integer cap on the public carpool offer. When absent on legacy records,
-clients treat all physically free seats (`totalSeats - occupiedSeats`) as
-offered. When `hasAvailableSeats == false`, clients treat the offered count as
-zero and omit/delete `offeredSeats` on normal edits. Passenger approval consumes
-one explicit offered seat, and passenger removal restores one, clamped by the
-physical capacity.
+clients treat all physically free seats as offered. `occupiedSeats` includes the
+driver, but clients defensively derive physical free seats from
+`max(occupiedSeats, 1 + passengerRegistrationIDs.size)` so older passenger-only
+counts still render and write back correctly. When `hasAvailableSeats == false`,
+clients treat the offered count as zero and omit/delete `offeredSeats` on normal
+edits. Passenger approval consumes one explicit offered seat, and passenger
+removal restores one, clamped by the physical capacity. Add/request/approve and
+invite actions must use the derived `offeredSeatCount`; physical spare seats are
+not public carpool seats when the driver disabled the offer or the explicit
+offer cap is exhausted.
 
 | key | type | default | notes |
 | --- | --- | --- | --- |
 | `campingID` | string | path | required |
 | `ownerUserID` / `driverUserID` / `driverRegistrationID` | string | drop | driver identity |
 | `plateNumber` | string | drop | uppercased on write |
-| `totalSeats` / `occupiedSeats` | int | `1` | clamped to the client vehicle range |
+| `totalSeats` / `occupiedSeats` | int | `1` | `occupiedSeats` counts the driver and is clamped to the client vehicle range |
 | `hasAvailableSeats` | bool | derived | public carpool toggle |
 | `offeredSeats` | int | `nil` | optional explicit public-seat cap; legacy nil means all free seats |
 | `passengerRegistrationIDs` / `pendingPassengerRegistrationIDs` | array\<string> | `[]` | approved and pending riders; one registration may only be claimed by one active vehicle at a time |
