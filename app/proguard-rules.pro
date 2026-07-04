@@ -1,21 +1,29 @@
 # Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# --- Crash report readability -------------------------------------------------
+# Keep line numbers so Play Console stack traces stay deobfuscatable via the
+# uploaded mapping.txt, but still hide the original source file names.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Generic signatures + annotations are needed by the Firebase/Firestore SDK
+# (generic Task<T>, collectionGroup queries) and by kotlinx.coroutines.
+-keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# --- Kotlin / coroutines ------------------------------------------------------
+# Coroutines ships consumer rules; keep the volatile fields R8 can miss.
+-keepclassmembers class kotlinx.coroutines.** {
+    volatile <fields>;
+}
+-dontwarn kotlinx.coroutines.**
+
+# --- App code -----------------------------------------------------------------
+# Firestore payloads are written/read as Map<String, Any?> (no POJO auto-
+# mapping) and every enum wire value is mapped explicitly, so the model classes
+# need no keep rules. Enum valueOf() is still kept by R8 by default.
+#
+# osmdroid, Stripe, ML Kit, Firebase, credentials/googleid, Markwon and ZXing
+# all ship their own consumer ProGuard rules inside their AARs, which R8 applies
+# automatically. No additional keeps are required for them.
