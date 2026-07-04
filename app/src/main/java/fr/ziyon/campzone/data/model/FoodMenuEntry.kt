@@ -3,6 +3,24 @@ package fr.ziyon.campzone.data.model
 import java.util.Date
 import java.util.GregorianCalendar
 import java.util.TimeZone
+import java.util.UUID
+
+/** One structured dish inside a menu entry. Allergen tokens share the profile vocabulary. */
+data class FoodMenuItem(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val details: String? = null,
+    val allergens: List<String> = emptyList(),
+    val note: String? = null,
+) {
+    fun matchedAllergens(userFoodAllergies: Collection<String>): List<String> {
+        val normalizedUser = userFoodAllergies
+            .mapNotNull { it.trim().takeUnless(String::isEmpty)?.lowercase() }
+            .toSet()
+        if (normalizedUser.isEmpty()) return emptyList()
+        return allergens.filter { it.trim().lowercase() in normalizedUser }
+    }
+}
 
 /**
  * `campings/{id}/foodMenu/{entryId}` (`02-firestore-schema.md` §4.4). Doc ID is
@@ -14,21 +32,51 @@ data class FoodMenuEntry(
     val campingId: String,
     val date: Date,
     val meal: FoodMealKind,
-    val dishes: List<String> = emptyList(),
+    val items: List<FoodMenuItem> = emptyList(),
     val notes: String = "",
-)
+) {
+    val dishes: List<String>
+        get() = items.map(FoodMenuItem::name)
+}
 
 internal fun Map<String, Any?>.toFoodMenuEntryOrNull(documentId: String, campingId: String): FoodMenuEntry? {
     val date = dateValue("date") ?: return null
     val meal = FoodMealKind.fromWire(stringValue("meal")) ?: return null
+    val structuredItems = mapListValue("items").mapNotNull { it.toFoodMenuItemOrNull() }
+    val items = structuredItems.takeIf { it.isNotEmpty() }
+        ?: stringListValue("dishes")
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .map { FoodMenuItem(name = it) }
     return FoodMenuEntry(
         id = documentId,
         campingId = stringValue("campingID") ?: campingId,
         date = date,
         meal = meal,
-        dishes = stringListValue("dishes"),
+        items = items,
         notes = rawStringValue("notes").orEmpty(),
     )
+}
+
+private fun Map<String, Any?>.toFoodMenuItemOrNull(): FoodMenuItem? {
+    val name = rawStringValue("name")?.trim().orEmpty()
+    if (name.isEmpty()) return null
+    return FoodMenuItem(
+        id = rawStringValue("id")?.takeUnless { it.isBlank() } ?: UUID.randomUUID().toString(),
+        name = name,
+        details = rawStringValue("details")?.trim()?.takeUnless(String::isEmpty),
+        allergens = stringListValue("allergens"),
+        note = rawStringValue("note")?.trim()?.takeUnless(String::isEmpty),
+    )
+}
+
+private fun FoodMenuItem.payload(): Map<String, Any?> = linkedMapOf<String, Any?>(
+    "id" to id,
+    "name" to name.trim(),
+    "allergens" to allergens.map(String::trim).filter(String::isNotEmpty).distinctBy(String::lowercase),
+).apply {
+    details?.trim()?.takeUnless(String::isEmpty)?.let { put("details", it) }
+    note?.trim()?.takeUnless(String::isEmpty)?.let { put("note", it) }
 }
 
 internal object FoodMenuPayload {
@@ -37,7 +85,8 @@ internal object FoodMenuPayload {
             "campingID" to entry.campingId,
             "date" to entry.date,
             "meal" to entry.meal.wireValue,
-            "dishes" to entry.dishes.map { it.trim() }.filter { it.isNotEmpty() },
+            "dishes" to entry.dishes.map(String::trim).filter(String::isNotEmpty),
+            "items" to entry.items.filter { it.name.isNotBlank() }.map(FoodMenuItem::payload),
             "notes" to entry.notes.trim(),
         )
 }
@@ -45,9 +94,9 @@ internal object FoodMenuPayload {
 /**
  * Application-level Menu ↔ Program sync (`02-firestore-schema.md` §4.5). There
  * is no Firestore trigger - clients write **both** the menu doc and the
- * generated program whenever either side changes. `title`/`type`/`description`
- * are menu-owned (always regenerated); `startDate`/`endDate`/`location`/
- * `campDayID`/`id` are preserved when a leader-edited program already exists.
+ * generated program whenever either side changes. Menu dishes/notes stay in
+ * the menu document; a Program's description stays leader-owned. Existing
+ * scheduling fields are preserved when a leader-edited program already exists.
  */
 internal object FoodMenuProgramSync {
 
@@ -84,55 +133,19 @@ internal object FoodMenuProgramSync {
 
     fun menuEntryFor(program: Program, existing: FoodMenuEntry?): FoodMenuEntry? {
         val meal = mealKind(program.type) ?: return null
-        val dishes = parseDishes(program.description)
         return FoodMenuEntry(
             id = DateKeys.foodMenuId(program.startDate, meal),
             campingId = program.campingId,
             date = program.startDate,
             meal = meal,
-            dishes = dishes.ifEmpty { existing?.dishes ?: listOf(mealTitle(meal)) },
-            notes = parseNotes(program.description),
+            items = existing?.items ?: listOf(FoodMenuItem(name = mealTitle(meal))),
+            notes = existing?.notes.orEmpty(),
         )
     }
 
     fun matches(program: Program, entry: FoodMenuEntry): Boolean =
         mealKind(program.type) == entry.meal &&
             DateKeys.dayKey(program.startDate) == DateKeys.dayKey(entry.date)
-
-    /** Builds the program description: each dish on `"- <dish>"`, then a blank line + `"Notes: <notes>"`. */
-    fun renderDescription(dishes: List<String>, notes: String): String {
-        val lines = dishes.map { "- ${it.trim()}" }.toMutableList()
-        val trimmedNotes = notes.trim()
-        if (trimmedNotes.isNotEmpty()) {
-            lines.add("")
-            lines.add("Notes: $trimmedNotes")
-        }
-        return lines.joinToString("\n")
-    }
-
-    /** Reverse parse: split on newline AND comma, strip `-`/`*`/`Menu:` prefixes, drop the `Notes:` line. */
-    fun parseDishes(description: String): List<String> =
-        description
-            .split("\n", ",")
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .filterNot { it.contains("Notes:", ignoreCase = true) }
-            .map { line ->
-                line
-                    .trimStart('-', '*', ' ')
-                    .replace(Regex("^Menu:\\s*", RegexOption.IGNORE_CASE), "")
-                    .trim()
-            }
-            .filter { it.isNotEmpty() }
-
-    fun parseNotes(description: String): String {
-        val notesLine = description
-            .lineSequence()
-            .firstOrNull { it.contains("Notes:", ignoreCase = true) }
-            ?: return ""
-        val marker = notesLine.indexOf("Notes:", ignoreCase = true)
-        return notesLine.substring(marker + "Notes:".length).trim()
-    }
 
     /**
      * Produces the program to write for [entry]. When [existing] is non-null its
@@ -141,13 +154,11 @@ internal object FoodMenuProgramSync {
      */
     fun programFor(entry: FoodMenuEntry, existing: Program?): Program {
         val programId = DateKeys.menuProgramId(entry.id)
-        val description = renderDescription(entry.dishes, entry.notes)
         val title = entry.meal.name
         return if (existing != null) {
             existing.copy(
                 title = title,
                 type = programType(entry.meal),
-                description = description,
             )
         } else {
             val (start, end) = defaultWindow(entry.date, entry.meal)
@@ -160,7 +171,7 @@ internal object FoodMenuProgramSync {
                 startDate = start,
                 endDate = end,
                 location = DefaultLocation,
-                description = description,
+                description = "",
             )
         }
     }

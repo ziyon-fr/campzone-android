@@ -23,9 +23,13 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.HomeWork
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -41,6 +45,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -60,6 +67,7 @@ import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.auth.CampingAgeGroup
 import fr.ziyon.campzone.data.model.CampingAttendee
+import fr.ziyon.campzone.ui.common.preferredLanguageDisplayName
 
 @Composable
 fun CampingAttendeesRoute(
@@ -186,6 +194,8 @@ private fun AttendeesContent(
         item {
             FilterChips(
                 filters = state.filters,
+                churches = state.availableChurches,
+                languages = state.availableLanguages,
                 onFilterChange = onFilterChange,
             )
         }
@@ -278,6 +288,8 @@ private fun AttendeeSummaryCard(state: CampingAttendeesUiState) {
 @Composable
 private fun FilterChips(
     filters: AttendeeFilters,
+    churches: List<String>,
+    languages: List<String>,
     onFilterChange: (AttendeeFilters) -> Unit,
 ) {
     Row(
@@ -296,6 +308,30 @@ private fun FilterChips(
                 },
             )
         }
+        if (churches.isNotEmpty()) {
+            FilterDropdownChip(
+                icon = Icons.Filled.HomeWork,
+                label = filters.church.ifBlank { stringResource(R.string.attendee_filter_any_church) },
+                selected = filters.church.isNotBlank(),
+                options = churches,
+                optionLabel = { it },
+                onSelected = { onFilterChange(filters.copy(church = it)) },
+                onClear = { onFilterChange(filters.copy(church = "")) },
+            )
+        }
+        if (languages.isNotEmpty()) {
+            FilterDropdownChip(
+                icon = Icons.Filled.Language,
+                label = filters.language.takeUnless(String::isBlank)
+                    ?.let { preferredLanguageDisplayName(it) }
+                    ?: stringResource(R.string.attendee_filter_any_language),
+                selected = filters.language.isNotBlank(),
+                options = languages,
+                optionLabel = { preferredLanguageDisplayName(it) },
+                onSelected = { onFilterChange(filters.copy(language = it)) },
+                onClear = { onFilterChange(filters.copy(language = "")) },
+            )
+        }
         if (!filters.isEmpty) {
             FilterChip(
                 icon = Icons.Filled.Close,
@@ -303,6 +339,48 @@ private fun FilterChips(
                 selected = true,
                 onClick = { onFilterChange(AttendeeFilters()) },
             )
+        }
+    }
+}
+
+@Composable
+private fun FilterDropdownChip(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    options: List<String>,
+    optionLabel: @Composable (String) -> String,
+    onSelected: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        FilterChip(
+            icon = icon,
+            label = label,
+            selected = selected,
+            onClick = { expanded = true },
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            if (selected) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.common_clear)) },
+                    onClick = {
+                        expanded = false
+                        onClear()
+                    },
+                    leadingIcon = { Icon(Icons.Filled.Close, contentDescription = null) },
+                )
+            }
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel(option)) },
+                    onClick = {
+                        expanded = false
+                        onSelected(option)
+                    },
+                )
+            }
         }
     }
 }

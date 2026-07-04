@@ -24,6 +24,9 @@ import fr.ziyon.campzone.data.model.ProgramType
 import fr.ziyon.campzone.data.model.ScheduleReminderTiming
 import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.model.normalizedForCamping
+import fr.ziyon.campzone.data.notifications.NoOpNotificationApi
+import fr.ziyon.campzone.data.notifications.NotificationApi
+import fr.ziyon.campzone.data.notifications.ProgramReminderPlanner
 import fr.ziyon.campzone.data.schedule.FoodMenuService
 import fr.ziyon.campzone.data.schedule.ScheduleService
 import fr.ziyon.campzone.data.venuemap.FakeVenueMapService
@@ -32,9 +35,12 @@ import java.util.Calendar
 import java.util.Date
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 sealed interface ScheduleUiState {
@@ -72,6 +78,7 @@ class ScheduleViewModel @Inject constructor(
     private val campingService: CampingService,
     private val foodMenuService: FoodMenuService,
     private val stringProvider: StringProvider,
+    private val notificationApi: NotificationApi = NoOpNotificationApi,
     private val venueMapService: VenueMapService = FakeVenueMapService(),
     private val gameService: GameService = FakeGameService(),
 ) : ViewModel() {
@@ -110,46 +117,84 @@ class ScheduleViewModel @Inject constructor(
     private val _operationMessage = MutableStateFlow<String?>(null)
     val operationMessage: StateFlow<String?> = _operationMessage.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     private val permissions = AppPermissionEvaluator()
 
     private val _canManageSchedule = MutableStateFlow(false)
     val canManageSchedule: StateFlow<Boolean> = _canManageSchedule.asStateFlow()
 
+    private val _camping = MutableStateFlow<Camping?>(null)
+    val camping: StateFlow<Camping?> = _camping.asStateFlow()
+
     /** In-memory cache keyed by campingId. */
     private val schedules = mutableMapOf<String, CampingSchedule>()
     private val normalizedIds = mutableSetOf<String>()
     private var lastUser: AuthenticatedUser? = null
+    private var observeJob: Job? = null
+    private var observedCampingId: String? = null
 
     fun load(campingId: String, user: AuthenticatedUser? = null) {
         if (user != null) lastUser = user
-        viewModelScope.launch {
-            _uiState.value = ScheduleUiState.Loading
-            _operationError.value = null
-            runCatching {
-                val schedule = scheduleService.loadSchedule(campingId)
-                val camping = runCatching { campingService.fetchCamping(campingId) }.getOrNull()
-                val normalized = if (camping != null) schedule.normalizedForCamping(camping, ::defaultDayTitle) else schedule
-                schedules[campingId] = normalized
-                updateCanManage(lastUser, camping)
-                _venuePoints.value = runCatching { venueMapService.loadMap(campingId).points }
-                    .getOrDefault(emptyList())
-                _games.value = runCatching { gameService.loadGames(campingId) }
-                    .getOrDefault(emptyList())
-                publishSchedule(campingId)
-            }.onFailure { e ->
-                _uiState.value = ScheduleUiState.Error(
-                    e.message ?: stringProvider.get(R.string.schedule_load_error)
-                )
-            }
-        }
+        observeSchedule(campingId, showLoading = true)
     }
 
     fun loadIfNeeded(campingId: String, user: AuthenticatedUser? = null) {
         if (user != null) lastUser = user
-        if (schedules.containsKey(campingId)) {
+        if (observedCampingId == campingId && observeJob?.isActive == true) {
             publishSchedule(campingId)
-        } else {
-            load(campingId, user)
+            return
+        }
+        observeSchedule(campingId, showLoading = !schedules.containsKey(campingId))
+    }
+
+    fun refresh(campingId: String, user: AuthenticatedUser? = null) {
+        if (user != null) lastUser = user
+        observeSchedule(campingId, showLoading = false, isRefresh = true)
+    }
+
+    private fun observeSchedule(campingId: String, showLoading: Boolean, isRefresh: Boolean = false) {
+        observedCampingId = campingId
+        observeJob?.cancel()
+        observeJob = viewModelScope.launch {
+            if (showLoading) _uiState.value = ScheduleUiState.Loading
+            if (isRefresh) _isRefreshing.value = true
+            _operationError.value = null
+            try {
+                runCatching {
+                    _venuePoints.value = runCatching { venueMapService.loadMap(campingId).points }
+                        .getOrDefault(emptyList())
+                    _games.value = runCatching { gameService.loadGames(campingId) }
+                        .getOrDefault(emptyList())
+                }.onFailure { e ->
+                    _operationError.value = e.message
+                }
+                combine(
+                    scheduleService.observeSchedule(campingId),
+                    campingService.observeCamping(campingId),
+                ) { schedule, camping ->
+                    val normalized = schedule.normalizedForCamping(camping, ::defaultDayTitle)
+                    camping to normalized
+                }.collect { (camping, schedule) ->
+                    _camping.value = camping
+                    schedules[campingId] = schedule
+                    updateCanManage(lastUser, camping)
+                    publishSchedule(campingId)
+                    if (isRefresh) _isRefreshing.value = false
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (e: Exception) {
+                val message = e.message ?: stringProvider.get(R.string.schedule_load_error)
+                if (showLoading || schedules[campingId] == null) {
+                    _uiState.value = ScheduleUiState.Error(message)
+                } else {
+                    _operationError.value = message
+                }
+            } finally {
+                if (isRefresh) _isRefreshing.value = false
+            }
         }
     }
 
@@ -175,6 +220,11 @@ class ScheduleViewModel @Inject constructor(
         }
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        observeJob?.cancel()
+    }
+
     fun setSelectedDayId(dayId: String?) {
         _selectedDayId.value = dayId
     }
@@ -189,6 +239,7 @@ class ScheduleViewModel @Inject constructor(
             runCatching {
                 val schedule = scheduleService.saveReminderTiming(_reminderTiming.value, campingId)
                 schedules[campingId] = schedule
+                syncCampingReminders(schedule)
                 _operationMessage.value = stringProvider.get(R.string.schedule_reminder_saved)
                 publishSchedule(campingId)
             }.onFailure { e ->
@@ -267,6 +318,7 @@ class ScheduleViewModel @Inject constructor(
                 val schedule = scheduleService.saveProgram(program)
                 syncMenuAfterSaving(program, previousProgram)
                 schedules[campingId] = schedule
+                syncProgramReminder(program, schedule.reminderTiming)
                 _selectedDayId.value = program.campDayId
                 _editingProgramId.value = program.id
                 _operationMessage.value = stringProvider.get(R.string.schedule_program_saved)
@@ -286,6 +338,7 @@ class ScheduleViewModel @Inject constructor(
                 val schedule = scheduleService.deleteProgram(programId, campingId)
                 syncMenuAfterDeleting(removedProgram)
                 schedules[campingId] = schedule
+                cancelProgramReminder(campingId, programId)
                 _operationMessage.value = stringProvider.get(R.string.schedule_program_deleted)
                 publishSchedule(campingId)
             }.onFailure { e ->
@@ -351,7 +404,9 @@ class ScheduleViewModel @Inject constructor(
         }
         val current = schedule?.sortedDays ?: return
         if (_selectedDayId.value == null || current.none { it.id == _selectedDayId.value }) {
-            _selectedDayId.value = current.firstOrNull()?.id
+            val todayKey = DateKeys.dayKey(Date())
+            _selectedDayId.value = current.firstOrNull { DateKeys.dayKey(it.date) == todayKey }?.id
+                ?: current.firstOrNull()?.id
         }
         _reminderTiming.value = schedule.reminderTiming
     }
@@ -391,6 +446,42 @@ class ScheduleViewModel @Inject constructor(
             )
         }.onFailure {
             _operationError.value = stringProvider.get(R.string.schedule_program_deleted_menu_sync_error)
+        }
+    }
+
+    private suspend fun syncCampingReminders(schedule: CampingSchedule) {
+        runCatching {
+            notificationApi.replaceCampingReminders(
+                campingId = schedule.campingId,
+                reminders = ProgramReminderPlanner.plans(schedule),
+            )
+        }.onFailure {
+            _operationError.value = stringProvider.get(R.string.schedule_reminder_dispatch_sync_error)
+        }
+    }
+
+    private suspend fun syncProgramReminder(program: Program, timing: ScheduleReminderTiming) {
+        runCatching {
+            val reminders = ProgramReminderPlanner.plan(program, timing)?.let(::listOf).orEmpty()
+            notificationApi.replaceProgramReminders(
+                campingId = program.campingId,
+                programIds = listOf(program.id),
+                reminders = reminders,
+            )
+        }.onFailure {
+            _operationError.value = stringProvider.get(R.string.schedule_reminder_dispatch_sync_error)
+        }
+    }
+
+    private suspend fun cancelProgramReminder(campingId: String, programId: String) {
+        runCatching {
+            notificationApi.replaceProgramReminders(
+                campingId = campingId,
+                programIds = listOf(programId),
+                reminders = emptyList(),
+            )
+        }.onFailure {
+            _operationError.value = stringProvider.get(R.string.schedule_program_deleted_reminder_sync_error)
         }
     }
 

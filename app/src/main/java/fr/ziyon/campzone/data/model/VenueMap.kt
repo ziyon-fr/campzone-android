@@ -13,7 +13,11 @@ data class VenueMap(
     val imagePublicId: String? = null,
     val points: List<VenuePoint> = emptyList(),
     val updatedAt: Date? = null,
-)
+) {
+    companion object {
+        const val MaxPoints = 120
+    }
+}
 
 data class VenuePoint(
     val id: String,
@@ -53,6 +57,12 @@ val VenueMap.hasImage: Boolean get() = !imageUrl.isNullOrBlank()
 
 /** Drives the self-silencing entry card: anything worth showing at all. */
 val VenueMap.hasContent: Boolean get() = hasImage || points.isNotEmpty()
+
+/** Guard for the single Firestore document that owns every embedded venue pin. */
+val VenueMap.isAtPointCapacity: Boolean get() = points.size >= VenueMap.MaxPoints
+
+/** How many new pins can be added before the single venue-map document is full. */
+val VenueMap.remainingPointCapacity: Int get() = (VenueMap.MaxPoints - points.size).coerceAtLeast(0)
 
 /** Pins that can be drawn over the illustration (have a relative position). */
 val VenueMap.pointsOnIllustration: List<VenuePoint> get() = points.filter { it.hasImagePosition }

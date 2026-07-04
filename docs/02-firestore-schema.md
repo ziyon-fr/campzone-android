@@ -75,6 +75,7 @@ campings/{campingId}                                Camping (event)
   campings/{id}/polls/{pollId}/votes/{voterId}      PollVote
   campings/{id}/checkIns/{attendeeId}               CheckInRecord
   campings/{id}/transportationBookings/{bookingId}  TransportationBooking
+  campings/{id}/vehicles/{vehicleId}                 CampingVehicle carpool
   campings/{id}/lodging/{unitId}                    LodgingUnit
   campings/{id}/venueMap/config                     VenueMap (single doc)
   campings/{id}/feedback/{uid}                       CampFeedback
@@ -139,6 +140,7 @@ Attendees live exclusively in the `registrations` subcollection.
 | `gender` | string | opt | `nil` | **delete-when-nil**. `UserGender`: `female`/`male`/`prefer_not_to_say` |
 | `church` | string | opt | `""` | trimmed; RBAC scope key for leadership |
 | `skills` | array\<string> | opt | `[]` | trimmed, empties dropped |
+| `allergies` | array\<string> | opt | `[]` | stable preset tokens or trimmed custom labels; empties and case-insensitive duplicates dropped |
 | `profession` | string | opt | `""` | |
 | `education` | string | opt | `""` | |
 | `pathfinderRank` | string | opt | `""` | |
@@ -185,6 +187,7 @@ admins will manage, also set `id == uid`.
 | `emergencyContactName` | string | **req** | - | |
 | `emergencyContactPhone` | string | **req** | - | |
 | `medicalNotes` | string | opt | `""` | |
+| `allergies` | array\<string> | opt | `[]` | stable preset tokens or custom labels; copied into registration snapshots |
 | `relationship` | string | opt | `parent` | `FamilyRelationship` (§ Enums) |
 | `customRelationshipLabel` | string | opt | `""` | only when `relationship == other` |
 | `guardianConsentAt` | timestamp | opt | `nil` | presence == consent; **delete-when-nil** |
@@ -264,7 +267,7 @@ filter; earned badge docs only store the user-specific award instance.
 ## 3. `campings/{campingId}` - Camping
 
 - **Doc ID**: client-supplied `camping.id` (human slug or UUID, **not** Firestore auto-id).
-- **Write path bypasses Codable** - the spec is the manual `payload(for:)`. Fields the Swift model has but the payload does **not** write: `attendees` (never on wire), `guidelines` (only via the guidelines update path), `winnerRevealPolicy` (only via the reveal path).
+- **Write path bypasses Codable** - the spec is the manual `payload(for:)`. Fields the Swift model has but the payload does **not** write: `attendees` (never on wire), `guidelines` (only via the guidelines update path), `winnerRevealPolicy` (only via the reveal path), `isFeatured` (only via the Home pin path).
 
 | Wire key | Type | Req/Opt | Default | Notes |
 | --- | --- | --- | --- | --- |
@@ -284,6 +287,7 @@ filter; earned badge docs only store the user-specific award instance.
 | `logoURL` | string | opt | `nil` | **delete-when-empty** |
 | `logoPublicID` | string | opt | `nil` | **delete-when-empty** |
 | `guidelines` | string | opt | `""` | markdown; written only by the guidelines update path |
+| `isFeatured` | bool | opt | `false` | Home featured pin. Read with default `false`; written only by the dedicated merge path `{ isFeatured, updatedAt }`, never by regular camping save |
 | `registrationFeeCents` | int | opt | `nil` | **cents/minor units**. delete-when-`<=0` |
 | `feeCurrency` | string | opt | `nil` | e.g. `usd`/`eur`. delete-when-blank |
 | `priceItems` | array\<map> | opt | `[]` | always written (may be `[]`). § 3.3 |
@@ -292,7 +296,7 @@ filter; earned badge docs only store the user-specific award instance.
 | `createdByUID` | string | opt | `nil` | creator signature; stamped once on create; omit-when-empty. Authorizes delete |
 | `createdByName` | string | opt | `nil` | omit-when-empty |
 | `createdAt` | timestamp | server | - | `serverTimestamp()`, create only |
-| `updatedAt` | timestamp | server | - | `serverTimestamp()`, every save/cancel/guidelines write |
+| `updatedAt` | timestamp | server | - | `serverTimestamp()`, every save/cancel/guidelines/featured write |
 
 ### 3.1 `organizerLevel` map (required)
 
@@ -381,6 +385,7 @@ is the fallback for uncovered ages.
 | `emergencyContactName` | string | opt | `""` | |
 | `emergencyContactPhone` | string | opt | `""` | |
 | `medicalNotes` | string | opt | `""` | |
+| `allergies` | array\<string> | opt | `[]` | denormalized from the self profile or child participant at registration time |
 | `guardianConsentAt` | timestamp | opt | `nil` | omit-when-nil |
 | `transportationChoice` | string | opt | `own_car` | `own_car` / `provided_bus` |
 | `transportationBookingID` | string | opt | `nil` | omit-when-nil; form `"{participant.id}-bus"` |
@@ -467,8 +472,14 @@ docs. `normalizeDays` re-files mis-keyed programs idempotently.
 | `campingID` | string | - | path arg | |
 | `date` | timestamp | **req** | drop | entry dropped if neither Timestamp nor Date |
 | `meal` | string | **req** | drop | `FoodMealKind`: `breakfast`/`lunch`/`dinner`/`snack` |
-| `dishes` | array\<string> | opt | `[]` | |
+| `items` | array\<map> | opt | `[]` | Structured dishes; each map has required `id`, `name`, `allergens[]` and optional `details`, `note` |
+| `dishes` | array\<string> | opt | `[]` | Legacy/denormalized item names for older clients |
 | `notes` | string | opt | `""` | |
+
+Clients prefer a non-empty, valid `items` array and fall back to legacy
+`dishes` names when structured items are absent or malformed. Saves write both
+fields additively. Dish allergen tokens use the same stable preset/custom token
+vocabulary as participant profile allergies.
 
 ### 4.5 Menu ↔ Program sync (application-level - no Firestore trigger)
 
@@ -479,14 +490,15 @@ deterministic id only:
 
 - menu id `"<yyyy-MM-dd>-<meal>"`; program id `"menu-<menu id>"`;
   program `campDayID = "<campingID>-day-<yyyy-MM-dd>"`.
-- Entry→Program: `title`/`type`/`description` are **menu-owned** (always
-  regenerated). `startDate`/`endDate`/`location`/`campDayID`/`id` are
-  **preserved** if a leader-edited program already exists.
+- Entry→Program: `title`/`type` identify the meal. Menu `items`/`dishes`/`notes` stay
+  in the menu document; Program `description` is leader-owned and preserved.
+  `startDate`/`endDate`/`location`/`campDayID`/`id` are also preserved when a
+  leader-edited program already exists.
 - Default meal times: breakfast 08:00 (45m), snack 10:30 (30m), lunch
   12:30 (60m), dinner 18:30 (60m). Default location `"Dining hall"`.
-- `description` format: each dish on `"- <dish>"` line; if notes, a blank
-  line then `"Notes: <notes>"`; joined with `\n`. Parsing splits on
-  newline **and** comma, strips `-`/`*`/`Menu:` prefixes, drops `Notes:`.
+- Program→Entry preserves an existing entry's structured items/notes. A new entry uses
+  the meal title as its initial dish; Program descriptions are never parsed as
+  menu data.
 
 ---
 
@@ -566,7 +578,7 @@ Create requires `campingID == path` and `createdBy == auth.uid`.
 | --- | --- | --- |
 | `id` | string | body + doc ID |
 | `campingID` | string | **must equal path** |
-| `gameID` | string | indexed (`whereField`) |
+| `gameID` | string | optional; indexed (`whereField`); omitted for manual team/member adjustments |
 | `pointRuleID` | string | omit-when-nil |
 | `name` | string | |
 | `points` | int | **signed** (negative = penalty/correction) |
@@ -580,11 +592,16 @@ Create requires `campingID == path` and `createdBy == auth.uid`.
 | `createdByName` | string | |
 | `createdAt` | timestamp | client `Date()`; ordered desc; capped 500 |
 
-Awarding contract: write the Activity first, then mutate the team doc.
+Game-award contract: write the Activity first, then mutate the team doc.
 A **negative team award** is recorded as an appended positive-magnitude
 `penalties[]` entry - **never** a decrement of `points`. A user award
 adds the delta to that member’s `personalScore`. Every team write
 rewrites the full doc + `memberUserIDs` + `updatedAt`.
+
+Manual team/member adjustments are initiated from team management: mutate the
+team first, then best-effort append an Activity with omitted `gameID`, a
+required operator reason, and matching `previousScore`/`newScore`. A denied
+ledger append must not roll back or misreport an already-persisted score change.
 
 ---
 
@@ -592,8 +609,8 @@ rewrites the full doc + `memberUserIDs` + `updatedAt`.
 
 ### 6.1 `campings/{id}/chat/{messageId}` and `campings/{id}/teams/{teamId}/chat/{messageId}` - ChatMessage
 
-- **Doc ID**: client UUID. `senderID == auth.uid`. Send = full `set` (no merge); pin/soft-delete = `updateData`. Read ordered by `createdAt` asc, `limit(toLast: 200)`.
-- Decode drops the message if any of `campingID`, `senderID`, `senderName`, `text` is missing/non-string.
+- **Doc ID**: client UUID. `senderID == auth.uid`. Send = full `set` (no merge); pin/soft-delete/edit/reaction = `updateData`. Read ordered by `createdAt` asc, `limit(toLast: 200)`.
+- Decode drops the message if any of `campingID`, `senderID`, `senderName`, `text` is missing/non-string. Reply/reaction fields are optional and tolerated on legacy docs.
 
 | key | type | req | default | notes |
 | --- | --- | --- | --- | --- |
@@ -611,6 +628,16 @@ rewrites the full doc + `memberUserIDs` + `updatedAt`.
 | `isDeleted` | bool | opt | `false` | soft delete keeps the doc; display → `"Message removed"` |
 | `deletedByID` | string | opt | `nil` | on soft delete |
 | `deletedAt` | timestamp | opt | `nil` | `serverTimestamp()` on soft delete |
+| `mentions` | array<map> | opt | `[]` | `userID`, `displayName`, UTF-16 `offset`, `length`; `__everyone__` for all visible recipients |
+| `mentionedUserIDs` | array<string> | opt | `[]` | flat backend/rules companion to `mentions`; cap 50 |
+| `attachmentKind` | string | opt | `nil` | `image`/`audio` |
+| `attachmentURL` | string | opt | `nil` | Cloudinary secure URL |
+| `attachmentPublicID` | string | opt | `nil` | Cloudinary cleanup id |
+| `attachmentDuration` | number | opt | `nil` | voice-note seconds |
+| `attachmentWidth`/`attachmentHeight` | number | opt | `nil` | image dimensions |
+| `editedAt` | timestamp | opt | `nil` | author text edit timestamp |
+| `replyTo` | map | opt | `nil` | quoted-message snapshot: `messageID`, `senderID`, `senderName`, optional `textPreview`, `mediaType`, `mediaURL` |
+| `reactions` | map<string,string> | opt | `{}` | `[userID: emoji]`; clients update only `reactions.<auth.uid>` |
 
 ### 6.2 `announcements/{announcementId}` - Announcement
 
@@ -676,9 +703,12 @@ decrement old options, increment new, set vote doc + poll `options`.
 ### 6.5 `ziyon_notifications/{id}` - in-app feed (BACKEND-WRITTEN, shared multi-app)
 
 Clients are **readers only** (RBAC: `create/update/delete: false`).
-Read filtered `whereField("topic", isEqualTo: <topic>).limit(200)` per
-visible topic, merged & deduped by `id`, sorted `sentAt` desc. Tolerant
-decoder. **`appID` MUST be `"campzone"`** or the doc is ignored client-side.
+Every listener filters `topic` and is capped at 200. Camping listeners must
+also filter `campingID`; camping-role listeners additionally filter `role`;
+team listeners filter `teamID` and, for non-admins, `campingID`. These
+predicates are required because Firestore Security Rules are not filters.
+Results are merged & deduped by `id`, sorted `sentAt` desc. Tolerant decoder.
+**`appID` MUST be `"campzone"`** or the doc is ignored client-side.
 
 | key | type | default | notes |
 | --- | --- | --- | --- |
@@ -687,22 +717,35 @@ decoder. **`appID` MUST be `"campzone"`** or the doc is ignored client-side.
 | `kind` | string | inferred | backend writes **`kind`**; decoder also accepts `type` |
 | `title` | string | `"Notification"` | |
 | `body` | string | `""` | |
-| `topic` | string | `""` | audience routing (§ 04-backend-api topics) |
+| `topic` | string | `""` | audience routing (§ 04-backend-api topics), including direct user topics `campzone_user_<uid>` |
 | `sentAt` | **iso-string** | `.distantPast` | backend writes `new Date().toISOString()` → `2026-05-16T09:00:00.000Z`. Decoder also accepts Timestamp/Date |
 | `createdAt` | iso-string | - | fallback for `sentAt` |
 | `announcementID` | string | `nil` | kind inference: → `announcement` |
 | `campingID` | string | `nil` | → `chatMessage` if no other |
 | `pollID` | string | `nil` | → `poll` |
 | `teamID` | string | `nil` | team-scoped |
+| `achievementID` | string | `nil` | badge/achievement id for earned-badge notifications |
+| `achievementTitle` | string | `nil` | display title sent by the backend for badge notifications |
 | `role` | string | from topic | derived from topic prefix `campzone_role_` |
+| `recipientUserID` | string | `nil` | direct-user feed recipient for `campzone_user_<uid>` rows |
+| `registrationID` | string | `nil` | registration attendee doc id for registration request/approval rows; for family-targeted checklist/transportation rows this is the action subject, not necessarily the active app user |
+| `shareID` / `packingShareID` | string | `nil` | shared packing checklist id; kind inference: → `checklist` |
+| `actionSubjectRegistrationID` | string | `nil` | family/member action subject registration id; notification recipient remains `recipientUserID` |
+| `actionSubjectUserID` | string | `nil` | user/child id of the action subject |
+| `actionSubjectName` | string | `nil` | display name used in notification copy, e.g. "Camping checklist shared with Emma" |
+| `actionSubjectGuardianID` | string | `nil` | guardian/main account used as notification recipient for child subjects |
+| `event` | string | `nil` | registration uses `request` or `approved`; team updates use event values from §04 |
+| `deepLink` | string | `nil` | optional direct app/web URL; clients prefer it over kind/id inference |
 | `senderId` | string | - | backend writes `senderId` (note casing) |
 | `messageId` | string | - | FCM message id |
 
-`AppNotificationKind` raw: `announcement`, `chat_message` (also accepts
-`chatmessage`), `poll`, `schedule_reminder` (also `schedulereminder`),
-`unknown`. Kind inference order: explicit kind → `type` →
-`announcementID`→announcement → `pollID`→poll → `campingID`→chatMessage →
-`unknown`.
+`AppNotificationKind` raw: `announcement`, `badge` (also accepts
+`achievement`/`achievement_badge`), `chat_message` (also accepts
+`chatmessage`), `checklist` (also accepts `packing_share`/`packingshare`/
+`packing`), `poll`, `schedule_reminder` (also `schedulereminder`),
+`transportation`, `unknown`. Kind inference order: explicit kind → `type` →
+`announcementID`→announcement → `shareID`/`packingShareID`→checklist →
+`pollID`→poll → `campingID`→chatMessage → `unknown`.
 
 ---
 
@@ -788,6 +831,34 @@ outbound mirror + `updatedAt`. `updatePaymentStatus` sets
 the booking is still `unpaid`/`not_boarded` (RBAC literals); a free organizer
 option is settled to `waived` afterward via the manager update path.
 
+### 7.2a `campings/{id}/vehicles/{vehicleId}` - CampingVehicle carpool record
+
+Android mirrors the current iOS carpool offer model here. `offeredSeats` is an
+optional integer cap on the public carpool offer. When absent on legacy records,
+clients treat all physically free seats as offered. `occupiedSeats` includes the
+driver, but clients defensively derive physical free seats from
+`max(occupiedSeats, 1 + passengerRegistrationIDs.size)` so older passenger-only
+counts still render and write back correctly. When `hasAvailableSeats == false`,
+clients treat the offered count as zero and omit/delete `offeredSeats` on normal
+edits. Passenger approval consumes one explicit offered seat, and passenger
+removal restores one, clamped by the physical capacity. Add/request/approve and
+invite actions must use the derived `offeredSeatCount`; physical spare seats are
+not public carpool seats when the driver disabled the offer or the explicit
+offer cap is exhausted.
+
+| key | type | default | notes |
+| --- | --- | --- | --- |
+| `campingID` | string | path | required |
+| `ownerUserID` / `driverUserID` / `driverRegistrationID` | string | drop | driver identity |
+| `plateNumber` | string | drop | uppercased on write |
+| `totalSeats` / `occupiedSeats` | int | `1` | `occupiedSeats` counts the driver and is clamped to the client vehicle range |
+| `hasAvailableSeats` | bool | derived | public carpool toggle |
+| `offeredSeats` | int | `nil` | optional explicit public-seat cap; legacy nil means all free seats |
+| `passengerRegistrationIDs` / `pendingPassengerRegistrationIDs` | array\<string> | `[]` | approved and pending riders; one registration may only be claimed by one active vehicle at a time |
+| `qrToken` / `invitationCode` | string | drop / nil | secure scan token and optional join code |
+| `status` | string | `pending` | `pending`/`confirmed`/`arrived`/`cancelled` |
+| `createdAt` / `updatedAt` | timestamp | now | first create / every mutation |
+
 ### 7.3 `campings/{id}/lodging/{unitId}` - LodgingUnit
 
 | key | type | default | notes |
@@ -858,20 +929,30 @@ MediaItem (full `set`, ordered `uploadedAt` desc): `campingID`, `kind`
 | `artist` / `composer` | string | `""` | |
 | `lyrics` | string | `""` | plain blob |
 | `chords` | string | `""` | legacy ChordPro-ish text |
+| `chordedLyrics` | string | `""` | canonical cross-platform ChordPro text (`{Verse}` headers, `[G]inline chords`) |
+| `chordedLyricsUpdatedAt` | timestamp/date | `nil` | freshness marker for `chordedLyrics`; raw client date fallback on write |
+| `cantusSlug` | string | `""` | source slug when imported from the authenticated Cantus catalog |
 | `lyricsParts` | array\<map> | `[]` | element `{ id, kind (`intro`/`verse`/`preChorus`/`chorus`/`bridge`/`instrumental`/`outro`/`custom`), number (int ≥1), title, text }` |
 | `chordSheet` | map | parsed/empty | see below |
 | `audio` | map | `nil` | primary take; **delete-when-empty** |
 | `audioFiles` | array\<map> | `[]` | all takes; falls back to `[audio]` |
-| `youtubeLink` / `pdfLink` | string | `""` | |
+| `youtubeLink` / `pdfLink` / `pptxLink` | string | `""` | media/link actions in Song detail |
 | `orderIndex` | int | `0` | list order |
 | `isPinnedTheme` | bool | `false` | one per camp (others batch-cleared) |
 | `favoriteUserIDs` | array\<string> | `[]` | `arrayUnion`/`arrayRemove` |
 | `createdAt` | timestamp | `now` | first create only |
 | `updatedAt` | timestamp | `now` | every write |
 
-`chordSheet` map: `id`, `originalKey` (string - **lossy**: only
-`G/D/A/F/Bb/B♭/Am/A minor/Em/E minor` decode back, everything else → C
-major), `tempo` (int, omit-when-nil), `timeSignature` (string e.g.
+`chordedLyrics` is the preferred canonical chord text. Clients parse it into
+`chordSheet` unless a non-empty stored `chordSheet.updatedAt` is more than one
+second newer than `chordedLyricsUpdatedAt`; that tolerance preserves edits made
+by older structured-sheet clients. `chords` remains the legacy chord-over-lyrics
+fallback for older app builds.
+
+`chordSheet` map: `id`, `originalKey` (string - decoded keys include common
+major/minor sharp and flat spellings such as `C`, `F#`, `Bb`, `Am`, `Bbm`;
+unknown values still fall back to C major), `tempo` (int, omit-when-nil),
+`timeSignature` (string e.g.
 `"4/4"`, omit-when-nil), `capo` (int, omit-when-nil), `updatedAt`
 (**raw Date**, not serverTimestamp), `lines` (array\<map>). `lines[]`:
 `id` (UUID string), `text`, `isSectionHeader` (bool), `chords`
@@ -884,7 +965,13 @@ if unparseable - **not** a structured object), `position` (int),
 (`"Song audio"`), `contentType` (`"audio/mpeg"`), `storagePath`
 (Cloudinary public_id, video resource type), `downloadURL` (secure_url;
 `""` when nil), `kind` (`mp3`/`m4a`/`wav`/`aac`/`other`), `duration`
-(double sec), `fileSize` (int64 bytes), `voiceType` (string).
+(double sec), `fileSize` (int64 bytes), `voiceType`, and `displayName`.
+`voiceType` is `mainSong`, `playback`, `instrumental`, `soprano`,
+`mezzoSoprano`, `contralto`, `alto`, `tenor`, `baritone`, `bass`, or `other`.
+Exactly one normalized entry is `mainSong`; the denormalized `audio` map points
+to that entry. Legacy missing/blank types promote the first take to `mainSong`
+without a migration. `displayName` is the optional free-form label for imported
+catalog tracks and custom/`other` tracks.
 
 ### 7.8 `campings/{id}/payments/{paymentIntentId}` - Payment audit (BACKEND-ONLY)
 
@@ -896,6 +983,22 @@ Documented in `04-backend-api.md`. Fields: `uid`, `kind`
 (Stripe status; seeded `"created"`), `paid` (bool), `createdAt`,
 `updatedAt` (serverTimestamps). Falls back to top-level
 `payments/{paymentIntentId}` if no `campingID`.
+
+### 7.9 `campings/{id}/safetyHub/config` - EmergencySafetyHub
+
+Single configuration document. Signed-in users may read it; camp schedule or
+announcement managers may create/update/delete it.
+
+| key | type | req | default |
+| --- | --- | --- | --- |
+| `emergencyContacts` | array\<map\> | opt | local 112 fallback |
+| `emergencyInstructions` | string | opt | local safety fallback |
+| `firstAidInfo` | string | opt | local first-aid fallback |
+| `updatedAt` | timestamp | opt | - |
+
+Each contact map stores `id`, `name`, `role`, `phoneNumber`, `note`,
+`isPrimary`, and `isEmergencyService`. Urgent broadcasts are normal camping
+announcements and use the existing announcement notification dispatcher.
 
 ---
 
@@ -968,7 +1071,7 @@ copies. Web/Android must do the same or data drifts:
 
 | Target (query) | Match | Keys written |
 | --- | --- | --- |
-| `registrations` (CG, `userID==uid`) | `userID` | `displayName`,`church`,`photoURL`,`preferredLanguage`,`languages`,`age`,`ageGroup`,`gender`,`updatedAt` |
+| `registrations` (CG, `userID==uid`) | `userID` | `displayName`,`church`,`photoURL`,`preferredLanguage`,`languages`,`age`,`ageGroup`,`gender`,`allergies`,`updatedAt` |
 | parent `campings/{id}` | - | `updatedAt` bump |
 | `teams` (CG, `members[].userID==uid`) | member | member `displayName`,`church`,`preferredLanguage`,`languages`,`age`,`ageGroup`,`gender`,`photoURL`; doc `members` rewrite + `updatedAt` |
 | `checkIns` (CG, `userID==uid`) | `userID` | `displayName`,`church`,`preferredLanguage`,`photoURL`,`updatedAt` |

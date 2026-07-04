@@ -32,13 +32,13 @@ class AppNotificationFeedViewModel @Inject constructor(
     private var streamJob: Job? = null
     private var activeUid: String? = null
 
-    fun load(uid: String, role: UserRole) {
+    fun load(uid: String, role: UserRole, church: String = "") {
         if (activeUid == uid && streamJob?.isActive == true) return
         activeUid = uid
         streamJob?.cancel()
         _uiState.value = AppNotificationFeedUiState.Loading
         streamJob = viewModelScope.launch {
-            service.observeNotifications(uid, role)
+            service.observeNotifications(uid, role, church)
                 .catch { _uiState.value = AppNotificationFeedUiState.Error }
                 .collect { notifications ->
                     _uiState.value = if (notifications.isEmpty()) {
@@ -50,9 +50,9 @@ class AppNotificationFeedViewModel @Inject constructor(
         }
     }
 
-    fun retry(uid: String, role: UserRole) {
+    fun retry(uid: String, role: UserRole, church: String = "") {
         activeUid = null
-        load(uid, role)
+        load(uid, role, church)
     }
 
     override fun onCleared() {

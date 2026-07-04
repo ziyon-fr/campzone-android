@@ -12,6 +12,7 @@ import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.media.CloudinaryAssetDeleter
 import fr.ziyon.campzone.data.media.ImageUploader
 import fr.ziyon.campzone.data.games.GameService
+import fr.ziyon.campzone.data.games.ActivityReadScope
 import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.Game
@@ -114,6 +115,7 @@ class GameViewModel @Inject constructor(
     private val venuePointsByCampingId = mutableStateMapOf<String, List<VenuePoint>>()
     private val instructionsByGameId = mutableMapOf<String, GameInstructions?>()
     private val loadedIds = mutableSetOf<String>()
+    private val activityReadScopesByCampingId = mutableMapOf<String, ActivityReadScope>()
     private val observeJobs = mutableMapOf<String, Job>()
 
     var form by mutableStateOf(GameForm())
@@ -132,12 +134,16 @@ class GameViewModel @Inject constructor(
     var operationError by mutableStateOf<String?>(null)
     var instructionsError by mutableStateOf<String?>(null)
 
-    fun loadIfNeeded(campingId: String) {
-        if (observeJobs[campingId]?.isActive == true) {
+    fun loadIfNeeded(
+        campingId: String,
+        activityReadScope: ActivityReadScope = ActivityReadScope.None,
+    ) {
+        val loadedScope = activityReadScopesByCampingId[campingId] ?: ActivityReadScope.None
+        if (observeJobs[campingId]?.isActive == true && loadedScope >= activityReadScope) {
             publishState(campingId)
             return
         }
-        load(campingId)
+        load(campingId, activityReadScope)
     }
 
     /**
@@ -146,7 +152,10 @@ class GameViewModel @Inject constructor(
      * snapshot stream is the source of truth; the optimistic local upserts in the
      * mutation methods just remove perceived latency before the listener echoes.
      */
-    fun load(campingId: String) {
+    fun load(
+        campingId: String,
+        activityReadScope: ActivityReadScope = ActivityReadScope.None,
+    ) {
         observeJobs[campingId]?.cancel()
         _uiState.value = GamesUiState.Loading
         operationError = null
@@ -154,11 +163,12 @@ class GameViewModel @Inject constructor(
             try {
                 combine(
                     gameService.observeGames(campingId),
-                    gameService.observeActivities(campingId),
+                    gameService.observeActivities(campingId, activityReadScope),
                 ) { games, activities -> games to activities }
                     .collect { (games, activities) ->
                         gamesByCampingId[campingId] = games
                         activitiesByCampingId[campingId] = activities
+                        activityReadScopesByCampingId[campingId] = activityReadScope
                         loadedIds.add(campingId)
                         publishState(campingId)
                     }

@@ -8,6 +8,7 @@ import fr.ziyon.campzone.data.analytics.NoOpAnalyticsService
 import fr.ziyon.campzone.data.camping.CampingService
 import fr.ziyon.campzone.data.media.ImageUploader
 import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.model.CampingPublicationStatus
 import fr.ziyon.campzone.data.model.OrganizerType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -172,8 +173,8 @@ class CampingAdminViewModel @Inject constructor(
         if (form.title.isBlank()) add("Title is required.")
         if (form.description.isBlank()) add("Description is required.")
         if (form.location.isBlank()) add("Location is required.")
-        if (form.organizerType == OrganizerType.Church && form.organizerName.isBlank()) {
-            add("Church name is required.")
+        if (!form.organizerLevel.hasOrganizationName) {
+            add("Organization name is required.")
         }
         if (form.endDate.before(form.startDate)) add("End date must be after start date.")
         val cap = form.participantCapacityText.trim()
@@ -196,6 +197,7 @@ class CampingAdminViewModel @Inject constructor(
             locationLatitude = form.locationLatitude,
             locationLongitude = form.locationLongitude,
             registrationStatus = form.registrationStatus,
+            publicationStatus = existing?.publicationStatus ?: CampingPublicationStatus.Draft,
             participantCapacity = capacity,
             attendees = existing?.attendees.orEmpty(),
             winnerRevealPolicy = existing?.winnerRevealPolicy,

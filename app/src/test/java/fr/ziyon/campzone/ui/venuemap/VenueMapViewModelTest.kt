@@ -15,6 +15,7 @@ import fr.ziyon.campzone.data.model.VenueCategory
 import fr.ziyon.campzone.data.model.VenueMap
 import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.venuemap.FakeVenueMapService
+import fr.ziyon.campzone.data.venuemap.ParsedGpxPoint
 import fr.ziyon.campzone.testing.MainDispatcherRule
 import java.util.Date
 import org.junit.Assert.assertEquals
@@ -143,6 +144,47 @@ class VenueMapViewModelTest {
         assertEquals("https://cdn/uploaded.png", ready.map.imageUrl)
         assertEquals("campzone/uploaded", ready.map.imagePublicId)
         assertFalse(ready.isUploadingImage)
+    }
+
+    @Test
+    fun savePointAtCapacityIsRejected() {
+        val fullMap = VenueMap(
+            campingId = "camp-1",
+            points = (0 until VenueMap.MaxPoints).map { point("p$it", 0.5, 0.5) },
+        )
+        val vm = viewModel(initial = fullMap)
+        vm.load("camp-1", admin)
+
+        vm.savePoint(VenuePointForm(name = "One too many", category = VenueCategory.Stage), editingId = null)
+
+        val ready = vm.uiState.value as VenueMapUiState.Ready
+        assertEquals(VenueMap.MaxPoints, ready.map.points.size)
+        assertTrue(ready.operationError!!.contains("120-location limit"))
+    }
+
+    @Test
+    fun importGpxPointsTruncatesToRemainingCapacity() {
+        val nearlyFull = VenueMap(
+            campingId = "camp-1",
+            points = (0 until VenueMap.MaxPoints - 2).map { point("p$it", 0.5, 0.5) },
+        )
+        val vm = viewModel(initial = nearlyFull)
+        vm.load("camp-1", admin)
+
+        vm.importGpxPoints(
+            (0 until 10).map {
+                ParsedGpxPoint(name = "WP $it", latitude = 45.0 + it / 1_000.0, longitude = 6.0)
+            },
+            VenueCategory.Dining,
+        )
+
+        val ready = vm.uiState.value as VenueMapUiState.Ready
+        assertEquals(VenueMap.MaxPoints, ready.map.points.size)
+        assertEquals(
+            listOf(VenueCategory.Dining, VenueCategory.Dining),
+            ready.map.points.takeLast(2).map { it.category },
+        )
+        assertEquals("GPX locations imported until the map reached its location limit.", ready.operationMessage)
     }
 
     // --- builders ---

@@ -56,10 +56,11 @@ data class ChildFormState(
     val ageText: String = "",
     val gender: UserGender = UserGender.PreferNotToSay,
     val church: String = "",
-    val preferredLanguage: PreferredLanguage = PreferredLanguage.French,
+    val preferredLanguage: PreferredLanguage = PreferredLanguage.English,
     val emergencyContactName: String = "",
     val emergencyContactPhone: String = "",
     val medicalNotes: String = "",
+    val allergies: List<String> = emptyList(),
     val relationship: FamilyRelationship = FamilyRelationship.Parent,
     val customRelationshipLabel: String = "",
     val hasGuardianConsent: Boolean = false,
@@ -154,7 +155,7 @@ class FamilyViewModel @Inject constructor(
         val form = existing?.let(::ChildFormState) ?: ChildFormState(
             church = user.church,
             preferredLanguage = PreferredLanguage.fromWire(user.preferredLanguage)
-                ?: PreferredLanguage.French,
+                ?: PreferredLanguage.English,
         )
         _uiState.value = _uiState.value.copy(
             editor = ChildEditorState(
@@ -269,7 +270,17 @@ class FamilyViewModel @Inject constructor(
 
         viewModelScope.launch {
             if (!forceOverride) {
-                val duplicate = findLocalDuplicate(editor) ?: findCrossGuardianDuplicate(editor, user.uid)
+                val localDuplicate = findLocalDuplicate(editor, user.preferredDisplayName)
+                val duplicate = if (localDuplicate != null) {
+                    localDuplicate
+                } else {
+                    try {
+                        findCrossGuardianDuplicate(editor, user.uid)
+                    } catch (error: Throwable) {
+                        updateEditor { copy(errorMessage = error.friendlyMessage()) }
+                        return@launch
+                    }
+                }
                 if (duplicate != null) {
                     updateEditor { copy(pendingDuplicate = duplicate) }
                     return@launch
@@ -330,18 +341,25 @@ class FamilyViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(feedback = null)
     }
 
-    private fun findLocalDuplicate(editor: ChildEditorState): FamilyParticipantDuplicateMatch? {
-        val candidateName = editor.form.displayName.trim().lowercase()
+    private fun findLocalDuplicate(
+        editor: ChildEditorState,
+        guardianDisplayName: String,
+    ): FamilyParticipantDuplicateMatch? {
+        val candidateName = fr.ziyon.campzone.data.family.normalizeFamilyParticipantName(editor.form.displayName)
         val candidateAge = editor.form.ageOrNull ?: return null
         if (candidateName.isEmpty()) return null
 
         val existing = _uiState.value.children.firstOrNull { child ->
             child.id != editor.existingChildId &&
-                child.displayName.trim().lowercase() == candidateName &&
+                fr.ziyon.campzone.data.family.normalizeFamilyParticipantName(child.displayName) == candidateName &&
                 child.age == candidateAge
         } ?: return null
 
-        return FamilyParticipantDuplicateMatch(existing = existing, guardianDisplayName = "")
+        return FamilyParticipantDuplicateMatch(
+            displayName = existing.displayName,
+            age = existing.age,
+            guardianDisplayName = guardianDisplayName,
+        )
     }
 
     private suspend fun findCrossGuardianDuplicate(
@@ -349,13 +367,11 @@ class FamilyViewModel @Inject constructor(
         userId: String,
     ): FamilyParticipantDuplicateMatch? {
         val age = editor.form.ageOrNull ?: return null
-        return runCatching {
-            repository.findSimilarParticipant(
-                displayName = editor.form.displayName.trim(),
-                age = age,
-                excludingGuardianId = userId,
-            )
-        }.getOrNull()
+        return repository.findSimilarParticipant(
+            displayName = editor.form.displayName.trim(),
+            age = age,
+            excludingGuardianId = userId,
+        )
     }
 
     private fun publishChildren(children: List<ChildParticipant>) {
@@ -391,10 +407,11 @@ internal fun ChildFormState(child: ChildParticipant): ChildFormState =
         gender = child.gender,
         church = child.church,
         preferredLanguage = PreferredLanguage.fromWire(child.preferredLanguage)
-            ?: PreferredLanguage.French,
+            ?: PreferredLanguage.English,
         emergencyContactName = child.emergencyContactName,
         emergencyContactPhone = child.emergencyContactPhone,
         medicalNotes = child.medicalNotes,
+        allergies = child.allergies,
         relationship = child.relationship,
         customRelationshipLabel = child.customRelationshipLabel,
         hasGuardianConsent = child.guardianConsentAt != null,
@@ -414,6 +431,7 @@ internal fun ChildFormState.toChild(id: String, guardianId: String): ChildPartic
         emergencyContactName = emergencyContactName.trim(),
         emergencyContactPhone = emergencyContactPhone.trim(),
         medicalNotes = medicalNotes.trim(),
+        allergies = fr.ziyon.campzone.data.profile.AllergyFormatter.cleaned(allergies),
         relationship = relationship,
         customRelationshipLabel = if (relationship.requiresCustomLabel) customRelationshipLabel.trim() else "",
         guardianConsentAt = if (hasGuardianConsent) Date() else null,

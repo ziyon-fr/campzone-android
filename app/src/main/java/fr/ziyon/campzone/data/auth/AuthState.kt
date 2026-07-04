@@ -20,6 +20,7 @@ data class AuthenticatedUser(
     val gender: UserGender?,
     val onboardingCompleted: Boolean,
     val providerIds: List<String> = emptyList(),
+    val allergies: List<String> = emptyList(),
 ) {
     val preferredDisplayName: String
         get() = displayName

@@ -8,6 +8,7 @@ import dagger.hilt.components.SingletonComponent
 import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.model.AppNotification
 import fr.ziyon.campzone.data.model.NotificationTopics
+import fr.ziyon.campzone.data.model.NotificationTopicSubscription
 import fr.ziyon.campzone.data.model.isPreferredFeedRepresentativeOver
 import fr.ziyon.campzone.data.model.toAppNotificationOrNull
 import javax.inject.Inject
@@ -24,20 +25,37 @@ import kotlinx.coroutines.flow.callbackFlow
  * Clients are readers only.
  */
 interface AppNotificationFeedService {
-    fun observeNotifications(uid: String, role: UserRole): Flow<List<AppNotification>>
+    fun observeNotifications(uid: String, role: UserRole, church: String = ""): Flow<List<AppNotification>>
 }
 
 @Singleton
 class FirestoreAppNotificationFeedService @Inject constructor(
     private val db: FirebaseFirestore,
     private val settingsService: NotificationSettingsService,
+    private val channelsLoader: NotificationChannelsLoader,
 ) : AppNotificationFeedService {
 
-    override fun observeNotifications(uid: String, role: UserRole): Flow<List<AppNotification>> =
+    override fun observeNotifications(uid: String, role: UserRole, church: String): Flow<List<AppNotification>> =
         callbackFlow {
             val settings = runCatching { settingsService.load(uid, role) }
                 .getOrElse { NotificationSettingsRules.defaultSettings(role) }
-            val topics = NotificationTopics.visibleTopics(role, settings)
+            val visibilityScope = runCatching {
+                channelsLoader.visibilityScope(uid, role, church)
+            }.getOrElse {
+                if (role.isAdmin) NotificationVisibilityScope.Unrestricted else NotificationVisibilityScope()
+            }
+            val visibleTeams = visibilityScope.filteredTeams(settings.subscribedTeamIds)
+            val scopedSettings = settings.copy(
+                subscribedCampingIds = visibilityScope.filteredCampingIds(settings.subscribedCampingIds),
+                subscribedTeamIds = visibleTeams.map { it.teamId },
+            )
+            val subscriptions = NotificationTopics.visibleTopicSubscriptions(
+                role = role,
+                settings = scopedSettings,
+                userId = uid,
+                teamCampingIds = visibleTeams.associate { it.teamId to it.campingId },
+            )
+            val topics = subscriptions.mapTo(mutableSetOf()) { it.topic }
 
             if (topics.isEmpty()) {
                 trySend(emptyList())
@@ -45,37 +63,94 @@ class FirestoreAppNotificationFeedService @Inject constructor(
                 return@callbackFlow
             }
 
-            val byId = HashMap<String, AppNotification>()
+            val store = NotificationFeedSnapshotStore(
+                userId = uid,
+                role = role,
+                visibleTopics = topics,
+                visibilityScope = visibilityScope,
+            )
             val lock = Any()
 
-            val registrations = topics.map { topic ->
-                db.collection(Notifications)
-                    .whereEqualTo(TopicField, topic)
+            val registrations = subscriptions.map { subscription ->
+                subscription.scopedQuery(db)
                     .limit(PerTopicLimit)
                     .addSnapshotListener { snapshot, error ->
                         if (error != null || snapshot == null) return@addSnapshotListener
                         val merged = synchronized(lock) {
-                            snapshot.documents.forEach { doc ->
+                            val notifications = snapshot.documents.mapNotNull { doc ->
                                 @Suppress("UNCHECKED_CAST")
-                                val data = doc.data as? Map<String, Any?> ?: return@forEach
-                                val notification = data.toAppNotificationOrNull(doc.id) ?: return@forEach
-                                if (notification.concerns(uid, role, topics)) {
-                                    byId[notification.id] = notification
-                                }
+                                val data = doc.data as? Map<String, Any?> ?: return@mapNotNull null
+                                data.toAppNotificationOrNull(doc.id)
                             }
-                            byId.values.sortedForFeed()
+                            store.update(subscription.topic, notifications)
                         }
-                        trySend(merged)
+                        if (merged != null) trySend(merged)
                     }
             }
 
             awaitClose { registrations.forEach { it.remove() } }
         }
 
+    private fun NotificationTopicSubscription.scopedQuery(
+        firestore: FirebaseFirestore,
+    ): com.google.firebase.firestore.Query {
+        var query = firestore.collection(Notifications)
+            .whereEqualTo(TopicField, topic)
+        campingId?.let { query = query.whereEqualTo(CampingIdField, it) }
+        role?.let { query = query.whereEqualTo(RoleField, it) }
+        teamId?.let { query = query.whereEqualTo(TeamIdField, it) }
+        return query
+    }
+
     private companion object {
         const val Notifications = "ziyon_notifications"
         const val TopicField = "topic"
+        const val CampingIdField = "campingID"
+        const val RoleField = "role"
+        const val TeamIdField = "teamID"
         const val PerTopicLimit = 200L
+    }
+}
+
+internal class NotificationFeedSnapshotStore(
+    private val userId: String,
+    private val role: UserRole,
+    private val visibleTopics: Set<String>,
+    private val visibilityScope: NotificationVisibilityScope = NotificationVisibilityScope.Unrestricted,
+) {
+    private val byId = HashMap<String, AppNotification>()
+    private val idsByTopic = HashMap<String, Set<String>>()
+    private val initializedTopics = mutableSetOf<String>()
+    private var lastEmittedNotifications: List<AppNotification> = emptyList()
+
+    fun update(topic: String, notifications: List<AppNotification>): List<AppNotification>? {
+        val filtered = notifications
+            .filter { notification ->
+                notification.campingId?.let(visibilityScope::canSeeCamping) != false &&
+                    notification.teamId?.let(visibilityScope::canSeeTeam) != false
+            }
+            .filter { it.concerns(userId, role, visibleTopics) }
+
+        val nextIds = filtered.mapTo(mutableSetOf()) { it.id }
+        idsByTopic[topic]
+            .orEmpty()
+            .subtract(nextIds)
+            .forEach { byId.remove(it) }
+
+        idsByTopic[topic] = nextIds
+        initializedTopics += topic
+
+        filtered.forEach { notification ->
+            byId[notification.id] = notification
+        }
+
+        if (!initializedTopics.containsAll(visibleTopics)) return null
+
+        val sorted = byId.values.sortedForFeed()
+        if (sorted == lastEmittedNotifications) return null
+
+        lastEmittedNotifications = sorted
+        return sorted
     }
 }
 
@@ -84,7 +159,7 @@ class FakeAppNotificationFeedService(
     var notifications: List<AppNotification> = emptyList(),
     var shouldFail: Boolean = false,
 ) : AppNotificationFeedService {
-    override fun observeNotifications(uid: String, role: UserRole): Flow<List<AppNotification>> =
+    override fun observeNotifications(uid: String, role: UserRole, church: String): Flow<List<AppNotification>> =
         callbackFlow {
             if (shouldFail) {
                 close(IllegalStateException("Fake feed failed."))

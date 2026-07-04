@@ -112,8 +112,8 @@ duplicate/ghost record and (often) a denied read.
 
 `campings/{id}` is written via a hand-built payload, not the model
 encoder. It never contains `attendees` (use the `registrations`
-subcollection), and `guidelines`/`winnerRevealPolicy` are written only
-by their dedicated paths. `priceItems`/`agePrices`/
+subcollection), and `guidelines`/`winnerRevealPolicy`/`isFeatured` are
+written only by their dedicated paths. `priceItems`/`agePrices`/
 `transportationOptions` are **always** written (empty array if none);
 `organizerLevel` is a `{type,value}` **map** (not a string);
 `location` is a flat **string** (not a `CampingLocation` map).
@@ -129,7 +129,7 @@ store a float amount.
 
 ## 8. Denormalization fan-out on profile edit (or data drifts)
 
-Editing a profile must fan the new values into `registrations`,
+Editing a profile must fan the new values, including `allergies`, into `registrations`,
 `teams.members[]`, `checkIns`, `chat` (as `sender*`), `announcements`
 (as `author*`), `polls` (as `createdBy*`) via collection-group queries -
 see `02` §10. Skipping this leaves stale names/photos across the app.
@@ -144,7 +144,9 @@ Notification token + settings go **both** to client-direct Firestore
 `/notifications/settings`) which performs the FCM topic
 subscription. Skipping the API = no pushes. The in-app feed
 (`ziyon_notifications`) is **backend-written, client read-only**; filter
-by `appID == "campzone"` + visible topics.
+by `appID == "campzone"` + visible topics. Scoped feed queries must also
+carry the authorization metadata predicates: `campingID`, `role`, and/or
+`teamID` as appropriate. Firestore Rules are not post-query filters.
 
 ## 10. Tolerant vs brittle reads
 

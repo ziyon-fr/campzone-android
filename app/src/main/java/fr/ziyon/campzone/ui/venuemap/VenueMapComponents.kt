@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -35,11 +37,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -229,6 +238,8 @@ fun VenueImageCanvas(
     onPlaceAt: ((Double, Double) -> Unit)? = null,
 ) {
     val borderColor = if (isPlacing) MaterialTheme.czColors.ember else MaterialTheme.czColors.divider
+    var scale by remember(map.imageUrl, isPlacing) { mutableFloatStateOf(1f) }
+    var offset by remember(map.imageUrl, isPlacing) { mutableStateOf(Offset.Zero) }
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -238,6 +249,27 @@ fun VenueImageCanvas(
     ) {
         val canvasWidth = maxWidth
         val canvasHeight = maxHeight
+        val resetZoom = {
+            scale = 1f
+            offset = Offset.Zero
+        }
+        fun clampOffset(proposed: Offset, targetScale: Float): Offset {
+            val maxX = constraints.maxWidth * (targetScale - 1f) / 2f
+            val maxY = constraints.maxHeight * (targetScale - 1f) / 2f
+            return Offset(
+                x = proposed.x.coerceIn(-maxX, maxX),
+                y = proposed.y.coerceIn(-maxY, maxY),
+            )
+        }
+        val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+            val nextScale = (scale * zoomChange).coerceIn(1f, 4f)
+            scale = nextScale
+            offset = if (nextScale <= 1.01f) {
+                Offset.Zero
+            } else {
+                clampOffset(offset + panChange, nextScale)
+            }
+        }
 
         val tapModifier = if (isPlacing && onPlaceAt != null) {
             Modifier.pointerInput(Unit) {
@@ -253,28 +285,65 @@ fun VenueImageCanvas(
         } else {
             Modifier
         }
+        val zoomModifier = if (isPlacing) Modifier else Modifier.transformable(transformState)
 
-        VenueSiteImage(url = map.imageUrl, modifier = Modifier.fillMaxSize().then(tapModifier))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offset.x
+                    translationY = offset.y
+                }
+                .then(zoomModifier)
+                .then(tapModifier),
+        ) {
+            VenueSiteImage(url = map.imageUrl, modifier = Modifier.fillMaxSize())
 
-        val glyph = 30.dp
-        for (point in map.pointsOnIllustration) {
-            val x = (point.imageX ?: 0.5)
-            val y = (point.imageY ?: 0.5)
-            VenuePinView(
-                category = point.category,
-                contentDescription = point.name,
-                selected = point.id == selectedPointId,
-                label = point.name,
-                iconName = point.resolvedIconName,
+            val glyph = 30.dp
+            for (point in map.pointsOnIllustration) {
+                val x = (point.imageX ?: 0.5)
+                val y = (point.imageY ?: 0.5)
+                val selected = point.id == selectedPointId
+                VenuePinView(
+                    category = point.category,
+                    contentDescription = point.name,
+                    selected = selected,
+                    label = if (selected) point.name else null,
+                    iconName = point.resolvedIconName,
+                    modifier = Modifier
+                        .offset(
+                            x = canvasWidth * x.toFloat() - glyph / 2,
+                            y = canvasHeight * y.toFloat() - glyph / 2,
+                        )
+                        .graphicsLayer {
+                            val inverse = 1f / scale
+                            scaleX = inverse
+                            scaleY = inverse
+                        }
+                        .then(
+                            if (!isPlacing) Modifier.clickable { onTapPin(point) } else Modifier,
+                        ),
+                )
+            }
+        }
+
+        if (!isPlacing && scale > 1.01f) {
+            IconButton(
+                onClick = resetZoom,
                 modifier = Modifier
-                    .offset(
-                        x = canvasWidth * x.toFloat() - glyph / 2,
-                        y = canvasHeight * y.toFloat() - glyph / 2,
-                    )
-                    .then(
-                        if (!isPlacing) Modifier.clickable { onTapPin(point) } else Modifier,
-                    ),
-            )
+                    .align(Alignment.BottomEnd)
+                    .padding(CzSpacing.md)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.czColors.surface.compositeOver(MaterialTheme.czColors.background)),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.venue_reset_zoom),
+                    tint = MaterialTheme.czColors.textPrimary,
+                )
+            }
         }
     }
 }

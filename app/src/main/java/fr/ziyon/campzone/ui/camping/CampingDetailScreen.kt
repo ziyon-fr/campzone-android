@@ -1,10 +1,13 @@
 package fr.ziyon.campzone.ui.camping
 
 import android.content.Intent
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,8 +36,10 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Cabin
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Edit
@@ -57,15 +62,19 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.FabPosition
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButtonElevation
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -81,8 +90,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -101,7 +113,6 @@ import fr.ziyon.campzone.core.designsystem.CzAvatarSize
 import fr.ziyon.campzone.core.designsystem.CzBadge
 import fr.ziyon.campzone.core.designsystem.CzButton
 import fr.ziyon.campzone.core.designsystem.CzButtonVariant
-import fr.ziyon.campzone.core.designsystem.CzCard
 import fr.ziyon.campzone.core.designsystem.CzErrorState
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
 import fr.ziyon.campzone.core.designsystem.CzRadius
@@ -118,11 +129,22 @@ import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.WinnerRevealPolicy
+import fr.ziyon.campzone.ui.home.QuickActionKind
+import fr.ziyon.campzone.ui.home.rememberQuickActionUsageStore
+import fr.ziyon.campzone.ui.packing.MyPackingChecklistCard
 import fr.ziyon.campzone.ui.teams.TeamBadgeView
 import fr.ziyon.campzone.ui.teams.TeamViewModel
 import fr.ziyon.campzone.ui.teams.TeamsUiState
 import fr.ziyon.campzone.ui.teams.toComposeColor
 import java.util.Date
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
 
 @Composable
 fun CampingDetailRoute(
@@ -131,10 +153,14 @@ fun CampingDetailRoute(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenGuidelines: (String) -> Unit = {},
+    onOpenPackingChecklist: (String) -> Unit = {},
+    onOpenPackingEditor: (String) -> Unit = {},
+    onOpenSupport: (String) -> Unit = {},
     onOpenSchedule: (String) -> Unit = {},
     onOpenChat: (String) -> Unit = {},
     onOpenPolls: (String) -> Unit = {},
     onOpenEditCamping: (String) -> Unit = {},
+    onOpenTemplateClone: (String) -> Unit = {},
     onOpenRegistration: (String) -> Unit = {},
     onOpenRegistrationReview: () -> Unit = {},
     onOpenAttendees: (String) -> Unit = {},
@@ -150,6 +176,7 @@ fun CampingDetailRoute(
     onOpenFeedbackSurvey: (String) -> Unit = {},
     onOpenFeedbackResults: (String) -> Unit = {},
     onOpenVenueMap: (String) -> Unit = {},
+    onOpenVenueMapEditor: (String) -> Unit = {},
     onOpenFamilyAtCamp: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
@@ -159,6 +186,7 @@ fun CampingDetailRoute(
     onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
+    onOpenEmergency: (String) -> Unit = {},
     viewModel: CampingDetailViewModel = hiltViewModel(),
     teamViewModel: TeamViewModel = hiltViewModel(),
 ) {
@@ -201,6 +229,9 @@ fun CampingDetailRoute(
             context.startActivity(Intent.createChooser(shareIntent, camping.title))
         },
         onOpenGuidelines = onOpenGuidelines,
+        onOpenPackingChecklist = onOpenPackingChecklist,
+        onOpenPackingEditor = onOpenPackingEditor,
+        onOpenSupport = onOpenSupport,
         onOpenSchedule = { id ->
             viewModel.trackScheduleView(id)
             onOpenSchedule(id)
@@ -208,6 +239,7 @@ fun CampingDetailRoute(
         onOpenChat = onOpenChat,
         onOpenPolls = onOpenPolls,
         onOpenEditCamping = onOpenEditCamping,
+        onOpenTemplateClone = onOpenTemplateClone,
         onOpenRegistration = onOpenRegistration,
         onOpenRegistrationReview = onOpenRegistrationReview,
         onOpenAttendees = onOpenAttendees,
@@ -229,6 +261,7 @@ fun CampingDetailRoute(
         onOpenFeedbackSurvey = onOpenFeedbackSurvey,
         onOpenFeedbackResults = onOpenFeedbackResults,
         onOpenVenueMap = onOpenVenueMap,
+        onOpenVenueMapEditor = onOpenVenueMapEditor,
         onOpenFamilyAtCamp = onOpenFamilyAtCamp,
         onOpenCheckInScanner = onOpenCheckInScanner,
         onOpenCheckInRecords = onOpenCheckInRecords,
@@ -238,6 +271,13 @@ fun CampingDetailRoute(
         onOpenVehicles = onOpenVehicles,
         onOpenBadgeAward = onOpenBadgeAward,
         onOpenAlbum = onOpenAlbum,
+        onOpenEmergency = onOpenEmergency,
+        onSetFeatured = viewModel::setFeatured,
+        onPublishCamping = viewModel::publishCamping,
+        onCancelCamping = viewModel::cancelCamping,
+        onDeleteCamping = { id -> viewModel.deleteCamping(id, onDeleted = onBack) },
+        onOperationMessageShown = viewModel::consumeOperationMessage,
+        onOperationErrorShown = viewModel::consumeOperationError,
         modifier = modifier,
     )
 }
@@ -252,7 +292,11 @@ fun CampingDetailScreen(
     modifier: Modifier = Modifier,
     onShareCamping: (Camping) -> Unit = {},
     onOpenEditCamping: (String) -> Unit = {},
+    onOpenTemplateClone: (String) -> Unit = {},
     onOpenGuidelines: (String) -> Unit = {},
+    onOpenPackingChecklist: (String) -> Unit = {},
+    onOpenPackingEditor: (String) -> Unit = {},
+    onOpenSupport: (String) -> Unit = {},
     onOpenSchedule: (String) -> Unit = {},
     onOpenTeams: (String) -> Unit = {},
     onOpenGames: (String) -> Unit = {},
@@ -262,6 +306,7 @@ fun CampingDetailScreen(
     onOpenRegistrationReview: () -> Unit = {},
     onOpenAttendees: (String) -> Unit = {},
     onOpenVenueMap: (String) -> Unit = {},
+    onOpenVenueMapEditor: (String) -> Unit = {},
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
     myTeam: Team? = null,
@@ -282,12 +327,49 @@ fun CampingDetailScreen(
     onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
+    onOpenEmergency: (String) -> Unit = {},
+    onSetFeatured: (String, Boolean) -> Unit = { _, _ -> },
+    onPublishCamping: (String) -> Unit = {},
+    onCancelCamping: (String) -> Unit = {},
+    onDeleteCamping: (String) -> Unit = {},
+    onOperationMessageShown: () -> Unit = {},
+    onOperationErrorShown: () -> Unit = {},
 ) {
     val camping = state.camping
+    val snackbarHostState = remember { SnackbarHostState() }
+    val pinnedMessage = stringResource(R.string.camping_pinned_to_home)
+    val unpinnedMessage = stringResource(R.string.camping_unpinned_from_home)
+    val homePinUpdateFailedMessage = stringResource(R.string.camping_home_pin_update_failed)
+    val campingCancelledMessage = stringResource(R.string.camping_cancelled_success)
+    val campingPublishedMessage = stringResource(R.string.camping_published_success)
+    var showPublishConfirmation by rememberSaveable { mutableStateOf(false) }
+    var showCancelConfirmation by rememberSaveable { mutableStateOf(false) }
+    var showDeleteConfirmation by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(state.operationMessage) {
+        val message = when (state.operationMessage) {
+            CampingDetailOperationMessage.PinnedToHome -> pinnedMessage
+            CampingDetailOperationMessage.UnpinnedFromHome -> unpinnedMessage
+            CampingDetailOperationMessage.CampingCancelled -> campingCancelledMessage
+            CampingDetailOperationMessage.CampingPublished -> campingPublishedMessage
+            null -> null
+        }
+        if (message != null) {
+            snackbarHostState.showSnackbar(message)
+            onOperationMessageShown()
+        }
+    }
+    LaunchedEffect(state.operationError) {
+        val message = state.operationError
+        if (message != null) {
+            snackbarHostState.showSnackbar(message.ifBlank { homePinUpdateFailedMessage })
+            onOperationErrorShown()
+        }
+    }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(),
         containerColor = MaterialTheme.czColors.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (camping != null && state.showRegisterCta) {
                 RegistrationBottomBar(
@@ -321,8 +403,18 @@ fun CampingDetailScreen(
                     Alignment.Center,
                 ) {
                     CzErrorState(
-                        title = stringResource(R.string.camping_error_title),
-                        message = state.errorMessage,
+                        title = stringResource(
+                            if (state.campingNotFound) {
+                                R.string.camping_not_found_title
+                            } else {
+                                R.string.camping_error_title
+                            },
+                        ),
+                        message = if (state.campingNotFound) {
+                            stringResource(R.string.camping_not_found_message)
+                        } else {
+                            state.errorMessage
+                        },
                         onRetry = onRetry,
                         retryLabel = stringResource(R.string.common_retry),
                     )
@@ -336,6 +428,9 @@ fun CampingDetailScreen(
                     teamScoresHidden = teamScoresHidden,
                     onAttendeeSearchChange = onAttendeeSearchChange,
                     onOpenGuidelines = onOpenGuidelines,
+                    onOpenPackingChecklist = onOpenPackingChecklist,
+                    onOpenPackingEditor = onOpenPackingEditor,
+                    onOpenSupport = onOpenSupport,
                     onOpenSchedule = onOpenSchedule,
                     onOpenTeams = onOpenTeams,
                     onOpenGames = onOpenGames,
@@ -346,6 +441,7 @@ fun CampingDetailScreen(
                     onOpenRegistrationReview = onOpenRegistrationReview,
                     onOpenAttendees = onOpenAttendees,
                     onOpenVenueMap = onOpenVenueMap,
+                    onOpenVenueMapEditor = onOpenVenueMapEditor,
                     onOpenFoodMenu = onOpenFoodMenu,
                     onOpenSongbook = onOpenSongbook,
                     onOpenRegistrationPayment = onOpenRegistrationPayment,
@@ -353,6 +449,7 @@ fun CampingDetailScreen(
                     onOpenLodging = onOpenLodging,
                     onOpenFeedbackSurvey = onOpenFeedbackSurvey,
                     onOpenFeedbackResults = onOpenFeedbackResults,
+                    onOpenTemplateClone = onOpenTemplateClone,
                     onOpenFamilyAtCamp = onOpenFamilyAtCamp,
                     onOpenCheckInScanner = onOpenCheckInScanner,
                     onOpenCheckInRecords = onOpenCheckInRecords,
@@ -362,9 +459,92 @@ fun CampingDetailScreen(
                     onOpenVehicles = onOpenVehicles,
                     onOpenBadgeAward = onOpenBadgeAward,
                     onOpenAlbum = onOpenAlbum,
+                    onOpenEmergency = onOpenEmergency,
+                    onSetFeatured = onSetFeatured,
+                    onRequestPublish = { showPublishConfirmation = true },
+                    onRequestCancel = { showCancelConfirmation = true },
+                    onRequestDelete = { showDeleteConfirmation = true },
                 )
             }
         }
+    }
+
+    if (showCancelConfirmation && camping != null) {
+        AlertDialog(
+            onDismissRequest = { showCancelConfirmation = false },
+            title = { Text(stringResource(R.string.camping_cancel_confirm_title)) },
+            text = { Text(stringResource(R.string.camping_cancel_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showCancelConfirmation = false
+                        onCancelCamping(camping.id)
+                    },
+                ) {
+                    Text(
+                        stringResource(R.string.camping_cancel_confirm_action),
+                        color = MaterialTheme.czColors.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCancelConfirmation = false }) {
+                    Text(stringResource(R.string.camping_keep_event))
+                }
+            },
+        )
+    }
+
+    if (showPublishConfirmation && camping != null) {
+        AlertDialog(
+            onDismissRequest = { showPublishConfirmation = false },
+            title = { Text(stringResource(R.string.camping_publish_confirm_title)) },
+            text = { Text(stringResource(R.string.camping_publish_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPublishConfirmation = false
+                        onPublishCamping(camping.id)
+                    },
+                ) {
+                    Text(
+                        stringResource(R.string.common_publish),
+                        color = MaterialTheme.czColors.accent,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPublishConfirmation = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
+    }
+
+    if (showDeleteConfirmation && camping != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text(stringResource(R.string.camping_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.camping_delete_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDeleteCamping(camping.id)
+                    },
+                ) {
+                    Text(
+                        stringResource(R.string.camping_delete_confirm_action),
+                        color = MaterialTheme.czColors.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text(stringResource(R.string.camping_keep_event))
+                }
+            },
+        )
     }
 }
 
@@ -418,6 +598,9 @@ private fun CampingDetailContent(
     authenticatedUser: AuthenticatedUser,
     onAttendeeSearchChange: (String) -> Unit,
     onOpenGuidelines: (String) -> Unit,
+    onOpenPackingChecklist: (String) -> Unit,
+    onOpenPackingEditor: (String) -> Unit,
+    onOpenSupport: (String) -> Unit,
     onOpenSchedule: (String) -> Unit,
     onOpenTeams: (String) -> Unit,
     onOpenGames: (String) -> Unit,
@@ -430,6 +613,7 @@ private fun CampingDetailContent(
     onOpenRegistrationReview: () -> Unit,
     onOpenAttendees: (String) -> Unit,
     onOpenVenueMap: (String) -> Unit,
+    onOpenVenueMapEditor: (String) -> Unit,
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
     onOpenRegistrationPayment: (String) -> Unit = {},
@@ -437,6 +621,7 @@ private fun CampingDetailContent(
     onOpenLodging: (String) -> Unit = {},
     onOpenFeedbackSurvey: (String) -> Unit = {},
     onOpenFeedbackResults: (String) -> Unit = {},
+    onOpenTemplateClone: (String) -> Unit = {},
     onOpenFamilyAtCamp: (String) -> Unit = {},
     onOpenCheckInScanner: (String) -> Unit = {},
     onOpenCheckInRecords: (String) -> Unit = {},
@@ -446,9 +631,14 @@ private fun CampingDetailContent(
     onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
+    onOpenEmergency: (String) -> Unit = {},
+    onSetFeatured: (String, Boolean) -> Unit = { _, _ -> },
+    onRequestPublish: () -> Unit = {},
+    onRequestCancel: () -> Unit = {},
+    onRequestDelete: () -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(CampingDetailTab.Overview) }
-    val disabledAlpha = if (camping.registrationStatus == CampingRegistrationStatus.Cancelled) 0.5f else 1f
+    val quickActionUsageStore = rememberQuickActionUsageStore()
 
     // Post-camp feedback gating (mirrors iOS CampingDetailView): the survey
     // opens when the camp ends and closes 60 days later; the admin results entry
@@ -460,12 +650,14 @@ private fun CampingDetailContent(
     val showFeedbackSurvey = feedbackWindowOpen &&
         (state.isApprovedParticipant || state.canManageAnyCamping || state.canEditCamping)
     val showFeedbackResults = state.canManageAnyCamping && campEnded
+    val showTemplateClone = state.canCreateRecurringCamp
+    val showHomePinAction = state.canPinCampingToHome &&
+        camping.registrationStatus != CampingRegistrationStatus.Cancelled
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.czColors.background)
-            .alpha(disabledAlpha),
+            .background(MaterialTheme.czColors.background),
         contentPadding = PaddingValues(
             start = CzSpacing.lg,
             end = CzSpacing.lg,
@@ -477,8 +669,37 @@ private fun CampingDetailContent(
         item(key = "header") {
             HeaderSection(
                 camping = camping,
-                onOpenVenueMap = onOpenVenueMap,
+                onOpenVenueMap = {
+                    quickActionUsageStore.record(QuickActionKind.VenueMap)
+                    onOpenVenueMap(it)
+                },
             )
+        }
+
+        if (camping.registrationStatus == CampingRegistrationStatus.Cancelled) {
+            item(key = "cancelled-notice") {
+                Surface(
+                    color = MaterialTheme.czColors.error.copy(alpha = 0.10f),
+                    shape = RoundedCornerShape(CzRadius.lg),
+                ) {
+                    Text(
+                        text = stringResource(R.string.camping_cancelled_notice),
+                        color = MaterialTheme.czColors.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(CzSpacing.md),
+                    )
+                }
+            }
+        }
+
+        if (camping.isDraft && state.canEditCamping) {
+            item(key = "draft-publish") {
+                DraftPublishBanner(
+                    isMutating = state.isMutatingCamping,
+                    onPublish = onRequestPublish,
+                )
+            }
         }
 
         item(key = "tabs") {
@@ -493,7 +714,10 @@ private fun CampingDetailContent(
                 item(key = "description") {
                     DescriptionCard(
                         camping = camping,
-                        onOpenGuidelines = onOpenGuidelines,
+                        onOpenGuidelines = {
+                            quickActionUsageStore.record(QuickActionKind.Guidelines)
+                            onOpenGuidelines(it)
+                        },
                     )
                 }
                 item(key = "event-info") {
@@ -504,6 +728,7 @@ private fun CampingDetailContent(
                         state = state,
                         camping = camping,
                         onOpenRegistrationReview = onOpenRegistrationReview,
+                        onOpenRegistrationPayment = { onOpenRegistrationPayment(camping.id) },
                     )
                 }
                 item(key = "attendees") {
@@ -519,7 +744,10 @@ private fun CampingDetailContent(
                 item(key = "schedule") {
                     ScheduleSection(
                         camping = camping,
-                        onOpenSchedule = onOpenSchedule,
+                        onOpenSchedule = {
+                            quickActionUsageStore.record(QuickActionKind.Schedule)
+                            onOpenSchedule(it)
+                        },
                     )
                 }
             }
@@ -535,6 +763,8 @@ private fun CampingDetailContent(
                         onOpenGames = onOpenGames,
                         onOpenTeamDetail = onOpenTeamDetail,
                         onOpenTeamEditor = onOpenTeamEditor,
+                        onOpenBadgeAward = onOpenBadgeAward,
+                        onRecordQuickAction = quickActionUsageStore::record,
                     )
                 }
             }
@@ -559,6 +789,11 @@ private fun CampingDetailContent(
                 onOpenVehicles = onOpenVehicles,
                 onOpenBadgeAward = onOpenBadgeAward,
                 onOpenAlbum = onOpenAlbum,
+                onOpenEmergency = onOpenEmergency,
+                onOpenPackingChecklist = onOpenPackingChecklist,
+                onOpenSupport = onOpenSupport,
+                onOpenSchedule = onOpenSchedule,
+                onRecordQuickAction = quickActionUsageStore::record,
             )
         }
 
@@ -576,9 +811,24 @@ private fun CampingDetailContent(
             item(key = "venue-map") {
                 VenueMapEntryCard(
                     pointCount = venueMap.points.size,
-                    onClick = { onOpenVenueMap(camping.id) },
+                    onClick = {
+                        quickActionUsageStore.record(QuickActionKind.VenueMap)
+                        onOpenVenueMap(camping.id)
+                    },
                 )
             }
+        }
+
+        item(key = "packing-progress") {
+            MyPackingChecklistCard(
+                campingId = camping.id,
+                user = authenticatedUser,
+                onOpenChecklist = {
+                    quickActionUsageStore.record(QuickActionKind.Packing)
+                    onOpenPackingChecklist(camping.id)
+                },
+                onOpenEditor = { onOpenPackingEditor(camping.id) },
+            )
         }
 
         if (showFeedbackSurvey) {
@@ -587,15 +837,90 @@ private fun CampingDetailContent(
             }
         }
 
-        if (showFeedbackResults) {
+        if (
+            showHomePinAction || showFeedbackResults || showTemplateClone ||
+            state.canEditGuidelines || state.canManageTeams || state.canManageSchedule ||
+            state.canCancelCamping || state.wasCreatedByCurrentUser
+        ) {
             item(key = "management") {
-                ManagementSection(onOpenFeedbackResults = { onOpenFeedbackResults(camping.id) })
+                ManagementSection(
+                    camping = camping,
+                    showHomePinAction = showHomePinAction,
+                    isSettingFeatured = state.isSettingFeatured,
+                    showFeedbackResults = showFeedbackResults,
+                    showTemplateClone = showTemplateClone,
+                    showPackingManagement = state.canEditGuidelines,
+                    showLodgingManagement = state.canManageTeams,
+                    showVenueManagement = state.canManageTeams || state.canManageSchedule,
+                    showCancelAction = state.canCancelCamping &&
+                        camping.registrationStatus != CampingRegistrationStatus.Cancelled,
+                    showDeleteAction = state.wasCreatedByCurrentUser || state.canCancelCamping,
+                    isMutatingCamping = state.isMutatingCamping,
+                    onSetFeatured = { onSetFeatured(camping.id, !camping.isFeatured) },
+                    onOpenFeedbackResults = { onOpenFeedbackResults(camping.id) },
+                    onOpenTemplateClone = { onOpenTemplateClone(camping.id) },
+                    onOpenPackingChecklist = { onOpenPackingEditor(camping.id) },
+                    onOpenLodging = { onOpenLodging(camping.id) },
+                    onOpenVenueMapEditor = { onOpenVenueMapEditor(camping.id) },
+                    onCancel = onRequestCancel,
+                    onDelete = onRequestDelete,
+                )
             }
         }
     }
 }
 
 private const val FEEDBACK_WINDOW_MILLIS = 60L * 24 * 60 * 60 * 1000
+
+@Composable
+private fun DraftPublishBanner(
+    isMutating: Boolean,
+    onPublish: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.czColors.textSecondary.copy(alpha = 0.12f),
+        shape = RoundedCornerShape(CzRadius.lg),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(CzSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.VisibilityOff,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.textSecondary,
+                    modifier = Modifier.size(22.dp),
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.camping_draft_banner_title),
+                        color = MaterialTheme.czColors.textPrimary,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    )
+                    Text(
+                        text = stringResource(R.string.camping_draft_banner_message),
+                        color = MaterialTheme.czColors.textSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+            CzButton(
+                text = stringResource(R.string.camping_publish_action),
+                onClick = onPublish,
+                enabled = !isMutating,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
 
 @Composable
 private fun VenueMapEntryCard(pointCount: Int, onClick: () -> Unit) {
@@ -841,22 +1166,59 @@ private fun DetailTabSelector(
         ) {
             CampingDetailTab.entries.forEach { tab ->
                 val selected = selectedTab == tab
+
+                val backgroundColor by animateColorAsState(
+                    targetValue = if (selected) {
+                        MaterialTheme.czColors.ember.copy(alpha = 0.16f)
+                    } else {
+                        Color.Transparent
+                    },
+                    animationSpec = tween(
+                        durationMillis = 220,
+                        easing = FastOutSlowInEasing,
+                    ),
+                    label = "tabBackgroundColor",
+                )
+
+                val textColor by animateColorAsState(
+                    targetValue = if (selected) {
+                        MaterialTheme.czColors.ember
+                    } else {
+                        MaterialTheme.czColors.textSecondary
+                    },
+                    animationSpec = tween(
+                        durationMillis = 220,
+                        easing = FastOutSlowInEasing,
+                    ),
+                    label = "tabTextColor",
+                )
+
+                val scale by animateFloatAsState(
+                    targetValue = if (selected) 1.03f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                    label = "tabScale",
+                )
+
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 40.dp)
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        }
                         .clip(RoundedCornerShape(CzRadius.full))
-                        .background(
-                            if (selected) MaterialTheme.czColors.ember.copy(alpha = 0.16f)
-                            else Color.Transparent,
-                        )
+                        .background(backgroundColor)
                         .clickable { onSelected(tab) }
                         .padding(horizontal = CzSpacing.sm, vertical = CzSpacing.sm),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = tab.label(),
-                        color = if (selected) MaterialTheme.czColors.ember else MaterialTheme.czColors.textSecondary,
+                        color = textColor,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                         maxLines = 1,
@@ -873,17 +1235,23 @@ private fun DescriptionCard(
     camping: Camping,
     onOpenGuidelines: (String) -> Unit,
 ) {
-    CzCard(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(CzSpacing.lg),
+        color = detailCardColor(),
+        shape = RoundedCornerShape(CzRadius.lg),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
-            Text(
-                text = camping.description,
-                color = MaterialTheme.czColors.textSecondary,
-                style = MaterialTheme.typography.bodyMedium,
-                lineHeight = MaterialTheme.typography.bodyMedium.lineHeight,
-            )
+        Column(
+            modifier = Modifier.padding(CzSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            if (camping.description.isNotBlank()) {
+                CampingMarkdownText(
+                    text = camping.description,
+                    textColor = MaterialTheme.czColors.textSecondary.toArgb(),
+                    modifier = Modifier.fillMaxWidth(),
+                    textSizeSp = 16f,
+                )
+            }
             TextButton(
                 onClick = { onOpenGuidelines(camping.id) },
                 contentPadding = PaddingValues(0.dp),
@@ -914,7 +1282,7 @@ private fun EventInfoSection(camping: Camping) {
             icon = Icons.Filled.Info,
         )
         Surface(
-            color = MaterialTheme.czColors.surface,
+            color = detailCardColor(),
             shape = RoundedCornerShape(CzRadius.lg),
         ) {
             Column {
@@ -989,8 +1357,42 @@ private fun RegistrationCard(
     state: CampingDetailUiState,
     camping: Camping,
     onOpenRegistrationReview: () -> Unit,
+    onOpenRegistrationPayment: () -> Unit,
 ) {
     val cream = Color(0xFFFFF4E0)
+    val registration = state.userRegistration
+    val showsCompactStatus = registration?.registrationStatus == RegistrationApprovalStatus.Approved &&
+        !state.hasPendingRegistrationPayment
+
+    if (showsCompactStatus) {
+        Surface(
+            color = MaterialTheme.czColors.success.copy(alpha = 0.10f),
+            shape = RoundedCornerShape(CzRadius.lg),
+            border = BorderStroke(1.dp, MaterialTheme.czColors.success.copy(alpha = 0.25f)),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.czColors.success, modifier = Modifier.size(20.dp))
+                Text(
+                    text = stringResource(R.string.camping_you_are_registered),
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = registrationSummary(state, camping),
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                )
+            }
+        }
+        return
+    }
 
     Surface(
         color = MaterialTheme.czColors.pine,
@@ -1071,6 +1473,14 @@ private fun RegistrationCard(
                         color = cream,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                if (state.hasPendingRegistrationPayment) {
+                    CzButton(
+                        text = stringResource(R.string.registration_payment_pay_now),
+                        onClick = onOpenRegistrationPayment,
+                        variant = CzButtonVariant.Secondary,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
@@ -1213,7 +1623,7 @@ private fun AttendeeSection(
             )
 
             state.recentAttendees.isEmpty() -> Surface(
-                color = MaterialTheme.czColors.surface,
+                color = detailCardColor(),
                 shape = RoundedCornerShape(CzRadius.md),
             ) {
                 Text(
@@ -1227,7 +1637,7 @@ private fun AttendeeSection(
             }
 
             else -> Surface(
-                color = MaterialTheme.czColors.surface,
+                color = detailCardColor(),
                 shape = RoundedCornerShape(CzRadius.lg),
             ) {
                 Column {
@@ -1358,6 +1768,8 @@ private fun TeamsSection(
     onOpenGames: (String) -> Unit,
     onOpenTeamDetail: (String, String) -> Unit,
     onOpenTeamEditor: (String, String?) -> Unit,
+    onOpenBadgeAward: (String) -> Unit,
+    onRecordQuickAction: (QuickActionKind) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
         DetailSectionHeader(
@@ -1368,20 +1780,29 @@ private fun TeamsSection(
             MyTeamShortcut(
                 team = myTeam,
                 scoresHidden = teamScoresHidden,
-                onClick = { onOpenTeamDetail(camping.id, myTeam.id) },
+                onClick = {
+                    onRecordQuickAction(QuickActionKind.Teams)
+                    onOpenTeamDetail(camping.id, myTeam.id)
+                },
             )
         }
         DetailResourceButton(
             title = stringResource(R.string.camping_teams_ranking),
             subtitle = stringResource(R.string.camping_teams_ranking_subtitle),
             icon = Icons.Filled.Groups,
-            onClick = { onOpenTeams(camping.id) },
+            onClick = {
+                onRecordQuickAction(QuickActionKind.Teams)
+                onOpenTeams(camping.id)
+            },
         )
         DetailResourceButton(
             title = stringResource(R.string.camping_games_points),
             subtitle = stringResource(R.string.camping_games_points_subtitle),
             icon = Icons.Filled.SportsEsports,
-            onClick = { onOpenGames(camping.id) },
+            onClick = {
+                onRecordQuickAction(QuickActionKind.Games)
+                onOpenGames(camping.id)
+            },
         )
         if (state.canManageTeams) {
             DetailResourceButton(
@@ -1389,6 +1810,14 @@ private fun TeamsSection(
                 subtitle = stringResource(R.string.camping_create_team_subtitle),
                 icon = Icons.Filled.PersonAdd,
                 onClick = { onOpenTeamEditor(camping.id, null) },
+            )
+        }
+        if (state.canAwardAchievements) {
+            DetailResourceButton(
+                title = stringResource(R.string.camping_award_badges),
+                subtitle = stringResource(R.string.camping_award_badges_subtitle),
+                icon = Icons.Filled.WorkspacePremium,
+                onClick = { onOpenBadgeAward(camping.id) },
             )
         }
     }
@@ -1479,6 +1908,11 @@ private fun ResourcesSection(
     onOpenVehicles: (String) -> Unit = {},
     onOpenBadgeAward: (String) -> Unit = {},
     onOpenAlbum: (String) -> Unit = {},
+    onOpenEmergency: (String) -> Unit = {},
+    onOpenPackingChecklist: (String) -> Unit = {},
+    onOpenSupport: (String) -> Unit = {},
+    onOpenSchedule: (String) -> Unit = {},
+    onRecordQuickAction: (QuickActionKind) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
@@ -1486,27 +1920,62 @@ private fun ResourcesSection(
             icon = Icons.Filled.WorkspacePremium,
         )
 
-        if (state.hasManagedRegistration) {
-            PrimaryPassResource(onClick = { onOpenQrPasses(camping.id) })
+        if (state.isApprovedParticipant) {
+            PrimaryPassResource(
+                onClick = {
+                    onRecordQuickAction(QuickActionKind.QrPass)
+                    onOpenQrPasses(camping.id)
+                },
+            )
+        }
+
+        if (!state.canViewSongbook) {
+            LockedNotice(text = stringResource(R.string.camping_songbook_locked))
         }
 
         val campLifeResources = buildList {
-            add(
-                DetailResource(
-                    title = stringResource(R.string.camping_songbook),
-                    subtitle = stringResource(R.string.camping_songbook_subtitle),
-                    icon = Icons.Filled.MusicNote,
-                    accent = MaterialTheme.czColors.ember,
-                    onClick = { onOpenSongbook(camping.id) },
-                ),
-            )
-            if (state.isApprovedParticipant || state.canManageAlbumMedia) {
+            if (state.isApprovedParticipant || state.canManageAnyCamping || state.canEditCamping) {
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.support_title),
+                        subtitle = stringResource(R.string.support_detail_subtitle),
+                        icon = Icons.Filled.Star,
+                        accent = MaterialTheme.czColors.accent,
+                        quickActionKind = QuickActionKind.Support,
+                        onClick = { onOpenSupport(camping.id) },
+                    ),
+                )
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.camping_emergency_safety),
+                        subtitle = stringResource(R.string.camping_emergency_safety_subtitle),
+                        icon = Icons.Filled.Security,
+                        accent = MaterialTheme.czColors.error,
+                        quickActionKind = QuickActionKind.Emergency,
+                        onClick = { onOpenEmergency(camping.id) },
+                    ),
+                )
+            }
+            if (state.canViewSongbook) {
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.camping_songbook),
+                        subtitle = stringResource(R.string.camping_songbook_subtitle),
+                        icon = Icons.Filled.MusicNote,
+                        accent = MaterialTheme.czColors.ember,
+                        quickActionKind = QuickActionKind.Songbook,
+                        onClick = { onOpenSongbook(camping.id) },
+                    ),
+                )
+            }
+            if (state.isApprovedParticipant) {
                 add(
                     DetailResource(
                         title = stringResource(R.string.camping_album),
                         subtitle = stringResource(R.string.camping_album_subtitle),
                         icon = Icons.Filled.PhotoLibrary,
                         accent = MaterialTheme.czColors.twilight,
+                        quickActionKind = QuickActionKind.Album,
                         onClick = { onOpenAlbum(camping.id) },
                     ),
                 )
@@ -1516,6 +1985,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_chat_subtitle),
                         icon = Icons.AutoMirrored.Filled.Chat,
                         accent = MaterialTheme.czColors.pine,
+                        quickActionKind = QuickActionKind.Chat,
                         onClick = { onOpenChat(camping.id) },
                     ),
                 )
@@ -1525,6 +1995,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_polls_subtitle),
                         icon = Icons.Filled.Poll,
                         accent = MaterialTheme.czColors.amber,
+                        quickActionKind = QuickActionKind.Polls,
                         onClick = { onOpenPolls(camping.id) },
                     ),
                 )
@@ -1534,6 +2005,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_food_menu_subtitle),
                         icon = Icons.Filled.Restaurant,
                         accent = MaterialTheme.czColors.success,
+                        quickActionKind = QuickActionKind.FoodMenu,
                         onClick = { onOpenFoodMenu(camping.id) },
                     ),
                 )
@@ -1545,6 +2017,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_fees_payments_subtitle),
                         icon = Icons.Filled.CreditCard,
                         accent = MaterialTheme.czColors.twilight,
+                        quickActionKind = QuickActionKind.Pricing,
                         onClick = { onOpenPricing(camping.id) },
                     ),
                 )
@@ -1555,6 +2028,7 @@ private fun ResourcesSection(
             title = stringResource(R.string.camping_camp_life),
             icon = Icons.Filled.EmojiEvents,
             resources = campLifeResources,
+            onRecordQuickAction = onRecordQuickAction,
         )
 
         val operationsResources = buildList {
@@ -1565,6 +2039,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.camping_check_in_scanner_subtitle),
                         icon = Icons.Filled.QrCode,
                         accent = MaterialTheme.czColors.success,
+                        quickActionKind = QuickActionKind.CheckInScanner,
                         onClick = { onOpenCheckInScanner(camping.id) },
                     ),
                 )
@@ -1577,6 +2052,16 @@ private fun ResourcesSection(
                         onClick = { onOpenCheckInRecords(camping.id) },
                     ),
                 )
+                add(
+                    DetailResource(
+                        title = stringResource(R.string.program_attendance_title),
+                        subtitle = stringResource(R.string.program_attendance_entry_subtitle),
+                        icon = Icons.Filled.CalendarMonth,
+                        accent = MaterialTheme.czColors.twilight,
+                        quickActionKind = QuickActionKind.Schedule,
+                        onClick = { onOpenSchedule(camping.id) },
+                    ),
+                )
             }
             if (state.canManageTransportation) {
                 add(
@@ -1585,6 +2070,7 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.vehicle_dashboard_entry_subtitle),
                         icon = Icons.Filled.DirectionsCar,
                         accent = MaterialTheme.czColors.accent,
+                        quickActionKind = QuickActionKind.Vehicles,
                         onClick = { onOpenVehicles(camping.id) },
                     ),
                 )
@@ -1594,29 +2080,8 @@ private fun ResourcesSection(
                         subtitle = stringResource(R.string.transportation_dashboard_entry_subtitle),
                         icon = Icons.Filled.DirectionsBus,
                         accent = MaterialTheme.czColors.pine,
+                        quickActionKind = QuickActionKind.Transportation,
                         onClick = { onOpenTransportationDashboard(camping.id) },
-                    ),
-                )
-            }
-            if (state.canManageTeams) {
-                add(
-                    DetailResource(
-                        title = stringResource(R.string.lodging_title),
-                        subtitle = stringResource(R.string.lodging_entry_subtitle),
-                        icon = Icons.Filled.Cabin,
-                        accent = MaterialTheme.czColors.twilight,
-                        onClick = { onOpenLodging(camping.id) },
-                    ),
-                )
-            }
-            if (state.canAwardAchievements) {
-                add(
-                    DetailResource(
-                        title = stringResource(R.string.camping_award_badges),
-                        subtitle = stringResource(R.string.camping_award_badges_subtitle),
-                        icon = Icons.Filled.WorkspacePremium,
-                        accent = MaterialTheme.czColors.amber,
-                        onClick = { onOpenBadgeAward(camping.id) },
                     ),
                 )
             }
@@ -1626,6 +2091,7 @@ private fun ResourcesSection(
             title = stringResource(R.string.camping_operations),
             icon = Icons.Filled.Security,
             resources = operationsResources,
+            onRecordQuickAction = onRecordQuickAction,
         )
     }
 }
@@ -1693,11 +2159,13 @@ private fun ResourceGroup(
     title: String,
     icon: ImageVector,
     resources: List<DetailResource>,
+    onRecordQuickAction: (QuickActionKind) -> Unit,
 ) {
     if (resources.isEmpty()) return
+    val cardColor = detailCardColor()
 
     Surface(
-        color = MaterialTheme.czColors.surface,
+        color = cardColor,
         shape = RoundedCornerShape(CzRadius.lg),
     ) {
         Column {
@@ -1731,7 +2199,11 @@ private fun ResourceGroup(
             }
 
             resources.forEachIndexed { index, resource ->
-                ResourceRow(resource)
+                ResourceRow(
+                    resource = resource,
+                    cardColor = cardColor,
+                    onRecordQuickAction = onRecordQuickAction,
+                )
                 if (index < resources.lastIndex) {
                     DetailDivider()
                 }
@@ -1741,11 +2213,18 @@ private fun ResourceGroup(
 }
 
 @Composable
-private fun ResourceRow(resource: DetailResource) {
+private fun ResourceRow(
+    resource: DetailResource,
+    cardColor: Color,
+    onRecordQuickAction: (QuickActionKind) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { resource.onClick() }
+            .clickable {
+                resource.quickActionKind?.let(onRecordQuickAction)
+                resource.onClick()
+            }
             .padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
@@ -1771,7 +2250,7 @@ private fun ResourceRow(resource: DetailResource) {
                         .size(10.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.czColors.error)
-                        .border(2.dp, MaterialTheme.czColors.surface, CircleShape),
+                        .border(2.dp, cardColor, CircleShape),
                 )
             }
         }
@@ -1816,7 +2295,7 @@ private fun DetailResourceButton(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        color = MaterialTheme.czColors.surface,
+        color = detailCardColor(),
         shape = RoundedCornerShape(CzRadius.lg),
     ) {
         Row(
@@ -1865,31 +2344,162 @@ private fun DetailResourceButton(
 }
 
 @Composable
-private fun ManagementSection(onOpenFeedbackResults: () -> Unit) {
+private fun ManagementSection(
+    camping: Camping,
+    showHomePinAction: Boolean,
+    isSettingFeatured: Boolean,
+    showFeedbackResults: Boolean,
+    showTemplateClone: Boolean,
+    showPackingManagement: Boolean,
+    showLodgingManagement: Boolean,
+    showVenueManagement: Boolean,
+    showCancelAction: Boolean,
+    showDeleteAction: Boolean,
+    isMutatingCamping: Boolean,
+    onSetFeatured: () -> Unit,
+    onOpenFeedbackResults: () -> Unit,
+    onOpenTemplateClone: () -> Unit,
+    onOpenPackingChecklist: () -> Unit,
+    onOpenLodging: () -> Unit,
+    onOpenVenueMapEditor: () -> Unit,
+    onCancel: () -> Unit,
+    onDelete: () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
         DetailSectionHeader(
             title = stringResource(R.string.camping_management),
             icon = Icons.Filled.Security,
         )
-        AdminActionButton(
-            title = stringResource(R.string.camping_feedback_results),
-            icon = Icons.Filled.Poll,
-            onClick = onOpenFeedbackResults,
-        )
+        val actions = buildList {
+            if (showHomePinAction) add(
+                ManagementAction(
+                    title = stringResource(
+                        if (camping.isFeatured) R.string.camping_unpin_from_home else R.string.camping_pin_to_home,
+                    ),
+                    icon = Icons.Filled.Star,
+                    slashedIcon = camping.isFeatured,
+                    enabled = !isSettingFeatured && !isMutatingCamping,
+                    onClick = onSetFeatured,
+                ),
+            )
+            if (showTemplateClone) add(
+                ManagementAction(
+                    stringResource(R.string.camping_template_create_recurring),
+                    Icons.Filled.CalendarMonth,
+                    onClick = onOpenTemplateClone,
+                ),
+            )
+            if (showLodgingManagement) add(
+                ManagementAction(
+                    stringResource(R.string.camping_manage_lodging),
+                    Icons.Filled.Cabin,
+                    onClick = onOpenLodging,
+                ),
+            )
+            if (showVenueManagement) add(
+                ManagementAction(
+                    stringResource(R.string.camping_manage_venue_map),
+                    Icons.Filled.Map,
+                    onClick = onOpenVenueMapEditor,
+                ),
+            )
+            if (showPackingManagement) add(
+                ManagementAction(
+                    stringResource(R.string.packing_manage),
+                    Icons.Filled.Checklist,
+                    onClick = onOpenPackingChecklist,
+                ),
+            )
+            if (showFeedbackResults) add(
+                ManagementAction(
+                    stringResource(R.string.camping_feedback_results),
+                    Icons.Filled.Poll,
+                    onClick = onOpenFeedbackResults,
+                ),
+            )
+        }
+        actions.chunked(2).forEach { rowActions ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                rowActions.forEach { action ->
+                    AdminActionButton(
+                        title = action.title,
+                        icon = action.icon,
+                        slashedIcon = action.slashedIcon,
+                        enabled = action.enabled && !isMutatingCamping,
+                        modifier = Modifier.weight(1f),
+                        onClick = action.onClick,
+                    )
+                }
+                if (rowActions.size == 1) Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+        if (showCancelAction || showDeleteAction) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            ) {
+                if (showCancelAction) {
+                    AdminActionButton(
+                        title = stringResource(R.string.camping_cancel_event),
+                        icon = Icons.Filled.EventBusy,
+                        enabled = !isMutatingCamping,
+                        destructive = true,
+                        showChevron = false,
+                        modifier = Modifier.weight(1f),
+                        onClick = onCancel,
+                    )
+                }
+                if (showDeleteAction) {
+                    AdminActionButton(
+                        title = stringResource(R.string.camping_delete_event),
+                        icon = Icons.Filled.Delete,
+                        enabled = !isMutatingCamping,
+                        destructive = true,
+                        showChevron = false,
+                        modifier = Modifier.weight(1f),
+                        onClick = onDelete,
+                    )
+                }
+            }
+        }
+        camping.createdByName?.takeUnless { it.isBlank() }?.let { creator ->
+            Text(
+                text = stringResource(R.string.camping_created_by, creator),
+                color = MaterialTheme.czColors.textSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
+
+private data class ManagementAction(
+    val title: String,
+    val icon: ImageVector,
+    val slashedIcon: Boolean = false,
+    val enabled: Boolean = true,
+    val onClick: () -> Unit,
+)
 
 @Composable
 private fun AdminActionButton(
     title: String,
     icon: ImageVector,
+    slashedIcon: Boolean = false,
+    enabled: Boolean = true,
+    showChevron: Boolean = true,
+    destructive: Boolean = false,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .defaultMinSize(minHeight = 50.dp)
-            .clickable(onClick = onClick),
+            .alpha(if (enabled) 1f else 0.56f)
+            .clickable(enabled = enabled, onClick = onClick),
         color = MaterialTheme.czColors.surface,
         shape = RoundedCornerShape(CzRadius.md),
         tonalElevation = 0.dp,
@@ -1899,23 +2509,51 @@ private fun AdminActionButton(
             horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.czColors.ember,
-            )
+            AdminActionIcon(icon = icon, slashed = slashedIcon, destructive = destructive)
             Text(
                 text = title,
-                color = MaterialTheme.czColors.textPrimary,
+                color = if (destructive) MaterialTheme.czColors.error else MaterialTheme.czColors.textPrimary,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.czColors.textSecondary,
-            )
+            if (showChevron) {
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.textSecondary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminActionIcon(
+    icon: ImageVector,
+    slashed: Boolean,
+    destructive: Boolean = false,
+) {
+    val tint = if (destructive) MaterialTheme.czColors.error else MaterialTheme.czColors.ember
+    Box(
+        modifier = Modifier.size(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+        )
+        if (slashed) {
+            Canvas(modifier = Modifier.matchParentSize()) {
+                drawLine(
+                    color = tint,
+                    start = Offset(size.width * 0.18f, size.height * 0.82f),
+                    end = Offset(size.width * 0.82f, size.height * 0.18f),
+                    strokeWidth = 2.4.dp.toPx(),
+                    cap = StrokeCap.Round,
+                )
+            }
         }
     }
 }
@@ -2067,6 +2705,10 @@ private fun CampingAgeGroup.label(): String = stringResource(
 )
 
 @Composable
+private fun detailCardColor(): Color =
+    if (isSystemInDarkTheme()) MaterialTheme.czColors.surface else Color.White
+
+@Composable
 private fun CampingDetailTab.label(): String = stringResource(
     when (this) {
         CampingDetailTab.Overview -> R.string.camping_tab_overview
@@ -2081,6 +2723,7 @@ private data class DetailResource(
     val icon: ImageVector,
     val accent: Color,
     val showsBadge: Boolean = false,
+    val quickActionKind: QuickActionKind? = null,
     val onClick: () -> Unit,
 )
 

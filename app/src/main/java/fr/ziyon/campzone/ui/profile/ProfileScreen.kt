@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Wc
 import androidx.compose.material.icons.rounded.Work
 import androidx.compose.material.icons.rounded.WorkspacePremium
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.Camera
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -76,6 +77,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -107,6 +109,7 @@ import fr.ziyon.campzone.data.auth.UserGender
 import fr.ziyon.campzone.data.church.ChurchGroup
 import fr.ziyon.campzone.data.church.SDAChurch
 import fr.ziyon.campzone.data.profile.UserProfile
+import fr.ziyon.campzone.ui.common.AllergiesEditor
 import fr.ziyon.campzone.ui.common.ChurchPickerSheet
 import java.text.DateFormat
 
@@ -169,6 +172,7 @@ fun ProfileScreen(
         onEducationChange = viewModel::updateEducation,
         onPathfinderRankChange = viewModel::updatePathfinderRank,
         onSkillsChange = viewModel::updateSkillsText,
+        onAllergiesChange = viewModel::updateAllergies,
         onChangePhoto = { photoPicker.launch("image/*") },
         onRequestDeletion = { viewModel.requestAccountDeletion(onSuccess = onSignOut) },
         onCancelDeletion = viewModel::cancelAccountDeletion,
@@ -201,6 +205,7 @@ private fun ProfileContent(
     onEducationChange: (String) -> Unit,
     onPathfinderRankChange: (String) -> Unit,
     onSkillsChange: (String) -> Unit,
+    onAllergiesChange: (List<String>) -> Unit,
     onChangePhoto: () -> Unit,
     onRequestDeletion: () -> Unit,
     onCancelDeletion: () -> Unit,
@@ -481,6 +486,17 @@ private fun ProfileContent(
                 label = stringResource(R.string.profile_skills),
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { ProfileFieldIcon(Icons.Rounded.Settings) },
+            )
+        }
+
+        ProfileSection(
+            title = stringResource(R.string.profile_allergies),
+            icon = Icons.Rounded.WarningAmber,
+            footer = stringResource(R.string.profile_allergies_footer),
+        ) {
+            AllergiesEditor(
+                selected = state.form.allergies,
+                onSelectedChange = onAllergiesChange,
             )
         }
 
@@ -1145,12 +1161,13 @@ private fun deletionScheduleText(state: ProfileUiState): String {
     val days = state.deletionDaysRemaining
     val endsAt = state.loadedUser?.deletionGraceEnds
     return when {
-        days != null && endsAt != null -> stringResource(
-            R.string.profile_deletion_scheduled_with_date,
+        days != null && endsAt != null -> pluralStringResource(
+            R.plurals.profile_deletion_scheduled_with_date,
+            days,
             DateFormat.getDateInstance(DateFormat.MEDIUM).format(endsAt),
             days,
         )
-        days != null -> stringResource(R.string.profile_deletion_scheduled_with_days, days)
+        days != null -> pluralStringResource(R.plurals.profile_deletion_scheduled_with_days, days, days)
         else -> stringResource(R.string.profile_deletion_scheduled_generic)
     }
 }
@@ -1344,6 +1361,7 @@ private fun ProfileContentPreview() {
             onEducationChange = {},
             onPathfinderRankChange = {},
             onSkillsChange = {},
+            onAllergiesChange = {},
             onChangePhoto = {},
             onRequestDeletion = {},
             onCancelDeletion = {},

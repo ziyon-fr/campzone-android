@@ -2,6 +2,7 @@ package fr.ziyon.campzone.ui.camping.registrations
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.Info
@@ -45,7 +47,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,16 +71,18 @@ import fr.ziyon.campzone.ui.camping.campingDateRange
 @Composable
 fun RegistrationReviewRoute(
     authenticatedUser: AuthenticatedUser,
+    focusedCampingId: String? = null,
     onBack: () -> Unit,
     onOpenCamping: (String) -> Unit,
+    onOpenAttendeeProfile: (String, String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RegistrationReviewViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(authenticatedUser) {
-        viewModel.load(authenticatedUser)
+    LaunchedEffect(authenticatedUser, focusedCampingId) {
+        viewModel.load(authenticatedUser, focusedCampingId)
     }
     LaunchedEffect(state.operationMessage) {
         state.operationMessage?.let {
@@ -95,8 +101,9 @@ fun RegistrationReviewRoute(
         state = state,
         snackbarHostState = snackbarHostState,
         onBack = onBack,
-        onRetry = { viewModel.retry(authenticatedUser) },
+        onRetry = { viewModel.load(authenticatedUser, focusedCampingId) },
         onOpenCamping = onOpenCamping,
+        onOpenAttendeeProfile = onOpenAttendeeProfile,
         onApprove = { campingId, attendeeId ->
             viewModel.updateRegistration(campingId, attendeeId, RegistrationApprovalStatus.Approved)
         },
@@ -115,6 +122,7 @@ fun RegistrationReviewScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onOpenCamping: (String) -> Unit,
+    onOpenAttendeeProfile: (String, String) -> Unit,
     onApprove: (String, String) -> Unit,
     onReject: (String, String) -> Unit,
     modifier: Modifier = Modifier,
@@ -184,6 +192,7 @@ fun RegistrationReviewScreen(
                 campings = phase.campings,
                 isSaving = state.isSaving,
                 onOpenCamping = onOpenCamping,
+                onOpenAttendeeProfile = onOpenAttendeeProfile,
                 onApprove = onApprove,
                 onReject = onReject,
                 modifier = Modifier.padding(innerPadding),
@@ -197,6 +206,7 @@ private fun ReviewContent(
     campings: List<Camping>,
     isSaving: Boolean,
     onOpenCamping: (String) -> Unit,
+    onOpenAttendeeProfile: (String, String) -> Unit,
     onApprove: (String, String) -> Unit,
     onReject: (String, String) -> Unit,
     modifier: Modifier = Modifier,
@@ -217,6 +227,7 @@ private fun ReviewContent(
                     camping = camping,
                     isSaving = isSaving,
                     onOpenCamping = onOpenCamping,
+                    onOpenAttendeeProfile = onOpenAttendeeProfile,
                     onApprove = onApprove,
                     onReject = onReject,
                 )
@@ -230,6 +241,7 @@ private fun ReviewCampingSection(
     camping: Camping,
     isSaving: Boolean,
     onOpenCamping: (String) -> Unit,
+    onOpenAttendeeProfile: (String, String) -> Unit,
     onApprove: (String, String) -> Unit,
     onReject: (String, String) -> Unit,
 ) {
@@ -241,7 +253,7 @@ private fun ReviewCampingSection(
             fontWeight = FontWeight.SemiBold,
         )
         Surface(
-            color = MaterialTheme.czColors.surface,
+            color = registrationReviewCardColor(),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(CzRadius.lg),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
@@ -280,6 +292,7 @@ private fun ReviewCampingSection(
                     PendingRegistrationReviewRow(
                         attendee = attendee,
                         isSaving = isSaving,
+                        onOpenProfile = { onOpenAttendeeProfile(camping.id, attendee.id) },
                         onApprove = { onApprove(camping.id, attendee.id) },
                         onReject = { onReject(camping.id, attendee.id) },
                         modifier = Modifier.padding(horizontal = CzSpacing.md),
@@ -303,8 +316,9 @@ private fun ReviewCampingSection(
                             modifier = Modifier.size(14.dp),
                         )
                         Text(
-                            text = stringResource(
-                                R.string.registration_review_waitlist_count,
+                            text = pluralStringResource(
+                                R.plurals.registration_review_waitlist_count,
+                                camping.waitlistedAttendees.size,
                                 camping.waitlistedAttendees.size,
                             ),
                             color = MaterialTheme.czColors.textSecondary,
@@ -316,6 +330,7 @@ private fun ReviewCampingSection(
                         PendingRegistrationReviewRow(
                             attendee = attendee,
                             isSaving = isSaving,
+                            onOpenProfile = { onOpenAttendeeProfile(camping.id, attendee.id) },
                             onApprove = { onApprove(camping.id, attendee.id) },
                             onReject = { onReject(camping.id, attendee.id) },
                             modifier = Modifier.padding(horizontal = CzSpacing.md),
@@ -332,18 +347,32 @@ private fun ReviewCampingSection(
 private fun PendingRegistrationReviewRow(
     attendee: CampingAttendee,
     isSaving: Boolean,
+    onOpenProfile: () -> Unit,
     onApprove: () -> Unit,
     onReject: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.czColors.surface,
+        color = registrationReviewCardColor(),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(CzRadius.lg),
         border = BorderStroke(1.dp, MaterialTheme.czColors.warning.copy(alpha = 0.2f)),
     ) {
         Column {
-            RegistrationAttendeeRow(attendee)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenProfile),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RegistrationAttendeeRow(attendee, modifier = Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.textSecondary,
+                    modifier = Modifier.padding(end = CzSpacing.md).size(18.dp),
+                )
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -414,6 +443,10 @@ private fun ReviewActionButton(
         }
     }
 }
+
+@Composable
+private fun registrationReviewCardColor(): Color =
+    if (isSystemInDarkTheme()) MaterialTheme.czColors.surface else Color.White
 
 @Composable
 private fun StateCenter(

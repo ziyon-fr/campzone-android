@@ -79,6 +79,7 @@ import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.data.games.ActivityReadScope
 import fr.ziyon.campzone.data.games.FakeGameService
 import fr.ziyon.campzone.data.games.previewGame
 import fr.ziyon.campzone.data.model.Activity
@@ -133,9 +134,14 @@ fun GameDetailRoute(
         evaluator.canRevealWinners(permissionUser, campingCtx) ||
             evaluator.canManageGames(permissionUser, campingCtx)
         )
+    val activityReadScope = ActivityReadScope.resolve(
+        camping = camping,
+        userId = authenticatedUser.uid,
+        canReadFullLedger = canSeeHidden,
+    )
 
-    LaunchedEffect(campingId) {
-        viewModel.loadIfNeeded(campingId)
+    LaunchedEffect(campingId, activityReadScope) {
+        viewModel.loadIfNeeded(campingId, activityReadScope)
         viewModel.loadVenuePoints(campingId)
     }
     LaunchedEffect(gameId, canManage) {

@@ -5,6 +5,7 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,12 +30,14 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -81,6 +85,7 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.Song
 import fr.ziyon.campzone.data.model.SongLyricsPart
 import fr.ziyon.campzone.data.model.SongLyricsPartKind
+import fr.ziyon.campzone.data.model.SongAudioTrackType
 
 @Composable
 fun SongEditorRoute(
@@ -95,6 +100,7 @@ fun SongEditorRoute(
     val canManage by viewModel.canManageSongbook.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
     val operationError by viewModel.operationError.collectAsState()
+    val trackTypeEditorAudioId by viewModel.trackTypeEditorAudioId.collectAsState()
     val existingSong = songId?.let { viewModel.songById(it, campingId) }
 
     LaunchedEffect(campingId, authenticatedUser.uid) {
@@ -115,10 +121,17 @@ fun SongEditorRoute(
         isSaving = isSaving,
         operationError = operationError,
         existingSong = existingSong,
+        audioTracks = viewModel.orderedFormAudio(),
+        trackTypeEditorAudioId = trackTypeEditorAudioId,
+        availableTrackTypes = viewModel.availableTrackTypes(trackTypeEditorAudioId),
         onBack = onBack,
         onUpdateForm = viewModel::updateForm,
         onAddAudio = viewModel::addPendingAudio,
+        onAddRemoteAudio = viewModel::addRemoteAudio,
         onRemoveAudio = viewModel::removeAudio,
+        onEditAudioType = viewModel::editAudioTrackType,
+        onDismissAudioTypeEditor = viewModel::dismissAudioTrackTypeEditor,
+        onUpdateAudioType = viewModel::updateAudioTrackType,
         onStartLyricsPartEditor = viewModel::startLyricsPartEditor,
         onLyricsPartKindChange = viewModel::updateLyricsPartKind,
         onLyricsPartNumberChange = viewModel::updateLyricsPartNumber,
@@ -141,10 +154,17 @@ fun SongEditorScreen(
     isSaving: Boolean,
     operationError: String?,
     existingSong: Song?,
+    audioTracks: List<SongbookAudioTrackItem>,
+    trackTypeEditorAudioId: String?,
+    availableTrackTypes: List<SongAudioTrackType>,
     onBack: () -> Unit,
     onUpdateForm: ((SongEditorForm) -> SongEditorForm) -> Unit,
     onAddAudio: (String, String, ByteArray) -> Boolean,
+    onAddRemoteAudio: (String) -> Boolean,
     onRemoveAudio: (String) -> Unit,
+    onEditAudioType: (String) -> Unit,
+    onDismissAudioTypeEditor: () -> Unit,
+    onUpdateAudioType: (String, SongAudioTrackType, String) -> Boolean,
     onStartLyricsPartEditor: (String?) -> Unit,
     onLyricsPartKindChange: (SongLyricsPartKind) -> Unit,
     onLyricsPartNumberChange: (Int) -> Unit,
@@ -263,6 +283,31 @@ fun SongEditorScreen(
                             onCheckedChange = { checked -> onUpdateForm { it.copy(isPinnedTheme = checked) } },
                         )
                     }
+                    DividerInset()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = CzSpacing.base, vertical = CzSpacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                    ) {
+                        Icon(Icons.Rounded.Link, contentDescription = null, tint = colors.accent)
+                        TextField(
+                            value = form.remoteAudioUrl,
+                            onValueChange = { value -> onUpdateForm { it.copy(remoteAudioUrl = value) } },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text(stringResource(R.string.songbook_remote_audio_url)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                            colors = transparentTextFieldColors(),
+                        )
+                        TextButton(
+                            onClick = { onAddRemoteAudio(form.remoteAudioUrl) },
+                            enabled = form.remoteAudioUrl.isNotBlank(),
+                        ) {
+                            Text(stringResource(R.string.common_add), color = colors.accent)
+                        }
+                    }
                 }
 
                 EditorSectionHeader(stringResource(R.string.songbook_audio), Icons.Rounded.Headphones)
@@ -285,18 +330,30 @@ fun SongEditorScreen(
                     }
                 }
 
-                if (form.existingAudioFiles.isNotEmpty() || form.pendingAudioFiles.isNotEmpty()) {
+                if (audioTracks.isNotEmpty()) {
                     EditorSectionHeader(stringResource(R.string.songbook_attached_audio), Icons.Rounded.Headphones)
                     EditorCard {
-                        form.existingAudioFiles.forEachIndexed { index, audio ->
-                            AudioRow(title = audio.fileName, subtitle = audio.kind.wireValue.uppercase(), onDelete = { onRemoveAudio(audio.id) })
-                            if (index != form.existingAudioFiles.lastIndex || form.pendingAudioFiles.isNotEmpty()) DividerInset()
-                        }
-                        form.pendingAudioFiles.forEachIndexed { index, audio ->
-                            AudioRow(title = audio.fileName, subtitle = stringResource(R.string.songbook_ready_upload), onDelete = { onRemoveAudio(audio.id) })
-                            if (index != form.pendingAudioFiles.lastIndex) DividerInset()
+                        audioTracks.forEachIndexed { index, audio ->
+                            AudioRow(
+                                title = audio.fileName,
+                                trackLabel = audio.displayName.ifBlank { stringResource(audio.type.displayNameRes) },
+                                subtitle = if (audio.isPending) {
+                                    stringResource(R.string.songbook_ready_upload)
+                                } else {
+                                    stringResource(R.string.songbook_audio_attached)
+                                },
+                                onEdit = { onEditAudioType(audio.id) },
+                                onDelete = { onRemoveAudio(audio.id) },
+                            )
+                            if (index != audioTracks.lastIndex) DividerInset()
                         }
                     }
+                    Text(
+                        text = stringResource(R.string.songbook_voice_kits_hint),
+                        style = CzTypeScale.caption2,
+                        color = colors.textTertiary,
+                        modifier = Modifier.padding(horizontal = CzSpacing.sm),
+                    )
                 }
 
                 EditorSectionHeader(
@@ -344,6 +401,12 @@ fun SongEditorScreen(
                         textStyle = CzTypeScale.body.copy(color = colors.textPrimary, fontFamily = FontFamily.Monospace),
                         colors = transparentTextFieldColors(),
                     )
+                    Text(
+                        text = stringResource(R.string.songbook_chord_sheet_hint),
+                        style = CzTypeScale.caption,
+                        color = colors.textSecondary,
+                        modifier = Modifier.padding(horizontal = CzSpacing.base, vertical = CzSpacing.sm),
+                    )
                 }
 
                 EditorSectionHeader(stringResource(R.string.songbook_links), Icons.Rounded.Link)
@@ -352,6 +415,13 @@ fun SongEditorScreen(
                         value = form.pdfLink,
                         onValueChange = { value -> onUpdateForm { it.copy(pdfLink = value) } },
                         placeholder = stringResource(R.string.songbook_pdf_url),
+                        keyboardType = KeyboardType.Uri,
+                    )
+                    DividerInset()
+                    SongTextField(
+                        value = form.pptxLink,
+                        onValueChange = { value -> onUpdateForm { it.copy(pptxLink = value) } },
+                        placeholder = stringResource(R.string.songbook_pptx_url),
                         keyboardType = KeyboardType.Uri,
                     )
                     DividerInset()
@@ -390,6 +460,16 @@ fun SongEditorScreen(
                 Spacer(Modifier.height(CzSpacing.xxl))
             }
         }
+    }
+
+    val editingTrack = audioTracks.firstOrNull { it.id == trackTypeEditorAudioId }
+    if (editingTrack != null) {
+        AudioTrackTypeDialog(
+            track = editingTrack,
+            availableTrackTypes = availableTrackTypes,
+            onDismiss = onDismissAudioTypeEditor,
+            onSave = { type, customName -> onUpdateAudioType(editingTrack.id, type, customName) },
+        )
     }
 }
 
@@ -438,7 +518,13 @@ private fun SongTextField(
 }
 
 @Composable
-private fun AudioRow(title: String, subtitle: String, onDelete: () -> Unit) {
+private fun AudioRow(
+    title: String,
+    trackLabel: String,
+    subtitle: String,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
     val colors = MaterialTheme.czColors
     Row(
         modifier = Modifier
@@ -448,14 +534,81 @@ private fun AudioRow(title: String, subtitle: String, onDelete: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
     ) {
         Icon(Icons.Rounded.Headphones, contentDescription = null, tint = colors.accent)
-        Column(Modifier.weight(1f)) {
+        Column(
+            Modifier
+                .weight(1f)
+                .clickable(onClick = onEdit)
+                .padding(vertical = CzSpacing.xs),
+        ) {
             Text(title, style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = CzTypeScale.caption, color = colors.textSecondary)
+            Text(trackLabel, style = CzTypeScale.caption.copy(fontWeight = FontWeight.SemiBold), color = colors.accent)
+            Text(subtitle, style = CzTypeScale.caption2, color = colors.textSecondary)
+        }
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.songbook_edit_voice_kit), tint = colors.accent)
         }
         IconButton(onClick = onDelete) {
             Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.songbook_remove_audio), tint = colors.error)
         }
     }
+}
+
+@Composable
+private fun AudioTrackTypeDialog(
+    track: SongbookAudioTrackItem,
+    availableTrackTypes: List<SongAudioTrackType>,
+    onDismiss: () -> Unit,
+    onSave: (SongAudioTrackType, String) -> Boolean,
+) {
+    val colors = MaterialTheme.czColors
+    var selectedType by remember(track.id) { mutableStateOf(track.type) }
+    var customName by remember(track.id) { mutableStateOf(track.displayName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.songbook_choose_voice_kit)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+            ) {
+                Text(track.fileName, style = CzTypeScale.caption, color = colors.textSecondary)
+                availableTrackTypes.forEach { type ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(CzRadius.md))
+                            .clickable { selectedType = type }
+                            .background(if (selectedType == type) colors.accent.copy(alpha = 0.10f) else Color.Transparent)
+                            .padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(stringResource(type.displayNameRes), modifier = Modifier.weight(1f), color = colors.textPrimary)
+                        if (selectedType == type) Icon(Icons.Rounded.Check, contentDescription = null, tint = colors.accent)
+                    }
+                }
+                if (selectedType == SongAudioTrackType.Other) {
+                    TextField(
+                        value = customName,
+                        onValueChange = { customName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(stringResource(R.string.songbook_custom_track_name)) },
+                        singleLine = true,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(selectedType, customName) }) {
+                Text(stringResource(R.string.common_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+        },
+    )
 }
 
 @Composable

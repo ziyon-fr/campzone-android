@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.hilt.navigation.compose.hiltViewModel
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzSpacing
@@ -47,6 +48,7 @@ import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.core.permissions.UserRole
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.data.games.ActivityReadScope
 import fr.ziyon.campzone.data.games.FakeGameService
 import fr.ziyon.campzone.data.model.Activity
 import fr.ziyon.campzone.data.model.Camping
@@ -54,6 +56,7 @@ import fr.ziyon.campzone.data.camping.PreviewCampingService
 import fr.ziyon.campzone.data.teams.FakeTeamService
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
 import fr.ziyon.campzone.core.designsystem.CzLoadingView
+import fr.ziyon.campzone.ui.teams.TeamViewModel
 import java.util.Calendar
 import java.util.Date
 
@@ -86,6 +89,7 @@ fun PointHistoryRoute(
     camping: Camping?,
     authenticatedUser: AuthenticatedUser,
     viewModel: GameViewModel,
+    teamViewModel: TeamViewModel = hiltViewModel(),
     onBack: () -> Unit,
 ) {
     val evaluator = remember { AppPermissionEvaluator() }
@@ -105,17 +109,36 @@ fun PointHistoryRoute(
         evaluator.canRevealWinners(permissionUser, campingCtx) ||
             evaluator.canManageGames(permissionUser, campingCtx)
         )
+    val activityReadScope = ActivityReadScope.resolve(
+        camping = camping,
+        userId = authenticatedUser.uid,
+        canReadFullLedger = canSeeHidden,
+    )
 
-    LaunchedEffect(campingId) { viewModel.loadIfNeeded(campingId) }
+    LaunchedEffect(campingId, activityReadScope) {
+        viewModel.loadIfNeeded(campingId, activityReadScope)
+    }
+    LaunchedEffect(campingId, teamId) {
+        if (teamId != null) teamViewModel.loadIfNeeded(campingId)
+    }
     val uiState by viewModel.uiState.collectAsState()
+    val teamsUiState by teamViewModel.uiState.collectAsState()
 
     val allActivities = camping?.let { viewModel.visibleActivities(it, canSeeHidden) } ?: emptyList()
     val games = viewModel.gamesFor(campingId)
+    val teamMemberUserIds = remember(teamId, campingId, teamsUiState) {
+        teamId
+            ?.let { teamViewModel.team(it, campingId) }
+            ?.memberUserIds
+            ?.toSet()
+            .orEmpty()
+    }
 
     PointHistoryScreen(
         activities = allActivities,
         games = games.map { it.id to it.name },
         teamFilter = teamId,
+        teamMemberUserIds = teamMemberUserIds,
         loading = uiState is GamesUiState.Loading,
         onBack = onBack,
     )
@@ -127,6 +150,7 @@ private fun PointHistoryScreen(
     activities: List<Activity>,
     games: List<Pair<String, String>>,
     teamFilter: String?,
+    teamMemberUserIds: Set<String>,
     loading: Boolean,
     onBack: () -> Unit,
 ) {
@@ -134,7 +158,7 @@ private fun PointHistoryScreen(
     var selectedGameId by remember { mutableStateOf<String?>(null) }
 
     val filtered = activities.filter { activity ->
-        if (teamFilter != null && activity.targetTeamId != teamFilter) return@filter false
+        if (teamFilter != null && !activity.matchesTeamOrMember(teamFilter, teamMemberUserIds)) return@filter false
         if (selectedGameId != null && activity.gameId != selectedGameId) return@filter false
         true
     }
@@ -279,6 +303,12 @@ private fun PointHistoryScreenPreview() {
                 fr.ziyon.campzone.data.media.PreviewMediaUploader,
                 fr.ziyon.campzone.data.media.PreviewMediaUploader,
                 fr.ziyon.campzone.data.venuemap.FakeVenueMapService(),
+            ),
+            teamViewModel = TeamViewModel(
+                FakeTeamService(),
+                FakeGameService(),
+                fr.ziyon.campzone.data.media.PreviewMediaUploader,
+                fr.ziyon.campzone.data.teams.FakeTeamNotificationDispatcher(),
             ),
             onBack = {},
         )

@@ -47,8 +47,10 @@ class RegistrationReviewViewModel @Inject constructor(
     private var observeJob: Job? = null
     private var allCampings: List<Camping> = emptyList()
     private var permissionUser: PermissionUser? = null
+    private var focusedCampingId: String? = null
 
-    fun load(user: AuthenticatedUser) {
+    fun load(user: AuthenticatedUser, focusedCampingId: String? = null) {
+        this.focusedCampingId = focusedCampingId
         permissionUser = PermissionUser(
             role = user.role,
             userId = user.uid,
@@ -78,7 +80,7 @@ class RegistrationReviewViewModel @Inject constructor(
     fun retry(user: AuthenticatedUser) {
         observeJob?.cancel()
         observeJob = null
-        load(user)
+        load(user, focusedCampingId)
     }
 
     fun updateRegistration(
@@ -131,6 +133,7 @@ class RegistrationReviewViewModel @Inject constructor(
         val user = permissionUser
         val pendingCampings = allCampings
             .filter { camping ->
+                (focusedCampingId == null || camping.id == focusedCampingId) &&
                 (camping.pendingAttendees.isNotEmpty() || camping.waitlistedAttendees.isNotEmpty()) &&
                     permissions.canApproveRegistrations(user, camping.permissionContext())
             }

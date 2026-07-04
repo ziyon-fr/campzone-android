@@ -7,7 +7,8 @@ import java.util.Date
  * client-supplied [id]. The camping doc is written via a hand-built payload
  * ([CampingPayload]) - never an auto-encoder - and never carries `attendees`
  * (those live in the `registrations` subcollection). `guidelines` and
- * `winnerRevealPolicy` are written only by their dedicated paths.
+ * `winnerRevealPolicy` are written only by their dedicated paths; `isFeatured`
+ * is likewise written only by the dedicated Home pin path.
  */
 data class Camping(
     val id: String,
@@ -18,6 +19,7 @@ data class Camping(
     val organizerLevel: OrganizerLevel,
     val location: String,
     val registrationStatus: CampingRegistrationStatus,
+    val publicationStatus: CampingPublicationStatus = CampingPublicationStatus.Published,
     val locationLatitude: Double? = null,
     val locationLongitude: Double? = null,
     val participantCapacity: Int? = null,
@@ -42,6 +44,11 @@ data class Camping(
      * timestamp on the wire (`02-firestore-schema.md` §3).
      */
     val registrationDeadline: Date? = null,
+    /**
+     * Admin-selected Home pin. Missing legacy docs decode as false and regular
+     * camping saves never write it, so edits cannot accidentally clear the pin.
+     */
+    val isFeatured: Boolean = false,
     val attendees: List<CampingAttendee> = emptyList(),
 ) {
     val isPaid: Boolean
@@ -72,7 +79,19 @@ data class Camping(
         }
 
     val acceptsRegistrations: Boolean
-        get() = effectiveRegistrationStatus == CampingRegistrationStatus.Open
+        get() = isPublished && effectiveRegistrationStatus == CampingRegistrationStatus.Open
+
+    val isDraft: Boolean
+        get() = publicationStatus == CampingPublicationStatus.Draft
+
+    val isPublished: Boolean
+        get() = publicationStatus == CampingPublicationStatus.Published
+
+    val isArchived: Boolean
+        get() = publicationStatus == CampingPublicationStatus.Archived
+
+    val isPubliclyVisible: Boolean
+        get() = isPublished
 
     val approvedAttendees: List<CampingAttendee>
         get() = attendees.filter { it.registrationStatus == RegistrationApprovalStatus.Approved }
@@ -106,12 +125,43 @@ data class Camping(
 
     fun transportationOption(id: String?): CampingTransportationOption? =
         id?.let { optionId -> transportationOptions.firstOrNull { it.id == optionId } }
+
+    fun registrationsForAuthenticatedUser(userId: String?): List<CampingAttendee> {
+        val uid = userId?.takeUnless { it.isBlank() } ?: return emptyList()
+        return attendees.filter { attendee ->
+            attendee.userId == uid ||
+                attendee.guardianId == uid ||
+                (attendee.participantKind == RegistrationParticipantKind.SelfParticipant && attendee.id == uid)
+        }
+    }
+
+    /**
+     * The registration document Security Rules can join directly at
+     * `/registrations/{auth.uid}`. A guardian-only child registration does not
+     * authorize broad activity or notification collection queries.
+     */
+    fun directRegistrationForAuthenticatedUser(userId: String?): CampingAttendee? {
+        val uid = userId?.takeUnless { it.isBlank() } ?: return null
+        return attendees.firstOrNull {
+            it.userId == uid && it.participantKind == RegistrationParticipantKind.SelfParticipant
+        } ?: attendees.firstOrNull { it.id == uid }
+    }
+
+    fun hasApprovedRegistrationForUser(userId: String?): Boolean =
+        registrationsForAuthenticatedUser(userId)
+            .any { it.registrationStatus == RegistrationApprovalStatus.Approved }
 }
 
 data class OrganizerLevel(
     val type: OrganizerType,
     val value: String,
-)
+) {
+    val normalizedValue: String
+        get() = value.trim()
+
+    val hasOrganizationName: Boolean
+        get() = normalizedValue.isNotEmpty()
+}
 
 data class WinnerRevealPolicy(
     val isRevealed: Boolean = false,
@@ -200,6 +250,7 @@ internal fun Map<String, Any?>.toCampingOrNull(documentId: String): Camping? {
         organizerLevel = organizerLevel,
         location = location,
         registrationStatus = CampingRegistrationStatus.fromWire(registrationStatus),
+        publicationStatus = CampingPublicationStatus.fromWire(stringValue("publicationStatus")),
         locationLatitude = doubleValue("locationLatitude"),
         locationLongitude = doubleValue("locationLongitude"),
         participantCapacity = intValue("participantCapacity"),
@@ -218,6 +269,7 @@ internal fun Map<String, Any?>.toCampingOrNull(documentId: String): Camping? {
         createdAt = dateValue("createdAt"),
         updatedAt = dateValue("updatedAt"),
         registrationDeadline = dateValue("registrationDeadline"),
+        isFeatured = boolValue("isFeatured") ?: false,
     )
 }
 

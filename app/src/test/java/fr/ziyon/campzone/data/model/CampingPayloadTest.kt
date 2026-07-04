@@ -20,6 +20,7 @@ class CampingPayloadTest {
         assertEquals("summer-2026", payload["id"])
         assertEquals("Summer Camp", payload["title"])
         assertEquals("open", payload["registrationStatus"])
+        assertEquals("published", payload["publicationStatus"])
         // organizerLevel is a {type,value} map, not a string
         assertEquals(
             mapOf("type" to "church", "value" to "Paris Central SDA"),
@@ -41,6 +42,7 @@ class CampingPayloadTest {
         // never write guidelines or winnerRevealPolicy on the normal path
         assertFalse(payload.containsKey("guidelines"))
         assertFalse(payload.containsKey("winnerRevealPolicy"))
+        assertFalse(payload.containsKey("isFeatured"))
         assertFalse(payload.containsKey("attendees"))
     }
 
@@ -90,6 +92,27 @@ class CampingPayloadTest {
     }
 
     @Test
+    fun organizerLevelValueIsTrimmedOnEncodeAndDecode() {
+        val payload = CampingPayload.campingPayload(
+            camping = fullCamping().copy(
+                organizerLevel = OrganizerLevel(OrganizerType.Regional, "  South Region  "),
+            ),
+            serverTimestamp = TS,
+            deleteField = DEL,
+            includeCreatedAt = false,
+        )
+
+        assertEquals(
+            mapOf("type" to "regional", "value" to "South Region"),
+            payload["organizerLevel"],
+        )
+
+        val decoded = payload.toCampingOrNull("summer-2026")!!
+        assertEquals(OrganizerLevel(OrganizerType.Regional, "South Region"), decoded.organizerLevel)
+        assertTrue(decoded.organizerLevel.hasOrganizationName)
+    }
+
+    @Test
     fun registrationDeadlineWritesWhenSetAndDeletesWhenNil() {
         val deadline = Date(5_000_000)
         val withDeadline = CampingPayload.campingPayload(
@@ -119,6 +142,16 @@ class CampingPayloadTest {
         assertEquals("cancelled", cancel["registrationStatus"])
         assertEquals(setOf("registrationStatus", "updatedAt"), cancel.keys)
 
+        val featured = CampingPayload.featuredPayload(isFeatured = true, serverTimestamp = TS)
+        assertEquals(true, featured["isFeatured"])
+        assertEquals(TS, featured["updatedAt"])
+        assertEquals(setOf("isFeatured", "updatedAt"), featured.keys)
+
+        val publication = CampingPayload.publicationPayload(CampingPublicationStatus.Archived, TS)
+        assertEquals("archived", publication["publicationStatus"])
+        assertEquals(TS, publication["updatedAt"])
+        assertEquals(setOf("publicationStatus", "updatedAt"), publication.keys)
+
         val reveal = CampingPayload.winnerRevealPolicyPayload(
             WinnerRevealPolicy(isRevealed = true, revealedBy = "admin-1"),
             TS,
@@ -142,13 +175,42 @@ class CampingPayloadTest {
         assertEquals(original.endDate, decoded.endDate)
         assertEquals(original.organizerLevel, decoded.organizerLevel)
         assertEquals(CampingRegistrationStatus.Open, decoded.registrationStatus)
+        assertEquals(CampingPublicationStatus.Published, decoded.publicationStatus)
         assertEquals(original.participantCapacity, decoded.participantCapacity)
         assertEquals("eur", decoded.feeCurrency)
         assertEquals(1, decoded.priceItems.size)
         assertEquals(CampingPaymentOption.CardOneTime, decoded.priceItems.first().paymentOptions.first())
         assertEquals(1, decoded.agePrices.size)
         assertEquals(TransportationMode.Bus, decoded.transportationOptions.first().mode)
+        assertFalse(decoded.isFeatured)
         assertTrue(decoded.isPaid)
+    }
+
+    @Test
+    fun decoderReadsFeaturedFlagWhenPresent() {
+        val payload = CampingPayload.campingPayload(fullCamping(), Date(1), DEL, includeCreatedAt = false)
+            .toMutableMap()
+            .apply { put("isFeatured", true) }
+
+        assertTrue(payload.toCampingOrNull("summer-2026")!!.isFeatured)
+    }
+
+    @Test
+    fun decoderDefaultsMissingPublicationStatusToPublished() {
+        val payload = CampingPayload.campingPayload(fullCamping(), Date(1), DEL, includeCreatedAt = false)
+            .toMutableMap()
+            .apply { remove("publicationStatus") }
+
+        val decoded = payload.toCampingOrNull("summer-2026")!!
+        assertEquals(CampingPublicationStatus.Published, decoded.publicationStatus)
+        assertTrue(decoded.isPublished)
+    }
+
+    @Test
+    fun draftCampingDoesNotAcceptRegistrationsEvenWhenOpen() {
+        val draft = fullCamping().copy(publicationStatus = CampingPublicationStatus.Draft)
+
+        assertFalse(draft.acceptsRegistrations)
     }
 
     @Test

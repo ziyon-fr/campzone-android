@@ -13,6 +13,7 @@ import fr.ziyon.campzone.data.model.BlockedUser
 import fr.ziyon.campzone.data.model.BlockedUserPayload
 import fr.ziyon.campzone.data.model.ChatMention
 import fr.ziyon.campzone.data.model.ChatMessage
+import fr.ziyon.campzone.data.model.ChatReplyReference
 import fr.ziyon.campzone.data.model.ChatMessagePayload
 import fr.ziyon.campzone.data.model.ContentReport
 import fr.ziyon.campzone.data.model.ContentReportPayload
@@ -39,6 +40,8 @@ interface ChatService {
         mentions: List<ChatMention>,
     )
     suspend fun setPinned(messageId: String, campingId: String, teamId: String?, pinned: Boolean)
+    suspend fun setReaction(messageId: String, campingId: String, teamId: String?, userId: String, emoji: String)
+    suspend fun removeReaction(messageId: String, campingId: String, teamId: String?, userId: String)
     suspend fun softDelete(messageId: String, campingId: String, teamId: String?, deletedById: String)
     suspend fun submitContentReport(report: ContentReport): ContentReport
     suspend fun loadBlockedUsers(userId: String): List<BlockedUser>
@@ -149,6 +152,31 @@ class FirestoreChatService @Inject constructor(
         chatCollection(campingId, teamId)
             .document(messageId)
             .update(ChatMessagePayload.pinPayload(pinned))
+            .await()
+    }
+
+    override suspend fun setReaction(
+        messageId: String,
+        campingId: String,
+        teamId: String?,
+        userId: String,
+        emoji: String,
+    ) {
+        chatCollection(campingId, teamId)
+            .document(messageId)
+            .update("reactions.$userId", emoji)
+            .await()
+    }
+
+    override suspend fun removeReaction(
+        messageId: String,
+        campingId: String,
+        teamId: String?,
+        userId: String,
+    ) {
+        chatCollection(campingId, teamId)
+            .document(messageId)
+            .update("reactions.$userId", FieldValue.delete())
             .await()
     }
 
@@ -309,6 +337,27 @@ class FakeChatService(
         mutateMessage(messageId, campingId, teamId) { it.copy(pinned = pinned) }
     }
 
+    override suspend fun setReaction(
+        messageId: String,
+        campingId: String,
+        teamId: String?,
+        userId: String,
+        emoji: String,
+    ) {
+        failIfNeeded()
+        mutateMessage(messageId, campingId, teamId) { it.copy(reactions = it.reactions + (userId to emoji)) }
+    }
+
+    override suspend fun removeReaction(
+        messageId: String,
+        campingId: String,
+        teamId: String?,
+        userId: String,
+    ) {
+        failIfNeeded()
+        mutateMessage(messageId, campingId, teamId) { it.copy(reactions = it.reactions - userId) }
+    }
+
     override suspend fun softDelete(
         messageId: String,
         campingId: String,
@@ -391,6 +440,7 @@ fun previewChatMessages(campingId: String = "preview-camping"): List<ChatMessage
             text = "Welcome! Dinner starts near the dining hall at 18:30.",
             createdAt = Date(System.currentTimeMillis() - 900_000),
             pinned = true,
+            reactions = mapOf("preview-user" to "\u2764\uFE0F", "member-1" to "\uD83D\uDE4F"),
         ),
         ChatMessage(
             id = "reply",
@@ -401,6 +451,13 @@ fun previewChatMessages(campingId: String = "preview-camping"): List<ChatMessage
             senderPreferredLanguage = "en",
             text = "Got it, thank you.",
             createdAt = Date(System.currentTimeMillis() - 300_000),
+            replyTo = ChatReplyReference(
+                messageId = "welcome",
+                senderId = "leader-1",
+                senderName = "Camp Office",
+                textPreview = "Welcome! Dinner starts near the dining hall at 18:30.",
+            ),
+            reactions = mapOf("leader-1" to "\uD83D\uDC4D"),
         ),
         ChatMessage(
             id = "team-note",

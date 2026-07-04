@@ -20,11 +20,14 @@ import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.rounded.AlternateEmail
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Campaign
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.WorkspacePremium
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -69,6 +72,7 @@ import java.util.Locale
 fun AppNotificationFeedRoute(
     uid: String,
     role: UserRole,
+    church: String,
     onBack: () -> Unit,
     onOpenDeepLink: (CampzoneDeepLink) -> Unit,
     modifier: Modifier = Modifier,
@@ -76,12 +80,12 @@ fun AppNotificationFeedRoute(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(uid) { viewModel.load(uid, role) }
+    LaunchedEffect(uid, role, church) { viewModel.load(uid, role, church) }
 
     AppNotificationFeedScreen(
         uiState = uiState,
         onBack = onBack,
-        onRetry = { viewModel.retry(uid, role) },
+        onRetry = { viewModel.retry(uid, role, church) },
         onOpen = onOpenDeepLink,
         modifier = modifier,
     )
@@ -260,22 +264,28 @@ private fun AppNotification.audienceText(): String {
 
 private fun AppNotificationKind.icon(): ImageVector = when (this) {
     AppNotificationKind.Announcement -> Icons.Rounded.Campaign
+    AppNotificationKind.Badge -> Icons.Rounded.WorkspacePremium
     AppNotificationKind.ChatMessage -> Icons.AutoMirrored.Rounded.Chat
     AppNotificationKind.ChatMention -> Icons.Rounded.AlternateEmail
+    AppNotificationKind.Checklist -> Icons.Rounded.CheckCircle
     AppNotificationKind.Poll -> Icons.Rounded.BarChart
     AppNotificationKind.Registration -> Icons.Rounded.PersonAdd
     AppNotificationKind.ScheduleReminder -> Icons.Rounded.Schedule
     AppNotificationKind.TeamUpdate -> Icons.Rounded.Groups
+    AppNotificationKind.Transportation -> Icons.Rounded.DirectionsCar
     AppNotificationKind.Unknown -> Icons.Rounded.Notifications
 }
 
 private fun AppNotificationKind.labelRes(): Int = when (this) {
     AppNotificationKind.Announcement -> R.string.notif_cat_announcements_title
+    AppNotificationKind.Badge -> R.string.badges_badge
     AppNotificationKind.ChatMessage, AppNotificationKind.ChatMention -> R.string.notif_cat_chat_title
+    AppNotificationKind.Checklist -> R.string.packing_title
     AppNotificationKind.Poll -> R.string.notif_channel_poll
     AppNotificationKind.Registration -> R.string.notif_channel_registration
     AppNotificationKind.ScheduleReminder -> R.string.notif_cat_reminders_title
     AppNotificationKind.TeamUpdate -> R.string.notif_cat_team_title
+    AppNotificationKind.Transportation -> R.string.camping_transportation
     AppNotificationKind.Unknown -> R.string.notif_feed_title
 }
 

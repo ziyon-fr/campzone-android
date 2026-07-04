@@ -44,13 +44,20 @@
 | GET | `/api/health` | health (firebase/firestore/fcm) |
 | POST | `/notifications/devices` | register/refresh FCM token + topic subscriptions |
 | POST | `/notifications/settings` | save notification settings + re-sync topics |
-| POST | `/notifications/reminders` | schedule a camp reminder (leadership) |
+| POST | `/notifications/reminders` | schedule/replace program reminders (leadership) |
 | GET | `/api/notifications/reminders` | cron: dispatch due reminders (`CRON_SECRET`) |
 | POST | `/notifications/dispatch/announcement` | push + feed: announcement |
 | POST | `/notifications/dispatch/chat` | push + feed: chat message |
 | POST | `/notifications/dispatch/poll` | push + feed: poll event (leadership) |
 | POST | `/notifications/dispatch/team` | push + feed: team update (leadership) |
 | POST | `/notifications/dispatch/registration` | push + feed: registration request (any registrant) |
+| POST | `/notifications/dispatch/badge` | push + feed: badge award (leadership/system) |
+| POST | `/notifications/dispatch/transportation` | push + feed: vehicle invitation/request direct-user event |
+| POST | `/notifications/dispatch/checklist` | push + feed: shared packing checklist direct-user event |
+| GET | `/cantus/songs` | authenticated Cantus song catalog page |
+| GET | `/cantus/songs/:slug` | authenticated Cantus song detail with `chordedLyrics` |
+| GET | `/cantus/artists` | authenticated Cantus artist catalog page |
+| GET | `/cantus/songbooks` | authenticated Cantus songbook catalog page |
 | POST | `/cloudinary/sign` | signed Cloudinary upload descriptor |
 | POST | `/cloudinary/destroy` | delete a Cloudinary asset |
 | GET | `/api/badges/evaluate` | cron: bounded badge sweep (`CRON_SECRET`) |
@@ -110,7 +117,45 @@ Body mirrors the settings doc (`02` §2.3): `appID`, `isEnabled`,
 `subscribedRoleRawValues` defaults to `[req.user.role]`. The backend
 re-derives topics for every token of the user and re-subscribes.
 
-### 3.4 Dispatch endpoints (push + `ziyon_notifications` feed record)
+### 3.4 `POST /notifications/reminders`
+
+This endpoint stores backend-dispatched schedule reminders. It preserves the
+legacy single-reminder body, but clients should use replacement actions so stale
+rows are cancelled when reminder timing, program details, or deletions change.
+
+Legacy single reminder:
+
+```jsonc
+{ "appID": "campzone", "id": "camp-1-program-1",
+  "campingID": "camp-1", "programID": "program-1",
+  "title": "Worship", "body": "Worship starts in 15 minutes at Main tent.",
+  "fireDate": "2026-08-03T09:45:00.000Z",
+  "targetTopic": "campzone_camping_reminders_camp-1" }
+```
+
+Replace every pending reminder for a camping:
+
+```jsonc
+{ "action": "replaceCamping", "appID": "campzone", "campingID": "camp-1",
+  "reminders": [ { /* same reminder fields as above */ } ] }
+```
+
+Replace only specific programs:
+
+```jsonc
+{ "action": "replacePrograms", "appID": "campzone", "campingID": "camp-1",
+  "programIDs": ["program-1"],
+  "reminders": [ { /* same reminder fields as above */ } ] }
+```
+
+Replacement cancels matching scheduled rows by `appID` + `campingID` and,
+for `replacePrograms`, by `programID`. Cancelled rows are kept with
+`status:"cancelled"` so the due-reminder cron only sends `status:"scheduled"`.
+Going forward reminder ids should be stable by camping/program
+(`campingID-programID`) and reminders include `programID`; feed rows and push
+payloads use it to open the program detail route.
+
+### 3.5 Dispatch endpoints (push + `ziyon_notifications` feed record)
 
 All take `{ "appID": "campzone", ... }`. The backend sends an FCM **topic**
 message **and** appends a record to the `ziyon_notifications` collection
@@ -123,10 +168,15 @@ to any signed-in registrant.
 - `dispatch/announcement` - `{ announcementID, title, body,
   target?: { campingID?, role?, teamID? } }`. Topic =
   target-specific or global `campzone_announcements`.
-- `dispatch/chat` - `{ campingID, messageID, teamID? }`. The backend
-  loads the chat message, verifies `senderID == caller` and not deleted,
-  pushes to `campzone_camping_chat_<campingID>` (or
-  `campzone_team_chat_<teamID>`).
+- `dispatch/chat` - `{ campingID, messageID, teamID?, replyToMessageID?,
+  replyToSenderID?, replyToSenderName? }`. The backend loads the chat
+  message, verifies `senderID == caller` and not deleted, pushes to
+  `campzone_camping_chat_<campingID>` (or `campzone_team_chat_<teamID>`),
+  and uses the persisted `replyTo` map (payload fields are fallback only) to
+  render reply-aware copy and send an extra direct-user notification/feed row
+  to the original author when appropriate. `dispatch/chatMention` also honors
+  reply targeting, but suppresses the extra direct reply notification when the
+  original author already receives the mention.
 - `dispatch/poll` - `{ campingID, pollID, title, body, event:
   "created"|"closed"|"reopened" }`. Topic `campzone_camping_<campingID>`.
 - `dispatch/team` - `{ campingID, teamID, teamName, title, body,
@@ -135,11 +185,38 @@ to any signed-in registrant.
   scoreChanged,memberScoreChanged,penaltyApplied`. Topic
   `campzone_team_<teamID>`.
 - `dispatch/registration` - `{ campingID, title, body,
-  participantName?, requestedByName?, participantCount? }`. Fans out to
-  **leadership role topics** `campzone_role_{leader,pastor,
-  youth_director,admin}` so leadership sees the pending request.
+  participantName?, requestedByName?, participantCount? }`. The backend
+  resolves eligible approvers (admin, own-church leader/youth director,
+  and the camping creator) and sends direct-user notifications while
+  preserving the existing response envelope/fields.
+- `dispatch/badge` - `{ recipientUserID, achievementID,
+  achievementTitle, campingID?, awardedByUserID?, recipientDisplayName?,
+  recipientPhotoURLString? }`. The backend sends a direct-user
+  notification to `campzone_user_<recipientUserID>`, writes a feed row
+  with `kind:"badge"`, and includes a `campzone://achievements/<uid>`
+  deep link so tapping opens the badges view. Privileged leaders/game
+  masters and backend `system` callers can dispatch it.
+- `dispatch/transportation` - `{ campingID, vehicleID, registrationID,
+  event, participantName?, driverName? }`. Family-targeted registrations
+  resolve two identities: notification recipient = the guardian/main account
+  (`recipientUserID` / `campzone_user_<guardianID>`), action subject =
+  `registrationID`/`actionSubjectRegistrationID`. The push title/body include
+  the participant name, e.g. `Transportation invitation for Lucas`.
+- `dispatch/checklist` - `{ campingID, shareID|packingShareID,
+  registrationID?|actionSubjectRegistrationID?, recipientUserID? }`. The
+  backend loads `packingShares/{shareID}`, requires the caller to own the
+  share or be privileged, and sends a direct-user row with `kind:"checklist"`.
+  When a child/family registration is supplied, the guardian receives the
+  notification while the deeplink carries the child registration id so import
+  actions write to that child's checklist.
+- Registration approval notifications are **backend-triggered** from
+  registration status transitions into `approved` (including Stripe
+  payment auto-approval). Clients do not call a new endpoint. Payloads
+  use `type:"registration"`, `event:"approved"`, `registrationID`,
+  `recipientUserID`, and a camping deep link so old clients still open
+  the camping detail.
 
-### 3.5 Topic naming
+### 3.6 Topic naming
 
 `_topic(appID, scope, value)` = `[appID, scope, value]` filtered, each
 part sanitized (`[^A-Za-z0-9-_.~%] → "_"`), joined by `_`. Resulting
@@ -148,6 +225,8 @@ topics the in-app feed filters on:
 - Global announcements: **`campzone_announcements`**
 - Role: **`campzone_role_<roleRaw>`** (e.g. `campzone_role_admin`).
   Admins effectively see all role topics; non-admins only their own.
+- Direct user: **`campzone_user_<uid>`** for personal backend-written
+  feed rows such as registration approvals and earned badges.
 - Camping: `campzone_camping_<id>`; camping chat
   `campzone_camping_chat_<id>`; camping reminders
   `campzone_camping_reminders_<id>`; team `campzone_team_<id>`; team chat
@@ -159,11 +238,17 @@ topics). FCM topic subscription (what actually delivers a push) is
 driven by the saved notification settings via `/notifications/devices`
 and `/notifications/settings`.
 
-### 3.6 In-app feed records
+Firestore feed listeners must be rules-provable: all use `topic == ...`;
+camping topics also constrain `campingID`, camping-role topics constrain both
+`campingID` and `role`, and team topics constrain `teamID` plus `campingID`
+for non-admin viewers. A topic-only scoped listener is denied because Rules
+cannot infer metadata fields from the topic text.
+
+### 3.7 In-app feed records
 
 Backend writes to `ziyon_notifications` with: `appID`, `kind`
-(`announcement`/`chat_message`/`poll`/`team_update`/`registration`),
-ids (`announcementID`/`campingID`/`pollID`/`teamID` as relevant),
+(`announcement`/`badge`/`chat_message`/`poll`/`team_update`/`registration`),
+ids (`announcementID`/`achievementID`/`campingID`/`pollID`/`teamID` as relevant),
 `topic`, `messageId`, `title`, `body`, `role?`, `senderId`, `sentAt`
 (**ISO-8601 string** `…SSSZ`). Clients are **readers only** (RBAC
 forbids client writes). See `02` §6.5 for the read schema + tolerant
@@ -171,13 +256,39 @@ decoder requirements.
 
 ---
 
-## 4. Cloudinary (signed uploads - no client secret)
+## 4. Cantus catalog proxy
+
+The Songbook catalog import flow uses the notification backend as an
+authenticated proxy to the upstream Cantus API. Clients send their Firebase ID
+token as `Authorization: Bearer <token>` and never ship `CANTUS_API_KEY`.
+
+Responses use the standard backend envelope:
+
+```jsonc
+{ "success": true, "data": { ... } }
+```
+
+Endpoints:
+
+- `GET /cantus/songs?q=&language=&artist=&songbook=&page=&limit=` returns
+  `{ data: CantusSong[], pagination }`. List rows may omit full
+  `chordedLyrics`.
+- `GET /cantus/songs/:slug` returns `{ data: CantusSong }` and is used before
+  import so clients save canonical `chordedLyrics`, PDF/PPTX links, key, tempo,
+  time signature, and remote audio metadata.
+- `GET /cantus/artists?page=&limit=` and `GET /cantus/songbooks?page=&limit=`
+  back the filter menus. Mobile clients may aggregate pages and cache responses
+  for 24h with stale fallback.
+
+---
+
+## 5. Cloudinary (signed uploads - no client secret)
 
 Media (profile/team/camp logos, album photos/videos, announcement
 attachments, song audio, venue-map images) is stored on **Cloudinary**,
 not Firebase Storage. The client never holds the API secret.
 
-### 4.1 `POST /cloudinary/sign`
+### 5.1 `POST /cloudinary/sign`
 
 Body:
 
@@ -203,7 +314,7 @@ Firestore field (e.g. `photoURL`/`photoPublicID`, `logoURL`/
 `logoPublicID`, media `secureURL`/`publicID`, attachment `downloadURL`/
 `storagePath`). Audio uses `resourceType: "video"` on Cloudinary.
 
-### 4.2 `POST /cloudinary/destroy`
+### 5.2 `POST /cloudinary/destroy`
 
 Body `{ "publicID": "...", "resourceType": "image"|"video"|"raw",
 "invalidate": true }`. Use for replace/cleanup. Both endpoints require
@@ -215,14 +326,14 @@ Conventions: camp logo public id is stable
 
 ---
 
-## 5. Stripe payments (PaymentSheet pattern)
+## 6. Stripe payments (PaymentSheet pattern)
 
 Server-signed; the client never holds `STRIPE_SECRET_KEY`. Both routes
 require the Firebase ID token. Web should use Stripe.js / Payment
 Element; Android uses the Stripe Android SDK PaymentSheet. The
 **contract is identical to iOS**.
 
-### 5.1 `POST /payments/intent`
+### 6.1 `POST /payments/intent`
 
 Body:
 
@@ -248,7 +359,7 @@ Body:
   `{ paymentIntentId, paymentIntentClientSecret, ephemeralKeySecret,
   customerId, publishableKey, amount, currency }`.
 
-### 5.2 `POST /payments/confirm`
+### 6.2 `POST /payments/confirm`
 
 Body `{ "paymentIntentId": "...", "kind"?, "campingID"?,
 "referenceID"? }` (the backend prefers the values from the verified
@@ -276,7 +387,7 @@ the backend settles them.
 
 ---
 
-## 6. Achievement badge auto-award
+## 7. Achievement badge auto-award
 
 `/api/badges/evaluate` is the **single source of truth** for objective
 badges (clients only read `users/{uid}/badges/{id}`):
@@ -301,7 +412,7 @@ badges (clients only read `users/{uid}/badges/{id}`):
 
 ---
 
-## 7. Environment & deploy (owner actions)
+## 8. Environment & deploy (owner actions)
 
 Backend env (Vercel project settings - **never** in any client bundle):
 `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`

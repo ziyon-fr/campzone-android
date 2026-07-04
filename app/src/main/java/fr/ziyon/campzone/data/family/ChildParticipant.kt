@@ -22,6 +22,7 @@ data class ChildParticipant(
     val emergencyContactName: String,
     val emergencyContactPhone: String,
     val medicalNotes: String = "",
+    val allergies: List<String> = emptyList(),
     val relationship: FamilyRelationship = FamilyRelationship.Parent,
     val customRelationshipLabel: String = "",
     val guardianConsentAt: Date? = null,
@@ -96,6 +97,7 @@ internal fun Map<String, Any?>.toChildParticipantOrNull(documentId: String): Chi
         emergencyContactName = emergencyContactName,
         emergencyContactPhone = emergencyContactPhone,
         medicalNotes = rawStringValue("medicalNotes").orEmpty(),
+        allergies = stringListValue("allergies"),
         relationship = FamilyRelationship.fromWire(stringValue("relationship")),
         customRelationshipLabel = rawStringValue("customRelationshipLabel").orEmpty(),
         guardianConsentAt = dateValue("guardianConsentAt"),
@@ -111,6 +113,11 @@ private fun Map<String, Any?>.stringValue(key: String): String? =
 
 private fun Map<String, Any?>.rawStringValue(key: String): String? =
     (this[key] as? String)
+
+private fun Map<String, Any?>.stringListValue(key: String): List<String> =
+    (this[key] as? List<*>)
+        ?.mapNotNull { (it as? String)?.trim()?.takeUnless(String::isEmpty) }
+        .orEmpty()
 
 private fun Map<String, Any?>.intValue(key: String): Int? =
     when (val value = this[key]) {

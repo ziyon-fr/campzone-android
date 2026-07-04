@@ -62,6 +62,7 @@ import fr.ziyon.campzone.data.model.TransportationBooking
 import fr.ziyon.campzone.data.model.TransportationLeg
 import fr.ziyon.campzone.data.model.TransportationLegProgress
 import fr.ziyon.campzone.data.model.TransportationPaymentStatus
+import fr.ziyon.campzone.ui.camping.localizedDisplayName
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -431,6 +432,7 @@ private fun OptionRow(
     onSelect: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
+    val optionName = option.name.trim().takeUnless { it.isBlank() } ?: option.mode.localizedDisplayName()
     Surface(
         color = if (selected) colors.ember.copy(alpha = 0.12f) else colors.background,
         shape = RoundedCornerShape(CzRadius.md),
@@ -443,7 +445,7 @@ private fun OptionRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(option.mode.icon(), contentDescription = null, tint = colors.ember, modifier = Modifier.size(18.dp))
-            Text(option.resolvedName, color = colors.textPrimary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(optionName, color = colors.textPrimary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         }
     }
 }

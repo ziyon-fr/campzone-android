@@ -10,7 +10,7 @@ internal data class SignInIdentity(
 )
 
 internal object SignInUserPayload {
-    private const val InitialRole = "adult"
+    private const val InitialRole = "guest"
 
     fun mergePayload(
         identity: SignInIdentity,
@@ -18,7 +18,6 @@ internal object SignInUserPayload {
         serverTimestamp: Any,
     ): Map<String, Any?> {
         val payload = linkedMapOf<String, Any?>(
-            "id" to identity.uid,
             "uid" to identity.uid,
             "providerIDs" to identity.providerIds.distinct(),
             "lastAuthProvider" to identity.lastAuthProvider,

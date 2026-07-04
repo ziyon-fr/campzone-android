@@ -2,6 +2,7 @@ package fr.ziyon.campzone.data.model
 
 import fr.ziyon.campzone.data.auth.CampingAgeGroup
 import fr.ziyon.campzone.data.auth.UserGender
+import fr.ziyon.campzone.data.family.FamilyRelationship
 import java.util.Date
 
 /**
@@ -24,6 +25,9 @@ data class CampingAttendee(
     val emergencyContactName: String = "",
     val emergencyContactPhone: String = "",
     val medicalNotes: String = "",
+    val allergies: List<String> = emptyList(),
+    val relationship: FamilyRelationship? = null,
+    val customRelationshipLabel: String? = null,
     val guardianConsentAt: Date? = null,
     val transportationChoice: TransportationChoice = TransportationChoice.OwnCar,
     val transportationBookingId: String? = null,
@@ -72,6 +76,11 @@ internal fun Map<String, Any?>.toCampingAttendeeOrNull(documentId: String): Camp
         emergencyContactName = rawStringValue("emergencyContactName").orEmpty(),
         emergencyContactPhone = rawStringValue("emergencyContactPhone").orEmpty(),
         medicalNotes = rawStringValue("medicalNotes").orEmpty(),
+        allergies = stringListValue("allergies"),
+        relationship = rawStringValue("relationship")?.let(FamilyRelationship::fromWire),
+        customRelationshipLabel = rawStringValue("customRelationshipLabel")
+            ?.trim()
+            ?.takeUnless { it.isBlank() },
         guardianConsentAt = dateValue("guardianConsentAt"),
         transportationChoice = TransportationChoice.fromWire(stringValue("transportationChoice")),
         transportationBookingId = stringValue("transportationBookingID"),
@@ -119,12 +128,16 @@ internal object CampingAttendeePayload {
             "emergencyContactName" to attendee.emergencyContactName.trim(),
             "emergencyContactPhone" to attendee.emergencyContactPhone.trim(),
             "medicalNotes" to attendee.medicalNotes.trim(),
+            "allergies" to fr.ziyon.campzone.data.profile.AllergyFormatter.cleaned(attendee.allergies),
             "transportationChoice" to attendee.transportationChoice.wireValue,
             "registrationStatus" to attendee.registrationStatus.wireValue,
             "updatedAt" to serverTimestamp,
         )
 
         attendee.gender?.let { payload["gender"] = it.wireValue }
+        attendee.relationship?.let { payload["relationship"] = it.wireValue }
+        attendee.customRelationshipLabel?.trim()?.takeUnless { it.isBlank() }
+            ?.let { payload["customRelationshipLabel"] = it }
         attendee.guardianId?.trim()?.takeUnless { it.isBlank() }?.let { payload["guardianID"] = it }
         attendee.guardianConsentAt?.let { payload["guardianConsentAt"] = it }
         attendee.transportationBookingId?.trim()?.takeUnless { it.isBlank() }

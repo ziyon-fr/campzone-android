@@ -11,7 +11,8 @@ import java.util.Date
 data class Activity(
     val id: String,
     val campingId: String,
-    val gameId: String,
+    /** Null for manual team/member adjustments that are not tied to a game. */
+    val gameId: String? = null,
     val name: String,
     val points: Int,
     val previousScore: Int,
@@ -30,14 +31,13 @@ data class Activity(
 
 internal fun Map<String, Any?>.toActivityOrNull(documentId: String): Activity? {
     val campingId = stringValue("campingID") ?: return null
-    val gameId = stringValue("gameID") ?: return null
     val createdAt = dateValue("createdAt") ?: return null
     val points = intValue("points") ?: 0
     val previousScore = intValue("previousScore") ?: 0
     return Activity(
         id = stringValue("id") ?: documentId,
         campingId = campingId,
-        gameId = gameId,
+        gameId = stringValue("gameID"),
         name = rawStringValue("name").orEmpty(),
         points = points,
         previousScore = previousScore,
@@ -60,7 +60,6 @@ internal object ActivityPayload {
         val payload = linkedMapOf<String, Any?>(
             "id" to activity.id,
             "campingID" to activity.campingId,
-            "gameID" to activity.gameId,
             "name" to activity.name.trim(),
             "points" to activity.points,
             "reason" to activity.reason,
@@ -71,6 +70,7 @@ internal object ActivityPayload {
             "createdByName" to activity.createdByName,
             "createdAt" to activity.createdAt,
         )
+        activity.gameId?.trim()?.takeUnless { it.isBlank() }?.let { payload["gameID"] = it }
         activity.pointRuleId?.trim()?.takeUnless { it.isBlank() }?.let { payload["pointRuleID"] = it }
         activity.targetTeamId?.trim()?.takeUnless { it.isBlank() }?.let { payload["targetTeamID"] = it }
         activity.targetTeamName?.trim()?.takeUnless { it.isBlank() }?.let { payload["targetTeamName"] = it }

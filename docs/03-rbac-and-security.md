@@ -71,13 +71,14 @@ below the table.
 | Edit announcements |  |  |  | ✓¹ | ✓¹ |  | ✓¹ |  | ✓ |
 | Delete announcements |  |  |  |  |  |  |  |  | ✓ |
 | View songbook | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Manage songbook |  |  |  |  |  |  |  |  | ✓ |
+| Manage songbook |  |  |  | C |  |  | C |  | ✓ |
 | Manage schedule |  |  |  | C | C |  | C |  | ✓ |
 | Manage teams |  |  |  | C |  | C | C |  | ✓ |
 | Manage games |  |  |  | C | C | C | C |  | ✓ |
 | Assign points |  |  |  | C |  | C | C |  | ✓ |
 | Reveal winners |  |  |  |  |  | C |  |  | ✓ |
 | Manage album media |  |  |  |  |  |  |  | C | ✓ |
+| Manage album settings |  |  |  | C | C |  | C |  | ✓ |
 | Manage transportation |  |  |  |  |  |  |  |  | ✓ |
 | Manage own-church transportation |  |  |  | C | C |  | C |  | ✓ |
 | Award achievements |  |  |  | C | C | C | C |  | ✓ |
@@ -143,8 +144,13 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
     duplicate detection) stays `adult`/`admin`; for other roles that read is
     denied and the client skips cross-guardian duplicate detection gracefully.
 - **`ziyon_notifications`**: `read` if signed-in and the doc’s `topic`
-  is `campzone_announcements`, the user’s own role topic, or (admin) any
-  role topic. `create/update/delete: false` (backend-only).
+  is `campzone_announcements`, the user’s own role topic, the user’s
+  direct topic `campzone_user_<uid>`, or (admin) any role topic. Camping
+  topics require a direct registration or an effective camping-management
+  capability; team topics require membership or team/chat management.
+  Scoped listeners must query the matching `campingID`/`role`/`teamID`
+  fields so Rules can prove that access. `create/update/delete: false`
+  (backend-only).
 - **`campings/{id}`**: `read` public (`true`). `create` by admin or
   own-church youth_director/pastor whose proposed `organizerLevel`
   matches their church. `update`: admin any; own-church editor **except**
@@ -154,7 +160,11 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
   creator signature) OR own-church canceller. Android camping detail/edit
   views use the same iOS gates: the edit affordance is
   `canEditCamping(current)`, while Save also validates the proposed
-  organizer through `canSaveCamping`.
+  organizer through `canSaveCamping`. The Home featured pin writes only
+  `{ isFeatured, updatedAt }` through a dedicated merge path and is surfaced
+  only to admins through `canPinFeaturedCamping`; non-admin camping updates
+  are forbidden from changing `isFeatured`, and regular camping saves never
+  include it.
   - `schedule/**`, `days/**`, `programs/**`: `read` public; write
     `canManageSchedule`.
   - `songs`: `read` public; write **admin only**.
@@ -173,7 +183,9 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
       OR moderator. `delete` admin.
   - `games`: `read` signed-in; write `canManageGames`.
   - `activities`: `read` `canManageGames` OR `canRevealWinners` OR
-    (approved participant AND `visibility=="immediate"`). `create`
+    (approved participant AND (`visibility=="immediate"` OR the winner
+    reveal has fired)). Participant queries must filter to `immediate` before
+    reveal and may read the full ledger afterward. `create`
     `canAssignPoints` AND `campingID==path` AND `createdBy==auth.uid`.
     `update: false` (immutable). `delete` `canManageGames`.
   - `registrations`: `read` if signed-in AND
@@ -193,6 +205,17 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
     `isActive`/`canceledBy/At`/`cancelReason`); the deployed rules already
     accept these (iOS writes them) since they touch none of the immutable
     keys.
+  - `vehicles`: driver-owned carpool records. Drivers may edit their own
+    pending car fields, including the optional `offeredSeats` cap, but cannot
+    self-mark arrival or rewrite secure tokens; non-driver participants may
+    add/remove their own pending seat request where rules allow, and new
+    self-service pending requests require the car to still have an offered
+    public seat. Approved passengers may remove only their own assigned seat
+    through the narrow passenger-array/seat-count patch.
+  - `packingChecklists/{userId}`: participant progress is normally keyed by
+    `auth.uid`; family-targeted checklist imports may instead use the child
+    registration id when `registrations/{sameId}.guardianID == auth.uid`.
+    Create/update must keep `campingID==path` and `userID==userId`.
   - `checkIns`: `read` `canManageCheckIns` OR own (`userID==auth.uid`)
     OR a guardian whose sibling `registrations/{sameId}.guardianID ==
     auth.uid` (single `get()`). `create` `canManageCheckIns`,
@@ -205,7 +228,8 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
     album-manager OR (approved participant AND `uploaderID==auth.uid`
     AND `albumSettings/default.allowedUploadRoles` contains the user’s
     role). `update`/`delete` album-manager OR uploader.
-  - `albumSettings`: `read` signed-in; `write` `canManageAlbumMedia`.
+  - `albumSettings`: `read` signed-in; `write` scoped
+    `canManageAlbumSettings` (admin, youth director, pastor, or leader).
   - `foodMenu`: `read` signed-in; write `canManageFoodMenu`
     (== schedule manager).
   - `polls`: `read` poll-manager OR approved participant. write

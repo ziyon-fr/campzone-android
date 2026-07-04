@@ -30,6 +30,22 @@ enum class CampingRegistrationStatus(val wireValue: String) {
     }
 }
 
+/** camping `publicationStatus`: visibility lifecycle, separate from registration state. */
+enum class CampingPublicationStatus(val wireValue: String) {
+    Draft("draft"),
+    Published("published"),
+    Archived("archived");
+
+    companion object {
+        /**
+         * Backward-compatible default: campings written before this field existed
+         * are public in the shipped iOS app.
+         */
+        fun fromWire(value: String?): CampingPublicationStatus =
+            entries.firstOrNull { it.wireValue == value } ?: Published
+    }
+}
+
 /** attendee `registrationStatus`. */
 enum class RegistrationApprovalStatus(val wireValue: String) {
     Pending("pending"),
@@ -343,24 +359,30 @@ enum class ContentReportStatus(val wireValue: String) {
 /** `ziyon_notifications` `kind`/`type` (tolerant; accepts legacy spellings). */
 enum class AppNotificationKind(val wireValue: String) {
     Announcement("announcement"),
+    Badge("badge"),
     ChatMessage("chat_message"),
     ChatMention("chat_mention"),
+    Checklist("checklist"),
     Poll("poll"),
     Registration("registration"),
     ScheduleReminder("schedule_reminder"),
     TeamUpdate("team_update"),
+    Transportation("transportation"),
     Unknown("unknown");
 
     companion object {
         fun fromWire(value: String?): AppNotificationKind? =
             when (value?.trim()?.lowercase()) {
                 "announcement" -> Announcement
+                "badge", "achievement", "achievement_badge" -> Badge
                 "chat_message", "chatmessage" -> ChatMessage
                 "chat_mention", "chatmention" -> ChatMention
+                "checklist", "packing_share", "packingshare", "packing" -> Checklist
                 "poll" -> Poll
                 "registration", "registration_request" -> Registration
                 "schedule_reminder", "schedulereminder" -> ScheduleReminder
                 "team_update", "teamupdate" -> TeamUpdate
+                "transportation", "transportation_invitation", "transportation_request" -> Transportation
                 "unknown" -> Unknown
                 else -> null
             }

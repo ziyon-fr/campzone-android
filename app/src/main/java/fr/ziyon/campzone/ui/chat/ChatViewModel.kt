@@ -16,6 +16,7 @@ import fr.ziyon.campzone.data.model.ChatAttachment
 import fr.ziyon.campzone.data.model.ChatAttachmentKind
 import fr.ziyon.campzone.data.model.ChatMention
 import fr.ziyon.campzone.data.model.ChatMessage
+import fr.ziyon.campzone.data.model.ChatReplyReference
 import fr.ziyon.campzone.data.model.ContentReport
 import fr.ziyon.campzone.data.model.ContentReportReason
 import fr.ziyon.campzone.data.model.ContentReportStatus
@@ -70,6 +71,9 @@ class ChatViewModel @Inject constructor(
     /** Id of the message currently being edited, or null when composing new. */
     private val _editingMessageId = MutableStateFlow<String?>(null)
     val editingMessageId: StateFlow<String?> = _editingMessageId.asStateFlow()
+
+    private val _replyingTo = MutableStateFlow<ChatMessage?>(null)
+    val replyingTo: StateFlow<ChatMessage?> = _replyingTo.asStateFlow()
 
     private val _operationError = MutableStateFlow<String?>(null)
     val operationError: StateFlow<String?> = _operationError.asStateFlow()
@@ -128,32 +132,40 @@ class ChatViewModel @Inject constructor(
     ) {
         val current = _draft.value
         if (!current.isValid || _isSending.value) return
+        val replyBeforeSend = _replyingTo.value
+        val message = ChatMessage(
+            id = UUID.randomUUID().toString(),
+            campingId = campingId,
+            teamId = teamId?.takeUnless { it.isBlank() },
+            senderId = sender.uid,
+            senderName = sender.preferredDisplayName,
+            senderChurch = sender.church,
+            senderPreferredLanguage = sender.preferredLanguage,
+            senderGender = sender.gender,
+            senderPhotoUrl = sender.photoUrl,
+            text = current.text,
+            createdAt = Date(),
+            mentions = current.resolvedMentions,
+            replyTo = replyBeforeSend?.let(ChatReplyReference::from),
+        )
 
         viewModelScope.launch {
             _isSending.value = true
             _operationError.value = null
+
+            appendLocal(message)
+            _draft.value = ChatMessageDraft()
+            _replyingTo.value = null
+            publishLoaded()
+            _isSending.value = false
+
             try {
-                // Persist the text unmodified so resolved @mention offsets align.
-                val message = ChatMessage(
-                    id = UUID.randomUUID().toString(),
-                    campingId = campingId,
-                    teamId = teamId?.takeUnless { it.isBlank() },
-                    senderId = sender.uid,
-                    senderName = sender.preferredDisplayName,
-                    senderChurch = sender.church,
-                    senderPreferredLanguage = sender.preferredLanguage,
-                    senderGender = sender.gender,
-                    senderPhotoUrl = sender.photoUrl,
-                    text = current.text,
-                    createdAt = Date(),
-                    mentions = current.resolvedMentions,
-                )
                 val saved = service.sendMessage(message, teamId)
                 appendLocal(saved)
-                _draft.value = ChatMessageDraft()
                 publishLoaded()
                 finalizeDispatch(saved, teamId, mentionableUserIds)
             } catch (e: Exception) {
+                rollbackFailedSend(message.id, current, replyBeforeSend)
                 _operationError.value = e.message ?: "Could not send message."
             } finally {
                 _isSending.value = false
@@ -234,8 +246,19 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun beginReply(message: ChatMessage) {
+        if (message.isDeleted) return
+        if (_editingMessageId.value != null) cancelEditing()
+        _replyingTo.value = message
+    }
+
+    fun cancelReply() {
+        _replyingTo.value = null
+    }
+
     fun beginEditing(message: ChatMessage) {
         if (message.attachment != null || message.isDeleted) return
+        _replyingTo.value = null
         _editingMessageId.value = message.id
         _draft.value = ChatMessageDraft(text = message.text, mentions = message.mentions)
     }
@@ -283,6 +306,29 @@ class ChatViewModel @Inject constructor(
                 replaceMessage(message.copy(pinned = pinned))
             } catch (e: Exception) {
                 _operationError.value = e.message ?: "Could not update the pin."
+            }
+        }
+    }
+
+    fun toggleReaction(message: ChatMessage, emoji: String, userId: String) {
+        if (userId.isBlank() || message.isDeleted) return
+        val current = messages.firstOrNull { it.id == message.id } ?: return
+        val previous = current.reactions[userId]
+        val removing = previous == emoji
+        val nextReactions = if (removing) current.reactions - userId else current.reactions + (userId to emoji)
+        replaceMessage(current.copy(reactions = nextReactions))
+
+        viewModelScope.launch {
+            _operationError.value = null
+            try {
+                if (removing) {
+                    service.removeReaction(message.id, message.campingId, message.teamId, userId)
+                } else {
+                    service.setReaction(message.id, message.campingId, message.teamId, userId, emoji)
+                }
+            } catch (e: Exception) {
+                replaceMessage(current)
+                _operationError.value = e.message ?: "Could not update the reaction."
             }
         }
     }
@@ -380,11 +426,19 @@ class ChatViewModel @Inject constructor(
             createdAt = Date(),
             attachment = attachment,
         )
-        val saved = service.sendMessage(message, teamId)
-        appendLocal(saved)
+        appendLocal(message)
         publishLoaded()
-        // Media carries no mentions, so this always uses the broadcast dispatch.
-        finalizeDispatch(saved, teamId, emptyList())
+        try {
+            val saved = service.sendMessage(message, teamId)
+            appendLocal(saved)
+            publishLoaded()
+            // Media carries no mentions, so this always uses the broadcast dispatch.
+            finalizeDispatch(saved, teamId, emptyList())
+        } catch (e: Exception) {
+            removeLocal(message.id)
+            publishLoaded()
+            throw e
+        }
     }
 
     /**
@@ -422,6 +476,9 @@ class ChatViewModel @Inject constructor(
                             senderName = message.senderName,
                             body = message.text,
                             teamId = teamId,
+                            replyToMessageId = message.replyTo?.messageId,
+                            replyToSenderId = message.replyTo?.senderId,
+                            replyToSenderName = message.replyTo?.senderName,
                         ),
                     )
                 }
@@ -454,6 +511,27 @@ class ChatViewModel @Inject constructor(
     private fun appendLocal(message: ChatMessage) {
         messages = (messages.filterNot { it.id == message.id } + message)
             .sortedBy { it.createdAt?.time ?: Long.MAX_VALUE }
+    }
+
+    private fun rollbackFailedSend(
+        messageId: String,
+        draftBeforeSend: ChatMessageDraft,
+        replyBeforeSend: ChatMessage?,
+    ) {
+        if (removeLocal(messageId) && _draft.value == ChatMessageDraft()) {
+            _draft.value = draftBeforeSend
+            if (_replyingTo.value == null) {
+                _replyingTo.value = replyBeforeSend
+            }
+        }
+        publishLoaded()
+    }
+
+    private fun removeLocal(messageId: String): Boolean {
+        val next = messages.filterNot { it.id == messageId }
+        if (next.size == messages.size) return false
+        messages = next
+        return true
     }
 
     private fun replaceMessage(message: ChatMessage) {

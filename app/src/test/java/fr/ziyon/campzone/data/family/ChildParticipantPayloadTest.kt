@@ -16,6 +16,7 @@ class ChildParticipantPayloadTest {
                 photoUrl = "https://cdn.example/child.jpg",
                 photoPublicId = "campzone/participants/child-1",
                 medicalNotes = "None",
+                allergies = listOf("peanuts", "Kiwi"),
                 relationship = FamilyRelationship.Other,
                 customRelationshipLabel = "Neighbor",
             ),
@@ -35,6 +36,7 @@ class ChildParticipantPayloadTest {
         assertEquals(listOf("fr"), payload["languages"])
         assertEquals("Maria Santos", payload["emergencyContactName"])
         assertEquals("None", payload["medicalNotes"])
+        assertEquals(listOf("peanuts", "Kiwi"), payload["allergies"])
         assertEquals("other", payload["relationship"])
         assertEquals("Neighbor", payload["customRelationshipLabel"])
         assertEquals(consent, payload["guardianConsentAt"])
@@ -64,6 +66,7 @@ class ChildParticipantPayloadTest {
         val original = sampleChild().copy(
             relationship = FamilyRelationship.Grandparent,
             medicalNotes = "Allergic to peanuts",
+            allergies = listOf("peanuts", "Kiwi"),
         )
         val payload = ChildParticipantPayload.childPayload(
             child = original,
@@ -83,6 +86,7 @@ class ChildParticipantPayloadTest {
         assertEquals(original.emergencyContactPhone, decoded?.emergencyContactPhone)
         assertEquals(original.relationship, decoded?.relationship)
         assertEquals(original.medicalNotes, decoded?.medicalNotes)
+        assertEquals(original.allergies, decoded?.allergies)
         assertEquals(original.guardianConsentAt, decoded?.guardianConsentAt)
     }
 

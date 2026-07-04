@@ -43,6 +43,7 @@ import fr.ziyon.campzone.data.model.TransportationCheckpoint
 import fr.ziyon.campzone.data.model.TransportationLeg
 import fr.ziyon.campzone.data.model.TransportationLegProgress
 import fr.ziyon.campzone.data.model.TransportationScanEvent
+import fr.ziyon.campzone.ui.camping.localizedDisplayName
 import androidx.compose.ui.res.stringResource
 import java.text.DateFormat
 
@@ -160,7 +161,9 @@ private fun LegCard(booking: TransportationBooking, camping: Camping, leg: Trans
     val departure = booking.scanEvent(leg, TransportationCheckpoint.Departure)
     val arrival = booking.scanEvent(leg, TransportationCheckpoint.Arrival)
     val origin = booking.transportationOptionName
-        ?: camping.transportationOption(booking.transportationOptionId)?.resolvedName
+        ?: camping.transportationOption(booking.transportationOptionId)?.let { option ->
+            option.name.trim().takeUnless { it.isBlank() } ?: option.mode.localizedDisplayName()
+        }
         ?: stringResource(R.string.transportation_pickup_point)
     val from = if (leg == TransportationLeg.Outbound) origin else camping.location
     val to = if (leg == TransportationLeg.Outbound) camping.location else origin

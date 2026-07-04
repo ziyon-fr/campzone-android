@@ -19,8 +19,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
 data class TeamDraft(
@@ -277,10 +278,10 @@ class FakeTeamService(
         ),
     ),
 ) : TeamService {
+    private val teamsState = MutableStateFlow(teams.toList())
 
-    override fun observeTeams(campingId: String): Flow<List<Team>> = flow {
-        emit(sorted(teams.filter { it.campingId == campingId }))
-    }
+    override fun observeTeams(campingId: String): Flow<List<Team>> =
+        teamsState.map { list -> sorted(list.filter { it.campingId == campingId }) }
 
     override suspend fun loadTeams(campingId: String): List<Team> =
         sorted(teams.filter { it.campingId == campingId })
@@ -305,11 +306,13 @@ class FakeTeamService(
         )
         teams.removeAll { it.id == draft.id }
         teams.add(saved)
+        publish()
         return saved
     }
 
     override suspend fun deleteTeam(id: String, campingId: String) {
         teams.removeAll { it.id == id && it.campingId == campingId }
+        publish()
     }
 
     override suspend fun assignMember(member: TeamMember, toTeamId: String, campingId: String): List<Team> {
@@ -323,6 +326,7 @@ class FakeTeamService(
         }
         teams.removeAll { it.campingId == campingId }
         teams.addAll(campingTeams)
+        publish()
         return sorted(campingTeams)
     }
 
@@ -334,6 +338,7 @@ class FakeTeamService(
                 updatedAt = Date(),
             )
         }
+        publish()
         return sorted(teams.filter { it.campingId == campingId })
     }
 
@@ -343,6 +348,7 @@ class FakeTeamService(
             val members = teams[idx].members.map { if (it.id == memberId) it.copy(role = role) else it }
             teams[idx] = teams[idx].copy(members = TeamPayload.normalizeCaptaincy(members), updatedAt = Date())
         }
+        publish()
         return sorted(teams.filter { it.campingId == campingId })
     }
 
@@ -350,6 +356,7 @@ class FakeTeamService(
         val idx = teams.indexOfFirst { it.id == request.teamId && it.campingId == request.campingId }
         check(idx >= 0) { "Team not found." }
         teams[idx] = teams[idx].copy(points = teams[idx].points + request.points, updatedAt = Date())
+        publish()
         return teams[idx]
     }
 
@@ -357,6 +364,7 @@ class FakeTeamService(
         val idx = teams.indexOfFirst { it.id == teamId && it.campingId == campingId }
         check(idx >= 0) { "Team not found." }
         teams[idx] = teams[idx].copy(penalties = teams[idx].penalties + penalty, updatedAt = Date())
+        publish()
         return teams[idx]
     }
 
@@ -367,7 +375,12 @@ class FakeTeamService(
             if (m.id == memberId) m.copy(personalScore = m.personalScore + delta) else m
         }
         teams[idx] = teams[idx].copy(members = updatedMembers, updatedAt = Date())
+        publish()
         return teams[idx]
+    }
+
+    private fun publish() {
+        teamsState.value = teams.toList()
     }
 
     private fun sorted(list: List<Team>): List<Team> =

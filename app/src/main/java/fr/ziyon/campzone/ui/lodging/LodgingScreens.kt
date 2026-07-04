@@ -51,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -461,7 +462,7 @@ private fun LodgingUnitCard(
                     CzBadge(text = stringResource(R.string.lodging_full), tone = CzBadgeTone.Warning)
                 } else {
                     CzBadge(
-                        text = stringResource(R.string.lodging_spots_left, unit.availableSpots),
+                        text = pluralStringResource(R.plurals.lodging_spots_left, unit.availableSpots, unit.availableSpots),
                         tone = CzBadgeTone.Success,
                     )
                 }

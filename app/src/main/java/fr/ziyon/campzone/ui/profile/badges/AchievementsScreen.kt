@@ -1,5 +1,6 @@
 package fr.ziyon.campzone.ui.profile.badges
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -55,6 +56,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -93,18 +95,26 @@ import java.util.Date
 @Composable
 fun AchievementsRoute(
     authenticatedUser: AuthenticatedUser,
+    targetUserId: String = authenticatedUser.uid,
+    initialAchievementId: String? = null,
     onBack: () -> Unit,
     viewModel: AchievementViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(authenticatedUser.uid) { viewModel.loadProfileBadges(authenticatedUser.uid) }
+    LaunchedEffect(targetUserId) { viewModel.loadProfileBadges(targetUserId) }
     val state by viewModel.uiState.collectAsState()
     AchievementsScreen(
         state = state,
-        displayName = authenticatedUser.displayName.ifBlank { authenticatedUser.email },
-        photoUrl = authenticatedUser.photoUrl,
+        displayName = if (targetUserId == authenticatedUser.uid) {
+            authenticatedUser.displayName.ifBlank { authenticatedUser.email }
+        } else {
+            stringResource(R.string.profile_my_achievements)
+        },
+        photoUrl = authenticatedUser.photoUrl.takeIf { targetUserId == authenticatedUser.uid },
+        targetUserId = targetUserId,
+        initialAchievementId = initialAchievementId,
         badgesFor = viewModel::badgesFor,
         onBack = onBack,
-        onRetry = { viewModel.loadProfileBadges(authenticatedUser.uid) },
+        onRetry = { viewModel.loadProfileBadges(targetUserId) },
     )
 }
 
@@ -114,6 +124,8 @@ fun AchievementsScreen(
     state: AchievementUiState,
     displayName: String,
     photoUrl: String?,
+    targetUserId: String,
+    initialAchievementId: String? = null,
     badgesFor: (List<EarnedBadge>, List<Achievement>) -> List<BadgeViewModel>,
     onBack: () -> Unit,
     onRetry: () -> Unit,
@@ -129,6 +141,11 @@ fun AchievementsScreen(
             is AchievementUiState.Error -> ErrorState(state.message, onRetry, modifier.padding(padding))
             is AchievementUiState.Loaded -> {
                 val badges = badgesFor(state.earned, state.catalog)
+                LaunchedEffect(initialAchievementId, badges) {
+                    if (selected == null && initialAchievementId != null) {
+                        selected = badges.firstOrNull { it.id == initialAchievementId }
+                    }
+                }
                 LazyColumn(
                     modifier = modifier
                         .fillMaxSize()
@@ -162,7 +179,10 @@ fun AchievementsScreen(
     }
     selected?.let { badge ->
         ModalBottomSheet(onDismissRequest = { selected = null }) {
-            BadgeDetailSheet(badge)
+            BadgeDetailSheet(
+                badge = badge,
+                shareUrl = "https://campzone-web.vercel.app/badges/$targetUserId?achievementID=${badge.id}",
+            )
         }
     }
 }
@@ -516,7 +536,8 @@ private fun BadgeRow(badge: BadgeViewModel, onClick: () -> Unit) {
 }
 
 @Composable
-private fun BadgeDetailSheet(badge: BadgeViewModel) {
+private fun BadgeDetailSheet(badge: BadgeViewModel, shareUrl: String) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = CzSpacing.xl, vertical = CzSpacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -534,6 +555,21 @@ private fun BadgeDetailSheet(badge: BadgeViewModel) {
                 Text(stringResource(R.string.badges_not_earned), color = MaterialTheme.czColors.textSecondary)
             }
         }
+        CzButton(
+            text = stringResource(R.string.common_share),
+            onClick = {
+                context.startActivity(
+                    Intent.createChooser(
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, shareUrl)
+                        },
+                        null,
+                    ),
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -581,6 +617,7 @@ private fun AchievementsScreenPreview() {
             ),
             displayName = "Lea Muller",
             photoUrl = null,
+            targetUserId = "preview-user",
             badgesFor = { earned, catalog -> catalog.map { BadgeViewModel(it, earned.firstOrNull { e -> e.id == it.id }) } },
             onBack = {},
             onRetry = {},

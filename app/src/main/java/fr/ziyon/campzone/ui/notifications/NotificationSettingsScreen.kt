@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -366,7 +367,7 @@ private fun campingChannelValueText(selectedCount: Int, availableCount: Int): St
     } else if (selectedCount == 0) {
         stringResource(R.string.notif_value_all)
     } else {
-        stringResource(R.string.notif_value_selected, selectedCount)
+        pluralStringResource(R.plurals.notif_value_selected, selectedCount, selectedCount)
     }
 
 @Composable
@@ -374,7 +375,7 @@ private fun teamChannelValueText(selectedCount: Int, availableCount: Int): Strin
     if (availableCount == 0 || selectedCount == 0) {
         stringResource(R.string.notif_value_none)
     } else {
-        stringResource(R.string.notif_value_selected, selectedCount)
+        pluralStringResource(R.plurals.notif_value_selected, selectedCount, selectedCount)
     }
 
 @Composable

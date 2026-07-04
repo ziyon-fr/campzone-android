@@ -1,3 +1,932 @@
+# Project Status - Home, Schedule, and Songbook pull-to-refresh parity
+
+Updated: 2026-07-04
+
+- Source of truth audited: iOS `HomeView.swift`, `CampingScheduleView.swift`,
+  `SongbookView.swift`, their observers, Android `HomeScreen.kt`,
+  `ScheduleScreen.kt`, `SongbookScreen.kt`, and the matching ViewModels.
+- iOS Home now exposes native pull-to-refresh by restarting the existing
+  dashboard stream without forcing a cold loading state; Schedule and Songbook
+  use native `.refreshable` on their scroll content and force a fresh service
+  read through warm observer refresh methods.
+- Android Home, Schedule, and Songbook now use the existing Material3
+  `PullToRefreshBox` pattern with dedicated `isRefreshing` state so initial
+  load, retry, and manual refresh stay separate.
+- Refresh failure handling preserves already loaded content for Home, Schedule,
+  and Songbook instead of replacing it with an error screen; Songbook surfaces
+  refresh failures through the existing snackbar/toast path.
+- Verification passed: iOS `xcodebuild build`, focused iOS
+  `MainObserverTests`/`ScheduleObserverTests`/`SongbookObserverTests`, Android
+  `:app:compileDebugKotlin`, focused Android `HomeViewModelTest` and
+  `SongbookViewModelTest`, plus `git diff --check` in both repositories.
+  Device gesture validation remains the final manual smoke check.
+
+---
+
+# Project Status - Cantus catalog Songbook parity
+
+Updated: 2026-07-04
+
+- Source of truth audited: Android `CLAUDE.md`, shared docs/tracker, and current
+  iOS Songbook/Cantus changes in `CantusCatalog.swift`, `CantusService.swift`,
+  `CantusImportObserver.swift`, `CantusImportView.swift`, `ChordProParser.swift`,
+  `Song.swift`, `SongbookObserver.swift`, `SongbookView.swift`,
+  `SongDetailView.swift`, and `SongEditorView.swift`.
+- Android now mirrors the new iOS Songbook add flow: the plus menu opens
+  Browse Song Catalog first, Add Manually remains available, and the catalog
+  route is registered before dynamic song detail routes.
+- Added the authenticated Cantus backend proxy client with 24h stale-fallback
+  disk cache, catalog models, search/filter/selection ViewModel state, grouped
+  iOS-style catalog rows, Added duplicate state, and bottom import action.
+- Extended the shared Song contract with canonical `chordedLyrics`,
+  `chordedLyricsUpdatedAt`, `cantusSlug`, and `pptxLink`; manual saves and
+  imports persist ChordPro text, legacy `chords`, structured `chordSheet`,
+  lyrics parts, PDF/PPTX links, remote audio, key, tempo, and time signature.
+- Cantus imports now preserve the catalog `media.audioFiles` array as typed
+  Voice Kits, including `voiceType`, `displayName`, file metadata, and the
+  `contralto` track type; the legacy single `audioUrl` still imports as one
+  main song when no audio file array is present.
+- Song detail now opens PPTX slide links, and the editor exposes a PPTX URL
+  field plus the ChordPro format hint.
+- Documentation updated: Song Firestore schema documents the canonical
+  ChordPro precedence rule and new fields; backend API docs document the
+  authenticated `/cantus/*` proxy.
+- Verification (Android Studio JBR): focused `ChordProParserTest`,
+  `MediaSongTest`, `CantusCatalogTest`, and `SongbookViewModelTest`, full
+  `:app:testDebugUnitTest`, `:app:compileDebugKotlin`, `:app:lintDebug`,
+  `:app:assembleDebug`, and `git diff --check` passed. Live signed-in
+  `/cantus/*` proxy smoke and device visual comparison against iOS remain to
+  close tracker `SONG-004` from VERIFY to DONE.
+
+---
+
+# Project Status - Vehicle offer guards and registration review profile access
+
+Updated: 2026-07-03
+
+- Source of truth audited: iOS `VehicleService`, `VehicleObserver`,
+  `MyTransportationView`, `CampingVehiclesView`, `RegistrationReviewView`,
+  `AttendeeProfileDetailView`, Firestore vehicle RBAC rules/tests, and Android
+  `Vehicle.kt`, `VehicleService.kt`, `VehicleViewModel.kt`, `VehicleScreens.kt`,
+  `RegistrationReviewScreen.kt`, and navigation shell routes.
+- Add/request/approve/invite passenger paths now require the vehicle to have an
+  offered seat, not merely physical spare capacity. Cars that are full or whose
+  driver is not offering seats reject the action, preserve pending requests, and
+  surface localized feedback.
+- Driver/leader add-invite controls are hidden when `offeredSeatCount == 0`, and
+  vehicle summaries display the offered-seat count so private spare seats are
+  not advertised as public seats.
+- Firestore self-service pending request rules now require an offered seat for
+  new requests while still allowing users to withdraw their own pending request.
+- Registration review rows on both platforms now open the existing attendee
+  profile detail route for leadership reviewers; the profile screen keeps its
+  `canViewParticipantProfiles` guard.
+- Verification passed: focused iOS `VehicleModelTests`/`VehicleObserverTests`/
+  `AppPermissionTests`, Android `VehicleModelTest`/
+  `AppPermissionEvaluatorTest`/`RegistrationReviewViewModelTest`, Firebase RBAC
+  tests, iOS localization JSON parse, Android EN/FR/PT/PT-BR XML validation,
+  and scoped iOS/Android `git diff --check`.
+
+---
+
+# Project Status - Vehicle seat accounting fix
+
+Updated: 2026-07-03
+
+- Source of truth audited: church-admin feedback screenshot, iOS
+  `CampingVehicle`, `VehicleComponents`, `VehicleService`, `VehicleFormView`,
+  Firestore vehicle RBAC rules/tests, and Android `Vehicle.kt`,
+  `VehicleScreens.kt`, vehicle model tests, and vehicle schema docs.
+- Fixed the vehicle seat counter so the driver is always counted with approved
+  passengers. A stale record with 5 total seats, 3 approved passengers, and
+  stored `occupiedSeats = 3` now renders as 4 occupied / 1 free instead of
+  3 occupied / 2 free.
+- Preserved the driver-entered extra-occupant case by deriving occupied seats as
+  `max(stored occupiedSeats, driver + approved passengers)`, capped by total
+  seats, rather than replacing the field with only app registrations.
+- Add/remove/edit payloads on both platforms now write the corrected count back
+  to Firestore, and passenger self-removal rules permit the narrow corrected
+  post-removal count for legacy passenger-only records.
+- Verification: focused iOS `VehicleModelTests`/`VehicleObserverTests`,
+  Android `VehicleModelTest`/`VehicleUiStateTest`, and Firebase RBAC tests
+  passed. Scoped iOS/Android diff checks passed.
+
+---
+
+# Project Status - My QR Passes iOS parity fix
+
+Updated: 2026-07-02
+
+- Source of truth audited: Android `CLAUDE.md`, required shared docs, and iOS
+  `Features/CheckIn/View/CheckInQRView.swift` plus
+  `Features/CheckIn/View/BookingTickets.swift`.
+- Updated Android My QR Passes to match the iOS structure: status banner first,
+  Arrival Check-In section with a single card or horizontal family-pass pager,
+  transportation ticket section with loading/error/empty handling and
+  single-card or horizontal ticket pager, then the embedded My Transportation
+  and My Lodging cards.
+- Adjusted pass visuals toward iOS by using compact leading participant badges,
+  iOS-style pager dots, localized `Tickets` / loading copy in EN/FR/PT/PT-BR,
+  and removing the extra instruction card that is not rendered by the current
+  iOS screen.
+- Verification (Android Studio JBR): `:app:compileDebugKotlin`,
+  `:app:lintDebug`, and `git diff --check` passed. Device screenshot
+  comparison against iOS remains the final visual parity check.
+
+---
+
+# Project Status - Vehicle offers, passenger removal, and Food Menu allergy parity
+
+Updated: 2026-07-02
+
+- Source of truth audited: Android `CLAUDE.md`, the shared docs/tracker, current
+  iOS `CampingVehicle`, `VehicleObserver`, `VehicleService`,
+  `VehicleFormView`, `MyTransportationView`, `FoodMenuView`,
+  `ParticipantAllergyListView`, `AppNotification`, `CampzoneDeepLink`,
+  `PackingShareImportView`, team reassignment helpers, organizer-level
+  validation, and Firestore RBAC tests.
+- Ported the iOS vehicle carpool offer contract into Android. `offeredSeats`
+  is now decoded, derived with legacy fallback, clamped, consumed/restored by
+  passenger mutations, written/deleted by create/update/cancel payloads, used by
+  open-seat queries/dashboard counts, exposed in the vehicle form, localized in
+  EN/FR/PT/PT-BR, and documented in the Firestore/RBAC docs.
+- Patched the vehicle passenger contract on both platforms: an approved
+  passenger can now leave their assigned car from My Transportation, while the
+  car driver and camp managers keep the existing remove-passenger controls.
+  Passenger removal writes a narrow passenger-array/seat-count payload, and
+  Firestore rules allow signed-in passengers to remove only their own approved
+  seat.
+- Add/request/approve paths now reject a registration already claimed by another
+  active vehicle as driver, approved passenger, or pending requester. Normal
+  vehicle creation screens filter already-claimed family members and block
+  duplicate loaded-state creates; registration-time own-car creation remains a
+  single write for pending-registration compatibility.
+- Exposed the iOS manager participant-allergy list in Android Food Menu: the
+  top bar shows an allergy action for managers, the screen surfaces a
+  participant restriction count, the dialog lists attendees with food-relevant
+  allergy chips, and rows navigate into attendee profiles.
+- Confirmed the current Android code already matches the iOS checklist-share
+  notification/deep-link subject-registration fallback, pending team
+  reassignment/add-member behavior, organizer-level normalization/validation,
+  allergy multi-select stale-selection fix, and Songbook parser/performance
+  entries tracked on 2026-07-01.
+- Fixed errors found during verification: Android lint's non-observable locale
+  read in the new Food Menu allergy row, iOS trailing-whitespace diff-check
+  failures, and an iOS Food Menu accessibility typo.
+- Verification (Android Studio JBR + iPhone 17 simulator): focused
+  `VehicleModelTest`/`VehicleUiStateTest`, full `:app:testDebugUnitTest`,
+  `:app:assembleDebug`, `:app:lintDebug`, Android `git diff --check`, iOS app
+  build, targeted iOS unit slices for notifications/camping/chords/packing/
+  vehicles, iOS `Localizable.xcstrings` JSON parse, iOS `git diff --check`, and
+  Firebase RBAC tests all passed for the vehicle-offer/Food Menu pass. The
+  passenger self-removal follow-up passed focused Android vehicle tests,
+  Firebase RBAC tests, targeted iOS vehicle tests, Android XML validation, iOS
+  localization JSON validation, and scoped Android/iOS diff checks. Device
+  visual checks for the new Food Menu manager allergy dialog and full
+  transportation workflows remain in tracker `VERIFY`.
+
+---
+
+# Project Status - Songbook chord parser, performance, and layout parity
+
+Updated: 2026-07-01
+
+- Source of truth audited: Android `CLAUDE.md`, shared docs/tracker, iOS
+  `ChordParser.swift`, `ChordSymbolParser` behavior from the WorshipPlus port,
+  `SmoothScrollView.swift`, and `ChordsPerformanceView.swift`.
+- Replaced Android's permissive Songbook chord recognition with a stricter
+  `ChordSymbolParser` used by `ChordProParser` for inline ChordPro tokens,
+  chord-only lines, section headers with trailing chords, validation, and
+  transposition. Worship-style symbols such as `D4`, `Bb2/D`,
+  `C7(b9,#11)`, `F#7(5+)`, `C6/9`, `G7alt`, `Eø7`, and `Cno3` now parse
+  without eating lyric fragments such as `D/Amazing`.
+- Matched the iOS performance fix by driving Android auto-scroll from Compose
+  frame timestamps and accumulating fractional pixels, so speeds below `0.4x`
+  keep moving instead of appearing stuck.
+- Added the iOS-equivalent full-screen performance option: the normal chords
+  view opens a full-screen dialog with the current transpose and speed, hides
+  the normal top chrome, and provides a close control.
+- Fixed the Android layout bugs shown in the 2026-07-01 screenshots: the
+  full-screen performance dialog now hides/restores Android system bars, applies
+  safe drawing insets, reserves top space for the close button, and keeps the
+  close button from covering the transpose controls.
+- The auto-scroll controls now reserve their own bottom row instead of floating
+  over the currently visible chord text, and the speed control uses a compact
+  custom slider with a thinner track/smaller thumb instead of the oversized
+  Material slider.
+- Verification (Android Studio JBR): focused `ChordProParserTest`,
+  focused `SongbookViewModelTest`, full `:app:testDebugUnitTest`,
+  `:app:lintDebug`, `:app:assembleDebug`, and `git diff --check` passed for the
+  parser/performance change. After the screenshot-driven layout follow-up,
+  `:app:compileDebugKotlin`, `:app:lintDebug`, `:app:assembleDebug`, and
+  `git diff --check` passed. Real-device visual comparison for full-screen
+  performance and very-low-speed scrolling remains a device/UI parity check.
+
+---
+
+# Project Status - Allergy multi-select parity fix
+
+Updated: 2026-07-01
+
+- Source of truth audited: Android `CLAUDE.md`, required shared contract docs,
+  iOS `AllergiesEditor.swift` / `Allergy.swift`, and the Android profile,
+  family, registration, profile-payload, and food-menu allergen paths.
+- Fixed the shared Android `AllergiesEditor` so preset/custom allergy taps merge
+  against the latest in-component selection before emitting to the parent. This
+  preserves multiple allergy selections in profile and family editors even when
+  chips are tapped before the parent recomposes.
+- Applied the same stale-selection guard to the Food Menu allergen dialog, so
+  multiple dish allergens can be added/removed without replacing the previous
+  chip from an older composition snapshot.
+- Corrected `docs/02-firestore-schema.md` denormalization table to list
+  `allergies` in the registration profile fan-out, matching `docs/07`, the
+  existing Android payload tests, and the iOS profile service.
+- Verification (Android Studio JBR): focused `AllergyTest` and
+  `UserProfilePayloadTest`, `:app:compileDebugKotlin`, `:app:lintDebug`,
+  `:app:assembleDebug`, and `git diff --check` passed. A plain Gradle test run
+  without `JAVA_HOME` still fails on this machine because no default Java
+  runtime is discoverable.
+
+---
+
+# Project Status - Splash camp-scene iOS parity rewrite
+
+Updated: 2026-06-29
+
+- Source of truth audited: iOS `SplashView.swift` (`SplashBackground`,
+  `SunGlowView`/`CrescentMoonView`, `SplashBranding`, `CampScene`) and the
+  Android `CampzoneSplash` in `ui/auth/AuthGate.kt`.
+- Restructured the splash from one full-screen canvas (brand text overlapping a
+  flat scene) into the iOS vertical layout: glowing sun at the top, brand
+  (gradient `Campzone` + tagline) in the upper-center, and the camp scene
+  occupying the bottom ~44% — so text no longer overlaps the illustration.
+- Ported the iOS `CampScene` canvas verbatim: midpoint-displacement mountain
+  ridges with quadratic-bezier smoothing (soft rounded silhouettes via a
+  deterministic `SplashRng` LCG), distant blue + near green ranges, horizon
+  mist, an elliptical clearing, a 12-tree mid-forest, six large flanking
+  foreground pines, an A-frame tent with warm inner glow/door/guy-lines, a
+  multi-node campfire bloom, crossed logs, and two-layer animated flames.
+- Continuous frame time now drives the sun pulse and fire flicker via
+  `withInfiniteAnimationFrameNanos` (replacing the looped `pulse` sawtooth),
+  matching iOS `TimelineView(.animation)`; light + dark variants both ported.
+- Android nav-bar adaptation: the bottom-anchored scene now gets
+  `navigationBarsPadding()` so the campfire/logs/foreground pines clear Android's
+  opaque navigation bar. iOS only clears a thin transparent home indicator, so
+  the verbatim 44% scene was being cropped at the nav bar on Android.
+- Verification (Android Studio JBR): `:app:compileDebugKotlin` passed (only
+  pre-existing deprecation warnings in unrelated files). Pixel 8 emulator
+  debug install/launch captured the rendered splash in BOTH light and dark
+  mode; the camp scene, glowing sun/crescent moon + stars, layered
+  mountains/forest, A-frame tent, and lit campfire (crossed logs included) match
+  the iOS reference and now sit fully above the navigation bar.
+
+---
+
+# Project Status - Animation and localization parity follow-up
+
+Updated: 2026-06-29
+
+- Source of truth audited: Android `CLAUDE.md`, the required shared docs,
+  `IOS_ANDROID_PARITY_TRACKER.md`, iOS `FloatingSongPlaybackIndicator`,
+  `SongDetailView`, `ScheduleEditorView`, `ProgramEditorSheet`,
+  `SplashView`, and chat timeline/action-overlay behavior.
+- Songbook floating playback now keeps continuous iOS-like drag math from the
+  tucked side-peek state, springs into its settled position, animates between
+  collapsed chevron and expanded controls, and keeps the title/subtitle/buttons
+  vertically centered in the pill.
+- Song detail owns the iOS-style hero seek bar and now animates its reveal/hide
+  from the hero card, not the floating player.
+- Schedule editor now animates selected day chips, scrolls the selected day into
+  view, and keeps compact time-picker sizing responsive instead of fixed-width.
+- Chat timeline now preserves long-press overlay content through its exit
+  animation, uses spring feedback for swipe-to-reply, and animates timeline item
+  placement.
+- Splash now has staged iOS-style motion: scene/brand entrance, dark-mode
+  twinkles, sun/moon pulse, and flickering fire/glow.
+- Vehicle runtime feedback and Safety validation/broadcast feedback now use
+  localized EN/FR/PT/PT-BR resources through `StringProvider`.
+- Verification (Android Studio JBR): `:app:compileDebugKotlin`,
+  `:app:testDebugUnitTest`, `:app:lintDebug`, `:app:assembleDebug`,
+  translatable EN/FR/PT/PT-BR resource-key parity, and scoped
+  `git diff --check` passed. Pixel 8 emulator debug install/launch, Songbook
+  list/detail rendering, hero-card seek bar, centered mini-player contents,
+  right-edge hide peek arrow, and tap restore were visually checked with no
+  fatal logcat entries. Remaining real-media audio, left/right drag matrix,
+  hero seek gesture, and broader device screenshots stay in `VERIFY`.
+
+---
+
+# Project Status - Teams listener cancellation error fix
+
+Updated: 2026-06-29
+
+- Source of truth audited: Android `CLAUDE.md`, required shared docs,
+  Android `TeamsScreen`/`TeamViewModel`/`TeamService`, and iOS
+  `TeamsView`/`TeamObserver`.
+- Fixed the Teams screen error state where normal listener teardown could catch
+  coroutine cancellation and publish `StandaloneCoroutine was cancelled` as a
+  user-facing load failure.
+- `TeamViewModel.startObserving` now ignores `CancellationException` from
+  listener lifecycle cleanup and republishes cached team state instead of
+  flashing back to loading when the same camping has already loaded.
+- Added a focused `TeamViewModelTest` assertion that stopping the team observer
+  keeps the screen in its loaded state rather than surfacing cancellation.
+- Verification (Android Studio JBR): focused
+  `:app:testDebugUnitTest --tests fr.ziyon.campzone.ui.teams.TeamViewModelTest`
+  passed; `git diff --check` passed for the touched TeamViewModel/test files.
+
+---
+
+# Project Status - Songbook playback hero iOS parity follow-up
+
+Updated: 2026-06-29
+
+- Source of truth audited: iOS `FloatingSongPlaybackIndicator` and
+  `SongDetailView` playback progress behavior, plus Android
+  `SongbookViewModel`, global navigation-shell player wiring, and
+  `FloatingSongPlaybackIndicator`.
+- Android Songbook playback now exposes shared position and duration state,
+  updates it during play/resume, freezes it on pause, resets it on stop/end,
+  and supports `seekAudioTo(...)` for scrub gestures.
+- The global mini-player keeps the iOS-style 52dp pill, reduces artwork toward
+  the iOS proportions, and anchors the hidden-state chevron to the visible 38dp
+  side peek instead of centering it in the off-screen card. It now docks from
+  the bottom edge, owns its iOS side-inset/90%-width placement internally, tucks
+  to the real screen edge, restores without recentering, and keeps artwork,
+  labels, and controls vertically centered in the pill. It does not render the
+  seek bar.
+- The active Song detail hero card now owns the iOS-style seek bar: cream track,
+  cream progress fill, 11dp/15dp drag knob, and current/duration labels. The new
+  playback-position accessibility label is localized in EN/FR/PT/PT-BR.
+- Verification (Android Studio JBR): scoped `git diff --check`, translatable
+  EN/FR/PT/PT-BR string-key parity, `:app:compileDebugKotlin`,
+  `:app:testDebugUnitTest`, `:app:lintDebug`, and `:app:assembleDebug` passed
+  after the seek placement correction; focused `:app:compileDebugKotlin` passed
+  after the floating-player position and content-centering corrections.
+  Real-device audio and drag/hide/seek gesture acceptance remains tracked as
+  `VERIFY`.
+
+---
+
+# Project Status - Camping editor transport/pricing localization parity
+
+Updated: 2026-06-29
+
+- Source of truth audited: Android handoff/docs plus iOS
+  `CampingTransportationOptionEditorSheet`, `CampingPriceItemEditorSheet`,
+  `CampingPricing`, and `CampingTransportationOption`.
+- Continued the localization/accessibility queue by moving Camping editor
+  transport-mode labels, price-item payment method labels, organizer type
+  chips, registration status chips, and blank transport-option fallbacks onto
+  localized resources.
+- Participant-facing registration review, transportation tickets, and manager
+  transportation option rows now use the localized iOS-aligned mode fallback
+  when an organizer leaves the option name blank.
+- Verification so far (Android Studio JBR): strings-only EN/FR/PT/PT-BR
+  resource parity, `git diff --check`, and `:app:compileDebugKotlin` passed.
+  Broader `:app:testDebugUnitTest`, `:app:lintDebug`, and `:app:assembleDebug`
+  later passed during the Songbook follow-up.
+
+---
+
+# Project Status - Songbook/Schedule/Vehicle/Splash/Chat iOS parity pass
+
+Updated: 2026-06-29
+
+- Source of truth audited: iOS `SongbookView`, `SongArtwork`,
+  `FloatingSongPlaybackIndicator`, `ScheduleEditorView`,
+  `ProgramEditorSheet`, `MyVehiclesView`, `UserVehicleEditorView`, and
+  `SplashView`, plus chat `ChatTimelineView`, `ChatMessageRow`,
+  `ChatComposer`, and `MessageActionOverlay`, after the required Android
+  docs/tracker pass.
+- Songbook artwork now follows iOS: generated song art uses a gradient stroke
+  with a neutral interior/sheen instead of a filled gradient shape.
+- The global Songbook player now mirrors the iOS interaction model more closely:
+  compact 52dp pill, play/next/stop controls, draggable position, side hide with
+  a 38dp peek handle, and tap-to-restore/open behavior.
+- Schedule editor moved closer to iOS with a top add action, selected-day rename
+  inside the day chip, unselected chip strokes, overview counts for all days,
+  localized action labels, and responsive compact time-picker sizing.
+- Vehicle transport screens were broadly localized across EN/FR/PT/PT-BR:
+  transport setup, driver/passenger flows, QR/share, manager scanner/arrival,
+  wizard/review labels, dialogs, status pills, and camera states.
+- Splash scene was upgraded toward iOS with layered mountains, sun/moon,
+  foreground pines, richer tent/fire composition, and the `Connect your camp`
+  tagline.
+- Continued Campings/History parity after the spot pass: admin quick actions now
+  stay visible in loading/empty/error states like iOS, History count/year pills
+  match the iOS accent/capsule treatment more closely, and camping card image
+  chrome uses the iOS white location icon plus stronger divider stroke.
+- Continued Chat parity after a focused iOS deep dive: the long-press action
+  overlay now captures the pressed bubble position, clamps the reaction/action
+  cluster near that selected message like iOS, and wraps expanded reactions into
+  a compact grid instead of a single overflow-prone row.
+- Verification (Android Studio JBR): `git diff --check`,
+  strings-only EN/FR/PT/PT-BR resource parity, `:app:compileDebugKotlin`, and
+  broader `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug` passed.
+  Device visual/gesture checks remain tracked as `VERIFY` in
+  `IOS_ANDROID_PARITY_TRACKER.md`.
+
+---
+
+# Project Status - Teams podium iOS parity
+
+Updated: 2026-06-29
+
+- Source of truth: iOS `Podium.swift`, `TeamsView.swift`, `TeamBadge.swift`, `TrophyCanvasView.swift`, `MedalKind.swift`.
+- `TeamBadgeView` shape changed from circle → rounded rectangle (12dp) with solid team-color background and white text/photo, matching iOS `TeamBadge` in all contexts (teams screen, ranking list, camping detail, team detail).
+- `PodiumBlock` now carries the metallic dark gradient block (simulated from iOS Metal shader), ghost-white rank number (white 0.38f opacity), and correct per-rank widths (92/84/80dp).
+- `TrophyView` added: Canvas-drawn gold trophy with cup body (CupBodyShape path), two C-curve handles, specular highlight, metallic cylindrical gradient, crown stars, rim, shoulder, stem, pedestal, upper/mid tiers, and base plate — matching the iOS `TrophyCanvasView` proportions.
+- Trophy is shown above rank 1 only when `revealPolicyTriggered && ceremonyAcknowledged` (matching iOS `trophyEligible`); a spacer placeholder preserves layout height otherwise.
+- `PodiumSection` now gives each of the three blocks equal weight in a Row (matching iOS `HStack`).
+- "Awaiting games" banner added when all team scores are zero (matching iOS `awaitingGamesBanner`).
+- All string keys added in EN/FR/PT/pt-rBR.
+- Build verified: `:app:compileDebugKotlin` clean.
+
+---
+
+# Project Status - Chat timeline iOS parity pass
+
+Updated: 2026-06-29
+
+- Source of truth audited: Android `CLAUDE.md` and chat-relevant docs
+  (`00`, `07`, `02`, `03`, `04`, `01`, `09`, `05`, `06`, `08`), plus iOS
+  `CampingChatView`, `TeamChatView`, `ChatTimelineView`, `ChatMessageRow`,
+  `ChatBubble`, `ChatComposer`, `MessageActionOverlay`, `ChatObserver`,
+  `ChatService`, and `ChatMessage`.
+- Android chat now follows the iOS vertical structure more closely: inline-height
+  top bar, optional team header, timeline, then composer. The composer no longer
+  floats over the list with hardcoded message padding.
+- Timeline behavior now mirrors iOS: initial scroll lands on the newest message,
+  new messages only auto-scroll when the user is already at the bottom or sent the
+  message, and a floating jump-to-latest button shows an unseen count while the
+  user reads older history.
+- Message clusters now support inward swipe-to-reply while preserving long-press
+  action overlay behavior, reaction chips, reply-jump highlighting, and message
+  URL/mention rendering.
+- `ChatViewModel` now matches iOS optimistic delivery for text/media sends:
+  outgoing messages appear locally before persistence, successful writes replace
+  the local copy, and failed writes roll back while restoring the draft/reply.
+- Verification (Android Studio JBR): focused chat unit tests passed
+  (`ChatViewModelTest`, `ChatMentionScannerTest`); full `:app:testDebugUnitTest`
+  passed; `:app:lintDebug :app:assembleDebug` passed; `git diff --check`
+  passed. Device checks for keyboard insets, long-press overlay geometry, swipe
+  gesture feel, upload, and permission differences remain `VERIFY` in
+  `IOS_ANDROID_PARITY_TRACKER.md`.
+
+---
+
+# Project Status - Campings publication and history parity
+
+Updated: 2026-06-29
+
+- Source of truth audited: iOS `CampingsView`, `CampingCard`,
+  `CampingEventSheet`, `CampingHistorySheet`, `CampingPublicationStatus`,
+  `CampingObserver`, `CampingEditorView`, and `CampingDetailView`.
+- Android now carries the iOS camping publication lifecycle in the shared model:
+  legacy docs decode to `published`, normal camping payloads write/preserve
+  `publicationStatus`, new and recurring campings start as `draft`, Home ignores
+  unpublished candidates, and registration gates require published + open.
+- Campings list now mirrors the latest iOS leadership flow: the ViewModel uses
+  the route-level `canEditCamping` predicate to reveal drafts, list search feeds
+  both month and publication sections, leadership sees Drafts / Published /
+  Archived, unpublished cards show a publication pill, archived groups are
+  visually muted, and editors can open detail directly from a list card.
+- Camping detail has the explicit draft publish banner/action backed by the
+  dedicated `{ publicationStatus, updatedAt }` service path.
+- Camping History was restyled toward iOS: organizer icon/count header, divider
+  year pill, grouped rounded rows, date + location rows, status badge, and
+  chevron.
+- Verification (Android Studio JBR): focused camping/publication/dashboard/admin
+  test set passed; full `:app:testDebugUnitTest` passed; `git diff --check`
+  passed. Device screenshots for the updated publication grouping/history remain
+  tracked as VERIFY in `IOS_ANDROID_PARITY_TRACKER.md`.
+
+---
+
+# Project Status - iOS 24d4361 team scoring parity
+
+Updated: 2026-06-29
+
+- Source of truth audited: iOS commit `24d4361` plus the same-day
+  `TeamListSectionHeader` extraction in the iOS working tree.
+- Android now mirrors the new team scoring behavior: team detail and
+  team-scoped Point History include positive member-targeted awards, while the
+  Penalties section merges stored team penalties with negative member-level
+  activity rows without duplicating team-targeted penalty ledger entries.
+- Team detail now has pull-to-refresh that reloads the team roster/score and
+  the scoped game activity ledger. Point History receives the shared
+  `TeamViewModel` for team routes so member awards/deductions resolve from the
+  current roster.
+- Auto-balance was brought up to the latest iOS behavior: cancellable weighted
+  preview, large-camp safe refinement, stale-preview protection, selected-team
+  apply order, capped preview chips, localized processing overlay, and focused
+  large-camp/cancellation tests.
+- Songbook rows now expose the Voice Kits track picker directly from the list
+  menu, with active-track checkmarks and per-track playback. Campings/Home also
+  received the latest event-sheet divider/card polish and centered featured CTA.
+- Reviewed but did not port iOS-only refactors: SwiftUI extracted helpers,
+  preview/project metadata, comment-only edits, SwiftUI state plumbing, and an
+  unreferenced asset. `IOS_ANDROID_PARITY_TRACKER.md` records these as N/A.
+- Verification (Android Studio JBR): focused team/filter/auto-balance/Songbook
+  tests, full `testDebugUnitTest`, `lintDebug`, `assembleDebug`, EN/FR/PT/PT-BR
+  locale-key parity, and `git diff --check` passed on 2026-06-29.
+
+---
+
+# Project Status - Expanded iOS parity closure
+
+Updated: 2026-06-24
+
+- The persistent source audit is tracked in `IOS_ANDROID_PARITY_TRACKER.md`.
+  Its current iOS working-tree comparison has zero open implementation gaps;
+  visual/device and external Calendar-app checks remain explicitly marked
+  `VERIFY` instead of being presented as completed without hardware evidence.
+- Songbook now matches iOS Voice Kits end to end: typed main/playback/
+  instrumental/choral/custom tracks, legacy normalization, a main-song
+  denormalized payload, local and remote audio entry, duplicate prevention,
+  main-track promotion after removal, alternative playback selection, active
+  track state, and natural-end replay behavior.
+- Camping parity now includes attendee relationship fields and navigable
+  family-at-camp rows, reachable church/language roster filters, iOS-equivalent
+  resource gates, and the complete two-column management menu with direct
+  lodging/venue/checklist routes plus guarded cancel/delete confirmations.
+- Album policy now has its own scoped permission: photographers retain media
+  moderation while youth directors, pastors, leaders, and admins manage upload
+  roles. European Portuguese also received the missing chat reply/action and
+  schedule-reminder strings; EN/FR/PT/PT-BR resource-name parity is complete
+  apart from the intentionally base-only Firebase OAuth client ID.
+- Camp Menu now uses the current iOS structured dish contract instead of
+  flattening every meal to strings. Android reads `items[]` with legacy
+  `dishes[]` fallback, writes both fields additively, preserves item IDs,
+  descriptions, notes, and allergens through schedule sync, and provides the
+  matching per-dish editor and profile-allergy warnings. All new copy is
+  localized in EN/FR/PT/PT-BR.
+- Live emulator QA found and closed two runtime-only gaps that source tests had
+  not exposed. Home family-pass discovery now uses index-free ownership queries
+  and filters approval locally, so guardian passes no longer depend on an
+  undeployed composite Firestore index. Removed/stale camping deep links now
+  terminate in a localized not-found state instead of loading forever.
+- On a signed-in 1080×2400 English/light emulator, Home, the event hero,
+  top-right quick-action pin badges, schedule, Campings header/search/admin
+  actions, camping card, event details sheet, real Camping dashboard/resource
+  groups, family-at-camp, Camp Menu, management grid, and cancel confirmation
+  rendered without an app fatal, Firestore index failure, or permission denial.
+- Verification (Android Studio JBR): all 529 `testDebugUnitTest` tests,
+  `lintDebug`, `assembleDebug`, localized resource-name parity, and
+  `git diff --check` passed after the structured-menu and live-runtime fixes on
+  2026-06-24. The newly built structured editor still needs a device recheck
+  because ADB daemon startup was blocked after the resumed permission change.
+
+---
+
+# Project Status - Role-safe Firestore listeners
+
+Updated: 2026-06-23
+
+- Android game activity listeners now mirror the deployed iOS/Firestore
+  contract: unauthorized and guardian-only viewers start no ledger listener,
+  approved direct participants query only `visibility == immediate` before
+  winner reveal, and game managers/revealers or revealed participants read the
+  full ordered ledger. Game-only surfaces no longer open an activity listener.
+- The in-app notification feed now carries every Security Rules predicate on
+  scoped queries (`campingID`, `role`, and `teamID`) and pairs team channels
+  with their camping. Guardian-only camping registrations are excluded from
+  broad feed listeners, while admins retain their unrestricted team scope.
+- Verification: focused games/notification tests, the full
+  `testDebugUnitTest` suite, `lintDebug`, and `assembleDebug` passed. The
+  shared Firestore emulator suite passed 26/26 across guest, user,
+  adult, youth director, pastor, leader, game master, photographer, and admin;
+  the tested rules were deployed to Firebase project `campzone-aeb7e`.
+
+---
+
+# Project Status - Home Camp Pass family QR parity
+
+Updated: 2026-06-23
+
+- Android Home now mirrors the iOS live Camp Pass data contract: every
+  approved registration managed by the signed-in guardian is retained, with
+  the signed-in attendee first and approved family participants sorted by
+  display name. Pending registrations never receive a scannable pass.
+- Each pass uses the canonical check-in QR payload for that attendee and keeps
+  that participant's own team, lodging, photo, and self/family label. The
+  existing self check-in observer still drives the hero's checked-in status.
+- The full-screen pass is now an iOS-style horizontal pager with participant
+  badges, `Pass X of Y`, page dots, maximum screen brightness, and one large QR
+  per self/family participant. The compact hero now also matches the iOS dashed
+  ticket divider, light-mode shadow, chip shape, and accessibility copy.
+- New pass copy is localized in EN, FR, PT, and PT-BR. Verification with the
+  Android Studio JBR passed the focused `HomeViewModelTest`, all 501
+  `testDebugUnitTest` tests, `lintDebug`, and `assembleDebug`.
+
+---
+
+# Project Status - Localization, family, and pinning parity follow-up
+
+Updated: 2026-06-23
+
+- Packing audit closure is now aligned across Android and iOS: custom items
+  whose leadership category was deleted stay visible under My items; share
+  imports transactionally merge only custom items into the latest progress so
+  newer checkmarks/notes survive; repeat sharing clears stale URLs, refreshes
+  the active link, and owners can revoke every current or expired link.
+- Android Packing load/import failures now expose real retry actions (including
+  the embedded camp-detail card), custom item controls have localized
+  accessibility state/options, and all new revocation copy ships in EN/FR/PT-BR.
+- The matching web repo now owns `/packing-share/[shareId]`, its typed parser,
+  and `/packing-share/*` AASA coverage. Shared Firestore rules lock share update
+  ownership/camping identity and a new emulator suite covers Packing template,
+  private progress, and full share CRUD. Production web/rules deployment is
+  still pending.
+- Packing Checklist suggested categories and all 27 starter items now resolve
+  through the existing Android string-resource provider. English is the base
+  catalog, with localized French, Portuguese, and Brazilian Portuguese values;
+  shared checklist text and the personal-items category use the same resources.
+- Unsupported device locales and new family-participant language fields now
+  fall back to English on Android, matching the corresponding iOS defaults.
+- The Android family allergy editor keeps multiple preset/custom selections,
+  shows an explicit removal affordance on selected chips, stores stable iOS
+  wire tokens, and removes legacy localized selections cleanly.
+- Selecting the app-wide featured camping is now admin-only in both clients.
+  Android guards both the UI and ViewModel call, iOS uses the shared permission
+  evaluator, and the shared Firestore rules reject non-admin `isFeatured`
+  updates. The rules change has not been deployed.
+- Android pinned Quick Action badges now overlay the tile's top-right corner,
+  matching iOS instead of appearing inside the action-icon container.
+- Family duplicate-check failures now extract a useful backend message and
+  never render raw JSON. The reported backend 500 was fixed separately by the
+  user; no backend changes were made in this pass.
+- Verification (Android Studio JBR): all 498 `testDebugUnitTest` tests,
+  `lintDebug`, and `assembleDebug` passed. The focused iOS
+  `AppPermissionTests` suite also passed 13/13 tests on iPhone 16 (iOS 18.6).
+
+---
+
+# Project Status - Android parity audit closure
+
+Updated: 2026-06-22
+
+- Registration submission now uses Firestore-rule-compatible ownership queries
+  and the parent `registrationsCount` fallback, so first-time registration is
+  not blocked by a forbidden full-list read.
+- Food Menu keeps dishes/notes in the menu document and preserves leader-owned
+  Program descriptions; deterministic-id replacement is batched. The menu now
+  shows the signed-in user's food allergies and kitchen managers see approved
+  participant allergy summaries.
+- Notification topics are clamped to live camping/team access. Home includes
+  visible camping and role announcements, and Schedule selects today when the
+  current day exists.
+- Transportation now separates direct family/manager assignment from
+  invitations, supports family selection during car creation, and keeps every
+  passenger's registration transport intent in sync on add/approve/remove.
+- Past/cancelled campings moved to History, cancelled detail remains readable,
+  and History now mirrors iOS grouping by organizer then descending year with
+  compact rows. Approved registration status collapses to the iOS-style pill;
+  actionable registrations keep the full fee/payment card. Chat reply quotes
+  jump/highlight originals, URLs are tappable, and Album has a swipeable
+  full-screen gallery.
+- Food Menu now uses the iOS one-day-at-a-time chip selector and meal-count
+  header. Its leadership editor includes the expandable allergy summary with
+  participant avatars and profile navigation.
+- Packing Checklist is implemented end to end: published templates, suggested
+  catalog, leadership CRUD/reordering, personal progress/notes/custom items,
+  sharing/import deep links, Home quick action, and the self-silencing camp
+  detail card.
+- App and camp Support hubs now load and edit the canonical Firestore config,
+  validate external URLs, show sponsor acknowledgements, enforce role gates,
+  and replace the former Android placeholder.
+- Schedule uses the current iOS vertical past/live/upcoming timeline and keeps
+  the selected day visible. Auth, onboarding, and the 2.4-second cold-launch
+  splash now share the current adaptive light/dark camp-scene presentation.
+- Emergency & Safety is now a real Firestore-backed destination with callable
+  contacts, editable instructions/first aid, and urgent camping broadcasts.
+  Admin Tools now includes a live analytics dashboard.
+- The new packing/support UI and operation feedback are localized in EN, FR,
+  PT, and PT-BR. Verification in the real checkout (Android Studio JBR):
+  `compileDebugKotlin`, all 491 `testDebugUnitTest` tests, `lintDebug`, and
+  `assembleDebug` passed.
+
+---
+
+# Project Status - Chat reply/reaction parity
+
+Updated: 2026-06-11
+
+- Change in progress: Android chat is being aligned with the latest iOS reply
+  and reaction work. The model now decodes/writes `replyTo` snapshots and
+  `reactions`, chat writes can update only the caller's reaction slot, and
+  `dispatch/chat` payloads carry reply convenience fields for the backend.
+- UI parity: the composer shows a quoted reply preview, bubbles render quoted
+  context, long-press actions include Reply and reaction choices, and reaction
+  chips display grouped emoji counts.
+- Follow-up parity fix: outgoing quoted-reply blocks now mirror the latest iOS
+  `ChatReplyReferenceView` tinting, using `czSurface` plus subdued text instead
+  of white-on-white styling.
+- Follow-up chat UI parity pass: Android now mirrors the latest iOS chat
+  structure more closely with a compact composer sitting above the app nav,
+  floating circular header actions, date chips, accent-theme bubbles, compact
+  reaction chips, and a custom long-press overlay with quick reactions plus
+  Reply/Copy/Edit/Report/Block/Pin/Remove actions.
+- Verification (JBR): focused chat/model/notification/deep-link unit tests
+  passed, `:app:lintDebug :app:assembleDebug` passed, and iOS Firestore
+  rules tests passed 26/26 via the emulator. Production Firestore rules deploy
+  was not performed because the approval reviewer rejected the deploy as too
+  broad for this chat-only scope.
+
+---
+
+# Project Status - Camping editor/list iOS parity follow-up
+
+Updated: 2026-06-10
+
+- Branch: `venue-map-games-locations-instructions`
+- Follow-up completed: camping-description Markdown now explicitly supports
+  GitHub/CommonMark-style tables by adding Markwon's `ext-tables` dependency
+  and registering `TablePlugin` in the shared camping Markdown renderer.
+- Verification (JBR): `:app:lintDebug :app:assembleDebug` green.
+
+---
+
+# Project Status - Camping editor/list iOS parity follow-up
+
+Updated: 2026-06-10
+
+- Branch: `venue-map-games-locations-instructions`
+- Follow-up completed: Android now renders camping descriptions as Markdown
+  in the Camping Detail overview and the Campings event-sheet preview, matching
+  iOS `CampingDetailView`'s `Markdown(camping.description)` behavior while
+  leaving the editor as a normal multiline text field like iOS.
+- Implementation: added a small shared `CampingMarkdownText` Markwon wrapper
+  for camping surfaces and reused the existing app markdown dependency.
+- Verification (JBR): `:app:lintDebug :app:assembleDebug` green.
+
+---
+
+# Project Status - Camping editor/list iOS parity follow-up
+
+Updated: 2026-06-10
+
+- Branch: `venue-map-games-locations-instructions`
+- Follow-up completed: Camping editor/list are aligned with the latest
+  iOS camping UI changes after reviewing the current SwiftUI
+  `CampingEditorView`, `CampingObserver`, `CampingDetailView`, `CampingsView`,
+  and `CampingCard` sources.
+- Editor timing: start, end, and registration due-date fields now open Android
+  date + time pickers and display the selected hour/minute instead of
+  truncating edited values to date-only.
+- Campings list: create/date/location/capacity accents now use the shared
+  accent token to match iOS, while review-registration actions keep the amber
+  treatment.
+- Localization: EN/FR/PT/PT-BR timing labels now mirror the shorter iOS copy.
+- Verification (JBR): `:app:lintDebug :app:assembleDebug` green.
+
+---
+
+# Project Status - Shared links, notification actions, and family duplicates
+
+Updated: 2026-06-22
+
+- Achievement shares now use Universal Links and exact badge notifications open
+  the badge detail sheet.
+- Transportation code shares open the prefilled join flow; invitation and seat
+  request notifications open the corresponding accept/decline or approve/decline
+  bottom sheet.
+- Registration notifications now focus the relevant camping review queue.
+- Cross-guardian child duplicate checks use the authenticated backend and fail
+  closed; the warning includes the existing guardian and local matching is
+  accent/case/spacing tolerant.
+- Verification (JBR): full `testDebugUnitTest` and combined
+  `lintDebug assembleDebug` passed.
+
+---
+
+# Project Status - F3 recurring camps and program attendance
+
+Updated: 2026-06-10
+
+- Branch: `venue-map-games-locations-instructions`
+- Change completed: Android now mirrors the completed iOS F3 work for recurring
+  camp templates and per-program attendance.
+- Recurring camps: camp-detail management opens a clone flow for authorized
+  users, defaulting title/dates one year forward and registration closed. The
+  clone service writes a fresh camping, resets live camp state, shifts the
+  deadline, and optionally copies schedule, team shells, songbook, and
+  guidelines while clearing venue/game links, team members/scores, and song
+  favorites.
+- Program attendance: schedule program detail opens records/scanner routes for
+  check-in managers. Records live at
+  `campings/{campingID}/programAttendance/{programID}/records/{attendeeID}`;
+  QR scanning reuses the existing check-in payload and rejects wrong camp,
+  unknown attendee, pending attendee, duplicates, malformed codes, and save
+  failures.
+- Parity cleanup: songbook management now uses the scoped iOS rule (admin,
+  creator, or own-church youth director/leader) instead of a global admin-only
+  gate, and EN/FR/PT/PT-BR resources cover the new UI.
+- Verification (JBR): focused `:app:testDebugUnitTest --tests
+  fr.ziyon.campzone.ui.attendance.* --tests
+  fr.ziyon.campzone.ui.camping.template.* --tests
+  fr.ziyon.campzone.data.model.CampingTemplateCloneTest --tests
+  fr.ziyon.campzone.core.permissions.AppPermissionEvaluatorTest` green; full
+  `:app:testDebugUnitTest` green; final `:app:lintDebug :app:assembleDebug`
+  green. The prior unrelated Venue Map `LocalContext.getString(...)` Compose
+  lint blocker is also resolved.
+
+---
+
+# Project Status - Badge award notifications
+
+Updated: 2026-06-10
+
+- Branch: `venue-map-games-locations-instructions`
+- Change completed: Android now mirrors iOS/backend badge-award notification
+  behavior. Manual badge awards dispatch a best-effort
+  `/notifications/dispatch/badge` request after the Firestore award succeeds,
+  with recipient/user/achievement/camping context.
+- Notification feed: `AppNotificationKind.Badge` decodes `badge`,
+  `achievement`, and `achievement_badge`, direct-user badge rows deep-link to
+  achievements, and the feed UI renders badge rows with the existing localized
+  badge label.
+- Deep links/docs: Android parses `campzone://achievements/<uid>` and
+  `/badges/<uid>` web links plus badge FCM payloads, then routes to the Profile
+  achievements screen. `docs/02`, `docs/04`, and `docs/05` now include the
+  badge notification/deep-link contract.
+- Verification (JBR): focused `:app:testDebugUnitTest --tests
+  fr.ziyon.campzone.ui.profile.badges.AchievementViewModelTest --tests
+  fr.ziyon.campzone.data.model.AppNotificationDeepLinkTest --tests
+  fr.ziyon.campzone.data.model.AppNotificationTest --tests
+  fr.ziyon.campzone.data.model.EnumWireValueTest --tests
+  fr.ziyon.campzone.core.navigation.CampzoneDeepLinkTest` green;
+  `:app:assembleDebug` green.
+
+---
+
+# Project Status - Home iOS parity refresh
+
+Updated: 2026-06-08
+
+- Branch: `venue-map-games-locations-instructions`
+- Change completed: Android Home now mirrors the current iOS HomeView structure
+  with the fixed Basecamp header, featured/live hero area, quick-action rail,
+  schedule timeline, and announcement carousel.
+- Featured hero: added the Featured tag, registration-close countdown chip,
+  Secure my spot / Join waitlist / Registration closed CTA, split detail vs
+  registration actions, and the updated "spots taken" capacity copy. Active
+  approved campings now show a pass-style hero with the real check-in QR
+  payload, the iOS-style right-side accent glow, checked-in day status,
+  team/lodging chips, and a local full-screen pass overlay instead of
+  navigating away from Home.
+- Featured selection: Home now keeps the local camping observer alive and
+  restarts the dashboard featured stream when the approved-camping ID set
+  changes, so tier 1 activates after cold-launch camping data arrives just like
+  iOS.
+- Quick actions: Android now mirrors iOS `QuickActionUsageStore` with a local
+  SharedPreferences-backed usage store, ranks the eligible Home tile pool by
+  descending tap count with default-order tie breaking, and records matching
+  Camping Detail resource taps (venue map, guidelines, schedule, teams, games,
+  QR pass, songbook, chat, polls, album, food menu, pricing, scanner,
+  transportation, and vehicles).
+- Data/windowing: HomeViewModel now loads the schedule window from the start of
+  today and surfaces six programs plus six recent app-wide announcements for
+  the Home timeline/carousel.
+- Verification (JBR): focused `:app:testDebugUnitTest --tests
+  fr.ziyon.campzone.ui.home.HomeViewModelTest` green; `:app:assembleDebug`
+  green. `:app:lintDebug` remains blocked only by the existing
+  `VenueMapEditorScreen.kt` `LocalContext.getString(...)` errors at lines 195,
+  200, 210, and 216; the final lint text has no Home, HomeViewModel,
+  CampingDetailScreen, or QuickActionUsageStore entries.
+
+---
+
+# Project Status - Featured camping priority system
+
+Updated: 2026-06-08
+
+- Branch: `venue-map-games-locations-instructions`
+- Change completed: Android now decodes camping `isFeatured` as a
+  legacy-safe boolean defaulting to false, keeps the regular camping save
+  payload from writing it, and exposes a dedicated merge-only `setFeatured`
+  path writing `{ isFeatured, updatedAt }`.
+- Home: added a dashboard repository using the iOS query shape (`endDate >=
+  now`, ordered by `endDate`, limit 12) and the four-tier selection chain:
+  active approved registration, first admin-pinned, open registration with the
+  soonest start, then the end-date fallback. The signed-in user's approved
+  camping IDs are captured from already cached camping data with no
+  registration query.
+- Camping detail: admins with `canManageAnyCamping` see Pin/Unpin from Home for
+  non-cancelled campings, with localized snackbar feedback.
+- Verification (JBR): focused `:app:testDebugUnitTest --tests
+  fr.ziyon.campzone.data.dashboard.MainDashboardRepositoryTest --tests
+  fr.ziyon.campzone.data.model.CampingPayloadTest --tests
+  fr.ziyon.campzone.ui.home.HomeViewModelTest --tests
+  fr.ziyon.campzone.ui.camping.CampingDetailViewModelTest` green;
+  `:app:assembleDebug` green.
+  `:app:lintDebug` remains blocked by pre-existing
+  `VenueMapEditorScreen.kt` `LocalContext.getString(...)` resource errors at
+  lines 195, 200, 210, and 216, not by this feature.
+
+---
+
 # Project Status - Venue map, games locations, and leadership instructions parity
 
 Updated: 2026-06-08
@@ -518,3 +1447,173 @@ report model were already shipped; D7 reuses them.
   - Device/emulator QA for CameraX + ML Kit scanning, permission-denied state,
     and real Firestore RBAC writes.
   - Broader ViewModel/UI test matrix from the request remains to be added.
+
+---
+
+# Project Status - Android Realtime Sync Parity Pass
+
+- Updated: 2026-06-10 15:08 CEST
+- Branch/worktree: continued on existing dirty checkout
+  `venue-map-games-locations-instructions`; unrelated venue-map/templates/
+  localization/status changes were preserved.
+- Scope shipped: audited iOS Home/Main dashboard, TeamObserver, GameObserver,
+  and ScheduleObserver patterns, then added Android realtime streams for the
+  missing Home/Schedule paths.
+- Home realtime:
+  - `HomeViewModel` now uses a live approved-registration-id stream for the
+    current user instead of relying only on parent camping document snapshots.
+  - Home upcoming-program previews now collect `ScheduleService.observeSchedule`
+    for the featured camp, so schedule edits from another device update the
+    Home timeline.
+  - Home live pass now composes live user-registration, check-in, team, and
+    lodging streams, so check-in state plus team/room assignment changes update
+    without a manual refresh.
+- Shared service realtime:
+  - `CampingService.observeCampings()` now keeps per-camp registration listeners
+    and re-emits parent camping models when registration subcollections change,
+    while falling back through the existing RBAC-safe `loadAttendees` path on
+    restricted reads.
+  - Added `observeApprovedCampingIds` and `observeUserAttendees` to keep Home
+    scoped to the current user's registration context without listening to every
+    registration row globally.
+  - Added `CheckInService.observeRecord` for single check-in pass updates.
+  - Added `ScheduleService.observeSchedule`, watching the schedule config, days,
+    and day program subcollections.
+- Schedule/Teams realtime:
+  - `ScheduleViewModel` now owns one live schedule/camping observer job and
+    cancels it in `onCleared`.
+  - `TeamViewModel.startObserving` now keys the active observer by camping id,
+    so reused ViewModels switch streams correctly.
+  - Fakes for camping, schedule, check-in, and teams now emit mutation updates
+    so tests/previews exercise the same realtime contract.
+- Verification (JAVA_HOME = Android Studio JBR):
+  - `./gradlew testDebugUnitTest --tests fr.ziyon.campzone.ui.home.HomeViewModelTest` SUCCESSFUL
+  - `./gradlew testDebugUnitTest` SUCCESSFUL
+  - `./gradlew lintDebug assembleDebug` SUCCESSFUL
+
+---
+
+# Project Status - Home Announcement Carousel iOS Parity
+
+- Updated: 2026-06-10 15:32 CEST
+- Branch/worktree: `venue-map-games-locations-instructions`; clean before this
+  parity patch.
+- Source of truth checked:
+  - Android handoff/docs: `CLAUDE.md`, `docs/00`, `docs/07`, `docs/02`,
+    `docs/03`, `docs/04`, `docs/01`, `docs/09`, `docs/05`, `docs/06`,
+    `docs/08`.
+  - iOS Home announcement references:
+    `Features/Home/View/HomeView.swift`,
+    `Features/Home/Components/HomeAnnouncementsCarousel.swift`, and
+    `Features/Main/Model/MainDashboardContent.swift`.
+- Scope shipped:
+  - Updated Android `HomeAnnouncementsCarousel` to use the same accent token as
+    iOS for the header icon, new-count chip, card icon well, and unread dot.
+  - Added leading-edge snap behavior to the horizontal announcement carousel,
+    matching iOS `scrollTargetBehavior(.viewAligned)`.
+  - Matched the iOS card spacing more closely with fixed 248dp x 160dp cards,
+    full-width title/summary text, bottom spacer, subtle border, and tap haptic
+    feedback before opening announcement detail.
+- Verification (JAVA_HOME = Android Studio JBR):
+  - `./gradlew lintDebug assembleDebug` SUCCESSFUL
+
+---
+
+# Project Status - Notification Reminder Replacement + Program Deep Links
+
+- Updated: 2026-06-11 14:52 CEST
+- Branch/worktree: `venue-map-games-locations-instructions`; continued on the
+  existing Android checkout after backend and iOS reminder fixes were green.
+- Source of truth checked:
+  - Android handoff/docs: `CLAUDE.md`, `PROJECT_STATE.md`, and
+    `docs/04-backend-api.md`.
+  - Final backend/iOS contract: `/notifications/reminders` supports legacy
+    single-reminder payloads plus `replaceCamping` and `replacePrograms`.
+- Scope shipped:
+  - Android reminder sync now sends replacement payloads through
+    `NotificationApi`: timing changes replace every pending camping reminder,
+    `.None` sends an empty replacement to cancel all, program edits replace
+    that program, and program deletes cancel that program.
+  - Reminder plans use stable `campingID-programID` ids, include `programID`,
+    target `campzone_camping_reminders_<campingID>`, and skip past fire dates.
+  - Registration submit now best-effort adds the registrant to the camping
+    notification channel through `NotificationSettingsService` without blocking
+    a successful registration.
+  - Schedule reminder feed rows and FCM payloads with `programID` now deep-link
+    to `CampingScheduleProgram(campingID, programID)`; missing `programID`
+    still falls back to camping detail.
+  - `docs/04-backend-api.md` documents the replacement reminder contract.
+  - Production notification backend was redeployed after live
+    `/notifications/reminders` returned `id is required` for a replacement
+    payload; deployment `dpl_6mWnDzXcRjRuguc8NdEBHHu1afaG` is aliased to
+    `https://notification-backend-chi.vercel.app`.
+- Verification (JAVA_HOME = Android Studio JBR):
+  - `./gradlew testDebugUnitTest --tests 'fr.ziyon.campzone.ui.schedule.*' --tests 'fr.ziyon.campzone.ui.camping.register.*' --tests 'fr.ziyon.campzone.ui.notifications.*' --tests 'fr.ziyon.campzone.core.navigation.*' --tests 'fr.ziyon.campzone.data.model.AppNotification*' --tests 'fr.ziyon.campzone.data.notifications.*'` SUCCESSFUL
+  - `./gradlew lintDebug assembleDebug` SUCCESSFUL
+
+---
+
+# Project Status - Current iOS Working-Tree Parity Sweep
+
+- Updated: 2026-06-29 CEST
+- Branch/worktree: continued on existing dirty checkout
+  `venue-map-games-locations-instructions`; unrelated pre-existing dirty files
+  were preserved.
+- Source of truth checked:
+  - Android handoff/docs: `CLAUDE.md`, `IOS_ANDROID_PARITY_TRACKER.md`,
+    `TODO.md`, `docs/00`, `docs/07`, `docs/02`, `docs/03`, `docs/04`,
+    `docs/01`, `docs/09`, plus `docs/05`, `docs/06`, `docs/08` as needed.
+  - iOS working-tree buckets: Venue Map, Schedule Program Detail, Teams/Games,
+    Camping detail/Registration Review, Packing, Songbook floating player, and
+    repeated SwiftUI press-style/color-only changes.
+- Scope shipped:
+  - Venue Map now matches the new iOS cap/preview flow: 120-location cap helper,
+    disabled full-map add actions, viewer search/category filters, no-match
+    state, illustration zoom/reset, selected-only pin labels, GPX truncation at
+    remaining capacity, and a GPX preview bottom sheet with category chips and
+    selectable waypoints before import.
+  - Program Detail mirrors iOS header/detail polish: generic nav title,
+    title-in-content header, break/rest row ordering, hidden blank location,
+    meal venue label, accent info icons, and white light-mode cards.
+  - Teams/Games mirrors iOS manual scoring polish: activity/penalty row styling,
+    score and penalty bottom sheets with mandatory reason and quick amount chips,
+    localized total/help copy, and confirmed existing awaiting-games/reveal
+    behavior.
+  - Camping/Packing light-mode cards now follow the iOS white/paperWhite polish
+    for detail cards, registration-review cards, packing progress/category/notes,
+    and My Packing Checklist.
+  - Fixed a dirty Songbook floating player compile blocker by replacing the
+    Swift-style `.center` alignment with Compose `Alignment.Center`.
+- Verification (JAVA_HOME = Android Studio JBR):
+  - Focused `./gradlew testDebugUnitTest --tests 'fr.ziyon.campzone.ui.teams.*' --tests 'fr.ziyon.campzone.ui.games.*' --tests 'fr.ziyon.campzone.ui.schedule.*' --tests 'fr.ziyon.campzone.ui.venuemap.*' --console=plain` SUCCESSFUL.
+  - `git diff --check` SUCCESSFUL.
+  - Translatable EN/FR/PT/PT-BR string-key parity SUCCESSFUL.
+  - Full `./gradlew testDebugUnitTest --console=plain` SUCCESSFUL.
+  - `./gradlew lintDebug assembleDebug --console=plain` SUCCESSFUL.
+
+---
+
+# Project Status - Family-Member Notification Routing
+
+- Updated: 2026-07-01 CEST
+- Branch/worktree: continued on existing dirty checkout
+  `venue-map-games-locations-instructions`; unrelated dirty files were
+  preserved.
+- Source of truth checked: `CLAUDE.md`, shared notification/deep-link docs,
+  iOS `CampzoneDeepLink`/notification/transportation routing, and the
+  notification backend dispatch service.
+- Scope shipped:
+  - Android notification/deeplink routing now preserves three identities for
+    family-targeted actions: notification recipient (`recipientUserID`),
+    action subject (`registrationID`/`actionSubjectRegistrationID`), and the
+    active app user.
+  - Checklist notifications accept `checklist`/`packing_share` payloads,
+    carry `shareID`/`packingShareID`, and import into the child registration's
+    checklist when a family subject is present.
+  - Transportation invitation deeplinks now resolve the child attendee only for
+    guardian-actionable invitation routes; ordinary transport and request flows
+    continue to use the signed-in user's own attendee.
+  - Updated `docs/02`, `docs/03`, `docs/04`, and `docs/05` with the family
+    notification/action-subject contract.
+- Verification (JAVA_HOME = Android Studio JBR):
+  - `./gradlew testDebugUnitTest --tests 'fr.ziyon.campzone.core.navigation.CampzoneDeepLinkTest' --tests 'fr.ziyon.campzone.data.model.AppNotificationDeepLinkTest' --tests 'fr.ziyon.campzone.data.model.AppNotificationTest' --tests 'fr.ziyon.campzone.data.model.EnumWireValueTest' --tests 'fr.ziyon.campzone.ui.vehicle.VehicleUiStateTest' --console=plain` SUCCESSFUL.

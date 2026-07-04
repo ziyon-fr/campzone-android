@@ -1,5 +1,6 @@
 package fr.ziyon.campzone.ui.camping.admin
 
+import android.content.Context
 import android.net.Uri
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -106,6 +107,7 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import android.app.DatePickerDialog as AndroidDatePickerDialog
+import android.app.TimePickerDialog as AndroidTimePickerDialog
 
 @Composable
 fun CampingEditorRoute(
@@ -244,42 +246,33 @@ fun CampingEditorScreen(
     }
 
     if (showStartDatePicker) {
-        val cal = Calendar.getInstance().apply { time = form.startDate }
-        AndroidDatePickerDialog(
+        showDateTimePicker(
             context,
-            { _, y, m, d ->
-                val newDate = Calendar.getInstance().apply { set(y, m, d) }.time
-                onFormUpdate(form.copy(startDate = newDate))
-                showStartDatePicker = false
-            },
-            cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH),
-        ).also { it.setOnCancelListener { } }.show()
+            initialDate = form.startDate,
+            onDismiss = { showStartDatePicker = false },
+        ) { selectedDate ->
+            onFormUpdate(form.copy(startDate = selectedDate))
+        }
     }
 
     if (showEndDatePicker) {
-        val cal = Calendar.getInstance().apply { time = form.endDate }
-        AndroidDatePickerDialog(
+        showDateTimePicker(
             context,
-            { _, y, m, d ->
-                val newDate = Calendar.getInstance().apply { set(y, m, d) }.time
-                onFormUpdate(form.copy(endDate = newDate))
-                showEndDatePicker = false
-            },
-            cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH),
-        ).also { it.setOnCancelListener { showEndDatePicker = false } }.show()
+            initialDate = form.endDate,
+            onDismiss = { showEndDatePicker = false },
+        ) { selectedDate ->
+            onFormUpdate(form.copy(endDate = selectedDate))
+        }
     }
 
     if (showDueDatePicker) {
-        val cal = Calendar.getInstance().apply { time = form.registrationDueDate ?: form.endDate }
-        AndroidDatePickerDialog(
+        showDateTimePicker(
             context,
-            { _, y, m, d ->
-                val newDate = Calendar.getInstance().apply { set(y, m, d) }.time
-                onFormUpdate(form.copy(registrationDueDate = newDate))
-                showDueDatePicker = false
-            },
-            cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH),
-        ).also { it.setOnCancelListener { showDueDatePicker = false } }.show()
+            initialDate = form.registrationDueDate ?: form.endDate,
+            onDismiss = { showDueDatePicker = false },
+        ) { selectedDate ->
+            onFormUpdate(form.copy(registrationDueDate = selectedDate))
+        }
     }
 
     if (showDeleteDialog) {
@@ -898,10 +891,51 @@ private fun LogoEditorRow(
 
 // MARK: - Date row
 
+private fun showDateTimePicker(
+    context: Context,
+    initialDate: Date,
+    onDismiss: () -> Unit,
+    onSelected: (Date) -> Unit,
+) {
+    val initial = Calendar.getInstance().apply { time = initialDate }
+    AndroidDatePickerDialog(
+        context,
+        { _, year, month, day ->
+            val selected = Calendar.getInstance().apply {
+                time = initialDate
+                set(Calendar.YEAR, year)
+                set(Calendar.MONTH, month)
+                set(Calendar.DAY_OF_MONTH, day)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            onDismiss()
+            AndroidTimePickerDialog(
+                context,
+                { _, hour, minute ->
+                    selected.set(Calendar.HOUR_OF_DAY, hour)
+                    selected.set(Calendar.MINUTE, minute)
+                    onSelected(selected.time)
+                },
+                initial.get(Calendar.HOUR_OF_DAY),
+                initial.get(Calendar.MINUTE),
+                true,
+            ).also { dialog ->
+                dialog.setOnCancelListener { onDismiss() }
+            }.show()
+        },
+        initial.get(Calendar.YEAR),
+        initial.get(Calendar.MONTH),
+        initial.get(Calendar.DAY_OF_MONTH),
+    ).also { dialog ->
+        dialog.setOnCancelListener { onDismiss() }
+    }.show()
+}
+
 @Composable
 private fun DateRow(label: String, date: Date, onClick: () -> Unit) {
     val formatted = remember(date) {
-        SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault()).format(date)
+        SimpleDateFormat("EEE, d MMM yyyy, HH:mm", Locale.getDefault()).format(date)
     }
     Row(
         modifier = Modifier
@@ -1282,17 +1316,19 @@ private fun organizerNamePlaceholder(type: OrganizerType): String = when (type) 
     OrganizerType.Custom -> stringResource(R.string.camping_editor_organizer_custom_hint)
 }
 
+@Composable
 private fun OrganizerType.displayLabel(): String = when (this) {
-    OrganizerType.Church -> "Church"
-    OrganizerType.Regional -> "Regional"
-    OrganizerType.International -> "International"
-    OrganizerType.Custom -> "Custom"
+    OrganizerType.Church -> stringResource(R.string.organizer_type_church)
+    OrganizerType.Regional -> stringResource(R.string.organizer_type_regional)
+    OrganizerType.International -> stringResource(R.string.organizer_type_international)
+    OrganizerType.Custom -> stringResource(R.string.organizer_type_custom)
 }
 
+@Composable
 private fun CampingRegistrationStatus.displayLabel(): String = when (this) {
-    CampingRegistrationStatus.Open -> "Open"
-    CampingRegistrationStatus.Closed -> "Closed"
-    CampingRegistrationStatus.Cancelled -> "Cancelled"
+    CampingRegistrationStatus.Open -> stringResource(R.string.camping_status_open)
+    CampingRegistrationStatus.Closed -> stringResource(R.string.camping_status_closed)
+    CampingRegistrationStatus.Cancelled -> stringResource(R.string.camping_status_cancelled)
 }
 
 // MARK: - Preview

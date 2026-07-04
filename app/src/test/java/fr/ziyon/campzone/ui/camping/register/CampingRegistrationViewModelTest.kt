@@ -16,6 +16,7 @@ import fr.ziyon.campzone.data.model.TransportationChoice
 import fr.ziyon.campzone.data.model.TransportationMode
 import fr.ziyon.campzone.data.notifications.RegistrationNotificationDispatcher
 import fr.ziyon.campzone.data.notifications.RegistrationNotificationRequest
+import fr.ziyon.campzone.data.notifications.FakeNotificationSettingsService
 import fr.ziyon.campzone.data.vehicle.FakeUserVehicleService
 import fr.ziyon.campzone.data.vehicle.FakeVehicleService
 import fr.ziyon.campzone.testing.MainDispatcherRule
@@ -83,6 +84,17 @@ class CampingRegistrationViewModelTest {
         assertEquals(RegistrationParticipantKind.Child, service.submitted.single().participant.kind)
         assertEquals(1, dispatcher.requests.size)
         assertEquals(1, dispatcher.requests.single().participantCount)
+    }
+
+    @Test
+    fun submitAutoSubscribesUserToCampingNotificationChannel() {
+        val notificationSettingsService = FakeNotificationSettingsService()
+        val viewModel = viewModel(notificationSettingsService = notificationSettingsService)
+
+        viewModel.load("camp-1", adult.copy(role = UserRole.User))
+        viewModel.submit(adult.copy(role = UserRole.User)) {}
+
+        assertEquals(listOf("camp-1"), notificationSettingsService.stored?.subscribedCampingIds)
     }
 
     @Test
@@ -177,12 +189,14 @@ class CampingRegistrationViewModelTest {
         vehicleService: FakeVehicleService = FakeVehicleService(),
         userVehicleService: FakeUserVehicleService = FakeUserVehicleService(),
         dispatcher: FakeRegistrationNotificationDispatcher = FakeRegistrationNotificationDispatcher(),
+        notificationSettingsService: FakeNotificationSettingsService = FakeNotificationSettingsService(),
     ) = CampingRegistrationViewModel(
         service,
         familyRepository,
         vehicleService,
         userVehicleService,
         dispatcher,
+        notificationSettingsService,
     )
 
     private fun camping(

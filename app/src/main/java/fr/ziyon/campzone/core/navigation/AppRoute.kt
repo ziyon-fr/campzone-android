@@ -43,6 +43,14 @@ sealed interface AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.Achievements}"
     }
 
+    data class ProfileAchievementsFor(val userId: String) : AppRoute {
+        override val route = "${ProfileAchievements.route}/${userId.asRouteSegment()}"
+    }
+
+    data class ProfileAchievementDetail(val userId: String, val achievementId: String) : AppRoute {
+        override val route = "${ProfileAchievementsFor(userId).route}/${achievementId.asRouteSegment()}"
+    }
+
     data object NotificationSettings : AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.NotificationSettings}"
     }
@@ -94,6 +102,10 @@ sealed interface AppRoute {
 
     data object AdminOnboarding : AppRoute {
         override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.AdminOnboarding}"
+    }
+
+    data object AdminAnalytics : AppRoute {
+        override val route = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.AdminAnalytics}"
     }
 
     data object UserDataExport : AppRoute {
@@ -175,6 +187,10 @@ sealed interface AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Album}"
     }
 
+    data class CampingSafety(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Safety}"
+    }
+
     data class CheckInScanner(val campingId: String) : AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.CheckInScanner}"
     }
@@ -205,6 +221,19 @@ sealed interface AppRoute {
 
     data class MyTransportation(val campingId: String) : AppRoute {
         override val route = "${CampingDetail(campingId).route}/${AppRoutePath.MyTransportation}"
+    }
+
+    data class MyTransportationJoin(val campingId: String, val invitationCode: String) : AppRoute {
+        override val route = "${MyTransportation(campingId).route}/join/${invitationCode.asRouteSegment()}"
+    }
+
+    data class TransportationDecision(
+        val campingId: String,
+        val kind: String,
+        val vehicleId: String,
+        val registrationId: String,
+    ) : AppRoute {
+        override val route = "${MyTransportation(campingId).route}/${kind.asRouteSegment()}/${vehicleId.asRouteSegment()}/${registrationId.asRouteSegment()}"
     }
 
     data class VehicleForm(
@@ -282,6 +311,11 @@ sealed interface AppRoute {
         override val route = "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.CampingEdit}"
     }
 
+    data class CampingTemplateClone(val campingId: String) : AppRoute {
+        override val route =
+            "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.CampingTemplateClone}"
+    }
+
     data class CampingRegistration(val campingId: String) : AppRoute {
         override val route =
             "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.Registration}"
@@ -331,6 +365,10 @@ sealed interface AppRoute {
         override val route = AppRoutePath.RegistrationReview
     }
 
+    data class CampingRegistrationReview(val campingId: String) : AppRoute {
+        override val route = "${RegistrationReview.route}/${campingId.asRouteSegment()}"
+    }
+
     data class CampingAttendees(val campingId: String) : AppRoute {
         override val route =
             "${AppRoutePath.Campings}/${campingId.asRouteSegment()}/${AppRoutePath.Attendees}"
@@ -362,6 +400,22 @@ sealed interface AppRoute {
             "${CampingSchedule(campingId).route}/${programId.asRouteSegment()}"
     }
 
+    data class ProgramAttendance(
+        val campingId: String,
+        val programId: String,
+    ) : AppRoute {
+        override val route =
+            "${CampingScheduleProgram(campingId, programId).route}/${AppRoutePath.ProgramAttendance}"
+    }
+
+    data class ProgramAttendanceScanner(
+        val campingId: String,
+        val programId: String,
+    ) : AppRoute {
+        override val route =
+            "${CampingScheduleProgram(campingId, programId).route}/${AppRoutePath.ProgramAttendanceScanner}"
+    }
+
     data class CampingScheduleProgramEditor(val campingId: String) : AppRoute {
         override val route =
             "${CampingSchedule(campingId).route}/${AppRoutePath.ProgramEditor}"
@@ -384,6 +438,11 @@ sealed interface AppRoute {
     data class CampingSongbook(val campingId: String) : AppRoute {
         override val route =
             "${CampingDetail(campingId).route}/${AppRoutePath.Songbook}"
+    }
+
+    data class CantusImport(val campingId: String) : AppRoute {
+        override val route =
+            "${CampingSongbook(campingId).route}/${AppRoutePath.CantusImport}"
     }
 
     data class SongDetail(
@@ -413,6 +472,35 @@ sealed interface AppRoute {
     data class CampingGuidelines(val campingId: String) : AppRoute {
         override val route =
             "${CampingDetail(campingId).route}/${AppRoutePath.Guidelines}"
+    }
+
+    data class CampingSupport(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.Support}"
+    }
+
+    data class CampingPackingChecklist(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.PackingChecklist}"
+    }
+
+    data class CampingPackingChecklistEditor(val campingId: String) : AppRoute {
+        override val route = "${CampingPackingChecklist(campingId).route}/${AppRoutePath.CampingEdit}"
+    }
+
+    data class CampingPackingShareImport(
+        val campingId: String,
+        val shareId: String,
+        val registrationId: String? = null,
+    ) : AppRoute {
+        override val route = buildString {
+            append(CampingPackingChecklist(campingId).route)
+            append("/")
+            append(AppRoutePath.PackingShare)
+            append("/")
+            append(shareId.asRouteSegment())
+            registrationId?.takeUnless { it.isBlank() }?.let {
+                append("?${AppRouteArgs.RegistrationId}=${it.asRouteSegment()}")
+            }
+        }
     }
 
     data class CampingGames(val campingId: String) : AppRoute {
@@ -468,6 +556,12 @@ internal object AppRouteArgs {
     const val GameId = "gameId"
     const val VehicleId = "vehicleId"
     const val UserVehicleId = "userVehicleId"
+    const val AchievementId = "achievementId"
+    const val UserId = "userId"
+    const val InvitationCode = "invitationCode"
+    const val DecisionKind = "decisionKind"
+    const val RegistrationId = "registrationId"
+    const val ShareId = "shareId"
 }
 
 internal object AppRoutePath {
@@ -488,6 +582,7 @@ internal object AppRoutePath {
     const val ModerationQueue = "moderation"
     const val RoleManagement = "roles"
     const val AdminOnboarding = "onboarding"
+    const val AdminAnalytics = "analytics"
     const val UserDataExport = "export"
     const val AppSupport = "support"
     const val Chat = "chat"
@@ -495,6 +590,7 @@ internal object AppRoutePath {
     const val PointHistory = "points"
     const val Polls = "polls"
     const val Album = "album"
+    const val Safety = "safety"
     const val CheckInScanner = "check-in-scanner"
     const val CheckInRecords = "check-in-records"
     const val CheckInQrPasses = "qr-passes"
@@ -523,13 +619,20 @@ internal object AppRoutePath {
     const val Attendees = "attendees"
     const val CampingCreate = "create"
     const val CampingEdit = "edit"
+    const val CampingTemplateClone = "template-clone"
     const val Schedule = "schedule"
     const val ProgramEditor = "program-editor"
+    const val ProgramAttendance = "attendance"
+    const val ProgramAttendanceScanner = "attendance-scanner"
     const val FoodMenu = "food-menu"
     const val Songbook = "songbook"
+    const val CantusImport = "cantus-import"
     const val SongEditor = "song-editor"
     const val TeamEditor = "team-editor"
     const val Guidelines = "guidelines"
+    const val PackingChecklist = "packing"
+    const val PackingShare = "shared"
+    const val Support = "support"
     const val AnnouncementComposer = "compose"
     const val Games = "games"
     const val GameEditor = "game-editor"
@@ -550,6 +653,7 @@ internal object AppRoutePattern {
     const val TeamPointHistory = "$PointHistory/{${AppRouteArgs.TeamId}}"
     const val CampingPolls = "$CampingDetail/${AppRoutePath.Polls}"
     const val CampingAlbum = "$CampingDetail/${AppRoutePath.Album}"
+    const val CampingSafety = "$CampingDetail/${AppRoutePath.Safety}"
     const val MyVehicles = "${AppRoutePath.Profile}/${AppRoutePath.MyVehicles}"
     const val UserVehicleEditor = "$MyVehicles/${AppRoutePath.UserVehicleEditor}"
     const val UserVehicleEdit = "$UserVehicleEditor/{${AppRouteArgs.UserVehicleId}}"
@@ -561,6 +665,8 @@ internal object AppRoutePattern {
     const val TransportationDashboard = "$CampingDetail/${AppRoutePath.TransportationDashboard}"
     const val TransportationHistory = "$CampingDetail/${AppRoutePath.TransportationHistory}"
     const val MyTransportation = "$CampingDetail/${AppRoutePath.MyTransportation}"
+    const val MyTransportationJoin = "$MyTransportation/join/{${AppRouteArgs.InvitationCode}}"
+    const val TransportationDecision = "$MyTransportation/{${AppRouteArgs.DecisionKind}}/{${AppRouteArgs.VehicleId}}/{${AppRouteArgs.RegistrationId}}"
     const val VehicleForm = "$CampingDetail/${AppRoutePath.VehicleForm}"
     const val VehicleEdit = "$VehicleForm/{${AppRouteArgs.VehicleId}}"
     const val VehicleQr = "$CampingDetail/${AppRoutePath.VehicleQr}/{${AppRouteArgs.VehicleId}}"
@@ -581,21 +687,33 @@ internal object AppRoutePattern {
     const val CampingVenueMapEditor = "$CampingDetail/${AppRoutePath.VenueMapEditor}"
     const val CampingGuardianUpdates = "$CampingDetail/${AppRoutePath.GuardianUpdates}"
     const val RegistrationReview = AppRoutePath.RegistrationReview
+    const val CampingRegistrationReview = "$RegistrationReview/{${AppRouteArgs.CampingId}}"
     const val CampingAttendees = "$CampingDetail/${AppRoutePath.Attendees}"
     const val AttendeeProfile = "$CampingAttendees/{${AppRouteArgs.AttendeeId}}"
     const val CampingCreate = "${AppRoutePath.Campings}/${AppRoutePath.CampingCreate}"
     const val CampingEdit = "$CampingDetail/${AppRoutePath.CampingEdit}"
+    const val CampingTemplateClone = "$CampingDetail/${AppRoutePath.CampingTemplateClone}"
     const val CampingSchedule = "$CampingDetail/${AppRoutePath.Schedule}"
     const val CampingScheduleEditor = "$CampingSchedule/${AppRoutePath.CampingEdit}"
-    const val CampingScheduleProgram = "$CampingSchedule/{${AppRouteArgs.ProgramId}}"
     const val CampingScheduleProgramEditor = "$CampingSchedule/${AppRoutePath.ProgramEditor}"
+    const val ProgramAttendance =
+        "$CampingSchedule/{${AppRouteArgs.ProgramId}}/${AppRoutePath.ProgramAttendance}"
+    const val ProgramAttendanceScanner =
+        "$CampingSchedule/{${AppRouteArgs.ProgramId}}/${AppRoutePath.ProgramAttendanceScanner}"
+    const val CampingScheduleProgram = "$CampingSchedule/{${AppRouteArgs.ProgramId}}"
     const val CampingFoodMenu = "$CampingDetail/${AppRoutePath.FoodMenu}"
     const val CampingFoodMenuEditor = "$CampingFoodMenu/${AppRoutePath.CampingEdit}"
     const val CampingSongbook = "$CampingDetail/${AppRoutePath.Songbook}"
+    const val CantusImport = "$CampingSongbook/${AppRoutePath.CantusImport}"
     const val SongEditor = "$CampingSongbook/${AppRoutePath.SongEditor}"
     const val SongEdit = "$SongEditor/{${AppRouteArgs.SongId}}"
     const val SongDetail = "$CampingSongbook/{${AppRouteArgs.SongId}}"
     const val CampingGuidelines = "$CampingDetail/${AppRoutePath.Guidelines}"
+    const val CampingPackingChecklist = "$CampingDetail/${AppRoutePath.PackingChecklist}"
+    const val CampingPackingChecklistEditor = "$CampingPackingChecklist/${AppRoutePath.CampingEdit}"
+    const val CampingPackingShareImport =
+        "$CampingPackingChecklist/${AppRoutePath.PackingShare}/{${AppRouteArgs.ShareId}}?${AppRouteArgs.RegistrationId}={${AppRouteArgs.RegistrationId}}"
+    const val CampingSupport = "$CampingDetail/${AppRoutePath.Support}"
     const val AnnouncementComposer = "${AppRoutePath.Announcements}/${AppRoutePath.AnnouncementComposer}"
     const val CampingGames = "$CampingDetail/${AppRoutePath.Games}"
     const val GameEditor = "$CampingGames/${AppRoutePath.GameEditor}"
@@ -603,6 +721,8 @@ internal object AppRoutePattern {
     const val WinnerReveal = "$CampingGames/${AppRoutePath.WinnerReveal}"
     const val GameDetail = "$CampingGames/{${AppRouteArgs.GameId}}"
     const val ModerationQueue = "${AppRoutePath.Profile}/${AppRoutePath.AdminTools}/${AppRoutePath.ModerationQueue}"
+    const val ProfileAchievementsFor = "${AppRoutePath.Profile}/${AppRoutePath.Achievements}/{${AppRouteArgs.UserId}}"
+    const val ProfileAchievementDetail = "$ProfileAchievementsFor/{${AppRouteArgs.AchievementId}}"
 }
 
 private fun String.asRouteSegment(): String =

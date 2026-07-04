@@ -24,31 +24,69 @@ class FoodMenuTest {
             campingId = "camp-1",
             date = date,
             meal = FoodMealKind.Dinner,
-            dishes = listOf("Rice", "Beans", " "),
+            items = listOf(
+                FoodMenuItem(
+                    id = "rice",
+                    name = "Rice",
+                    details = "Steamed",
+                    allergens = listOf("sesame"),
+                    note = "Serve warm",
+                ),
+                FoodMenuItem(id = "beans", name = "Beans"),
+                FoodMenuItem(id = "blank", name = " "),
+            ),
             notes = "Vegan option available",
         )
         val payload = FoodMenuPayload.entryPayload(original)
         assertEquals("camp-1", payload["campingID"])
         assertEquals("dinner", payload["meal"])
         assertEquals(listOf("Rice", "Beans"), payload["dishes"]) // blanks dropped
+        @Suppress("UNCHECKED_CAST")
+        val itemPayloads = payload["items"] as List<Map<String, Any?>>
+        assertEquals(2, itemPayloads.size)
+        assertEquals("Steamed", itemPayloads.first()["details"])
+        assertEquals(listOf("sesame"), itemPayloads.first()["allergens"])
 
         val decoded = payload.toFoodMenuEntryOrNull(documentId = original.id, campingId = "camp-1")!!
         assertEquals(FoodMealKind.Dinner, decoded.meal)
-        assertEquals(listOf("Rice", "Beans"), decoded.dishes)
+        assertEquals(listOf("Rice", "Beans"), decoded.dishes.take(2))
+        assertEquals("Steamed", decoded.items.first().details)
+        assertEquals("Serve warm", decoded.items.first().note)
         assertEquals("Vegan option available", decoded.notes)
     }
 
     @Test
-    fun descriptionFormatAndReverseParse() {
-        val rendered = FoodMenuProgramSync.renderDescription(
-            dishes = listOf("Pasta", "Salad"),
-            notes = "Gluten free",
-        )
-        assertEquals("- Pasta\n- Salad\n\nNotes: Gluten free", rendered)
+    fun legacyDishNamesDecodeAsStructuredItems() {
+        val date = dateOf(2026, 7, 15)
+        val decoded = mapOf<String, Any?>(
+            "campingID" to "camp-1",
+            "date" to date,
+            "meal" to "lunch",
+            "dishes" to listOf(" Soup ", "", "Bread"),
+        ).toFoodMenuEntryOrNull("2026-07-15-lunch", "camp-1")!!
 
-        val parsed = FoodMenuProgramSync.parseDishes("Menu: Pasta, * Salad\n\nNotes: Gluten free")
-        assertEquals(listOf("Pasta", "Salad"), parsed) // strips "- ", drops Notes line
-        assertEquals("Gluten free", FoodMenuProgramSync.parseNotes(rendered))
+        assertEquals(listOf("Soup", "Bread"), decoded.dishes)
+        assertTrue(decoded.items.all { it.allergens.isEmpty() })
+    }
+
+    @Test
+    fun structuredItemsTakePriorityAndMatchProfileAllergens() {
+        val date = dateOf(2026, 7, 15)
+        val decoded = mapOf<String, Any?>(
+            "date" to date,
+            "meal" to "dinner",
+            "dishes" to listOf("Legacy dish"),
+            "items" to listOf(
+                mapOf(
+                    "id" to "dish-1",
+                    "name" to "Satay",
+                    "allergens" to listOf("peanuts", "soy"),
+                ),
+            ),
+        ).toFoodMenuEntryOrNull("2026-07-15-dinner", "camp-1")!!
+
+        assertEquals(listOf("Satay"), decoded.dishes)
+        assertEquals(listOf("peanuts"), decoded.items.single().matchedAllergens(setOf("PEANUTS")))
     }
 
     @Test
@@ -59,7 +97,7 @@ class FoodMenuTest {
             campingId = "camp-1",
             date = date,
             meal = FoodMealKind.Breakfast,
-            dishes = listOf("Eggs"),
+            items = listOf(FoodMenuItem(name = "Eggs")),
         )
         val program = FoodMenuProgramSync.programFor(entry, existing = null)
 
@@ -81,7 +119,7 @@ class FoodMenuTest {
             campingId = "camp-1",
             date = date,
             meal = FoodMealKind.Breakfast,
-            dishes = listOf("Eggs"),
+            items = listOf(FoodMenuItem(name = "Eggs")),
         )
 
         val program = FoodMenuProgramSync.programFor(entry, existing = null)
@@ -100,7 +138,7 @@ class FoodMenuTest {
             campingId = "camp-1",
             date = date,
             meal = FoodMealKind.Lunch,
-            dishes = listOf("Soup"),
+            items = listOf(FoodMenuItem(name = "Soup")),
         )
         val existing = Program(
             id = "menu-2026-07-15-lunch",
@@ -115,10 +153,10 @@ class FoodMenuTest {
         )
         val program = FoodMenuProgramSync.programFor(entry, existing)
 
-        // menu-owned fields regenerated…
+        // Meal identity is synchronized…
         assertEquals(ProgramType.Lunch, program.type)
-        assertTrue(program.description.contains("- Soup"))
-        // …but leader scheduling preserved
+        // …but leader-owned content and scheduling are preserved.
+        assertEquals("old", program.description)
         assertEquals(existing.startDate, program.startDate)
         assertEquals("Riverside", program.location)
         assertEquals(existing.id, program.id)
@@ -136,16 +174,39 @@ class FoodMenuTest {
             startDate = start,
             endDate = Date(start.time + 60 * 60_000L),
             location = "Dining hall",
-            description = "- Chili\n- Rice\n\nNotes: Gluten-free",
+            description = "Meet by the dining tent.",
+        )
+        val existing = FoodMenuEntry(
+            id = "2026-08-03-lunch",
+            campingId = "camp-1",
+            date = start,
+            meal = FoodMealKind.Lunch,
+            items = listOf(FoodMenuItem(name = "Chili"), FoodMenuItem(name = "Rice")),
+            notes = "Gluten-free",
         )
 
-        val entry = FoodMenuProgramSync.menuEntryFor(program, existing = null)!!
+        val entry = FoodMenuProgramSync.menuEntryFor(program, existing = existing)!!
 
         assertEquals("2026-08-03-lunch", entry.id)
         assertEquals(FoodMealKind.Lunch, entry.meal)
         assertEquals(listOf("Chili", "Rice"), entry.dishes)
         assertEquals("Gluten-free", entry.notes)
         assertTrue(FoodMenuProgramSync.matches(program, entry))
+    }
+
+    @Test
+    fun newMealProgramDoesNotSerializeMenuIntoDescription() {
+        val date = dateOf(2026, 7, 15)
+        val entry = FoodMenuEntry(
+            id = DateKeys.foodMenuId(date, FoodMealKind.Dinner),
+            campingId = "camp-1",
+            date = date,
+            meal = FoodMealKind.Dinner,
+            items = listOf(FoodMenuItem(name = "Rice"), FoodMenuItem(name = "Beans")),
+            notes = "Vegan option",
+        )
+
+        assertEquals("", FoodMenuProgramSync.programFor(entry, existing = null).description)
     }
 
     private companion object {

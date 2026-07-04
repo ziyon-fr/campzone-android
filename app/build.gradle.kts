@@ -17,9 +17,10 @@ android {
     defaultConfig {
         applicationId = "fr.ziyon.campzone"
         minSdk = 24
+        //noinspection OldTargetApi
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 8
+        versionName = "1.0.3.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -33,7 +34,8 @@ android {
             )
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -97,8 +99,9 @@ dependencies {
     // osmdroid (OpenStreetMap — key-free in-app venue map preview)
     implementation(libs.osmdroid.android)
 
-    // Markwon (Markdown → Spanned for announcement body)
+    // Markdown (Markdown → Spanned for announcement/camping body, including tables)
     implementation(libs.markwon.core)
+    implementation(libs.markwon.ext.tables)
 
     // Stripe PaymentSheet
     implementation(libs.stripe.android)

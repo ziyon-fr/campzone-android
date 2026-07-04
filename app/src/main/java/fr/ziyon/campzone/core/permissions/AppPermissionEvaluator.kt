@@ -63,6 +63,7 @@ class AppPermissionEvaluator {
             AppPermission.AssignPoints,
             AppPermission.RevealWinners,
             AppPermission.ManageAlbumMedia,
+            AppPermission.ManageAlbumSettings,
             AppPermission.ManageOwnChurchTransportation,
             AppPermission.AwardAchievements,
             AppPermission.ManageOwnChurchCheckIns,
@@ -132,6 +133,13 @@ class AppPermissionEvaluator {
     fun canManageSongs(user: PermissionUser?): Boolean =
         can(user, AppPermission.ManageSongbook)
 
+    fun canManageSongbook(
+        user: PermissionUser?,
+        camping: CampingPermissionContext?,
+    ): Boolean = user.isCampingCreator(camping) ||
+        can(user, AppPermission.ManageSongbook) &&
+        (user?.role == UserRole.Admin || user.isOwnChurchCamping(camping))
+
     fun canManageTeams(
         user: PermissionUser?,
         camping: CampingPermissionContext?,
@@ -157,6 +165,11 @@ class AppPermissionEvaluator {
         user: PermissionUser?,
         camping: CampingPermissionContext?,
     ): Boolean = canManageScoped(user, AppPermission.ManageAlbumMedia, camping)
+
+    fun canManageAlbumSettings(
+        user: PermissionUser?,
+        camping: CampingPermissionContext?,
+    ): Boolean = canManageScoped(user, AppPermission.ManageAlbumSettings, camping)
 
     fun canManagePolls(
         user: PermissionUser?,
@@ -224,6 +237,9 @@ class AppPermissionEvaluator {
 
     fun canViewAdminTools(user: PermissionUser?): Boolean =
         can(user, AppPermission.ViewAdminTools)
+
+    /** Global Home-featured camping selection is reserved for administrators. */
+    fun canPinFeaturedCamping(user: PermissionUser?): Boolean = user?.role == UserRole.Admin
 
     fun canManageAnyCamping(user: PermissionUser?): Boolean =
         canCreateAnyCamping(user) ||
@@ -312,7 +328,6 @@ class AppPermissionEvaluator {
                 AppPermission.RegisterForCampings,
                 AppPermission.ViewAnnouncements,
                 AppPermission.ViewSongbook,
-                AppPermission.ManageFamilyRegistrations
             )
 
             UserRole.Adult -> setOf(
@@ -339,11 +354,13 @@ class AppPermissionEvaluator {
                 AppPermission.ManageGames,
                 AppPermission.AssignPoints,
                 AppPermission.AwardAchievements,
+                AppPermission.ManageAlbumSettings,
                 AppPermission.ManageOwnChurchCheckIns,
                 AppPermission.ManageOwnChurchTransportation,
                 AppPermission.AssignOwnChurchRoles,
                 AppPermission.ViewParticipantProfiles,
                 AppPermission.EditOwnChurchGuidelines,
+                AppPermission.ManageSongbook,
                 AppPermission.ManageFamilyRegistrations
             )
 
@@ -360,6 +377,7 @@ class AppPermissionEvaluator {
                 AppPermission.ManageSchedule,
                 AppPermission.ManageGames,
                 AppPermission.AwardAchievements,
+                AppPermission.ManageAlbumSettings,
                 AppPermission.ManageOwnChurchCheckIns,
                 AppPermission.ManageOwnChurchTransportation,
                 AppPermission.AssignOwnChurchRoles,
@@ -394,6 +412,8 @@ class AppPermissionEvaluator {
                 AppPermission.ManageTeams,
                 AppPermission.ManageGames,
                 AppPermission.AssignPoints,
+                AppPermission.ManageSongbook,
+                AppPermission.ManageAlbumSettings,
                 AppPermission.AwardAchievements,
                 AppPermission.ManageOwnChurchCheckIns,
                 AppPermission.ManageOwnChurchTransportation,

@@ -14,6 +14,8 @@ import fr.ziyon.campzone.data.model.VenueCategory
 import fr.ziyon.campzone.data.model.VenueIconCatalog
 import fr.ziyon.campzone.data.model.VenueMap
 import fr.ziyon.campzone.data.model.VenuePoint
+import fr.ziyon.campzone.data.model.isAtPointCapacity
+import fr.ziyon.campzone.data.model.remainingPointCapacity
 import fr.ziyon.campzone.data.model.visibleForGameLocationRules
 import fr.ziyon.campzone.data.venuemap.VenueMapService
 import fr.ziyon.campzone.data.venuemap.ParsedGpxPoint
@@ -235,6 +237,14 @@ class VenueMapViewModel @Inject constructor(
                 longitude = form.parsedCoordinate?.second,
             )
         } else {
+            if (ready.map.isAtPointCapacity) {
+                _uiState.update {
+                    (it as? VenueMapUiState.Ready)?.copy(
+                        operationError = MSG_POINT_LIMIT_REACHED,
+                    ) ?: it
+                }
+                return
+            }
             points += VenuePoint(
                 id = UUID.randomUUID().toString(),
                 name = form.trimmedName,
@@ -251,19 +261,33 @@ class VenueMapViewModel @Inject constructor(
         persist(ready.map.copy(points = points), MSG_SAVED)
     }
 
-    fun importGpxPoints(parsedPoints: List<ParsedGpxPoint>) {
+    fun importGpxPoints(parsedPoints: List<ParsedGpxPoint>, category: VenueCategory = VenueCategory.Other) {
         if (parsedPoints.isEmpty()) return
         val ready = _uiState.value as? VenueMapUiState.Ready ?: return
-        val imported = parsedPoints.map { point ->
+        val capacity = ready.map.remainingPointCapacity
+        if (capacity <= 0) {
+            _uiState.update {
+                (it as? VenueMapUiState.Ready)?.copy(
+                    operationError = MSG_POINT_LIMIT_REACHED,
+                ) ?: it
+            }
+            return
+        }
+        val importCategory = category.takeUnless { it == VenueCategory.Custom } ?: VenueCategory.Other
+        val admitted = parsedPoints.take(capacity)
+        val imported = admitted.map { point ->
             VenuePoint(
                 id = UUID.randomUUID().toString(),
                 name = point.name,
-                category = VenueCategory.Other,
+                category = importCategory,
                 latitude = point.latitude,
                 longitude = point.longitude,
             )
         }
-        persist(ready.map.copy(points = ready.map.points + imported), MSG_IMPORTED)
+        persist(
+            ready.map.copy(points = ready.map.points + imported),
+            if (admitted.size < parsedPoints.size) MSG_IMPORTED_FULL else MSG_IMPORTED,
+        )
     }
 
     fun deletePoint(id: String) {
@@ -381,6 +405,8 @@ class VenueMapViewModel @Inject constructor(
         const val MSG_COORD_SET = "Map location set."
         const val MSG_COORD_CLEARED = "Map location cleared."
         const val MSG_IMPORTED = "GPX locations imported."
+        const val MSG_IMPORTED_FULL = "GPX locations imported until the map reached its location limit."
+        const val MSG_POINT_LIMIT_REACHED = "This map is at the 120-location limit. Remove a pin before adding another."
         const val MSG_IMAGE_UPDATED = "Site map updated."
         const val MSG_IMAGE_REMOVED = "Site map removed."
     }

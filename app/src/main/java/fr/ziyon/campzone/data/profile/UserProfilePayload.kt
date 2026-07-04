@@ -19,6 +19,7 @@ internal object UserProfilePayload {
             displayName = user.displayName.trim(),
             church = user.church.trim(),
             skills = cleanedList(user.skills),
+            allergies = AllergyFormatter.cleaned(user.allergies),
             profession = user.profession.trim(),
             education = user.education.trim(),
             pathfinderRank = user.pathfinderRank.trim(),
@@ -42,6 +43,7 @@ internal object UserProfilePayload {
             "displayName" to savedUser.displayName,
             "church" to savedUser.church,
             "skills" to savedUser.skills,
+            "allergies" to savedUser.allergies,
             "profession" to savedUser.profession,
             "education" to savedUser.education,
             "pathfinderRank" to savedUser.pathfinderRank,
@@ -100,6 +102,7 @@ internal object UserProfilePayload {
         payload.putAll(participantProfilePayload(savedUser, deleteField))
         payload["languages"] = savedUser.languages
         payload["preferredLanguage"] = savedUser.preferredLanguage
+        payload["allergies"] = savedUser.allergies
 
         val age = savedUser.age
         if (age == null) {

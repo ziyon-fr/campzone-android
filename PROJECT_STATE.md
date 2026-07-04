@@ -1,3 +1,37 @@
+# Project State - F3 recurring camps and program attendance
+
+Updated: 2026-06-10
+
+## Current position
+
+- Branch: `venue-map-games-locations-instructions`.
+- iOS F3 recurring camps/templates and per-program attendance are complete and
+  verified. Android parity for the same F3 slice is now implemented.
+- Focused Android verification is green:
+  `./gradlew testDebugUnitTest --tests 'fr.ziyon.campzone.ui.attendance.*' --tests 'fr.ziyon.campzone.ui.camping.template.*' --tests 'fr.ziyon.campzone.data.model.CampingTemplateCloneTest' --tests 'fr.ziyon.campzone.core.permissions.AppPermissionEvaluatorTest'`
+  with `JAVA_HOME=/Applications/Android Studio.app/Contents/jbr/Contents/Home`.
+- Full Android verification is green with the same JBR:
+  `./gradlew testDebugUnitTest` and `./gradlew lintDebug assembleDebug`.
+
+## F3 surface shipped
+
+- Recurring camp template clone: `CampingTemplateCloneForm`/request/options,
+  `Camping.templateClone`, Firestore clone service, Hilt fake/preview paths,
+  typed `CampingTemplateClone` route, and localized clone screen.
+- Per-program attendance: `ProgramAttendanceRecord`, Firestore service/fake,
+  records/scanner ViewModel and screens, typed attendance routes registered
+  before the dynamic schedule-program route, and program-detail/camping-detail
+  entry points.
+- Scoped songbook parity: `canManageSongbook` gates writes and template-copy
+  eligibility using the iOS rule (admin, creator, or own-church youth
+  director/leader).
+- Tests added: model clone defaults/validation/live-state reset, clone
+  ViewModel permission/validation/create flow, attendance QR
+  success/duplicate/reject/save-failure retry/restricted flow, and scoped
+  songbook permission coverage.
+
+---
+
 # Project State - D1 Transportation Tickets
 
 Updated: 2026-05-29

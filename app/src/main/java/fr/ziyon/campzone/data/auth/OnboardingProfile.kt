@@ -89,7 +89,7 @@ enum class PreferredLanguage(
             entries.firstOrNull { it.wireValue == value }
 
         fun defaultForLocale(locale: Locale = Locale.getDefault()): PreferredLanguage =
-            fromWire(locale.language) ?: French
+            fromWire(locale.language) ?: English
     }
 }
 
@@ -103,7 +103,6 @@ internal object OnboardingProfilePayload {
             "church" to profile.church.trim(),
             "languages" to profile.languageCodes,
             "preferredLanguage" to profile.preferredLanguage.trim(),
-            "role" to "adult",
             "onboardingCompleted" to true,
             "updatedAt" to serverTimestamp,
         )

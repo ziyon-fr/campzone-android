@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBus
@@ -29,11 +30,13 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
@@ -73,11 +76,13 @@ import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
+import fr.ziyon.campzone.data.family.FamilyRelationship
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.ui.camping.label
+import fr.ziyon.campzone.ui.common.AllergyChips
 import java.text.DateFormat
 
 @Composable
@@ -86,6 +91,7 @@ fun AttendeeProfileRoute(
     attendeeId: String,
     authenticatedUser: AuthenticatedUser,
     onBack: () -> Unit,
+    onOpenRelatedAttendee: (String, String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AttendeeProfileViewModel = hiltViewModel(),
 ) {
@@ -112,6 +118,7 @@ fun AttendeeProfileRoute(
         state = state,
         snackbarHostState = snackbarHostState,
         onBack = onBack,
+        onOpenRelatedAttendee = onOpenRelatedAttendee,
         onStatusChange = viewModel::updateStatus,
         onDeleteAttendee = { viewModel.deleteAttendee(onDeleted = onBack) },
         modifier = modifier,
@@ -124,6 +131,7 @@ fun AttendeeProfileScreen(
     state: AttendeeProfileUiState,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
+    onOpenRelatedAttendee: (String, String) -> Unit,
     onStatusChange: (RegistrationApprovalStatus) -> Unit,
     onDeleteAttendee: () -> Unit,
     modifier: Modifier = Modifier,
@@ -189,6 +197,7 @@ fun AttendeeProfileScreen(
                 camping = state.camping,
                 attendee = state.attendee,
                 onStatusChange = onStatusChange,
+                onOpenRelatedAttendee = onOpenRelatedAttendee,
                 onShowDeleteConfirmation = { showDeleteConfirmation = true },
                 modifier = Modifier.padding(innerPadding),
             )
@@ -240,9 +249,13 @@ private fun AttendeeProfileContent(
     camping: Camping,
     attendee: CampingAttendee,
     onStatusChange: (RegistrationApprovalStatus) -> Unit,
+    onOpenRelatedAttendee: (String, String) -> Unit,
     onShowDeleteConfirmation: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val relatedAttendees = remember(camping.attendees, attendee.id) {
+        relatedAttendees(camping, attendee)
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -271,6 +284,12 @@ private fun AttendeeProfileContent(
                         attendee.languages.joinToString(),
                     )
                 }
+                attendee.relationship?.let { relationship ->
+                    InfoRow(
+                        stringResource(R.string.attendee_profile_relationship),
+                        attendee.relationshipDisplayName(relationship),
+                    )
+                }
             }
         }
         if (attendee.participantKind == RegistrationParticipantKind.Child) {
@@ -291,6 +310,16 @@ private fun AttendeeProfileContent(
                 }
             }
         }
+        if (relatedAttendees.isNotEmpty()) {
+            item {
+                RelatedAttendeesSection(
+                    related = relatedAttendees,
+                    onOpen = { relatedAttendee ->
+                        onOpenRelatedAttendee(camping.id, relatedAttendee.attendee.id)
+                    },
+                )
+            }
+        }
         item {
             InfoSection(
                 title = stringResource(R.string.attendee_profile_emergency),
@@ -306,6 +335,16 @@ private fun AttendeeProfileContent(
                 )
                 if (attendee.medicalNotes.isNotBlank()) {
                     InfoRow(stringResource(R.string.attendee_profile_medical_notes), attendee.medicalNotes)
+                }
+            }
+        }
+        if (attendee.allergies.isNotEmpty()) {
+            item {
+                InfoSection(
+                    title = stringResource(R.string.profile_allergies),
+                    icon = Icons.Filled.WarningAmber,
+                ) {
+                    AllergyChips(tokens = attendee.allergies)
                 }
             }
         }
@@ -399,6 +438,144 @@ private fun AttendeeProfileContent(
             }
         }
     }
+}
+
+internal enum class RelatedAttendeeKind { Guardian, Participant }
+
+internal data class RelatedAttendee(
+    val attendee: CampingAttendee,
+    val kind: RelatedAttendeeKind,
+    val sourceRelationship: FamilyRelationship? = null,
+)
+
+internal fun relatedAttendees(camping: Camping, attendee: CampingAttendee): List<RelatedAttendee> {
+    val related = mutableListOf<RelatedAttendee>()
+    val seen = mutableSetOf(attendee.id)
+    val guardianId = attendee.guardianId?.takeUnless { it.isBlank() }
+    if (guardianId != null) {
+        val guardian = camping.attendees.firstOrNull {
+            it.userId == guardianId && it.participantKind == RegistrationParticipantKind.SelfParticipant
+        } ?: camping.attendees.firstOrNull { it.id == guardianId }
+        if (guardian != null && seen.add(guardian.id)) {
+            related += RelatedAttendee(
+                attendee = guardian,
+                kind = RelatedAttendeeKind.Guardian,
+                sourceRelationship = attendee.relationship,
+            )
+        }
+        camping.attendees
+            .filter { it.guardianId == guardianId }
+            .forEach { sibling ->
+                if (seen.add(sibling.id)) {
+                    related += RelatedAttendee(
+                        attendee = sibling,
+                        kind = RelatedAttendeeKind.Participant,
+                        sourceRelationship = sibling.relationship,
+                    )
+                }
+            }
+    }
+    camping.attendees
+        .filter { it.guardianId == attendee.userId }
+        .forEach { dependent ->
+            if (seen.add(dependent.id)) {
+                related += RelatedAttendee(
+                    attendee = dependent,
+                    kind = RelatedAttendeeKind.Participant,
+                    sourceRelationship = dependent.relationship,
+                )
+            }
+        }
+    return related
+}
+
+@Composable
+private fun RelatedAttendeesSection(
+    related: List<RelatedAttendee>,
+    onOpen: (RelatedAttendee) -> Unit,
+) {
+    InfoSection(
+        title = stringResource(R.string.attendee_profile_family_at_camp),
+        icon = Icons.Filled.FamilyRestroom,
+    ) {
+        related.forEachIndexed { index, relative ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpen(relative) }
+                    .padding(vertical = CzSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            ) {
+                CzAvatar(
+                    imageUrl = relative.attendee.photoUrl,
+                    contentDescription = relative.attendee.displayName,
+                    initials = relative.attendee.displayName,
+                    size = CzAvatarSize.Small,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = relative.attendee.displayName,
+                        color = MaterialTheme.czColors.textPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = relative.caption(),
+                        color = MaterialTheme.czColors.textSecondary,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .background(relative.attendee.registrationStatus.statusColor(), CircleShape),
+                )
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.czColors.textSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            if (index < related.lastIndex) {
+                HorizontalDivider(color = MaterialTheme.czColors.divider)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RelatedAttendee.caption(): String {
+    val relationship = sourceRelationship?.let { attendee.relationshipDisplayName(it) }
+    return when (kind) {
+        RelatedAttendeeKind.Guardian -> relationship?.let {
+            stringResource(R.string.attendee_profile_guardian_relationship, it)
+        } ?: stringResource(R.string.attendee_profile_guardian)
+        RelatedAttendeeKind.Participant -> relationship
+            ?: stringResource(R.string.attendee_profile_participant)
+    }
+}
+
+@Composable
+private fun CampingAttendee.relationshipDisplayName(relationship: FamilyRelationship): String {
+    if (relationship == FamilyRelationship.Other && !customRelationshipLabel.isNullOrBlank()) {
+        return customRelationshipLabel.orEmpty()
+    }
+    return stringResource(
+        when (relationship) {
+            FamilyRelationship.Parent -> R.string.relationship_parent
+            FamilyRelationship.StepParent -> R.string.relationship_step_parent
+            FamilyRelationship.LegalGuardian -> R.string.relationship_legal_guardian
+            FamilyRelationship.Grandparent -> R.string.relationship_grandparent
+            FamilyRelationship.Sibling -> R.string.relationship_sibling
+            FamilyRelationship.Aunt -> R.string.relationship_aunt
+            FamilyRelationship.Uncle -> R.string.relationship_uncle
+            FamilyRelationship.Cousin -> R.string.relationship_cousin
+            FamilyRelationship.Friend -> R.string.relationship_friend
+            FamilyRelationship.Other -> R.string.relationship_other
+        },
+    )
 }
 
 @Composable

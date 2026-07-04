@@ -4,8 +4,9 @@ package fr.ziyon.campzone.data.model
  * Hand-built Firestore payloads for `campings/{id}` (`02-firestore-schema.md`
  * §3, §6 data-contract rules). `serverTimestamp`/`deleteField` are opaque tokens
  * so the shape is unit-testable without Firebase. The main [campingPayload]
- * never writes `guidelines` or `winnerRevealPolicy` - those have dedicated
- * paths ([guidelinesPayload], [winnerRevealPolicyPayload]).
+ * never writes `guidelines`, `winnerRevealPolicy`, or `isFeatured` - those have
+ * dedicated paths ([guidelinesPayload], [winnerRevealPolicyPayload],
+ * [featuredPayload]).
  */
 internal object CampingPayload {
 
@@ -24,6 +25,7 @@ internal object CampingPayload {
             "organizerLevel" to organizerLevelMap(camping.organizerLevel),
             "location" to camping.location.trim(),
             "registrationStatus" to camping.registrationStatus.wireValue,
+            "publicationStatus" to camping.publicationStatus.wireValue,
             "priceItems" to camping.priceItems.map(::priceItemMap),
             "agePrices" to camping.agePrices.map(::agePriceMap),
             "transportationOptions" to camping.transportationOptions.map(::transportationOptionMap),
@@ -57,7 +59,7 @@ internal object CampingPayload {
     fun organizerLevelMap(level: OrganizerLevel): Map<String, Any?> =
         linkedMapOf(
             "type" to level.type.wireValue,
-            "value" to level.value.trim(),
+            "value" to level.normalizedValue,
         )
 
     fun priceItemMap(item: CampingPriceItem): Map<String, Any?> {
@@ -114,6 +116,26 @@ internal object CampingPayload {
     fun cancelPayload(serverTimestamp: Any): Map<String, Any?> =
         linkedMapOf(
             "registrationStatus" to CampingRegistrationStatus.Cancelled.wireValue,
+            "updatedAt" to serverTimestamp,
+        )
+
+    /** Home pin path - writes only `{ isFeatured, updatedAt }` as a merge. */
+    fun featuredPayload(
+        isFeatured: Boolean,
+        serverTimestamp: Any,
+    ): Map<String, Any?> =
+        linkedMapOf(
+            "isFeatured" to isFeatured,
+            "updatedAt" to serverTimestamp,
+        )
+
+    /** Publication path - writes only `{ publicationStatus, updatedAt }`. */
+    fun publicationPayload(
+        status: CampingPublicationStatus,
+        serverTimestamp: Any,
+    ): Map<String, Any?> =
+        linkedMapOf(
+            "publicationStatus" to status.wireValue,
             "updatedAt" to serverTimestamp,
         )
 

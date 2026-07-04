@@ -3,6 +3,7 @@ package fr.ziyon.campzone.ui.camping.admin
 import fr.ziyon.campzone.data.camping.FakeCampingService
 import fr.ziyon.campzone.data.media.FakeImageUploader
 import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.model.CampingPublicationStatus
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
@@ -46,6 +47,48 @@ class CampingAdminViewModelTest {
         assertFalse(deletedCallbackCalled)
         assertFalse(viewModel.uiState.value.isDeleting)
         assertEquals("Could not delete camping.", viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun newCampingSavesAsDraftUntilExplicitlyPublished() = runTest {
+        val service = FakeCampingService()
+        val viewModel = CampingAdminViewModel(service, FakeImageUploader())
+        viewModel.prepareEditor(campingId = null)
+        viewModel.updateForm(
+            viewModel.uiState.value.form.copy(
+                title = "Summer Camp",
+                description = "A camp",
+                location = "Lake Annecy",
+                organizerName = "South",
+            ),
+        )
+
+        viewModel.saveEditorForm(campingId = null) {}
+
+        assertEquals(CampingPublicationStatus.Draft, service.saved.single().publicationStatus)
+    }
+
+    @Test
+    fun organizationNameIsRequiredForEveryOrganizerType() = runTest {
+        OrganizerType.entries.forEach { organizerType ->
+            val service = FakeCampingService()
+            val viewModel = CampingAdminViewModel(service, FakeImageUploader())
+            viewModel.prepareEditor(campingId = null)
+            viewModel.updateForm(
+                viewModel.uiState.value.form.copy(
+                    title = "Summer Camp",
+                    description = "A camp",
+                    location = "Lake Annecy",
+                    organizerType = organizerType,
+                    organizerName = "   ",
+                ),
+            )
+
+            viewModel.saveEditorForm(campingId = null) {}
+
+            assertTrue(service.saved.isEmpty())
+            assertTrue(viewModel.uiState.value.validationErrors.contains("Organization name is required."))
+        }
     }
 
     private fun camping() = Camping(

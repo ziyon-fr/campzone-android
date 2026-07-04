@@ -74,11 +74,52 @@ class MediaSongTest {
     }
 
     @Test
+    fun voiceKitsNormalizeLegacyTracksAndPersistMainAudio() {
+        val legacy = listOf(
+            SongAudio(id = "legacy", fileName = "old.mp3", voiceType = ""),
+            SongAudio(id = "tenor", fileName = "tenor.mp3", voiceType = "tenor"),
+        )
+        val song = Song(id = "s1", title = "Hymn", audioFiles = legacy)
+
+        assertEquals(SongAudioTrackType.MainSong, song.mainAudio?.trackType)
+        assertEquals(listOf(SongAudioTrackType.MainSong, SongAudioTrackType.Tenor), song.orderedAudioFiles.map { it.trackType })
+
+        val payload = SongPayload.songPayload(song, TS, DEL, Date(1), includeCreatedAt = false)
+        @Suppress("UNCHECKED_CAST")
+        val audioFiles = payload["audioFiles"] as List<Map<String, Any?>>
+        @Suppress("UNCHECKED_CAST")
+        val primary = payload["audio"] as Map<String, Any?>
+        assertEquals("mainSong", audioFiles.first()["voiceType"])
+        assertEquals("legacy", primary["id"])
+    }
+
+    @Test
+    fun voiceKitCustomNameRoundTrips() {
+        val track = SongAudio(
+            id = "demo",
+            fileName = "demo.wav",
+            voiceType = SongAudioTrackType.Other.wireValue,
+            displayName = "Click track",
+        )
+        val payload = SongPayload.songPayload(
+            Song(id = "s1", title = "Hymn", audioFiles = listOf(track)),
+            TS,
+            DEL,
+            Date(1),
+            includeCreatedAt = false,
+        )
+        val decoded = payload.toSongOrNull("s1")
+        assertEquals("Click track", decoded.audioFiles.single().displayName)
+    }
+
+    @Test
     fun lossyOriginalKeyCollapsesUnknownToCMajor() {
         assertEquals("G", decodeOriginalKey("G"))
         assertEquals("Bb", decodeOriginalKey("B♭"))
         assertEquals("Am", decodeOriginalKey("A minor"))
-        assertEquals("C", decodeOriginalKey("F#")) // unknown → C major
+        assertEquals("F#", decodeOriginalKey("F#"))
+        assertEquals("Bbm", decodeOriginalKey("Bb minor"))
+        assertEquals("C", decodeOriginalKey("H")) // unknown -> C major
         assertEquals("C", decodeOriginalKey(null))
     }
 
@@ -114,6 +155,95 @@ class MediaSongTest {
         assertEquals(72, decoded.chordSheet.tempo)
         assertEquals("G", decoded.chordSheet.lines.first().chords.first().chord)
     }
+
+    @Test
+    fun songPayloadRoundTripsCanonicalCatalogFields() {
+        val updatedAt = Date(12)
+        val song = Song(
+            id = "s1",
+            title = "Catalog Song",
+            chordedLyrics = "{Verse}\nA[G]mazing grace",
+            cantusSlug = "amazing-grace",
+            pdfLink = "https://cdn.example.org/sheet.pdf",
+            pptxLink = "https://cdn.example.org/slides.pptx",
+            chordSheet = ChordSheet(
+                id = "cs1",
+                updatedAt = updatedAt,
+                lines = listOf(
+                    ChordLine(
+                        id = "l1",
+                        text = "Amazing grace",
+                        chords = listOf(Chord(id = "c1", chord = "G", position = 1)),
+                    ),
+                ),
+            ),
+        )
+
+        val payload = SongPayload.songPayload(song, TS, DEL, rawDate = Date(1), includeCreatedAt = false)
+        val decoded = payload.toSongOrNull("s1")
+
+        assertEquals("{Verse}\nA[G]mazing grace", payload["chordedLyrics"])
+        assertEquals(updatedAt, payload["chordedLyricsUpdatedAt"])
+        assertEquals("amazing-grace", decoded.cantusSlug)
+        assertEquals("https://cdn.example.org/slides.pptx", decoded.pptxLink)
+        assertEquals("Amazing grace", decoded.chordSheet.lines[1].text)
+        assertEquals("G", decoded.chordSheet.lines[1].chords.single().chord)
+    }
+
+    @Test
+    fun chordedLyricsOverridesOlderStructuredSheet() {
+        val decoded = mapOf(
+            "title" to "Catalog Song",
+            "chordedLyrics" to "{Verse}\nA[G]mazing grace",
+            "chordedLyricsUpdatedAt" to Date(20_000),
+            "chordSheet" to chordSheetMap(
+                updatedAt = Date(10_000),
+                text = "Old words",
+                chord = "C",
+            ),
+        ).toSongOrNull("s1")
+
+        assertEquals("Verse", decoded.chordSheet.lines.first().text)
+        assertEquals("Amazing grace", decoded.chordSheet.lines[1].text)
+        assertEquals("G", decoded.chordSheet.lines[1].chords.single().chord)
+    }
+
+    @Test
+    fun newerStructuredSheetWinsOverStaleChordedLyrics() {
+        val decoded = mapOf(
+            "title" to "Edited Song",
+            "chordedLyrics" to "{Verse}\nA[G]mazing grace",
+            "chordedLyricsUpdatedAt" to Date(10_000),
+            "chordSheet" to chordSheetMap(
+                updatedAt = Date(20_000),
+                text = "Edited words",
+                chord = "D",
+            ),
+        ).toSongOrNull("s1")
+
+        assertEquals("Edited words", decoded.chordSheet.lines.single().text)
+        assertEquals("D", decoded.chordSheet.lines.single().chords.single().chord)
+    }
+
+    private fun chordSheetMap(updatedAt: Date, text: String, chord: String): Map<String, Any?> =
+        mapOf(
+            "id" to "cs1",
+            "originalKey" to "C",
+            "updatedAt" to updatedAt,
+            "lines" to listOf(
+                mapOf(
+                    "id" to "l1",
+                    "text" to text,
+                    "chords" to listOf(
+                        mapOf(
+                            "id" to "c1",
+                            "chord" to chord,
+                            "position" to 0,
+                        ),
+                    ),
+                ),
+            ),
+        )
 
     private companion object {
         const val TS = "serverTimestamp"

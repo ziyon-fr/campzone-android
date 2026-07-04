@@ -22,6 +22,7 @@ sealed interface AppPermission {
     data object AssignPoints : AppPermission
     data object RevealWinners : AppPermission
     data object ManageAlbumMedia : AppPermission
+    data object ManageAlbumSettings : AppPermission
     data object ManageTransportation : AppPermission
     data object ManageOwnChurchTransportation : AppPermission
     data object AwardAchievements : AppPermission
@@ -59,6 +60,7 @@ sealed interface AppPermission {
             AssignPoints,
             RevealWinners,
             ManageAlbumMedia,
+            ManageAlbumSettings,
             ManageTransportation,
             ManageOwnChurchTransportation,
             AwardAchievements,

@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 // ── UI state ─────────────────────────────────────────────────────────────────
@@ -129,6 +130,7 @@ class AnnouncementViewModel @Inject constructor(
     private var visibleCampingIds: Set<String> = emptySet()
     private var canViewAll = false
     private var visibilityConfigured = false
+    private var announcementLoadJob: Job? = null
 
     // ── Load ─────────────────────────────────────────────────────────────────
 
@@ -138,7 +140,8 @@ class AnnouncementViewModel @Inject constructor(
     }
 
     fun load() {
-        viewModelScope.launch {
+        announcementLoadJob?.cancel()
+        announcementLoadJob = viewModelScope.launch {
             _uiState.value = AnnouncementsUiState.Loading
             _operationError.value = null
             try {
@@ -332,6 +335,7 @@ class AnnouncementViewModel @Inject constructor(
         val f = _form.value
         if (!f.isValid) return
         val campings = _campings.value
+        val isCreatingAnnouncement = _editingId.value == null
 
         viewModelScope.launch {
             _isSaving.value = true
@@ -362,10 +366,12 @@ class AnnouncementViewModel @Inject constructor(
                 allAnnouncements = (allAnnouncements.filter { it.id != saved.id } + saved)
                     .sortedByDescending { it.createdAt?.time ?: 0 }
                 publishAnnouncements()
-                try {
-                    notificationDispatcher.dispatchAnnouncement(saved)
-                } catch (e: Exception) {
-                    _operationError.value = appContext.getString(R.string.announcements_dispatch_failed)
+                if (isCreatingAnnouncement) {
+                    try {
+                        notificationDispatcher.dispatchAnnouncement(saved)
+                    } catch (e: Exception) {
+                        _operationError.value = appContext.getString(R.string.announcements_dispatch_failed)
+                    }
                 }
                 _form.value = AnnouncementComposerForm()
                 _editingId.value = null
@@ -452,5 +458,10 @@ class AnnouncementViewModel @Inject constructor(
 
     private companion object {
         const val KEY_LAST_SEEN_AT = "last_seen_at"
+    }
+
+    override fun onCleared() {
+        announcementLoadJob?.cancel()
+        super.onCleared()
     }
 }

@@ -1,6 +1,10 @@
 package fr.ziyon.campzone.ui.schedule
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,10 +22,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
@@ -184,6 +190,7 @@ private fun ScheduleEditorContent(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
+    val canAddProgram = (uiState as? ScheduleUiState.Loaded)?.schedule?.sortedDays?.isNotEmpty() == true
 
     Scaffold(
         modifier = modifier,
@@ -204,6 +211,15 @@ private fun ScheduleEditorContent(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.common_back),
                             tint = colors.textPrimary,
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onAddProgram, enabled = canAddProgram) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = stringResource(R.string.schedule_add_program),
+                            tint = if (canAddProgram) colors.ember else colors.textTertiary,
                         )
                     }
                 },
@@ -303,50 +319,41 @@ private fun EditorLoadedBody(
         ?.let { id -> schedule.sortedDays.firstOrNull { it.id == id } }
         ?: schedule.sortedDays.firstOrNull()
 
-    Scaffold(
-        containerColor = MaterialTheme.czColors.background,
-        bottomBar = {
-            AddProgramBar(
-                selectedDay = selectedDay,
-                onAddProgram = onAddProgram,
+    LazyColumn(
+        contentPadding = PaddingValues(
+            start = CzSpacing.base,
+            end = CzSpacing.base,
+            top = CzSpacing.base,
+            bottom = CzSpacing.xl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
+    ) {
+        item { ScheduleOverviewCard(schedule = schedule) }
+        item {
+            EditorDayPickerSection(
+                schedule = schedule,
+                selectedDayId = selectedDay?.id,
+                onDaySelected = onDaySelected,
+                onRenameDay = onRenameDay,
             )
-        },
-    ) { innerPadding ->
-        LazyColumn(
-            contentPadding = PaddingValues(
-                start = CzSpacing.base,
-                end = CzSpacing.base,
-                top = CzSpacing.base,
-                bottom = innerPadding.calculateBottomPadding() + CzSpacing.xl,
-            ),
-            verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
-        ) {
-            item { ScheduleOverviewCard(schedule = schedule) }
-            item {
-                EditorDayPickerSection(
-                    schedule = schedule,
-                    selectedDayId = selectedDay?.id,
-                    onDaySelected = onDaySelected,
-                )
-            }
-            item {
-                EditorProgramsSection(
-                    selectedDay = selectedDay,
-                    operationError = operationError,
-                    onEditProgram = onEditProgram,
-                    onDeleteProgram = onDeleteProgram,
-                    onRenameDay = onRenameDay,
-                    onClearError = onClearError,
-                )
-            }
-            item {
-                ReminderSection(
-                    reminderTiming = reminderTiming,
-                    isSaving = isSaving,
-                    onTimingChanged = onReminderTimingChanged,
-                    onSave = onSaveReminderTiming,
-                )
-            }
+        }
+        item {
+            EditorProgramsSection(
+                selectedDay = selectedDay,
+                operationError = operationError,
+                onEditProgram = onEditProgram,
+                onDeleteProgram = onDeleteProgram,
+                onRenameDay = onRenameDay,
+                onClearError = onClearError,
+            )
+        }
+        item {
+            ReminderSection(
+                reminderTiming = reminderTiming,
+                isSaving = isSaving,
+                onTimingChanged = onReminderTimingChanged,
+                onSave = onSaveReminderTiming,
+            )
         }
     }
 }
@@ -354,7 +361,7 @@ private fun EditorLoadedBody(
 @Composable
 private fun ScheduleOverviewCard(schedule: CampingSchedule) {
     val colors = MaterialTheme.czColors
-    val dayCount = schedule.sortedDays.count { it.programs.isNotEmpty() }
+    val dayCount = schedule.sortedDays.size
     val programCount = schedule.allPrograms.count()
     val dayText = pluralStringResource(R.plurals.schedule_day_count, dayCount, dayCount)
     val programText = pluralStringResource(R.plurals.schedule_program_count, programCount, programCount)
@@ -390,11 +397,19 @@ private fun EditorDayPickerSection(
     schedule: CampingSchedule,
     selectedDayId: String?,
     onDaySelected: (String?) -> Unit,
+    onRenameDay: (CampDay) -> Unit,
 ) {
-    val colors = MaterialTheme.czColors
+    val listState = rememberLazyListState()
+    LaunchedEffect(selectedDayId, schedule.sortedDays) {
+        val index = schedule.sortedDays.indexOfFirst { it.id == selectedDayId }
+        if (index >= 0) {
+            listState.animateScrollToItem(index)
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
         EditorSectionLabel(text = stringResource(R.string.schedule_days), icon = Icons.Rounded.CalendarMonth)
         LazyRow(
+            state = listState,
             horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
             contentPadding = PaddingValues(horizontal = CzSpacing.xs),
         ) {
@@ -405,6 +420,7 @@ private fun EditorDayPickerSection(
                     isSelected = isSelected,
                     programCount = day.programs.size,
                     onClick = { onDaySelected(day.id) },
+                    onRename = { onRenameDay(day) },
                 )
             }
         }
@@ -417,12 +433,34 @@ private fun EditorDayChip(
     isSelected: Boolean,
     programCount: Int,
     onClick: () -> Unit,
+    onRename: () -> Unit,
 ) {
     val colors = MaterialTheme.czColors
-    val bgColor = if (isSelected) colors.ember else colors.surface
-    val titleColor = if (isSelected) Color.White else colors.textPrimary
-    val dateColor = if (isSelected) Color.White.copy(alpha = 0.86f) else colors.textSecondary
-    val countColor = if (isSelected) Color.White else colors.ember
+    val bgColor by animateColorAsState(
+        targetValue = if (isSelected) colors.ember else colors.surface,
+        animationSpec = tween(durationMillis = 180),
+        label = "schedule-day-chip-bg",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (isSelected) Color.Transparent else colors.divider,
+        animationSpec = tween(durationMillis = 180),
+        label = "schedule-day-chip-border",
+    )
+    val titleColor by animateColorAsState(
+        targetValue = if (isSelected) Color.White else colors.textPrimary,
+        animationSpec = tween(durationMillis = 180),
+        label = "schedule-day-chip-title",
+    )
+    val dateColor by animateColorAsState(
+        targetValue = if (isSelected) Color.White.copy(alpha = 0.86f) else colors.textSecondary,
+        animationSpec = tween(durationMillis = 180),
+        label = "schedule-day-chip-date",
+    )
+    val countColor by animateColorAsState(
+        targetValue = if (isSelected) Color.White else colors.ember,
+        animationSpec = tween(durationMillis = 180),
+        label = "schedule-day-chip-count",
+    )
     val chipDescription = stringResource(
         R.string.schedule_day_program_count_cd,
         day.title,
@@ -434,6 +472,10 @@ private fun EditorDayChip(
         modifier = Modifier
             .clip(RoundedCornerShape(CzRadius.md))
             .background(bgColor)
+            .border(
+                BorderStroke(1.dp, borderColor),
+                RoundedCornerShape(CzRadius.md),
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = CzSpacing.md, vertical = CzSpacing.sm)
             .semantics {
@@ -441,11 +483,29 @@ private fun EditorDayChip(
             },
         verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
     ) {
-        Text(
-            text = day.title,
-            style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
-            color = titleColor,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+        ) {
+            Text(
+                text = day.title,
+                style = CzTypeScale.subhead.copy(fontWeight = FontWeight.SemiBold),
+                color = titleColor,
+            )
+            if (isSelected) {
+                IconButton(
+                    onClick = onRename,
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = stringResource(R.string.schedule_rename_day),
+                        tint = Color.White.copy(alpha = 0.9f),
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+        }
         Text(
             text = day.dateTitle(),
             style = CzTypeScale.caption,
@@ -680,6 +740,8 @@ private fun ProgramEditorRow(
 ) {
     val colors = MaterialTheme.czColors
     val accent = program.resolvedAccentColor
+    val editLabel = stringResource(R.string.schedule_edit_program_cd, program.title)
+    val deleteLabel = stringResource(R.string.schedule_delete_program_cd, program.title)
 
     Row(
         modifier = Modifier
@@ -731,7 +793,7 @@ private fun ProgramEditorRow(
                     .background(colors.ember.copy(alpha = 0.1f))
                     .clickable(
                         onClick = onEdit,
-                        onClickLabel = "Edit ${program.title}",
+                        onClickLabel = editLabel,
                     ),
                 contentAlignment = Alignment.Center,
             ) {
@@ -749,7 +811,7 @@ private fun ProgramEditorRow(
                     .background(colors.error.copy(alpha = 0.1f))
                     .clickable(
                         onClick = onDelete,
-                        onClickLabel = "Delete ${program.title}",
+                        onClickLabel = deleteLabel,
                     ),
                 contentAlignment = Alignment.Center,
             ) {
@@ -829,7 +891,7 @@ private fun ReminderSection(
                 Spacer(modifier = Modifier.height(CzSpacing.md))
 
                 CzButton(
-                    text = if (isSaving) "Saving…" else "Save Reminder",
+                    text = stringResource(if (isSaving) R.string.common_saving_ellipsis else R.string.schedule_save_reminder),
                     onClick = onSave,
                     enabled = !isSaving,
                     loading = isSaving,

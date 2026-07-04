@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,6 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -65,12 +68,14 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
@@ -110,6 +115,7 @@ import fr.ziyon.campzone.ui.lodging.MyLodgingCard
 import fr.ziyon.campzone.ui.lodging.MyLodgingViewModel
 import fr.ziyon.campzone.ui.payments.CzPaymentButton
 import fr.ziyon.campzone.ui.transportation.BusTicketCard
+import fr.ziyon.campzone.ui.transportation.TransportationUiState
 import fr.ziyon.campzone.ui.transportation.TransportationViewModel
 import fr.ziyon.campzone.ui.vehicle.MyVehicleCard
 import fr.ziyon.campzone.ui.vehicle.VehicleUiState
@@ -289,6 +295,7 @@ fun CheckInQrPassesRoute(
     // check-in QR codes here, mirroring the iOS "My QR Passes" view - the
     // passenger no longer needs a separate Transportation screen.
     val bookings by transportationViewModel.bookings.collectAsState()
+    val transportationUiState by transportationViewModel.uiState.collectAsState()
     val lodgingUnits by lodgingViewModel.units.collectAsState()
     val vehicleState by vehicleViewModel.uiState.collectAsState()
     val campingId = state.camping?.id
@@ -349,9 +356,13 @@ fun CheckInQrPassesRoute(
                     userId = authenticatedUser.uid,
                     authenticatedUser = authenticatedUser,
                     bookings = bookings,
+                    transportationUiState = transportationUiState,
                     lodgingUnits = lodgingUnits,
                     vehicleState = vehicleState,
                     onFarePaid = transportationViewModel::reloadTickets,
+                    onRetryTickets = {
+                        campingId?.let { transportationViewModel.retryTickets(it, authenticatedUser) }
+                    },
                     onOpenTransport = onOpenTransport,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -930,9 +941,11 @@ private fun CheckInQrPassesContent(
     userId: String,
     authenticatedUser: AuthenticatedUser,
     bookings: List<TransportationBooking>,
+    transportationUiState: TransportationUiState,
     lodgingUnits: List<LodgingUnit>,
     vehicleState: VehicleUiState,
     onFarePaid: () -> Unit,
+    onRetryTickets: () -> Unit,
     onOpenTransport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -951,46 +964,39 @@ private fun CheckInQrPassesContent(
         item("status") {
             QrStatusBanner(approvedCount = approved.size, pendingCount = pending.size)
         }
-        item("vehicle") {
-            MyVehicleCard(
-                state = vehicleState,
-                user = authenticatedUser,
-                onOpenTransport = onOpenTransport,
-            )
-        }
         when {
             approved.isNotEmpty() -> {
-                item("header") {
-                    SectionLabel(
-                        title = stringResource(R.string.checkin_arrival_section),
-                        icon = Icons.Filled.QrCode,
-                    )
+                item("check-in-passes") {
+                    CheckInPassSection(camping = camping, attendees = approved)
                 }
-                items(approved, key = { it.id }) { attendee ->
-                    CheckInQrCard(camping = camping, attendee = attendee)
-                }
-                if (bookings.isNotEmpty()) {
-                    item("tickets-header") {
-                        SectionLabel(
-                            title = stringResource(R.string.checkin_bus_tickets_section),
-                            icon = Icons.Filled.DirectionsBus,
+
+                if (transportationUiState is TransportationUiState.Loading ||
+                    transportationUiState is TransportationUiState.Error ||
+                    bookings.isNotEmpty()
+                ) {
+                    item("transportation-tickets") {
+                        QrTicketSection(
+                            camping = camping,
+                            bookings = bookings,
+                            transportationUiState = transportationUiState,
+                            onFarePaid = onFarePaid,
+                            onRetryTickets = onRetryTickets,
                         )
                     }
-                    items(bookings, key = { "ticket-${it.id}" }) { booking ->
-                        Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
-                            BusTicketCard(booking = booking, camping = camping)
-                            QrPassFareCta(booking = booking, camping = camping, onPaid = onFarePaid)
-                        }
-                    }
+                }
+
+                item("vehicle") {
+                    MyVehicleCard(
+                        state = vehicleState,
+                        user = authenticatedUser,
+                        onOpenTransport = onOpenTransport,
+                    )
                 }
                 val managed = approved
                 if (lodgingUnits.any { unit -> unit.occupantIds.any { id -> managed.any { it.id == id } } }) {
                     item("lodging") {
                         MyLodgingCard(units = lodgingUnits, managedAttendees = managed)
                     }
-                }
-                item("instructions") {
-                    QrInstructions()
                 }
             }
 
@@ -1028,6 +1034,161 @@ private fun CheckInQrPassesContent(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CheckInPassSection(camping: Camping, attendees: List<CampingAttendee>) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        SectionLabel(
+            title = stringResource(R.string.checkin_arrival_section),
+            icon = Icons.Filled.QrCode,
+        )
+        if (attendees.size == 1) {
+            CheckInQrCard(camping = camping, attendee = attendees.first())
+        } else {
+            val pagerState = rememberPagerState(pageCount = { attendees.size })
+            LaunchedEffect(attendees.map { it.id }) {
+                if (pagerState.currentPage >= attendees.size) {
+                    pagerState.scrollToPage((attendees.size - 1).coerceAtLeast(0))
+                }
+            }
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(checkInPagerHeight()),
+                key = { page -> attendees[page].id },
+            ) { page ->
+                CheckInQrCard(
+                    camping = camping,
+                    attendee = attendees[page],
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = CzSpacing.lg),
+                )
+            }
+            PagerDots(
+                count = attendees.size,
+                currentPage = pagerState.currentPage,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun QrTicketSection(
+    camping: Camping,
+    bookings: List<TransportationBooking>,
+    transportationUiState: TransportationUiState,
+    onFarePaid: () -> Unit,
+    onRetryTickets: () -> Unit,
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        val title = if (transportationUiState is TransportationUiState.Ready && bookings.isNotEmpty()) {
+            stringResource(R.string.checkin_tickets_section)
+        } else {
+            stringResource(R.string.checkin_bus_tickets_section)
+        }
+        SectionLabel(title = title, icon = Icons.Filled.DirectionsBus)
+        when (transportationUiState) {
+            TransportationUiState.Loading -> TicketStateCard {
+                CzLoadingView(
+                    message = stringResource(R.string.checkin_tickets_loading),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            is TransportationUiState.Error -> TicketStateCard {
+                CzErrorState(
+                    title = stringResource(R.string.transportation_error_title),
+                    message = transportationUiState.message,
+                    onRetry = onRetryTickets,
+                    retryLabel = stringResource(R.string.common_retry),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            TransportationUiState.Ready -> {
+                when (bookings.size) {
+                    0 -> Unit
+                    1 -> TicketWithFare(
+                        booking = bookings.first(),
+                        camping = camping,
+                        onFarePaid = onFarePaid,
+                    )
+                    else -> {
+                        val pagerState = rememberPagerState(pageCount = { bookings.size })
+                        LaunchedEffect(bookings.map { it.id }) {
+                            if (pagerState.currentPage >= bookings.size) {
+                                pagerState.scrollToPage((bookings.size - 1).coerceAtLeast(0))
+                            }
+                        }
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(ticketPagerHeight(bookings)),
+                            key = { page -> bookings[page].id },
+                        ) { page ->
+                            TicketWithFare(
+                                booking = bookings[page],
+                                camping = camping,
+                                onFarePaid = onFarePaid,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = CzSpacing.lg),
+                            )
+                        }
+                        PagerDots(
+                            count = bookings.size,
+                            currentPage = pagerState.currentPage,
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                        )
+                    }
+                }
+            }
+
+            TransportationUiState.Restricted -> Unit
+        }
+    }
+}
+
+@Composable
+private fun TicketStateCard(content: @Composable () -> Unit) {
+    Surface(
+        color = MaterialTheme.czColors.surface,
+        shape = RoundedCornerShape(CzRadius.xl),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Box(modifier = Modifier.padding(CzSpacing.lg)) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun TicketWithFare(
+    booking: TransportationBooking,
+    camping: Camping,
+    onFarePaid: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        BusTicketCard(booking = booking, camping = camping)
+        QrPassFareCta(booking = booking, camping = camping, onPaid = onFarePaid)
     }
 }
 
@@ -1106,7 +1267,11 @@ private fun QrStatusBanner(approvedCount: Int, pendingCount: Int) {
 }
 
 @Composable
-private fun CheckInQrCard(camping: Camping, attendee: CampingAttendee) {
+private fun CheckInQrCard(
+    camping: Camping,
+    attendee: CampingAttendee,
+    modifier: Modifier = Modifier,
+) {
     val payload = remember(camping.id, attendee.id, attendee.userId) {
         CheckInQrPayload(
             campingId = camping.id,
@@ -1116,6 +1281,7 @@ private fun CheckInQrCard(camping: Camping, attendee: CampingAttendee) {
     }
 
     Surface(
+        modifier = modifier,
         color = MaterialTheme.czColors.surface,
         shape = RoundedCornerShape(CzRadius.xl),
     ) {
@@ -1126,7 +1292,10 @@ private fun CheckInQrCard(camping: Camping, attendee: CampingAttendee) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
         ) {
-            ParticipantBadge(attendee)
+            ParticipantBadge(
+                attendee = attendee,
+                modifier = Modifier.align(Alignment.Start),
+            )
             QrCodeImage(
                 value = payload,
                 modifier = Modifier
@@ -1158,13 +1327,14 @@ private fun CheckInQrCard(camping: Camping, attendee: CampingAttendee) {
 }
 
 @Composable
-private fun ParticipantBadge(attendee: CampingAttendee) {
+private fun ParticipantBadge(attendee: CampingAttendee, modifier: Modifier = Modifier) {
     val isChild = attendee.participantKind == RegistrationParticipantKind.Child
+    val color = MaterialTheme.czColors.accent
     Surface(
-        color = MaterialTheme.czColors.ember.copy(alpha = 0.14f),
+        modifier = modifier,
+        color = color.copy(alpha = 0.14f),
         shape = RoundedCornerShape(CzRadius.full),
-        contentColor = MaterialTheme.czColors.ember,
-        modifier = Modifier.fillMaxWidth(),
+        contentColor = color,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = CzSpacing.sm, vertical = CzSpacing.xs),
@@ -1183,6 +1353,46 @@ private fun ParticipantBadge(attendee: CampingAttendee) {
             )
         }
     }
+}
+
+@Composable
+private fun PagerDots(count: Int, currentPage: Int, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(count) { index ->
+            Box(
+                modifier = Modifier
+                    .size(if (index == currentPage) 8.dp else 7.dp)
+                    .clip(CircleShape)
+                    .background(
+                        MaterialTheme.czColors.textSecondary.copy(
+                            alpha = if (index == currentPage) 0.85f else 0.30f,
+                        ),
+                    ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun checkInPagerHeight(): Dp =
+    522.dp + passHeightAllowance(LocalDensity.current.fontScale)
+
+@Composable
+private fun ticketPagerHeight(bookings: List<TransportationBooking>): Dp {
+    val base = if (bookings.any { it.coversReturn }) 900.dp else 760.dp
+    return base + (passHeightAllowance(LocalDensity.current.fontScale) * 2f)
+}
+
+private fun passHeightAllowance(fontScale: Float): Dp = when {
+    fontScale <= 1.0f -> 0.dp
+    fontScale <= 1.15f -> 24.dp
+    fontScale <= 1.3f -> 48.dp
+    fontScale <= 1.6f -> 96.dp
+    else -> 160.dp
 }
 
 @Composable
@@ -1211,52 +1421,6 @@ private fun QrCodeImage(value: String, modifier: Modifier = Modifier) {
                 modifier = Modifier.padding(CzSpacing.md),
             )
         }
-    }
-}
-
-@Composable
-private fun QrInstructions() {
-    Surface(
-        color = MaterialTheme.czColors.surface,
-        shape = RoundedCornerShape(CzRadius.xl),
-    ) {
-        Column(
-            modifier = Modifier.padding(CzSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-        ) {
-            InstructionRow(step = "1", text = stringResource(R.string.checkin_instruction_find_pass))
-            InstructionRow(step = "2", text = stringResource(R.string.checkin_instruction_show_pass))
-        }
-    }
-}
-
-@Composable
-private fun InstructionRow(step: String, text: String) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.czColors.ember,
-            contentColor = Color.White,
-        ) {
-            Text(
-                text = step,
-                modifier = Modifier
-                    .size(24.dp)
-                    .padding(top = 2.dp),
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-        Text(
-            text = text,
-            color = MaterialTheme.czColors.textPrimary,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f),
-        )
     }
 }
 

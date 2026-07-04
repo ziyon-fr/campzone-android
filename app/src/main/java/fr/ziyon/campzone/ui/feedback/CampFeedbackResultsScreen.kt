@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -37,14 +38,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzEmptyState
@@ -205,6 +209,32 @@ private fun SummaryCard(state: FeedbackResultsUiState.Loaded) {
             modifier = Modifier.fillMaxWidth().padding(CzSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
         ) {
+            if (!state.campLogoUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = state.campLogoUrl,
+                    contentDescription = state.campTitle,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(CircleShape)
+                        .border(3.dp, MaterialTheme.czColors.ember.copy(alpha = 0.45f), CircleShape),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(CircleShape)
+                        .border(3.dp, MaterialTheme.czColors.ember.copy(alpha = 0.45f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = state.campTitle.trim().take(1).uppercase(),
+                        color = MaterialTheme.czColors.ember,
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
             Text(
                 text = state.campTitle,
                 color = MaterialTheme.czColors.ember,
@@ -434,6 +464,7 @@ private fun CampFeedbackResultsScreenPreview() {
         CampFeedbackResultsScreen(
             state = FeedbackResultsUiState.Loaded(
                 campTitle = "Summer Pathfinder Camp",
+                campLogoUrl = "https://res.cloudinary.com/demo/image/upload/sample.jpg",
                 responseCount = 12,
                 averageOverall = 4.3,
                 wouldReturnPercent = 92,

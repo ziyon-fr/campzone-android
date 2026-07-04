@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.tasks.await
@@ -28,12 +29,18 @@ interface GameService {
     fun observeGames(campingId: String): Flow<List<Game>>
 
     /** Live point-award activities for a camping, ordered `createdAt` desc (mirrors [loadActivities]). */
-    fun observeActivities(campingId: String): Flow<List<Activity>>
+    fun observeActivities(
+        campingId: String,
+        readScope: ActivityReadScope = ActivityReadScope.All,
+    ): Flow<List<Activity>>
 
     suspend fun loadGames(campingId: String): List<Game>
     suspend fun saveGame(game: Game): Game
     suspend fun deleteGame(id: String, campingId: String)
-    suspend fun loadActivities(campingId: String): List<Activity>
+    suspend fun loadActivities(
+        campingId: String,
+        readScope: ActivityReadScope = ActivityReadScope.All,
+    ): List<Activity>
     suspend fun loadActivitiesForGame(gameId: String, campingId: String): List<Activity>
     suspend fun recordActivity(activity: Activity): Activity
     suspend fun deleteActivities(ids: List<String>, campingId: String)
@@ -67,10 +74,23 @@ class FirestoreGameService @Inject constructor(
         awaitClose { registration.remove() }
     }
 
-    override fun observeActivities(campingId: String): Flow<List<Activity>> = callbackFlow {
-        val registration = activitiesCollection(campingId)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .limit(500)
+    override fun observeActivities(
+        campingId: String,
+        readScope: ActivityReadScope,
+    ): Flow<List<Activity>> {
+        if (readScope == ActivityReadScope.None) return flowOf(emptyList())
+
+        return callbackFlow {
+        val query = when (readScope) {
+            ActivityReadScope.None -> error("Handled before listener creation")
+            ActivityReadScope.Immediate -> activitiesCollection(campingId)
+                .whereEqualTo("visibility", "immediate")
+                .limit(500)
+            ActivityReadScope.All -> activitiesCollection(campingId)
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .limit(500)
+        }
+        val registration = query
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     close(error)
@@ -79,10 +99,11 @@ class FirestoreGameService @Inject constructor(
                 val activities = snapshot?.documents?.mapNotNull {
                     @Suppress("UNCHECKED_CAST")
                     (it.data as? Map<String, Any?>)?.toActivityOrNull(it.id)
-                }.orEmpty()
+                }.orEmpty().sortedByDescending { it.createdAt }
                 trySend(activities)
             }
         awaitClose { registration.remove() }
+        }
     }
 
     override suspend fun loadGames(campingId: String): List<Game> {
@@ -107,15 +128,26 @@ class FirestoreGameService @Inject constructor(
         gamesCollection(campingId).document(id).delete().await()
     }
 
-    override suspend fun loadActivities(campingId: String): List<Activity> {
-        val snapshot = activitiesCollection(campingId)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .limit(500)
+    override suspend fun loadActivities(
+        campingId: String,
+        readScope: ActivityReadScope,
+    ): List<Activity> {
+        if (readScope == ActivityReadScope.None) return emptyList()
+        val query = when (readScope) {
+            ActivityReadScope.None -> error("Handled before query creation")
+            ActivityReadScope.Immediate -> activitiesCollection(campingId)
+                .whereEqualTo("visibility", "immediate")
+                .limit(500)
+            ActivityReadScope.All -> activitiesCollection(campingId)
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .limit(500)
+        }
+        val snapshot = query
             .get().await()
         return snapshot.documents.mapNotNull {
             @Suppress("UNCHECKED_CAST")
             (it.data as? Map<String, Any?>)?.toActivityOrNull(it.id)
-        }
+        }.sortedByDescending { it.createdAt }
     }
 
     override suspend fun loadActivitiesForGame(gameId: String, campingId: String): List<Activity> {
@@ -197,12 +229,19 @@ class FakeGameService(
             }
         }
 
-    override fun observeActivities(campingId: String): Flow<List<Activity>> =
+    override fun observeActivities(
+        campingId: String,
+        readScope: ActivityReadScope,
+    ): Flow<List<Activity>> =
         if (shouldFail) {
             flow { throw Exception("FakeGameService configured to fail.") }
         } else {
             activitiesByCampingId.map { map ->
-                (map[campingId] ?: emptyList()).sortedByDescending { it.createdAt }
+                (map[campingId] ?: emptyList())
+                    .filter { readScope == ActivityReadScope.All || it.visibility == fr.ziyon.campzone.data.model.PointRuleVisibility.Immediate }
+                    .takeIf { readScope != ActivityReadScope.None }
+                    .orEmpty()
+                    .sortedByDescending { it.createdAt }
             }
         }
 
@@ -229,9 +268,15 @@ class FakeGameService(
         }
     }
 
-    override suspend fun loadActivities(campingId: String): List<Activity> {
+    override suspend fun loadActivities(
+        campingId: String,
+        readScope: ActivityReadScope,
+    ): List<Activity> {
         check()
-        return (activitiesByCampingId.value[campingId] ?: emptyList()).sortedByDescending { it.createdAt }
+        if (readScope == ActivityReadScope.None) return emptyList()
+        return (activitiesByCampingId.value[campingId] ?: emptyList())
+            .filter { readScope == ActivityReadScope.All || it.visibility == fr.ziyon.campzone.data.model.PointRuleVisibility.Immediate }
+            .sortedByDescending { it.createdAt }
     }
 
     override suspend fun loadActivitiesForGame(gameId: String, campingId: String): List<Activity> {

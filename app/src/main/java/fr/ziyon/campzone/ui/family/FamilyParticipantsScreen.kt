@@ -78,6 +78,7 @@ import fr.ziyon.campzone.data.church.ChurchGroup
 import fr.ziyon.campzone.data.family.ChildParticipant
 import fr.ziyon.campzone.data.family.FamilyRelationship
 import fr.ziyon.campzone.ui.common.ChurchPickerSheet
+import fr.ziyon.campzone.ui.common.AllergiesEditor
 
 @Composable
 fun FamilyParticipantsScreen(
@@ -517,6 +518,18 @@ private fun ChildEditorContent(
                 )
             }
 
+            EditorSection(title = stringResource(R.string.family_section_allergies)) {
+                AllergiesEditor(
+                    selected = editor.form.allergies,
+                    onSelectedChange = { value -> onForm { copy(allergies = value) } },
+                )
+                Text(
+                    text = stringResource(R.string.family_allergies_footer),
+                    color = MaterialTheme.czColors.textSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
             EditorSection(title = stringResource(R.string.family_section_consent)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -557,8 +570,9 @@ private fun ChildEditorContent(
                 Text(
                     stringResource(
                         R.string.family_duplicate_message,
-                        duplicate.existing.displayName,
-                        duplicate.existing.age,
+                        duplicate.displayName,
+                        duplicate.age,
+                        duplicate.guardianDisplayName,
                     ),
                 )
             },

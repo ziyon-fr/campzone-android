@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -136,8 +137,9 @@ private fun UserDataExportResultSection(
     result: UserDataExportResult,
     onShare: () -> Unit,
 ) {
-    val recordText = stringResource(
-        R.string.profile_export_ready_count,
+    val recordText = pluralStringResource(
+        R.plurals.profile_export_ready_count,
+        result.recordCount,
         result.recordCount,
         DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(result.generatedAt),
     )
@@ -152,7 +154,11 @@ private fun UserDataExportResultSection(
         )
         if (result.failureCount > 0) {
             Text(
-                text = stringResource(R.string.profile_export_failure_count, result.failureCount),
+                text = pluralStringResource(
+                    R.plurals.profile_export_failure_count,
+                    result.failureCount,
+                    result.failureCount,
+                ),
                 color = MaterialTheme.czColors.warning,
                 style = MaterialTheme.typography.bodySmall,
             )

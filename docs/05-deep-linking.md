@@ -21,6 +21,14 @@ poll(campingID, pollID?)
 teamUpdate(campingID, teamID)
 teamPoints(campingID, teamID?)
 registrationReview(campingID)   // leadership: pending registrations
+achievements(userID, displayName?, photoURLString?, campingID?)
+achievement(userID, achievementID, ...)
+scheduleProgram(campingID, programID)
+transportation(campingID)
+transportationJoin(campingID, invitationCode)
+transportationInvitation(campingID, vehicleID, registrationID)
+transportationRequest(campingID, vehicleID, registrationID)
+packingShare(campingID, shareID, registrationID?)
 camping(id)
 ```
 
@@ -42,22 +50,40 @@ A tapped push carries a `data` map (see `04-backend-api.md` §3). Resolve
    - `chat_mention` / `chatmention` → same as chat message.
    - `poll` → requires `campingID` → `poll(campingID, pollID?)`.
    - `registration` / `registration_request` → requires `campingID` →
-     `registrationReview(campingID)`.
+     `registrationReview(campingID)` unless `event == "approved"`, which
+     routes to `camping(campingID)`.
+   - `badge` / `achievement` / `achievement_badge` → requires
+     `recipientUserID` (or `userID`/`uid`) →
+     `achievement(...)` when `achievementID`/`badgeID` is present,
+     otherwise `achievements(...)`.
+   - `schedule_reminder` → `scheduleProgram(campingID, programID)` when
+     both ids exist, otherwise `camping(campingID)`.
+   - `checklist` / `packing_share` / `packingshare` / `packing` → requires
+     `campingID` and `shareID`/`packingShareID`; optional
+     `actionSubjectRegistrationID`/`registrationID` is preserved so a
+     guardian opens/imports for the family member, not their own checklist.
+   - `transportation` → invitation events open the passenger
+     accept/decline sheet; join requests open the driver's
+     approve/decline sheet; other events open My Transportation.
    - `team_update` / `teamupdate` → requires `campingID`; if `event` is
      `scoreChanged`, `memberScoreChanged`, or `penaltyApplied`, route to
      `teamPoints(campingID, teamID?)`; otherwise route to
      `teamUpdate(campingID, teamID)` when `teamID` exists, or
      `camping(id)` when it does not.
    - **no/unknown type** → infer: `announcementID` → announcement;
-     else `messageID` + `campingID` → (team)chat; else `pollID` +
+     else `messageID` + `campingID` → (team)chat; else `shareID`/
+     `packingShareID` + `campingID` → packing share; else `pollID` +
      `campingID` → poll; else `campingID` → `camping(id)`; else ignore.
 
 Backend dispatch `data` keys you can rely on: `type`, `appID`,
 `campingID`, `teamID`, `pollID`, `announcementID`, `messageID`,
 `senderID`, `senderUid`, `event`, `role`, `participantName`,
-`requestedByName`, `participantCount`, and optional direct deep-link URL
-keys listed above. (All values are strings - the backend stringifies the
-FCM `data` map.)
+`requestedByName`, `participantCount`, `achievementID`,
+`achievementTitle`, `recipientUserID`, `recipientDisplayName`,
+`recipientPhotoURLString`, `shareID`/`packingShareID`,
+`actionSubjectRegistrationID`, `actionSubjectUserID`, `actionSubjectName`,
+and optional direct deep-link URL keys listed above. (All values are strings -
+the backend stringifies the FCM `data` map.)
 
 Cold-start: park the link until the router/auth is ready, then consume
 once (iOS uses a `DeepLinkInbox`; web = a query param / `sessionStorage`
@@ -66,10 +92,10 @@ handoff after auth; Android = an `Intent` extra processed post-auth).
 ## 3. URL parsing + share links
 
 The legacy custom scheme is `campzone`. iOS also parses HTTPS Universal
-Links on `https://campzone-web.vercel.app/...`. Only **camping** and
-**announcement** are meaningfully shareable from the app; chat, polls,
-team updates, point history, and registration review links are deep-link
-destinations only and have **no** canonical share URL.
+Links on `https://campzone-web.vercel.app/...`. Camping, announcement,
+achievement, and transportation invitation-code links are shareable; chat, polls,
+team updates, point history, and registration review links
+are deep-link destinations only and have **no** canonical share URL.
 
 | Link | Inbound parse | Canonical share URL |
 | --- | --- | --- |
@@ -81,6 +107,10 @@ destinations only and have **no** canonical share URL.
 | team points | route/host `points`/`point-history`, camping id = first path component or `?id`/`?c`/`?campingID`, optional `?teamID`/`?t` | none |
 | poll | route/host `poll`/`polls`, camping id = `?c`/`?campingID` or first path component, optional `?pollID`/`?p` | none |
 | registration review | route/host `registration`/`registration-review`, camping id = first path component or `?id`/`?c`/`?campingID` | none |
+| achievements/badge | route/host `achievement`/`achievements`/`badge`/`badges`, user id = first path component, optional `?achievementID`/`?badgeID`/`?a` | `https://campzone-web.vercel.app/badges/<userID>?achievementID=<id>` |
+| transportation join | route/host `transportation-join`, camping id = first path component, code = `?code`/`?invitationCode`/`?i` | `https://campzone-web.vercel.app/transportation-join/<campingID>?code=<code>` |
+| transportation decision | route/host `transportation-invitation` or `transportation-request`, vehicle id = first path component, camping/registration ids in query | none |
+| packing share | route/host `packing-share`, share id = first path component or `?shareID`/`?s`, camping id = `?c`/`?campingID`, optional action subject `?registrationID`/`?r`/`?actionSubjectRegistrationID` | `https://campzone-web.vercel.app/packing-share/<shareID>?c=<campingID>[&registrationID=<subjectRegistrationID>]` |
 
 iOS registers both the `campzone` scheme in `Info.plist` and the
 `applinks:campzone-web.vercel.app` Associated Domain entitlement.
@@ -104,6 +134,10 @@ work in a browser. Recommended structure:
 | `teamPoints(campingID, teamID?)` | `/campings/[id]/teams/[teamId]` or `/campings/[id]` |
 | `poll(campingID, pollID)` | `/campings/[id]/polls/[pollId]` (or `/campings/[id]/polls` when no id) |
 | `registrationReview(campingID)` | `/campings/[id]` (admin section shows pending) |
+| `achievements(userID, ...)` | `/badges/[userId]` |
+| `scheduleProgram(campingID, programID)` | `/campings/[id]?programID=...` |
+| `transportation(campingID)` | `/campings/[id]?transportation=true` |
+| `packingShare(campingID, shareID, registrationID?)` | `/packing-share/[shareId]?c=<campingID>[&registrationID=<subjectRegistrationID>]` |
 | Home / Campings / Announcements / Profile | `/`, `/campings`, `/announcements`, `/profile` |
 
 Android: a single-Activity Compose nav graph mirroring the same logical
@@ -123,7 +157,13 @@ lands sensibly. Mirror this:
 - `teamPoints` → `[campingDetail, pointHistory]`
 - `poll(id?)` → `[campingDetail, pollDetail]` or
   `[campingDetail, campingPolls]`
-- `registrationReview` → `[campingDetail]` (admin section)
+- `registrationReview` → focused registration review for that camping
+- `achievements` → tab Profile → `[achievements]`; exact badge links open its detail sheet
+- `scheduleProgram` → `[campingDetail, scheduleProgram]`
+- `transportation` → `[campingDetail, myTransportation]`; invitation and
+  request links additionally open the relevant decision bottom sheet
+- `packingShare` → `[campingDetail, packingChecklistImport]`; optional
+  `registrationID` is an action subject for family-targeted imports
 
 Tabs: **Home, Campings, Announcements, Profile/Settings** (same four on
 every platform).

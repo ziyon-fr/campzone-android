@@ -28,13 +28,13 @@ endpoints in `04-backend-api.md`; gates in `03-rbac-and-security.md`.
 
 | Capability | Data / API |
 | --- | --- |
-| Campings list (grouped by year/month) + detail | `campings/{id}` (+ `registrations` for counts) |
+| Campings list (active/upcoming plus History grouped by organizer/year) + detail | `campings/{id}` (+ `registrations` for counts) |
 | Camp filters (church/age group/language), search | `campings` |
 | Admin create/edit/cancel camping + logo + fees/age-prices/price-items/transportation options | `campings/{id}` (+ Cloudinary sign for logo) |
 | Registration flow (self + family) + transportation choice + waitlist | `registrations/{attendeeId}`, `transportationBookings`; dispatch `registration` |
 | Registration review/approve/reject + delete-attendee cascade | `registrations` (status), cascades to `checkIns`/`transportationBookings`/team `members` |
 | Schedule (days/programs) + admin editor + reminder timing | `schedule/config`, `.../days`, `.../programs` |
-| Food menu + Menu↔Program two-way sync | `foodMenu`, generated `programs` (`02` §4.5) |
+| Food menu with structured dishes, per-dish allergen warnings, and Menu↔Program two-way sync | `foodMenu.items` + legacy `dishes`, generated `programs` (`02` §4.4–4.5) |
 | Announcements timeline + detail + admin composer + image/PDF attachments | `announcements`; Cloudinary; dispatch `announcement` |
 | Songbook (list/detail, lyrics+chords render, audio, favorites, reorder, pinned theme) | `campings/{id}/songs` (admin writes) |
 | Camp guidelines (markdown) | `campings/{id}/guidelines` |
@@ -64,9 +64,11 @@ endpoints in `04-backend-api.md`; gates in `03-rbac-and-security.md`.
 | Lodging / tent assignment + “My Lodging” | `campings/{id}/lodging/{unitId}` |
 | Post-camp feedback survey + admin results | `campings/{id}/feedback/{uid}` |
 | Venue map (illustration + MapKit/Map overlay, pins) + program↔venue link | `campings/{id}/venueMap/config`; program `venuePointID` |
+| Personal packing checklist + leadership template editor + shared-list import | `campings/{id}/packingChecklistTemplate/config`, `packingChecklists/{uid}`, `packingShares/{shareId}` |
+| App/camp support hub + sponsor acknowledgements | `support/appDevelopment`, `campings/{id}/support/config` |
 | Guardian “Family at Camp” live updates (read-only aggregate) | composes `registrations`+`checkIns`+`teams`+schedule (no new collection) |
 | Admin tools hub / onboarding checklist / moderation queue | - (UI over the above) |
-| F3 backlog (not yet on iOS) | analytics dashboard, camp templates, offline write queue, per-program attendance, sponsor surface, calendar export (EventKit→ICS on web), emergency hub, GDPR export |
+| F3 shipped / backlog | Shipped on iOS + Android: recurring camp templates, per-program attendance, analytics dashboard, emergency hub, packing checklist, and support/sponsor surface. Remaining backlog: offline write queue, calendar export (EventKit→ICS on web), GDPR export |
 
 ## Cross-cutting (every phase)
 

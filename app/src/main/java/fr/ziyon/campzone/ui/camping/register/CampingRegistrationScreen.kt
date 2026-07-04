@@ -95,6 +95,7 @@ import fr.ziyon.campzone.data.model.RegistrationParticipantKind
 import fr.ziyon.campzone.data.model.TransportationMode
 import fr.ziyon.campzone.data.model.UserVehicle
 import fr.ziyon.campzone.ui.camping.campingDateRange
+import fr.ziyon.campzone.ui.camping.localizedDisplayName
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
@@ -1295,13 +1296,14 @@ private fun transportIcon(
 
 @Composable
 private fun optionLabel(option: CampingTransportationOption): String {
+    val name = option.name.trim().takeUnless { it.isBlank() } ?: option.mode.localizedDisplayName()
     val fee = option.feeCents?.takeIf { it > 0 }?.let {
         val locale = Locale.forLanguageTag(ComposeLocale.current.toLanguageTag())
         NumberFormat.getCurrencyInstance(locale).apply {
             currency = java.util.Currency.getInstance(option.currency.ifBlank { "EUR" }.uppercase())
         }.format(it / 100.0)
     }
-    return if (fee == null) option.resolvedName else "${option.resolvedName} · $fee"
+    return if (fee == null) name else "$name · $fee"
 }
 
 @Composable
@@ -1319,7 +1321,9 @@ private fun transportSummary(
         )
     }
     if (camping.usesTransportationOptions) {
-        return camping.transportationOption(state.transportationOptionIds[participant.id])?.resolvedName
+        return camping.transportationOption(state.transportationOptionIds[participant.id])?.let { option ->
+            option.name.trim().takeUnless { it.isBlank() } ?: option.mode.localizedDisplayName()
+        }
             ?: stringResource(R.string.registration_own_arrangement)
     }
     return stringResource(R.string.registration_own_arrangement)

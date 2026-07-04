@@ -7,6 +7,7 @@ import java.util.Date
 class FakeFamilyRepository(
     childrenByGuardian: Map<String, List<ChildParticipant>> = emptyMap(),
     var shouldFail: Boolean = false,
+    var duplicateLookupShouldFail: Boolean = false,
     var crossGuardianMatch: FamilyParticipantDuplicateMatch? = null,
 ) : FamilyRepository {
     val store: MutableMap<String, MutableList<ChildParticipant>> =
@@ -36,6 +37,7 @@ class FakeFamilyRepository(
         age: Int,
         excludingGuardianId: String,
     ): FamilyParticipantDuplicateMatch? {
+        if (duplicateLookupShouldFail) error("Duplicate lookup failed.")
         throwIfNeeded()
         return crossGuardianMatch
     }

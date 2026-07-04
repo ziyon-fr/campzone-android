@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AdminPanelSettings
+import androidx.compose.material.icons.rounded.Analytics
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -68,6 +69,7 @@ fun AdminToolsRoute(
     onOpenAdminOnboarding: () -> Unit,
     onOpenRoleManagement: () -> Unit,
     onOpenRegistrationReview: () -> Unit,
+    onOpenAnalytics: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ModerationViewModel = hiltViewModel(),
 ) {
@@ -101,6 +103,7 @@ fun AdminToolsRoute(
         onOpenAdminOnboarding = onOpenAdminOnboarding,
         onOpenRoleManagement = onOpenRoleManagement,
         onOpenRegistrationReview = onOpenRegistrationReview,
+        onOpenAnalytics = onOpenAnalytics,
         modifier = modifier,
     )
 }
@@ -118,6 +121,7 @@ fun AdminToolsScreen(
     onOpenAdminOnboarding: () -> Unit,
     onOpenRoleManagement: () -> Unit,
     onOpenRegistrationReview: () -> Unit,
+    onOpenAnalytics: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.czColors
@@ -179,6 +183,14 @@ fun AdminToolsScreen(
                 )
             }
             if (canViewAdminTools) {
+                item(key = "analytics-dashboard") {
+                    AdminToolRow(
+                        icon = Icons.Rounded.Analytics,
+                        title = stringResource(R.string.admin_analytics_title),
+                        subtitle = stringResource(R.string.admin_analytics_subtitle),
+                        onClick = onOpenAnalytics,
+                    )
+                }
                 item(key = "setup-guide") {
                     AdminToolRow(
                         icon = Icons.Rounded.Checklist,

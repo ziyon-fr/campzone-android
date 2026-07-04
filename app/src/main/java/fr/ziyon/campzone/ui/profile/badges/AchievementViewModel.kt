@@ -1,5 +1,6 @@
 package fr.ziyon.campzone.ui.profile.badges
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +18,8 @@ import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.EarnedBadge
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.data.model.Team
+import fr.ziyon.campzone.data.notifications.BadgeNotificationDispatcher
+import fr.ziyon.campzone.data.notifications.BadgeNotificationRequest
 import fr.ziyon.campzone.data.teams.TeamService
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,6 +64,7 @@ class AchievementViewModel @Inject constructor(
     private val achievementService: AchievementService,
     private val campingService: CampingService,
     private val teamService: TeamService,
+    private val badgeNotificationDispatcher: BadgeNotificationDispatcher,
     private val strings: StringProvider,
 ) : ViewModel() {
     private val permissions = AppPermissionEvaluator()
@@ -165,13 +169,19 @@ class AchievementViewModel @Inject constructor(
                     campingId = state.camping.id,
                     note = state.note,
                 )
-            }.onSuccess {
+            }.onSuccess { badges ->
                 _operationMessage.value =
-                    if (it.size == 1) {
+                    if (badges.size == 1) {
                         strings.get(R.string.badges_awarded)
                     } else {
-                        strings.get(R.string.badges_awarded_many, it.size)
+                        strings.get(R.string.badges_awarded_many, badges.size)
                     }
+                dispatchBadgeNotifications(
+                    badges = badges,
+                    achievement = achievement,
+                    state = state,
+                    awardedByUserId = currentUserId,
+                )
             }.onFailure {
                 _operationMessage.value = it.message ?: strings.get(R.string.badges_award_error)
             }
@@ -214,6 +224,34 @@ class AchievementViewModel @Inject constructor(
         val teams: List<Team>,
         val catalog: List<Achievement>,
     )
+
+    private fun dispatchBadgeNotifications(
+        badges: List<EarnedBadge>,
+        achievement: Achievement,
+        state: BadgeAwardUiState.Loaded,
+        awardedByUserId: String,
+    ) {
+        badges.forEach { badge ->
+            val recipient = state.recipientDetails(badge.userId)
+            val request = BadgeNotificationRequest(
+                recipientUserId = badge.userId,
+                recipientDisplayName = recipient?.displayName,
+                recipientPhotoUrl = recipient?.photoUrl,
+                achievementId = achievement.id,
+                achievementTitle = achievement.title,
+                campingId = state.camping.id,
+                awardedByUserId = awardedByUserId,
+            )
+            viewModelScope.launch {
+                runCatching { badgeNotificationDispatcher.dispatchBadgeAward(request) }
+                    .onFailure { Log.w(TAG, "Badge notification dispatch failed", it) }
+            }
+        }
+    }
+
+    private companion object {
+        const val TAG = "AchievementViewModel"
+    }
 }
 
 private fun BadgeAwardUiState.Loaded.recipientUserIds(): List<String> =
@@ -227,6 +265,33 @@ private fun BadgeAwardUiState.Loaded.recipientUserIds(): List<String> =
             ?.let { listOf(it.userId) }
             .orEmpty()
     }.map { it.trim() }.filter { it.isNotBlank() }.distinct().sorted()
+
+private data class BadgeRecipientDetails(
+    val displayName: String?,
+    val photoUrl: String?,
+)
+
+private fun BadgeAwardUiState.Loaded.recipientDetails(userId: String): BadgeRecipientDetails? {
+    teams
+        .asSequence()
+        .flatMap { it.members.asSequence() }
+        .firstOrNull { it.userId == userId }
+        ?.let { member ->
+            return BadgeRecipientDetails(
+                displayName = member.displayName,
+                photoUrl = member.photoUrl,
+            )
+        }
+
+    return camping.attendees
+        .firstOrNull { it.userId == userId }
+        ?.let { attendee ->
+            BadgeRecipientDetails(
+                displayName = attendee.displayName,
+                photoUrl = attendee.photoUrl,
+            )
+        }
+}
 
 private fun Camping.permissionContext(): CampingPermissionContext =
     CampingPermissionContext(

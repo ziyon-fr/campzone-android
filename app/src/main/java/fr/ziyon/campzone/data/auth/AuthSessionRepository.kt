@@ -211,6 +211,7 @@ class FirebaseAuthSessionRepository @Inject constructor(
                     user.providerData
                         .mapNotNull { it.providerId.takeUnless { providerId -> providerId == "firebase" } }
                 },
+            allergies = data.stringListValue("allergies"),
         )
     }
 
