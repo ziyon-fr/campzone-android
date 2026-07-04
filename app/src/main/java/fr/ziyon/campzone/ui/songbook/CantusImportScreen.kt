@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -97,6 +98,7 @@ fun CantusImportRoute(
     val selectedLanguageCode by viewModel.selectedLanguageCode.collectAsState()
     val selectedSlugs by viewModel.selectedSlugs.collectAsState()
     val isLoadingNextPage by viewModel.isLoadingNextPage.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val catalogOperationError by viewModel.operationError.collectAsState()
     val songbookUiState by songbookViewModel.uiState.collectAsState()
     val songbookOperationError by songbookViewModel.operationError.collectAsState()
@@ -154,6 +156,7 @@ fun CantusImportRoute(
         totalMatchCount = viewModel.totalMatchCount,
         hasActiveFilters = viewModel.hasActiveFilters,
         isLoadingNextPage = isLoadingNextPage,
+        isRefreshing = isRefreshing,
         isImporting = isImporting || isSaving,
         snackbarHostState = snackbarHostState,
         onBack = onBack,
@@ -166,6 +169,7 @@ fun CantusImportRoute(
         onClearFilters = viewModel::clearFilters,
         onToggleSelection = viewModel::toggleSelection,
         onLoadNextPage = viewModel::loadNextPageIfNeeded,
+        onRefresh = viewModel::refresh,
         onRetry = { viewModel.reload(forceRefresh = true) },
         onImportSelected = {
             if (isImporting || isSaving) return@CantusImportScreen
@@ -209,6 +213,7 @@ fun CantusImportScreen(
     totalMatchCount: Int,
     hasActiveFilters: Boolean,
     isLoadingNextPage: Boolean,
+    isRefreshing: Boolean,
     isImporting: Boolean,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
@@ -221,6 +226,7 @@ fun CantusImportScreen(
     onClearFilters: () -> Unit,
     onToggleSelection: (CantusSong) -> Unit,
     onLoadNextPage: (CantusSong) -> Unit,
+    onRefresh: () -> Unit,
     onRetry: () -> Unit,
     onImportSelected: () -> Unit,
     modifier: Modifier = Modifier,
@@ -271,119 +277,126 @@ fun CantusImportScreen(
             }
         },
     ) { innerPadding ->
-        Column(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
         ) {
-            CatalogSearchAndFilters(
-                searchText = searchText,
-                artists = artists,
-                songbooks = songbooks,
-                languageOptions = languageOptions,
-                selectedArtist = selectedArtist,
-                selectedSongbook = selectedSongbook,
-                selectedLanguageCode = selectedLanguageCode,
-                hasActiveFilters = hasActiveFilters,
-                onSearchChange = onSearchChange,
-                onApplySearch = onApplySearch,
-                onSelectArtist = onSelectArtist,
-                onSelectSongbook = onSelectSongbook,
-                onSelectLanguage = onSelectLanguage,
-                onClearFilters = onClearFilters,
-                modifier = Modifier.padding(horizontal = CzSpacing.lg),
-            )
-
-            when (uiState) {
-                CantusImportUiState.Loading -> CzLoadingView(
-                    modifier = Modifier.fillMaxSize(),
-                    message = stringResource(R.string.songbook_catalog_loading),
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+            ) {
+                CatalogSearchAndFilters(
+                    searchText = searchText,
+                    artists = artists,
+                    songbooks = songbooks,
+                    languageOptions = languageOptions,
+                    selectedArtist = selectedArtist,
+                    selectedSongbook = selectedSongbook,
+                    selectedLanguageCode = selectedLanguageCode,
+                    hasActiveFilters = hasActiveFilters,
+                    onSearchChange = onSearchChange,
+                    onApplySearch = onApplySearch,
+                    onSelectArtist = onSelectArtist,
+                    onSelectSongbook = onSelectSongbook,
+                    onSelectLanguage = onSelectLanguage,
+                    onClearFilters = onClearFilters,
+                    modifier = Modifier.padding(horizontal = CzSpacing.lg),
                 )
 
-                is CantusImportUiState.Error -> CzErrorState(
-                    title = stringResource(R.string.songbook_catalog_load_failed_title),
-                    message = uiState.message,
-                    onRetry = onRetry,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(CzSpacing.xl),
-                )
+                when (uiState) {
+                    CantusImportUiState.Loading -> CzLoadingView(
+                        modifier = Modifier.fillMaxSize(),
+                        message = stringResource(R.string.songbook_catalog_loading),
+                    )
 
-                CantusImportUiState.Empty -> CzEmptyState(
-                    title = stringResource(R.string.songbook_catalog_no_songs_title),
-                    message = stringResource(R.string.songbook_catalog_no_songs_message),
-                    action = if (hasActiveFilters || searchText.isNotBlank()) {
-                        {
-                            CzButton(
-                                text = stringResource(R.string.songbook_catalog_clear_filters),
-                                onClick = onClearFilters,
-                                variant = CzButtonVariant.Outline,
+                    is CantusImportUiState.Error -> CzErrorState(
+                        title = stringResource(R.string.songbook_catalog_load_failed_title),
+                        message = uiState.message,
+                        onRetry = onRetry,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(CzSpacing.xl),
+                    )
+
+                    CantusImportUiState.Empty -> CzEmptyState(
+                        title = stringResource(R.string.songbook_catalog_no_songs_title),
+                        message = stringResource(R.string.songbook_catalog_no_songs_message),
+                        action = if (hasActiveFilters || searchText.isNotBlank()) {
+                            {
+                                CzButton(
+                                    text = stringResource(R.string.songbook_catalog_clear_filters),
+                                    onClick = onClearFilters,
+                                    variant = CzButtonVariant.Outline,
+                                )
+                            }
+                        } else {
+                            null
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(CzSpacing.xl),
+                    )
+
+                    is CantusImportUiState.Loaded -> LazyColumn(
+                        contentPadding = PaddingValues(
+                            start = CzSpacing.lg,
+                            end = CzSpacing.lg,
+                            top = CzSpacing.xs,
+                            bottom = if (selectedCount > 0) 112.dp else CzSpacing.xxxl,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        item {
+                            CatalogResultHeader(
+                                totalMatchCount = totalMatchCount,
+                                selectionCount = selectedCount,
                             )
                         }
-                    } else {
-                        null
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(CzSpacing.xl),
-                )
-
-                is CantusImportUiState.Loaded -> LazyColumn(
-                    contentPadding = PaddingValues(
-                        start = CzSpacing.lg,
-                        end = CzSpacing.lg,
-                        top = CzSpacing.xs,
-                        bottom = if (selectedCount > 0) 112.dp else CzSpacing.xxxl,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(CzSpacing.md),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    item {
-                        CatalogResultHeader(
-                            totalMatchCount = totalMatchCount,
-                            selectionCount = selectedCount,
-                        )
-                    }
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(CzRadius.xxl))
-                                .background(colors.card)
-                                .border(BorderStroke(1.dp, colors.divider), RoundedCornerShape(CzRadius.xxl)),
-                        ) {
-                            songs.forEachIndexed { index, song ->
-                                if (index == songs.lastIndex) {
-                                    LaunchedEffect(song.slug) {
-                                        onLoadNextPage(song)
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(CzRadius.xxl))
+                                    .background(colors.card)
+                                    .border(BorderStroke(1.dp, colors.divider), RoundedCornerShape(CzRadius.xxl)),
+                            ) {
+                                songs.forEachIndexed { index, song ->
+                                    if (index == songs.lastIndex) {
+                                        LaunchedEffect(song.slug) {
+                                            onLoadNextPage(song)
+                                        }
                                     }
-                                }
-                                CatalogSongRow(
-                                    song = song,
-                                    isSelected = song.slug in selectedSlugs,
-                                    isImported = song.slug in importedSlugs,
-                                    onToggleSelection = { onToggleSelection(song) },
-                                )
-                                if (index != songs.lastIndex) {
-                                    HorizontalDivider(
-                                        color = colors.divider,
-                                        modifier = Modifier.padding(start = CzSpacing.base + 28.dp + CzSpacing.md),
+                                    CatalogSongRow(
+                                        song = song,
+                                        isSelected = song.slug in selectedSlugs,
+                                        isImported = song.slug in importedSlugs,
+                                        onToggleSelection = { onToggleSelection(song) },
                                     )
+                                    if (index != songs.lastIndex) {
+                                        HorizontalDivider(
+                                            color = colors.divider,
+                                            modifier = Modifier.padding(start = CzSpacing.base + 28.dp + CzSpacing.md),
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
-                    if (isLoadingNextPage) {
-                        item {
-                            Text(
-                                text = stringResource(R.string.songbook_catalog_load_more),
-                                style = CzTypeScale.caption,
-                                color = colors.textSecondary,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(CzSpacing.md),
-                            )
+
+                        if (isLoadingNextPage) {
+                            item {
+                                Text(
+                                    text = stringResource(R.string.songbook_catalog_load_more),
+                                    style = CzTypeScale.caption,
+                                    color = colors.textSecondary,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(CzSpacing.md),
+                                )
+                            }
                         }
                     }
                 }

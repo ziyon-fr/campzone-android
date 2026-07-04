@@ -60,6 +60,9 @@ class CantusImportViewModel @Inject constructor(
     private val _isLoadingNextPage = MutableStateFlow(false)
     val isLoadingNextPage: StateFlow<Boolean> = _isLoadingNextPage.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     private val _operationError = MutableStateFlow<String?>(null)
     val operationError: StateFlow<String?> = _operationError.asStateFlow()
 
@@ -87,18 +90,41 @@ class CantusImportViewModel @Inject constructor(
     }
 
     fun reload(forceRefresh: Boolean = false) {
+        loadCatalog(forceRefresh = forceRefresh, showLoading = true, isRefresh = false)
+    }
+
+    fun refresh() {
+        if (_isRefreshing.value) return
+        loadCatalog(forceRefresh = true, showLoading = false, isRefresh = true)
+    }
+
+    private fun loadCatalog(
+        forceRefresh: Boolean,
+        showLoading: Boolean,
+        isRefresh: Boolean,
+    ) {
         viewModelScope.launch {
-            _uiState.value = CantusImportUiState.Loading
+            if (showLoading) _uiState.value = CantusImportUiState.Loading
+            if (isRefresh) _isRefreshing.value = true
             _operationError.value = null
-            runCatching {
-                val page = service.songs(query(page = 1), forceRefresh)
-                loadFiltersIfNeeded(forceRefresh)
-                _songs.value = page.data
-                pagination = page.pagination
-                loadedOnce = true
-                publish()
-            }.onFailure { error ->
-                _uiState.value = CantusImportUiState.Error(error.message ?: strings.get(R.string.songbook_catalog_load_failed))
+            try {
+                runCatching {
+                    val page = service.songs(query(page = 1), forceRefresh)
+                    loadFiltersIfNeeded(forceRefresh)
+                    _songs.value = page.data
+                    pagination = page.pagination
+                    loadedOnce = true
+                    publish()
+                }.onFailure { error ->
+                    val message = error.message ?: strings.get(R.string.songbook_catalog_load_failed)
+                    if (showLoading || _songs.value.isEmpty()) {
+                        _uiState.value = CantusImportUiState.Error(message)
+                    } else {
+                        _operationError.value = message
+                    }
+                }
+            } finally {
+                if (isRefresh) _isRefreshing.value = false
             }
         }
     }
