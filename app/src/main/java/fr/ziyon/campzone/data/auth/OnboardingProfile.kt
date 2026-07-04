@@ -103,7 +103,6 @@ internal object OnboardingProfilePayload {
             "church" to profile.church.trim(),
             "languages" to profile.languageCodes,
             "preferredLanguage" to profile.preferredLanguage.trim(),
-            "role" to "adult",
             "onboardingCompleted" to true,
             "updatedAt" to serverTimestamp,
         )
