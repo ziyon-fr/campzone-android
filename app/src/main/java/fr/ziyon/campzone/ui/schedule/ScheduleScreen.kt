@@ -44,6 +44,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -97,6 +98,7 @@ fun ScheduleRoute(
     val selectedDayId by viewModel.selectedDayId.collectAsState()
     val canManage by viewModel.canManageSchedule.collectAsState()
     val camping by viewModel.camping.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     LaunchedEffect(campingId) { viewModel.loadIfNeeded(campingId, authenticatedUser) }
 
@@ -105,10 +107,12 @@ fun ScheduleRoute(
         campingTitle = camping?.title ?: stringResource(R.string.calendar_default_camping_title),
         selectedDayId = selectedDayId,
         canManageSchedule = canManage,
+        isRefreshing = isRefreshing,
         onDaySelected = viewModel::setSelectedDayId,
         onBack = onBack,
         onOpenEditor = onOpenEditor,
         onOpenProgram = onOpenProgram,
+        onRefresh = { viewModel.refresh(campingId, authenticatedUser) },
         onRetry = { viewModel.load(campingId, authenticatedUser) },
     )
 }
@@ -120,10 +124,12 @@ fun ScheduleScreen(
     campingTitle: String,
     selectedDayId: String?,
     canManageSchedule: Boolean,
+    isRefreshing: Boolean,
     onDaySelected: (String?) -> Unit,
     onBack: () -> Unit,
     onOpenEditor: () -> Unit,
     onOpenProgram: (String) -> Unit,
+    onRefresh: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -221,41 +227,45 @@ fun ScheduleScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
-        Box(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            when (uiState) {
-                is ScheduleUiState.Loading -> CzLoadingView(
-                    modifier = Modifier.fillMaxSize(),
-                    message = stringResource(R.string.schedule_loading),
-                )
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (uiState) {
+                    is ScheduleUiState.Loading -> CzLoadingView(
+                        modifier = Modifier.fillMaxSize(),
+                        message = stringResource(R.string.schedule_loading),
+                    )
 
-                is ScheduleUiState.Empty -> CzEmptyState(
-                    title = stringResource(R.string.schedule_empty_title),
-                    message = stringResource(R.string.schedule_empty_message),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(CzSpacing.xl),
-                )
+                    is ScheduleUiState.Empty -> CzEmptyState(
+                        title = stringResource(R.string.schedule_empty_title),
+                        message = stringResource(R.string.schedule_empty_message),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(CzSpacing.xl),
+                    )
 
-                is ScheduleUiState.Error -> CzErrorState(
-                    title = stringResource(R.string.schedule_error_title),
-                    message = uiState.message,
-                    onRetry = onRetry,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(CzSpacing.xl),
-                )
+                    is ScheduleUiState.Error -> CzErrorState(
+                        title = stringResource(R.string.schedule_error_title),
+                        message = uiState.message,
+                        onRetry = onRetry,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(CzSpacing.xl),
+                    )
 
-                is ScheduleUiState.Loaded -> ScheduleLoadedContent(
-                    schedule = uiState.schedule,
-                    selectedDayId = selectedDayId,
-                    canManageSchedule = canManageSchedule,
-                    onDaySelected = onDaySelected,
-                    onOpenProgram = onOpenProgram,
-                )
+                    is ScheduleUiState.Loaded -> ScheduleLoadedContent(
+                        schedule = uiState.schedule,
+                        selectedDayId = selectedDayId,
+                        canManageSchedule = canManageSchedule,
+                        onDaySelected = onDaySelected,
+                        onOpenProgram = onOpenProgram,
+                    )
+                }
             }
         }
     }
@@ -568,10 +578,12 @@ private fun ScheduleScreenLoadingPreview() {
             campingTitle = "Summer Camp",
             selectedDayId = null,
             canManageSchedule = false,
+            isRefreshing = false,
             onDaySelected = {},
             onBack = {},
             onOpenEditor = {},
             onOpenProgram = {},
+            onRefresh = {},
             onRetry = {},
         )
     }

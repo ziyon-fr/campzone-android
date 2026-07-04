@@ -1,4 +1,4 @@
-package fr.ziyon.campzone.ui.songbook
+package fr.ziyon.campzone.data.songbook
 
 import java.util.Locale
 

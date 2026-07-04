@@ -74,8 +74,14 @@
     <string name="profile_delete_account_message">Your profile, registrations, and team scores will be removed after 30 days. Sign in within 30 days to cancel the deletion.</string>
     <string name="profile_delete_account_footer">Deleting your account schedules a permanent purge after a 30-day grace period. Sign in within 30 days to reactivate.</string>
     <string name="profile_deletion_scheduled">Deletion scheduled</string>
-    <string name="profile_deletion_scheduled_with_days">Your account will be permanently removed in %1$d day(s).</string>
-    <string name="profile_deletion_scheduled_with_date">Your account will be permanently removed on %1$s. %2$d day(s) remaining.</string>
+    <plurals name="profile_deletion_scheduled_with_days">
+        <item quantity="one">Your account will be permanently removed in %1$d day.</item>
+        <item quantity="other">Your account will be permanently removed in %1$d days.</item>
+    </plurals>
+    <plurals name="profile_deletion_scheduled_with_date">
+        <item quantity="one">Your account will be permanently removed on %1$s. %2$d day remaining.</item>
+        <item quantity="other">Your account will be permanently removed on %1$s. %2$d days remaining.</item>
+    </plurals>
     <string name="profile_deletion_scheduled_generic">Your account is scheduled for deletion within the 30-day grace window.</string>
     <string name="profile_account_scheduled_for_deletion">Account scheduled for deletion. You have 30 days to reactivate.</string>
     <string name="profile_reactivate_account">Reactivate account</string>
@@ -199,7 +205,10 @@
     <string name="admin_onboarding_title">Admin Setup</string>
     <string name="admin_onboarding_complete">Setup complete!</string>
     <string name="admin_onboarding_getting_started">Getting started</string>
-    <string name="admin_onboarding_steps_done">%1$d of %2$d steps done</string>
+    <plurals name="admin_onboarding_steps_done">
+        <item quantity="one">%1$d of %2$d step done</item>
+        <item quantity="other">%1$d of %2$d steps done</item>
+    </plurals>
     <string name="admin_onboarding_reset">Reset progress</string>
     <string name="admin_onboarding_step_done">Completed</string>
     <string name="admin_onboarding_step_not_done">Not completed</string>
@@ -227,8 +236,14 @@
     <string name="profile_create_export">Create export</string>
     <string name="profile_create_new_export">Create new export</string>
     <string name="profile_export_ready">Export ready</string>
-    <string name="profile_export_ready_count">%1$d record(s) exported - %2$s</string>
-    <string name="profile_export_failure_count">%1$d scope(s) could not be read and were listed in the export metadata.</string>
+    <plurals name="profile_export_ready_count">
+        <item quantity="one">%1$d record exported - %2$s</item>
+        <item quantity="other">%1$d records exported - %2$s</item>
+    </plurals>
+    <plurals name="profile_export_failure_count">
+        <item quantity="one">%1$d scope could not be read and was listed in the export metadata.</item>
+        <item quantity="other">%1$d scopes could not be read and were listed in the export metadata.</item>
+    </plurals>
     <string name="profile_share_export_file">Share export file</string>
     <string name="profile_export_error_title">Export failed</string>
 
@@ -418,7 +433,10 @@
     <string name="home_see_all">See All</string>
     <string name="home_program_started">Started %1$s</string>
     <string name="home_program_location_started">%1$s · started %2$s</string>
-    <string name="home_announcements_new_count">%1$d new</string>
+    <plurals name="home_announcements_new_count">
+        <item quantity="one">%1$d new</item>
+        <item quantity="other">%1$d new</item>
+    </plurals>
     <string name="home_time_now">now</string>
     <string name="home_time_minutes_short">%1$dm</string>
     <string name="home_time_hours_short">%1$dh</string>
@@ -689,7 +707,10 @@
     <string name="lodging_occupancy">%1$d/%2$d beds</string>
     <string name="lodging_unnamed_unit">Untitled unit</string>
     <string name="lodging_full">Full</string>
-    <string name="lodging_spots_left">%1$d free</string>
+    <plurals name="lodging_spots_left">
+        <item quantity="one">%1$d free</item>
+        <item quantity="other">%1$d free</item>
+    </plurals>
     <string name="lodging_remove_occupant">Remove from unit</string>
     <string name="lodging_add_occupant">Add occupant</string>
     <string name="lodging_assign">Assign</string>
@@ -1233,7 +1254,10 @@
     <string name="vehicle_card_request_pending">Ride request pending</string>
     <string name="vehicle_transport_help_requested">Transport help requested</string>
     <string name="vehicle_card_setup_transport">Set up transport</string>
-    <string name="vehicle_free_seats_summary">%1$s - %2$d free seat(s)</string>
+    <plurals name="vehicle_free_seats_summary">
+        <item quantity="one">%1$s - %2$d free seat</item>
+        <item quantity="other">%1$s - %2$d free seats</item>
+    </plurals>
     <string name="vehicle_riding_with">Riding with %1$s</string>
     <string name="vehicle_waiting_for">Waiting for %1$s</string>
     <string name="vehicle_leadership_can_see_request">Camp leadership can see your request.</string>
@@ -1281,7 +1305,10 @@
     <string name="vehicle_passenger_change_hint">You can leave this car yourself. The driver or a camp leader can also remove you.</string>
     <string name="vehicle_cars_with_free_seats">Cars with free seats</string>
     <string name="vehicle_no_free_seats_hint">No cars with free seats yet. Try an invitation code.</string>
-    <string name="vehicle_free_seats_count">%1$d free seat(s)</string>
+    <plurals name="vehicle_free_seats_count">
+        <item quantity="one">%1$d free seat</item>
+        <item quantity="other">%1$d free seats</item>
+    </plurals>
     <string name="vehicle_request">Request</string>
     <string name="vehicle_have_invitation_code">Have an invitation code?</string>
     <string name="vehicle_saved_vehicles">Saved vehicles</string>
@@ -1308,7 +1335,10 @@
     <string name="vehicle_free_seats_plain">%1$d free seats</string>
     <string name="vehicle_seats_offered_subtitle">How many to open up</string>
     <string name="vehicle_offering_seats">Offering seats</string>
-    <string name="vehicle_review_offering_seats_yes">Yes · %1$d offered</string>
+    <plurals name="vehicle_review_offering_seats_yes">
+        <item quantity="one">Yes · %1$d offered</item>
+        <item quantity="other">Yes · %1$d offered</item>
+    </plurals>
     <string name="vehicle_review_qr_hint">A unique QR code is generated for this car. Show it at the camp gate.</string>
     <string name="vehicle_generate_qr_code">Generate QR Code</string>
     <string name="vehicle_total_seats">Total seats</string>
@@ -1341,7 +1371,10 @@
     <string name="vehicle_no_cars_message">Cars added by drivers will appear here.</string>
     <string name="vehicle_search_plate_driver">Search by plate or driver</string>
     <string name="vehicle_already_marked_arrived">This vehicle is already marked arrived.</string>
-    <string name="vehicle_expected_count">%1$d expected</string>
+    <plurals name="vehicle_expected_count">
+        <item quantity="one">%1$d expected</item>
+        <item quantity="other">%1$d expected</item>
+    </plurals>
     <string name="vehicle_arrival_all_here_message">Arrival confirmed. Everyone is here.</string>
     <string name="vehicle_arrival_missing_passengers_message">Arrival confirmed. Some passengers are missing.</string>
     <string name="vehicle_confirm_arrival_error">Could not confirm arrival.</string>
@@ -1438,7 +1471,10 @@
     <string name="registration_review_restricted_message">Only authorized leaders can review camping registrations.</string>
     <string name="registration_review_empty_title">No pending registrations</string>
     <string name="registration_review_empty_message">New camping inscriptions waiting for approval will appear here.</string>
-    <string name="registration_review_waitlist_count">Waitlist · %1$d pending</string>
+    <plurals name="registration_review_waitlist_count">
+        <item quantity="one">Waitlist · %1$d pending</item>
+        <item quantity="other">Waitlist · %1$d pending</item>
+    </plurals>
     <string name="registration_review_approve">Approve</string>
     <string name="registration_review_reject">Reject</string>
     <string name="camping_attendees_search">Search attendees</string>
@@ -1894,7 +1930,10 @@
     <string name="notif_value_all">All</string>
     <string name="notif_value_none">None</string>
     <string name="notif_value_not_attending">Not attending</string>
-    <string name="notif_value_selected">%1$d selected</string>
+    <plurals name="notif_value_selected">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
     <string name="notif_auth_not_requested">Not requested</string>
     <string name="notif_auth_disabled">Disabled</string>
     <string name="notif_auth_enabled">Enabled</string>
@@ -2155,12 +2194,53 @@
     <string name="songbook_chord_sheet">Chord Sheet</string>
     <string name="songbook_links">Links</string>
     <string name="songbook_pdf_url">PDF URL</string>
+    <string name="songbook_pptx_url">PPTX URL</string>
     <string name="songbook_youtube_link">YouTube Link</string>
     <string name="songbook_save_changes">Save changes</string>
     <string name="songbook_add_song_action">Add song</string>
     <string name="songbook_custom_title">Custom title</string>
     <string name="songbook_update_lyrics">Update Lyrics</string>
     <string name="songbook_add_song">Add Song</string>
+    <string name="songbook_browse_catalog">Browse Song Catalog</string>
+    <string name="songbook_add_manually">Add Manually</string>
+    <string name="songbook_catalog_title">Song Catalog</string>
+    <string name="songbook_catalog_search">Search the catalog</string>
+    <string name="songbook_catalog_loading">Loading song catalog...</string>
+    <string name="songbook_catalog_load_more">Loading more songs...</string>
+    <string name="songbook_catalog_load_failed_title">Catalog unavailable</string>
+    <string name="songbook_catalog_load_failed">The song catalog could not be loaded.</string>
+    <string name="songbook_catalog_import_failed">The selected catalog songs could not be imported.</string>
+    <string name="songbook_catalog_no_songs_title">No catalog songs found</string>
+    <string name="songbook_catalog_no_songs_message">Adjust the search or filters to browse more songs.</string>
+    <string name="songbook_catalog_clear_filters">Clear filters</string>
+    <string name="songbook_catalog_all_artists">All artists</string>
+    <string name="songbook_catalog_all_languages">All languages</string>
+    <string name="songbook_catalog_all_songbooks">All songbooks</string>
+    <string name="songbook_catalog_added">Added</string>
+    <string name="songbook_catalog_selected">Selected</string>
+    <plurals name="songbook_catalog_song_count">
+        <item quantity="one">%1$d song</item>
+        <item quantity="other">%1$d songs</item>
+    </plurals>
+    <plurals name="songbook_catalog_visible_count">
+        <item quantity="one">%1$d shown</item>
+        <item quantity="other">%1$d shown</item>
+    </plurals>
+    <string name="songbook_catalog_key_value">Key %1$s</string>
+    <string name="songbook_catalog_bpm_value">%1$d BPM</string>
+    <string name="songbook_catalog_files_available">Files</string>
+    <plurals name="songbook_catalog_selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <plurals name="songbook_catalog_add_count">
+        <item quantity="one">Add %1$d song to songbook</item>
+        <item quantity="other">Add %1$d songs to songbook</item>
+    </plurals>
+    <plurals name="songbook_catalog_added_count">
+        <item quantity="one">Added %1$d song to the songbook.</item>
+        <item quantity="other">Added %1$d songs to the songbook.</item>
+    </plurals>
     <string name="songbook_loading">Loading songbook...</string>
     <string name="songbook_error_title">Songbook unavailable</string>
     <string name="songbook_empty_title">No songs yet</string>
@@ -2190,6 +2270,7 @@
     <string name="songbook_exit_full_screen_performance">Exit full-screen performance</string>
     <string name="songbook_no_chord_sheet">No chord sheet available.</string>
     <string name="songbook_open_sheet_pdf">Open Sheet PDF</string>
+    <string name="songbook_open_slides_pptx">Open Slides PPTX</string>
     <string name="songbook_theme_song">Theme Song</string>
     <string name="songbook_audio_available">Audio available</string>
     <string name="songbook_lyrics_and_chords_available">Lyrics and chords</string>
@@ -2235,12 +2316,14 @@
     <string name="songbook_track_instrumental">Instrumental</string>
     <string name="songbook_track_soprano">Soprano</string>
     <string name="songbook_track_mezzo_soprano">Mezzo-Soprano</string>
+    <string name="songbook_track_contralto">Contralto</string>
     <string name="songbook_track_alto">Alto</string>
     <string name="songbook_track_tenor">Tenor</string>
     <string name="songbook_track_baritone">Baritone</string>
     <string name="songbook_track_bass">Bass</string>
     <string name="songbook_track_other">Other</string>
     <string name="songbook_chord_placeholder">[G] Let every voice rise [D] together</string>
+    <string name="songbook_chord_sheet_hint">Use ChordPro format, for example {Verse} and [G]inline chords.</string>
     <string name="songbook_remove_audio">Remove audio</string>
     <string name="songbook_lyrics_placeholder">Write this lyrics part here...</string>
     <string name="songbook_type">Type</string>
@@ -2604,7 +2687,10 @@
     <string name="packing_notes_hint">Anything else to remember…</string>
     <string name="packing_save_notes">Save notes</string>
     <string name="packing_progress_prompt">What do I need to pack?</string>
-    <string name="packing_items_ready">%1$d of %2$d items ready</string>
+    <plurals name="packing_items_ready">
+        <item quantity="one">%1$d of %2$d item ready</item>
+        <item quantity="other">%1$d of %2$d items ready</item>
+    </plurals>
     <string name="packing_item">Item</string>
     <string name="packing_my_items">My items</string>
     <string name="packing_share_title_camp">Packing checklist · %1$s</string>
@@ -2647,7 +2733,10 @@
     <string name="packing_load_suggested">Load suggested list</string>
     <string name="packing_add_section">Add section</string>
     <string name="packing_delete_section_title">Delete this section?</string>
-    <string name="packing_delete_section_message">“%1$s” and its %2$d item(s) will be removed for everyone.</string>
+    <plurals name="packing_delete_section_message">
+        <item quantity="one">“%1$s” and its %2$d item will be removed for everyone.</item>
+        <item quantity="other">“%1$s” and its %2$d items will be removed for everyone.</item>
+    </plurals>
     <string name="packing_delete_named_section">Delete %1$s</string>
     <string name="packing_keep_section">Keep section</string>
     <string name="packing_edit_section">Edit section</string>
@@ -2661,11 +2750,17 @@
     <string name="packing_add_selected">Add selected items (%1$d)</string>
     <string name="packing_shared_load_error">Couldn\'t load shared list</string>
     <string name="packing_added_title">Added to your checklist</string>
-    <string name="packing_items_added">%1$d item(s) added.</string>
+    <plurals name="packing_items_added">
+        <item quantity="one">%1$d item added.</item>
+        <item quantity="other">%1$d items added.</item>
+    </plurals>
     <string name="packing_view_my_checklist">View my checklist</string>
     <string name="packing_shared_by">%1$s shared their list</string>
     <string name="packing_shared_all_present">You already have all of these.</string>
-    <string name="packing_shared_new_count">%1$d new for you · pick what to add</string>
+    <plurals name="packing_shared_new_count">
+        <item quantity="one">%1$d new for you · pick what to add</item>
+        <item quantity="other">%1$d new for you · pick what to add</item>
+    </plurals>
     <string name="packing_on_your_list">On your list</string>
     <string name="packing_complete">You\'re all packed!</string>
     <string name="packing_setup">Set up the packing list</string>

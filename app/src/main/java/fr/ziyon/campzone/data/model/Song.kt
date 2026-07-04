@@ -1,5 +1,6 @@
 package fr.ziyon.campzone.data.model
 
+import fr.ziyon.campzone.data.songbook.ChordProParser
 import java.util.Date
 
 /**
@@ -15,12 +16,15 @@ data class Song(
     val composer: String = "",
     val lyrics: String = "",
     val chords: String = "",
+    val chordedLyrics: String = "",
+    val cantusSlug: String = "",
     val lyricsParts: List<SongLyricsPart> = emptyList(),
     val chordSheet: ChordSheet = ChordSheet(id = ""),
     val audio: SongAudio? = null,
     val audioFiles: List<SongAudio> = emptyList(),
     val youtubeLink: String = "",
     val pdfLink: String = "",
+    val pptxLink: String = "",
     val orderIndex: Int = 0,
     val isPinnedTheme: Boolean = false,
     val favoriteUserIds: List<String> = emptyList(),
@@ -113,18 +117,22 @@ enum class SongAudioTrackType(val wireValue: String, val sortOrder: Int) {
     Instrumental("instrumental", 2),
     Soprano("soprano", 3),
     MezzoSoprano("mezzoSoprano", 4),
-    Alto("alto", 5),
-    Tenor("tenor", 6),
-    Baritone("baritone", 7),
-    Bass("bass", 8),
-    Other("other", 9);
+    Contralto("contralto", 5),
+    Alto("alto", 6),
+    Tenor("tenor", 7),
+    Baritone("baritone", 8),
+    Bass("bass", 9),
+    Other("other", 10);
 
     val allowsMultiple: Boolean get() = this == Other
     val allowsCustomName: Boolean get() = this == Other
 
     companion object {
+        fun fromWireOrNull(value: String?): SongAudioTrackType? =
+            entries.firstOrNull { it.wireValue == value }
+
         fun fromWire(value: String?): SongAudioTrackType =
-            entries.firstOrNull { it.wireValue == value } ?: Other
+            fromWireOrNull(value) ?: Other
     }
 }
 
@@ -138,9 +146,22 @@ internal fun normalizeSongAudioFiles(files: List<SongAudio>): List<SongAudio> {
 /** Keys that survive a round-trip; everything else collapses to C major (lossy, like iOS). */
 private val DECODABLE_KEYS = mapOf(
     "G" to "G", "D" to "D", "A" to "A", "F" to "F",
+    "C" to "C", "E" to "E", "B" to "B",
+    "C#" to "C#", "D#" to "D#", "F#" to "F#", "G#" to "G#", "A#" to "A#",
+    "Db" to "Db", "Eb" to "Eb", "Gb" to "Gb", "Ab" to "Ab",
     "Bb" to "Bb", "B♭" to "Bb",
+    "Cm" to "Cm", "C minor" to "Cm",
+    "C#m" to "C#m", "C# minor" to "C#m",
+    "Dm" to "Dm", "D minor" to "Dm",
+    "D#m" to "D#m", "D# minor" to "D#m",
     "Am" to "Am", "A minor" to "Am",
     "Em" to "Em", "E minor" to "Em",
+    "Fm" to "Fm", "F minor" to "Fm",
+    "F#m" to "F#m", "F# minor" to "F#m",
+    "Gm" to "Gm", "G minor" to "Gm",
+    "G#m" to "G#m", "G# minor" to "G#m",
+    "Bbm" to "Bbm", "Bb minor" to "Bbm",
+    "Bm" to "Bm", "B minor" to "Bm",
 )
 
 internal fun decodeOriginalKey(raw: String?): String =
@@ -156,6 +177,8 @@ internal fun Map<String, Any?>.toSongOrNull(documentId: String): Song {
     )
     val mainAudio = audioFiles.firstOrNull { it.trackType == SongAudioTrackType.MainSong }
         ?: audioFiles.firstOrNull()
+    val chordedLyrics = rawStringValue("chordedLyrics").orEmpty()
+    val storedChordSheet = mapValue("chordSheet")?.toChordSheet(documentId) ?: ChordSheet(id = documentId)
     return Song(
         id = documentId,
         title = rawStringValue("title").orEmpty(),
@@ -163,17 +186,51 @@ internal fun Map<String, Any?>.toSongOrNull(documentId: String): Song {
         composer = rawStringValue("composer").orEmpty(),
         lyrics = rawStringValue("lyrics").orEmpty(),
         chords = rawStringValue("chords").orEmpty(),
+        chordedLyrics = chordedLyrics,
+        cantusSlug = rawStringValue("cantusSlug").orEmpty(),
         lyricsParts = mapListValue("lyricsParts").mapNotNull { it.toSongLyricsPartOrNull() },
-        chordSheet = mapValue("chordSheet")?.toChordSheet(documentId) ?: ChordSheet(id = documentId),
+        chordSheet = resolvedChordSheet(
+            documentId = documentId,
+            stored = storedChordSheet,
+            chordedLyrics = chordedLyrics,
+            chordedLyricsUpdatedAt = dateValue("chordedLyricsUpdatedAt"),
+            hasStoredChordSheet = mapValue("chordSheet") != null,
+        ),
         audio = mainAudio,
         audioFiles = audioFiles,
         youtubeLink = rawStringValue("youtubeLink").orEmpty(),
         pdfLink = rawStringValue("pdfLink").orEmpty(),
+        pptxLink = rawStringValue("pptxLink").orEmpty(),
         orderIndex = intValue("orderIndex") ?: 0,
         isPinnedTheme = boolValue("isPinnedTheme") ?: false,
         favoriteUserIds = stringListValue("favoriteUserIDs"),
         createdAt = dateValue("createdAt"),
         updatedAt = dateValue("updatedAt"),
+    )
+}
+
+private fun resolvedChordSheet(
+    documentId: String,
+    stored: ChordSheet,
+    chordedLyrics: String,
+    chordedLyricsUpdatedAt: Date?,
+    hasStoredChordSheet: Boolean,
+): ChordSheet {
+    if (chordedLyrics.isBlank()) return stored
+    if (stored.lines.isNotEmpty()) {
+        val canonicalStamp = chordedLyricsUpdatedAt ?: Date(0)
+        val structuredStamp = stored.updatedAt ?: Date(0)
+        if (canonicalStamp.time + 1_000L < structuredStamp.time) return stored
+    }
+
+    val parsed = ChordProParser.parse(chordedLyrics, existingId = stored.id.ifBlank { documentId })
+    return stored.copy(
+        originalKey = if (hasStoredChordSheet) stored.originalKey else parsed.originalKey,
+        lines = parsed.lines,
+        tempo = stored.tempo,
+        timeSignature = stored.timeSignature,
+        capo = stored.capo,
+        updatedAt = stored.updatedAt,
     )
 }
 
@@ -255,11 +312,15 @@ internal object SongPayload {
             "composer" to song.composer.trim(),
             "lyrics" to song.lyrics,
             "chords" to song.chords,
+            "chordedLyrics" to song.chordedLyrics,
+            "chordedLyricsUpdatedAt" to (song.chordSheet.updatedAt ?: rawDate),
+            "cantusSlug" to song.cantusSlug.trim(),
             "lyricsParts" to song.lyricsParts.map(::lyricsPartMap),
             "chordSheet" to chordSheetMap(song.chordSheet, rawDate),
             "audioFiles" to audioFiles.map(::audioMap),
             "youtubeLink" to song.youtubeLink.trim(),
             "pdfLink" to song.pdfLink.trim(),
+            "pptxLink" to song.pptxLink.trim(),
             "orderIndex" to song.orderIndex,
             "isPinnedTheme" to song.isPinnedTheme,
             "favoriteUserIDs" to song.favoriteUserIds,

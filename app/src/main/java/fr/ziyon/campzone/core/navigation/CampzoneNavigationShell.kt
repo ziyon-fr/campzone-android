@@ -99,6 +99,7 @@ import fr.ziyon.campzone.ui.teams.TeamsRoute
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuEditorScreen
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuRoute
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuViewModel
+import fr.ziyon.campzone.ui.songbook.CantusImportRoute
 import fr.ziyon.campzone.ui.songbook.SongDetailRoute
 import fr.ziyon.campzone.ui.songbook.SongEditorRoute
 import fr.ziyon.campzone.ui.songbook.FloatingSongPlaybackIndicator
@@ -1988,6 +1989,22 @@ fun CampzoneNavigationShell(
                 )
             }
             composable(
+                route = AppRoutePattern.CantusImport,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                CantusImportRoute(
+                    campingId = campingId,
+                    authenticatedUser = authenticatedUser,
+                    songbookViewModel = songbookViewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenManual = {
+                        songbookViewModel.prepareNewSong(campingId)
+                        navController.navigate(AppRoute.SongEditor(campingId).route)
+                    },
+                )
+            }
+            composable(
                 route = AppRoutePattern.SongDetail,
                 arguments = listOf(
                     navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
@@ -2022,6 +2039,9 @@ fun CampzoneNavigationShell(
                     },
                     onOpenEditor = { songId ->
                         navController.navigate(AppRoute.SongEditor(campingId, songId).route)
+                    },
+                    onOpenCatalog = {
+                        navController.navigate(AppRoute.CantusImport(campingId).route)
                     },
                 )
             }

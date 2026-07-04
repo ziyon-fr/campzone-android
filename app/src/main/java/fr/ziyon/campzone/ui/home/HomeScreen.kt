@@ -82,6 +82,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -105,6 +106,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -186,9 +188,11 @@ fun HomeRoute(
         viewModel.loadHome(authenticatedUser)
     }
     val state by viewModel.uiState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     HomeScreen(
         state = state,
         authenticatedUser = authenticatedUser,
+        isRefreshing = isRefreshing,
         onOpenCamping = onOpenCamping,
         onOpenProgram = onOpenProgram,
         onOpenAnnouncement = onOpenAnnouncement,
@@ -212,15 +216,18 @@ fun HomeRoute(
         onOpenVehicles = onOpenVehicles,
         onOpenCheckInScanner = onOpenCheckInScanner,
         onOpenEmergency = onOpenEmergency,
+        onRefresh = { viewModel.refresh(authenticatedUser) },
         onRetry = viewModel::retry,
         modifier = modifier,
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     state: HomeUiState,
     authenticatedUser: AuthenticatedUser,
+    isRefreshing: Boolean,
     onOpenCamping: (String) -> Unit,
     onOpenProgram: (campingId: String, programId: String) -> Unit,
     onOpenAnnouncement: (String) -> Unit,
@@ -244,75 +251,80 @@ fun HomeScreen(
     onOpenVehicles: (String) -> Unit,
     onOpenCheckInScanner: (String) -> Unit,
     onOpenEmergency: (String) -> Unit = {},
+    onRefresh: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.czColors.background),
     ) {
-        when (val phase = state.phase) {
-            HomePhase.Loading -> CzLoadingView(
-                modifier = Modifier.align(Alignment.Center),
-                message = stringResource(R.string.home_loading_overview),
-            )
+        Box(modifier = Modifier.fillMaxSize()) {
+            when (val phase = state.phase) {
+                HomePhase.Loading -> CzLoadingView(
+                    modifier = Modifier.align(Alignment.Center),
+                    message = stringResource(R.string.home_loading_overview),
+                )
 
-            is HomePhase.Error -> CzErrorState(
-                title = stringResource(R.string.home_error_title),
-                message = phase.message ?: stringResource(R.string.home_error_message),
-                onRetry = onRetry,
-                retryLabel = stringResource(R.string.common_retry),
-                modifier = Modifier.align(Alignment.Center),
-            )
+                is HomePhase.Error -> CzErrorState(
+                    title = stringResource(R.string.home_error_title),
+                    message = phase.message ?: stringResource(R.string.home_error_message),
+                    onRetry = onRetry,
+                    retryLabel = stringResource(R.string.common_retry),
+                    modifier = Modifier.align(Alignment.Center),
+                )
 
-            is HomePhase.Loaded -> {
-                val featured = phase.featuredCamping
-                if (featured == null && phase.upcomingPrograms.isEmpty() && phase.announcements.isEmpty()) {
-                    CzEmptyState(
-                        title = stringResource(R.string.home_empty_dashboard_title),
-                        message = stringResource(R.string.home_empty_dashboard_message),
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Filled.Park,
-                                contentDescription = null,
-                                tint = MaterialTheme.czColors.ember,
-                                modifier = Modifier.size(CzSpacing.xl),
-                            )
-                        },
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                } else {
-                    HomeDashboard(
-                        featuredCamping = featured,
-                        upcomingPrograms = phase.upcomingPrograms,
-                        announcements = phase.announcements,
-                        livePassInfo = phase.livePassInfo,
-                        authenticatedUser = authenticatedUser,
-                        onOpenCamping = onOpenCamping,
-                        onOpenProgram = onOpenProgram,
-                        onOpenAnnouncement = onOpenAnnouncement,
-                        onOpenNotifications = onOpenNotifications,
-                        onOpenRegistration = onOpenRegistration,
-                        onOpenSchedule = onOpenSchedule,
-                        onOpenVenueMap = onOpenVenueMap,
-                        onOpenGuidelines = onOpenGuidelines,
-                        onOpenPackingChecklist = onOpenPackingChecklist,
-                        onOpenTeams = onOpenTeams,
-                        onOpenQrPasses = onOpenQrPasses,
-                        onOpenFoodMenu = onOpenFoodMenu,
-                        onOpenSongbook = onOpenSongbook,
-                        onOpenGames = onOpenGames,
-                        onOpenChat = onOpenChat,
-                        onOpenPolls = onOpenPolls,
-                        onOpenAlbum = onOpenAlbum,
-                        onOpenPricing = onOpenPricing,
-                        onOpenSupport = onOpenSupport,
-                        onOpenTransportation = onOpenTransportation,
-                        onOpenVehicles = onOpenVehicles,
-                        onOpenCheckInScanner = onOpenCheckInScanner,
-                        onOpenEmergency = onOpenEmergency,
-                    )
+                is HomePhase.Loaded -> {
+                    val featured = phase.featuredCamping
+                    if (featured == null && phase.upcomingPrograms.isEmpty() && phase.announcements.isEmpty()) {
+                        CzEmptyState(
+                            title = stringResource(R.string.home_empty_dashboard_title),
+                            message = stringResource(R.string.home_empty_dashboard_message),
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Park,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.czColors.ember,
+                                    modifier = Modifier.size(CzSpacing.xl),
+                                )
+                            },
+                            modifier = Modifier.align(Alignment.Center),
+                        )
+                    } else {
+                        HomeDashboard(
+                            featuredCamping = featured,
+                            upcomingPrograms = phase.upcomingPrograms,
+                            announcements = phase.announcements,
+                            livePassInfo = phase.livePassInfo,
+                            authenticatedUser = authenticatedUser,
+                            onOpenCamping = onOpenCamping,
+                            onOpenProgram = onOpenProgram,
+                            onOpenAnnouncement = onOpenAnnouncement,
+                            onOpenNotifications = onOpenNotifications,
+                            onOpenRegistration = onOpenRegistration,
+                            onOpenSchedule = onOpenSchedule,
+                            onOpenVenueMap = onOpenVenueMap,
+                            onOpenGuidelines = onOpenGuidelines,
+                            onOpenPackingChecklist = onOpenPackingChecklist,
+                            onOpenTeams = onOpenTeams,
+                            onOpenQrPasses = onOpenQrPasses,
+                            onOpenFoodMenu = onOpenFoodMenu,
+                            onOpenSongbook = onOpenSongbook,
+                            onOpenGames = onOpenGames,
+                            onOpenChat = onOpenChat,
+                            onOpenPolls = onOpenPolls,
+                            onOpenAlbum = onOpenAlbum,
+                            onOpenPricing = onOpenPricing,
+                            onOpenSupport = onOpenSupport,
+                            onOpenTransportation = onOpenTransportation,
+                            onOpenVehicles = onOpenVehicles,
+                            onOpenCheckInScanner = onOpenCheckInScanner,
+                            onOpenEmergency = onOpenEmergency,
+                        )
+                    }
                 }
             }
         }
@@ -1328,7 +1340,7 @@ private fun HomeAnnouncementsCarousel(
             )
             if (newCount > 0) {
                 Text(
-                    text = stringResource(R.string.home_announcements_new_count, newCount),
+                    text = pluralStringResource(R.plurals.home_announcements_new_count, newCount, newCount),
                     color = Color.White,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
@@ -2798,6 +2810,7 @@ fun HomeScreenPreview() {
                 ),
             ),
             authenticatedUser = user,
+            isRefreshing = false,
             onOpenCamping = {},
             onOpenProgram = { _, _ -> },
             onOpenAnnouncement = {},
@@ -2820,6 +2833,7 @@ fun HomeScreenPreview() {
             onOpenTransportation = {},
             onOpenVehicles = {},
             onOpenCheckInScanner = {},
+            onRefresh = {},
             onRetry = {},
         )
     }

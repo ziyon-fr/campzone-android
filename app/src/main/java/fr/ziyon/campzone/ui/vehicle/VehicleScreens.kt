@@ -88,6 +88,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -534,7 +535,7 @@ fun MyVehicleCard(
         else -> stringResource(R.string.vehicle_card_setup_transport)
     }
     val subtitle = when {
-        driven != null -> stringResource(R.string.vehicle_free_seats_summary, driven.plateNumber, driven.offeredSeatCount)
+        driven != null -> pluralStringResource(R.plurals.vehicle_free_seats_summary, driven.offeredSeatCount, driven.plateNumber, driven.offeredSeatCount)
         ridden != null -> stringResource(R.string.vehicle_riding_with, ridden.driverName)
         pending != null -> stringResource(R.string.vehicle_waiting_for, pending.driverName)
         attendee.needsTransportHelp -> stringResource(R.string.vehicle_leadership_can_see_request)
@@ -790,7 +791,7 @@ private fun DriverVehicleSection(
         StatusHeader(
             icon = Icons.Filled.DirectionsCar,
             title = stringResource(R.string.vehicle_you_are_driving),
-            subtitle = stringResource(R.string.vehicle_free_seats_summary, vehicle.plateNumber, vehicle.offeredSeatCount),
+            subtitle = pluralStringResource(R.plurals.vehicle_free_seats_summary, vehicle.offeredSeatCount, vehicle.plateNumber, vehicle.offeredSeatCount),
             color = MaterialTheme.czColors.accent,
         )
         CzButton(text = stringResource(R.string.vehicle_show_car_qr), onClick = onOpenQr)
@@ -941,7 +942,7 @@ private fun FindRideCard(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(vehicle.driverName, color = MaterialTheme.czColors.textPrimary, fontWeight = FontWeight.SemiBold)
-                        Text(stringResource(R.string.vehicle_free_seats_count, vehicle.offeredSeatCount), color = MaterialTheme.czColors.textSecondary)
+                        Text(pluralStringResource(R.plurals.vehicle_free_seats_count, vehicle.offeredSeatCount, vehicle.offeredSeatCount), color = MaterialTheme.czColors.textSecondary)
                     }
                     TextButton(onClick = { onJoinVehicle(vehicle) }) { Text(stringResource(R.string.vehicle_request)) }
                 }
@@ -1212,7 +1213,7 @@ private fun VehicleFormContent(
                             .joinToString(" "),
                         seatSummary = stringResource(R.string.vehicle_occupied_seats, peopleInCar, totalSeats),
                         offeredSeatSummary = if (hasAvailableSeats) {
-                            stringResource(R.string.vehicle_review_offering_seats_yes, displayedOfferedSeats)
+                            pluralStringResource(R.plurals.vehicle_review_offering_seats_yes, displayedOfferedSeats, displayedOfferedSeats)
                         } else {
                             stringResource(R.string.common_no)
                         },
@@ -1891,7 +1892,7 @@ private fun VehicleArrivalContent(
                         Text(vehicle.driverName, color = MaterialTheme.czColors.textPrimary, style = MaterialTheme.typography.titleMedium)
                         Text(vehicle.plateNumber, color = MaterialTheme.czColors.textSecondary)
                     }
-                    Text(stringResource(R.string.vehicle_expected_count, vehicle.expectedRegisteredCount), color = MaterialTheme.czColors.accent)
+                    Text(pluralStringResource(R.plurals.vehicle_expected_count, vehicle.expectedRegisteredCount, vehicle.expectedRegisteredCount), color = MaterialTheme.czColors.accent)
                 }
             }
         }

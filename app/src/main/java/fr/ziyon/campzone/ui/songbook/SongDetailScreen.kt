@@ -39,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Check
@@ -50,7 +51,6 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Fullscreen
@@ -119,6 +119,8 @@ import fr.ziyon.campzone.data.model.Song
 import fr.ziyon.campzone.data.model.SongAudio
 import fr.ziyon.campzone.data.model.SongLyricsPart
 import fr.ziyon.campzone.data.model.SongLyricsPartKind
+import fr.ziyon.campzone.data.songbook.ChordProParser
+import fr.ziyon.campzone.data.songbook.ChordSymbolParser
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -278,7 +280,7 @@ fun SongDetailScreen(
                             if (song.hasAlternativeAudio) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.songbook_voice_kits), fontWeight = FontWeight.SemiBold) },
-                                    leadingIcon = { Icon(Icons.Rounded.QueueMusic, null) },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null) },
                                     enabled = false,
                                     onClick = {},
                                 )
@@ -313,6 +315,12 @@ fun SongDetailScreen(
                                 DropdownMenuItem(text = { Text(stringResource(R.string.songbook_open_sheet_pdf)) }, leadingIcon = { Icon(Icons.Rounded.Description, null) }, onClick = {
                                     menuOpen = false
                                     openUrl(context, song.pdfLink)
+                                })
+                            }
+                            if (song.pptxLink.isNotBlank()) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.songbook_open_slides_pptx)) }, leadingIcon = { Icon(Icons.Rounded.Description, null) }, onClick = {
+                                    menuOpen = false
+                                    openUrl(context, song.pptxLink)
                                 })
                             }
                             if (canManage) {

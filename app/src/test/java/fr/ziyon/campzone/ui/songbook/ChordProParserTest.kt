@@ -1,5 +1,7 @@
 package fr.ziyon.campzone.ui.songbook
 
+import fr.ziyon.campzone.data.songbook.ChordProParser
+import fr.ziyon.campzone.data.songbook.ChordSymbolParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -7,6 +9,33 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChordProParserTest {
+
+    @Test
+    fun parsesAndSerializesCanonicalChordedLyrics() {
+        val source = """
+            {Verse 1}
+            A[G]mazing [D/F#]grace
+            How [Em7]sweet the [C]sound
+            {Chorus}
+            [Am]I once was [G/B]lost
+        """.trimIndent()
+
+        val sheet = ChordProParser.parse(source, existingId = "song")
+
+        assertTrue(sheet.lines.first().isSectionHeader)
+        assertEquals("Verse 1", sheet.lines.first().text)
+        assertEquals("Amazing grace", sheet.lines[1].text)
+        assertEquals(listOf("G", "D/F#"), sheet.lines[1].chords.map { it.chord })
+        assertEquals(listOf(1, 8), sheet.lines[1].chords.map { it.position })
+        assertEquals(source, ChordProParser.serialize(sheet))
+    }
+
+    @Test
+    fun recognizesChordedLyricsWithoutTreatingSectionHeadersAsChords() {
+        assertTrue(ChordProParser.looksLikeChordPro("{Verse}\nA[G]mazing grace"))
+        assertTrue(ChordProParser.parse("{Bridge}", existingId = "song").lines.single().isSectionHeader)
+        assertEquals("{Bridge}", ChordProParser.serialize(ChordProParser.parse("{Bridge}", existingId = "song")))
+    }
 
     @Test
     fun parsesWorshipChartSymbolsWithSlashBassesAndAlterations() {

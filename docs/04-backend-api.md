@@ -54,6 +54,10 @@
 | POST | `/notifications/dispatch/badge` | push + feed: badge award (leadership/system) |
 | POST | `/notifications/dispatch/transportation` | push + feed: vehicle invitation/request direct-user event |
 | POST | `/notifications/dispatch/checklist` | push + feed: shared packing checklist direct-user event |
+| GET | `/cantus/songs` | authenticated Cantus song catalog page |
+| GET | `/cantus/songs/:slug` | authenticated Cantus song detail with `chordedLyrics` |
+| GET | `/cantus/artists` | authenticated Cantus artist catalog page |
+| GET | `/cantus/songbooks` | authenticated Cantus songbook catalog page |
 | POST | `/cloudinary/sign` | signed Cloudinary upload descriptor |
 | POST | `/cloudinary/destroy` | delete a Cloudinary asset |
 | GET | `/api/badges/evaluate` | cron: bounded badge sweep (`CRON_SECRET`) |
@@ -252,13 +256,39 @@ decoder requirements.
 
 ---
 
-## 4. Cloudinary (signed uploads - no client secret)
+## 4. Cantus catalog proxy
+
+The Songbook catalog import flow uses the notification backend as an
+authenticated proxy to the upstream Cantus API. Clients send their Firebase ID
+token as `Authorization: Bearer <token>` and never ship `CANTUS_API_KEY`.
+
+Responses use the standard backend envelope:
+
+```jsonc
+{ "success": true, "data": { ... } }
+```
+
+Endpoints:
+
+- `GET /cantus/songs?q=&language=&artist=&songbook=&page=&limit=` returns
+  `{ data: CantusSong[], pagination }`. List rows may omit full
+  `chordedLyrics`.
+- `GET /cantus/songs/:slug` returns `{ data: CantusSong }` and is used before
+  import so clients save canonical `chordedLyrics`, PDF/PPTX links, key, tempo,
+  time signature, and remote audio metadata.
+- `GET /cantus/artists?page=&limit=` and `GET /cantus/songbooks?page=&limit=`
+  back the filter menus. Mobile clients may aggregate pages and cache responses
+  for 24h with stale fallback.
+
+---
+
+## 5. Cloudinary (signed uploads - no client secret)
 
 Media (profile/team/camp logos, album photos/videos, announcement
 attachments, song audio, venue-map images) is stored on **Cloudinary**,
 not Firebase Storage. The client never holds the API secret.
 
-### 4.1 `POST /cloudinary/sign`
+### 5.1 `POST /cloudinary/sign`
 
 Body:
 
@@ -284,7 +314,7 @@ Firestore field (e.g. `photoURL`/`photoPublicID`, `logoURL`/
 `logoPublicID`, media `secureURL`/`publicID`, attachment `downloadURL`/
 `storagePath`). Audio uses `resourceType: "video"` on Cloudinary.
 
-### 4.2 `POST /cloudinary/destroy`
+### 5.2 `POST /cloudinary/destroy`
 
 Body `{ "publicID": "...", "resourceType": "image"|"video"|"raw",
 "invalidate": true }`. Use for replace/cleanup. Both endpoints require
@@ -296,14 +326,14 @@ Conventions: camp logo public id is stable
 
 ---
 
-## 5. Stripe payments (PaymentSheet pattern)
+## 6. Stripe payments (PaymentSheet pattern)
 
 Server-signed; the client never holds `STRIPE_SECRET_KEY`. Both routes
 require the Firebase ID token. Web should use Stripe.js / Payment
 Element; Android uses the Stripe Android SDK PaymentSheet. The
 **contract is identical to iOS**.
 
-### 5.1 `POST /payments/intent`
+### 6.1 `POST /payments/intent`
 
 Body:
 
@@ -329,7 +359,7 @@ Body:
   `{ paymentIntentId, paymentIntentClientSecret, ephemeralKeySecret,
   customerId, publishableKey, amount, currency }`.
 
-### 5.2 `POST /payments/confirm`
+### 6.2 `POST /payments/confirm`
 
 Body `{ "paymentIntentId": "...", "kind"?, "campingID"?,
 "referenceID"? }` (the backend prefers the values from the verified
@@ -357,7 +387,7 @@ the backend settles them.
 
 ---
 
-## 6. Achievement badge auto-award
+## 7. Achievement badge auto-award
 
 `/api/badges/evaluate` is the **single source of truth** for objective
 badges (clients only read `users/{uid}/badges/{id}`):
@@ -382,7 +412,7 @@ badges (clients only read `users/{uid}/badges/{id}`):
 
 ---
 
-## 7. Environment & deploy (owner actions)
+## 8. Environment & deploy (owner actions)
 
 Backend env (Vercel project settings - **never** in any client bundle):
 `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`

@@ -117,6 +117,9 @@ class ScheduleViewModel @Inject constructor(
     private val _operationMessage = MutableStateFlow<String?>(null)
     val operationMessage: StateFlow<String?> = _operationMessage.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     private val permissions = AppPermissionEvaluator()
 
     private val _canManageSchedule = MutableStateFlow(false)
@@ -146,21 +149,27 @@ class ScheduleViewModel @Inject constructor(
         observeSchedule(campingId, showLoading = !schedules.containsKey(campingId))
     }
 
-    private fun observeSchedule(campingId: String, showLoading: Boolean) {
+    fun refresh(campingId: String, user: AuthenticatedUser? = null) {
+        if (user != null) lastUser = user
+        observeSchedule(campingId, showLoading = false, isRefresh = true)
+    }
+
+    private fun observeSchedule(campingId: String, showLoading: Boolean, isRefresh: Boolean = false) {
         observedCampingId = campingId
         observeJob?.cancel()
         observeJob = viewModelScope.launch {
             if (showLoading) _uiState.value = ScheduleUiState.Loading
+            if (isRefresh) _isRefreshing.value = true
             _operationError.value = null
-            runCatching {
-                _venuePoints.value = runCatching { venueMapService.loadMap(campingId).points }
-                    .getOrDefault(emptyList())
-                _games.value = runCatching { gameService.loadGames(campingId) }
-                    .getOrDefault(emptyList())
-            }.onFailure { e ->
-                _operationError.value = e.message
-            }
             try {
+                runCatching {
+                    _venuePoints.value = runCatching { venueMapService.loadMap(campingId).points }
+                        .getOrDefault(emptyList())
+                    _games.value = runCatching { gameService.loadGames(campingId) }
+                        .getOrDefault(emptyList())
+                }.onFailure { e ->
+                    _operationError.value = e.message
+                }
                 combine(
                     scheduleService.observeSchedule(campingId),
                     campingService.observeCamping(campingId),
@@ -172,13 +181,19 @@ class ScheduleViewModel @Inject constructor(
                     schedules[campingId] = schedule
                     updateCanManage(lastUser, camping)
                     publishSchedule(campingId)
+                    if (isRefresh) _isRefreshing.value = false
                 }
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (e: Exception) {
-                _uiState.value = ScheduleUiState.Error(
-                    e.message ?: stringProvider.get(R.string.schedule_load_error),
-                )
+                val message = e.message ?: stringProvider.get(R.string.schedule_load_error)
+                if (showLoading || schedules[campingId] == null) {
+                    _uiState.value = ScheduleUiState.Error(message)
+                } else {
+                    _operationError.value = message
+                }
+            } finally {
+                if (isRefresh) _isRefreshing.value = false
             }
         }
     }

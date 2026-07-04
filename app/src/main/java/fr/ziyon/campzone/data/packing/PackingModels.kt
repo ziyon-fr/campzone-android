@@ -92,7 +92,7 @@ data class PackingChecklistSnapshot(
                 ?.let { strings.get(R.string.packing_share_title_camp, it) }
                 ?: strings.get(R.string.packing_title),
         )
-        add(strings.get(R.string.packing_items_ready, checkedItems, totalItems))
+        add(strings.getQuantity(R.plurals.packing_items_ready, totalItems, checkedItems, totalItems))
         add("")
         categories.filter { it.rows.isNotEmpty() }.forEach { category ->
             add(category.title.uppercase())

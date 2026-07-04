@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -245,7 +246,7 @@ private fun ProgressCard(done: Int, total: Int, progress: Float) {
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(
-                        text = stringResource(R.string.admin_onboarding_steps_done, done, total),
+                        text = pluralStringResource(R.plurals.admin_onboarding_steps_done, done, done, total),
                         color = colors.textSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )

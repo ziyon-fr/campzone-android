@@ -1,3 +1,65 @@
+# Project Status - Home, Schedule, and Songbook pull-to-refresh parity
+
+Updated: 2026-07-04
+
+- Source of truth audited: iOS `HomeView.swift`, `CampingScheduleView.swift`,
+  `SongbookView.swift`, their observers, Android `HomeScreen.kt`,
+  `ScheduleScreen.kt`, `SongbookScreen.kt`, and the matching ViewModels.
+- iOS Home now exposes native pull-to-refresh by restarting the existing
+  dashboard stream without forcing a cold loading state; Schedule and Songbook
+  use native `.refreshable` on their scroll content and force a fresh service
+  read through warm observer refresh methods.
+- Android Home, Schedule, and Songbook now use the existing Material3
+  `PullToRefreshBox` pattern with dedicated `isRefreshing` state so initial
+  load, retry, and manual refresh stay separate.
+- Refresh failure handling preserves already loaded content for Home, Schedule,
+  and Songbook instead of replacing it with an error screen; Songbook surfaces
+  refresh failures through the existing snackbar/toast path.
+- Verification passed: iOS `xcodebuild build`, focused iOS
+  `MainObserverTests`/`ScheduleObserverTests`/`SongbookObserverTests`, Android
+  `:app:compileDebugKotlin`, focused Android `HomeViewModelTest` and
+  `SongbookViewModelTest`, plus `git diff --check` in both repositories.
+  Device gesture validation remains the final manual smoke check.
+
+---
+
+# Project Status - Cantus catalog Songbook parity
+
+Updated: 2026-07-04
+
+- Source of truth audited: Android `CLAUDE.md`, shared docs/tracker, and current
+  iOS Songbook/Cantus changes in `CantusCatalog.swift`, `CantusService.swift`,
+  `CantusImportObserver.swift`, `CantusImportView.swift`, `ChordProParser.swift`,
+  `Song.swift`, `SongbookObserver.swift`, `SongbookView.swift`,
+  `SongDetailView.swift`, and `SongEditorView.swift`.
+- Android now mirrors the new iOS Songbook add flow: the plus menu opens
+  Browse Song Catalog first, Add Manually remains available, and the catalog
+  route is registered before dynamic song detail routes.
+- Added the authenticated Cantus backend proxy client with 24h stale-fallback
+  disk cache, catalog models, search/filter/selection ViewModel state, grouped
+  iOS-style catalog rows, Added duplicate state, and bottom import action.
+- Extended the shared Song contract with canonical `chordedLyrics`,
+  `chordedLyricsUpdatedAt`, `cantusSlug`, and `pptxLink`; manual saves and
+  imports persist ChordPro text, legacy `chords`, structured `chordSheet`,
+  lyrics parts, PDF/PPTX links, remote audio, key, tempo, and time signature.
+- Cantus imports now preserve the catalog `media.audioFiles` array as typed
+  Voice Kits, including `voiceType`, `displayName`, file metadata, and the
+  `contralto` track type; the legacy single `audioUrl` still imports as one
+  main song when no audio file array is present.
+- Song detail now opens PPTX slide links, and the editor exposes a PPTX URL
+  field plus the ChordPro format hint.
+- Documentation updated: Song Firestore schema documents the canonical
+  ChordPro precedence rule and new fields; backend API docs document the
+  authenticated `/cantus/*` proxy.
+- Verification (Android Studio JBR): focused `ChordProParserTest`,
+  `MediaSongTest`, `CantusCatalogTest`, and `SongbookViewModelTest`, full
+  `:app:testDebugUnitTest`, `:app:compileDebugKotlin`, `:app:lintDebug`,
+  `:app:assembleDebug`, and `git diff --check` passed. Live signed-in
+  `/cantus/*` proxy smoke and device visual comparison against iOS remain to
+  close tracker `SONG-004` from VERIFY to DONE.
+
+---
+
 # Project Status - Vehicle offer guards and registration review profile access
 
 Updated: 2026-07-03

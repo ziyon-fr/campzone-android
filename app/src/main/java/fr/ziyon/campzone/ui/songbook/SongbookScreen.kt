@@ -62,6 +62,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -105,6 +106,7 @@ fun SongbookRoute(
     onBack: () -> Unit,
     onOpenSong: (String) -> Unit,
     onOpenEditor: (String?) -> Unit,
+    onOpenCatalog: () -> Unit,
     viewModel: SongbookViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -116,6 +118,7 @@ fun SongbookRoute(
     val isAudioPlaying by viewModel.isAudioPlaying.collectAsState()
     val operationError by viewModel.operationError.collectAsState()
     val operationMessage by viewModel.operationMessage.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     LaunchedEffect(campingId, authenticatedUser.uid) {
         viewModel.loadIfNeeded(campingId, authenticatedUser)
@@ -131,6 +134,7 @@ fun SongbookRoute(
         playingSongId = playingSongId,
         playingAudioId = playingAudioId,
         isAudioPlaying = isAudioPlaying,
+        isRefreshing = isRefreshing,
         visibleSongs = viewModel.visibleSongs(campingId, authenticatedUser.uid),
         pinnedSong = viewModel.pinnedSong(campingId),
         operationError = operationError,
@@ -139,6 +143,7 @@ fun SongbookRoute(
         onSearchChange = viewModel::updateSearch,
         onToggleFavoritesOnly = viewModel::toggleFavoritesOnly,
         onOpenSong = onOpenSong,
+        onOpenCatalog = onOpenCatalog,
         onAddSong = {
             viewModel.prepareNewSong(campingId)
             onOpenEditor(null)
@@ -153,6 +158,7 @@ fun SongbookRoute(
         onToggleFavorite = { songId -> viewModel.toggleFavorite(songId, campingId, authenticatedUser.uid) },
         onToggleAudio = viewModel::toggleAudio,
         onPlayTrack = viewModel::playAudio,
+        onRefresh = { viewModel.refresh(campingId, authenticatedUser) },
         onRetry = { viewModel.load(campingId, authenticatedUser) },
         onClearMessage = viewModel::clearOperationMessage,
         onClearError = viewModel::clearOperationError,
@@ -171,6 +177,7 @@ fun SongbookScreen(
     playingSongId: String?,
     playingAudioId: String?,
     isAudioPlaying: Boolean,
+    isRefreshing: Boolean,
     visibleSongs: List<Song>,
     pinnedSong: Song?,
     operationError: String?,
@@ -179,6 +186,7 @@ fun SongbookScreen(
     onSearchChange: (String) -> Unit,
     onToggleFavoritesOnly: () -> Unit,
     onOpenSong: (String) -> Unit,
+    onOpenCatalog: () -> Unit,
     onAddSong: () -> Unit,
     onEditSong: (Song) -> Unit,
     onMoveSong: (String, SongMoveDirection) -> Unit,
@@ -187,6 +195,7 @@ fun SongbookScreen(
     onToggleFavorite: (String) -> Unit,
     onToggleAudio: (Song) -> Unit,
     onPlayTrack: (Song, SongAudio) -> Unit,
+    onRefresh: () -> Unit,
     onRetry: () -> Unit,
     onClearMessage: () -> Unit,
     onClearError: () -> Unit,
@@ -196,6 +205,7 @@ fun SongbookScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     var songPendingDeletion by remember { mutableStateOf<Song?>(null) }
+    var addMenuOpen by remember { mutableStateOf(false) }
     val loadedTitle = when (uiState) {
         is SongbookUiState.Loaded -> uiState.campingTitle
         is SongbookUiState.Empty -> uiState.campingTitle
@@ -250,8 +260,28 @@ fun SongbookScreen(
                 },
                 actions = {
                     if (canManage) {
-                        IconButton(onClick = onAddSong) {
-                            Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.songbook_add_song), tint = colors.accent)
+                        Box {
+                            IconButton(onClick = { addMenuOpen = true }) {
+                                Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.songbook_add_song), tint = colors.accent)
+                            }
+                            DropdownMenu(expanded = addMenuOpen, onDismissRequest = { addMenuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.songbook_browse_catalog)) },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = null) },
+                                    onClick = {
+                                        addMenuOpen = false
+                                        onOpenCatalog()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.songbook_add_manually)) },
+                                    leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                                    onClick = {
+                                        addMenuOpen = false
+                                        onAddSong()
+                                    },
+                                )
+                            }
                         }
                     }
                 },
@@ -263,95 +293,99 @@ fun SongbookScreen(
             )
         },
     ) { innerPadding ->
-        Box(
-            Modifier
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            when (uiState) {
-                SongbookUiState.Loading -> CzLoadingView(
-                    modifier = Modifier.fillMaxSize(),
-                    message = stringResource(R.string.songbook_loading),
-                )
+            Box(Modifier.fillMaxSize()) {
+                when (uiState) {
+                    SongbookUiState.Loading -> CzLoadingView(
+                        modifier = Modifier.fillMaxSize(),
+                        message = stringResource(R.string.songbook_loading),
+                    )
 
-                is SongbookUiState.Error -> CzErrorState(
-                    title = stringResource(R.string.songbook_error_title),
-                    message = uiState.message,
-                    onRetry = onRetry,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(CzSpacing.xl),
-                )
+                    is SongbookUiState.Error -> CzErrorState(
+                        title = stringResource(R.string.songbook_error_title),
+                        message = uiState.message,
+                        onRetry = onRetry,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(CzSpacing.xl),
+                    )
 
-                is SongbookUiState.Empty -> CzEmptyState(
-                    title = stringResource(R.string.songbook_empty_title),
-                    message = stringResource(R.string.songbook_empty_message),
-                    action = if (canManage) {
-                        {
-                            CzButton(
-                                text = stringResource(R.string.songbook_add_song),
-                                onClick = onAddSong,
-                                variant = CzButtonVariant.Primary,
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(CzSpacing.xl),
-                )
+                    is SongbookUiState.Empty -> CzEmptyState(
+                        title = stringResource(R.string.songbook_empty_title),
+                        message = stringResource(R.string.songbook_empty_message),
+                        action = if (canManage) {
+                            {
+                                CzButton(
+                                    text = stringResource(R.string.songbook_browse_catalog),
+                                    onClick = onOpenCatalog,
+                                    variant = CzButtonVariant.Primary,
+                                )
+                            }
+                        } else {
+                            null
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(CzSpacing.xl),
+                    )
 
-                is SongbookUiState.Loaded -> LazyColumn(
-                    contentPadding = PaddingValues(
-                        start = CzSpacing.lg,
-                        end = CzSpacing.lg,
-                        top = CzSpacing.md,
-                        bottom = CzSpacing.xxxl,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    item {
-                        SongbookHeader(
-                            searchText = searchText,
-                            onSearchChange = onSearchChange,
-                        )
-                    }
-
-                    if (pinnedSong != null) {
+                    is SongbookUiState.Loaded -> LazyColumn(
+                        contentPadding = PaddingValues(
+                            start = CzSpacing.lg,
+                            end = CzSpacing.lg,
+                            top = CzSpacing.md,
+                            bottom = CzSpacing.xxxl,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(CzSpacing.lg),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
                         item {
-                            FeaturedSongCard(
-                                song = pinnedSong,
-                                isFavorite = pinnedSong.isFavoritedBy(userId.orEmpty()),
-                                isPlaying = playingSongId == pinnedSong.id && isAudioPlaying,
-                                onPrimary = {
-                                    if (pinnedSong.audio != null) onToggleAudio(pinnedSong)
-                                    else onOpenSong(pinnedSong.id)
-                                },
-                                onToggleFavorite = { onToggleFavorite(pinnedSong.id) },
+                            SongbookHeader(
+                                searchText = searchText,
+                                onSearchChange = onSearchChange,
                             )
                         }
-                    }
 
-                    item {
-                        SongListSection(
-                            songs = visibleSongs,
-                            userId = userId,
-                            playingSongId = playingSongId,
-                            playingAudioId = playingAudioId,
-                            isAudioPlaying = isAudioPlaying,
-                            canManage = canManage,
-                            onOpenSong = onOpenSong,
-                            onToggleFavorite = onToggleFavorite,
-                            onToggleAudio = onToggleAudio,
-                            onPlayTrack = onPlayTrack,
-                            onWatch = { song -> openUrl(context, song.youtubeLink) },
-                            onEdit = onEditSong,
-                            onMoveSong = onMoveSong,
-                            onPinSong = onPinSong,
-                            onDelete = { song -> songPendingDeletion = song },
-                        )
+                        if (pinnedSong != null) {
+                            item {
+                                FeaturedSongCard(
+                                    song = pinnedSong,
+                                    isFavorite = pinnedSong.isFavoritedBy(userId.orEmpty()),
+                                    isPlaying = playingSongId == pinnedSong.id && isAudioPlaying,
+                                    onPrimary = {
+                                        if (pinnedSong.audio != null) onToggleAudio(pinnedSong)
+                                        else onOpenSong(pinnedSong.id)
+                                    },
+                                    onToggleFavorite = { onToggleFavorite(pinnedSong.id) },
+                                )
+                            }
+                        }
+
+                        item {
+                            SongListSection(
+                                songs = visibleSongs,
+                                userId = userId,
+                                playingSongId = playingSongId,
+                                playingAudioId = playingAudioId,
+                                isAudioPlaying = isAudioPlaying,
+                                canManage = canManage,
+                                onOpenSong = onOpenSong,
+                                onToggleFavorite = onToggleFavorite,
+                                onToggleAudio = onToggleAudio,
+                                onPlayTrack = onPlayTrack,
+                                onWatch = { song -> openUrl(context, song.youtubeLink) },
+                                onEdit = onEditSong,
+                                onMoveSong = onMoveSong,
+                                onPinSong = onPinSong,
+                                onDelete = { song -> songPendingDeletion = song },
+                            )
+                        }
                     }
                 }
             }
@@ -865,6 +899,7 @@ private fun SongbookScreenPreview() {
             playingSongId = null,
             playingAudioId = null,
             isAudioPlaying = false,
+            isRefreshing = false,
             visibleSongs = songs,
             pinnedSong = songs.first(),
             operationError = null,
@@ -873,6 +908,7 @@ private fun SongbookScreenPreview() {
             onSearchChange = {},
             onToggleFavoritesOnly = {},
             onOpenSong = {},
+            onOpenCatalog = {},
             onAddSong = {},
             onEditSong = {},
             onMoveSong = { _, _ -> },
@@ -881,6 +917,7 @@ private fun SongbookScreenPreview() {
             onToggleFavorite = {},
             onToggleAudio = {},
             onPlayTrack = { _, _ -> },
+            onRefresh = {},
             onRetry = {},
             onClearMessage = {},
             onClearError = {},

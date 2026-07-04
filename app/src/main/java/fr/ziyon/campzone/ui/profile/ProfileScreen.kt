@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -1160,12 +1161,13 @@ private fun deletionScheduleText(state: ProfileUiState): String {
     val days = state.deletionDaysRemaining
     val endsAt = state.loadedUser?.deletionGraceEnds
     return when {
-        days != null && endsAt != null -> stringResource(
-            R.string.profile_deletion_scheduled_with_date,
+        days != null && endsAt != null -> pluralStringResource(
+            R.plurals.profile_deletion_scheduled_with_date,
+            days,
             DateFormat.getDateInstance(DateFormat.MEDIUM).format(endsAt),
             days,
         )
-        days != null -> stringResource(R.string.profile_deletion_scheduled_with_days, days)
+        days != null -> pluralStringResource(R.plurals.profile_deletion_scheduled_with_days, days, days)
         else -> stringResource(R.string.profile_deletion_scheduled_generic)
     }
 }

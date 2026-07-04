@@ -14,15 +14,13 @@ import fr.ziyon.campzone.data.analytics.AnalyticsService
 import fr.ziyon.campzone.data.analytics.NoOpAnalyticsService
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.camping.CampingService
-import fr.ziyon.campzone.data.model.Chord
-import fr.ziyon.campzone.data.model.ChordLine
-import fr.ziyon.campzone.data.model.ChordSheet
 import fr.ziyon.campzone.data.model.Song
 import fr.ziyon.campzone.data.model.SongAudio
 import fr.ziyon.campzone.data.model.SongAudioKind
 import fr.ziyon.campzone.data.model.SongAudioTrackType
 import fr.ziyon.campzone.data.model.SongLyricsPart
 import fr.ziyon.campzone.data.model.SongLyricsPartKind
+import fr.ziyon.campzone.data.songbook.ChordProParser
 import fr.ziyon.campzone.data.songbook.PendingSongAudio
 import fr.ziyon.campzone.data.songbook.SongDraft
 import fr.ziyon.campzone.data.songbook.SongbookService
@@ -49,6 +47,7 @@ data class SongEditorForm(
     val composer: String = "",
     val lyrics: String = "",
     val lyricsParts: List<SongLyricsPart> = emptyList(),
+    val cantusSlug: String = "",
     val editingLyricsPartId: String? = null,
     val selectedLyricsPartKind: SongLyricsPartKind = SongLyricsPartKind.Verse,
     val selectedLyricsPartNumber: Int = 1,
@@ -60,6 +59,7 @@ data class SongEditorForm(
     val remoteAudioUrl: String = "",
     val youtubeLink: String = "",
     val pdfLink: String = "",
+    val pptxLink: String = "",
     val isPinnedTheme: Boolean = false,
 ) {
     val isEditingLyricsPart: Boolean get() = editingLyricsPartId != null
@@ -105,6 +105,7 @@ internal val SongAudioTrackType.displayNameRes: Int
         SongAudioTrackType.Instrumental -> R.string.songbook_track_instrumental
         SongAudioTrackType.Soprano -> R.string.songbook_track_soprano
         SongAudioTrackType.MezzoSoprano -> R.string.songbook_track_mezzo_soprano
+        SongAudioTrackType.Contralto -> R.string.songbook_track_contralto
         SongAudioTrackType.Alto -> R.string.songbook_track_alto
         SongAudioTrackType.Tenor -> R.string.songbook_track_tenor
         SongAudioTrackType.Baritone -> R.string.songbook_track_baritone
@@ -182,6 +183,9 @@ class SongbookViewModel @Inject constructor(
     private val _operationMessage = MutableStateFlow<String?>(null)
     val operationMessage: StateFlow<String?> = _operationMessage.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     private val _searchText = MutableStateFlow("")
     val searchText: StateFlow<String> = _searchText.asStateFlow()
 
@@ -223,30 +227,53 @@ class SongbookViewModel @Inject constructor(
             publish(campingId)
             return
         }
-        load(campingId, user)
+        loadSongs(campingId, user, showLoading = true, isRefresh = false)
     }
 
     fun load(campingId: String, user: AuthenticatedUser? = null) {
+        loadSongs(campingId, user, showLoading = true, isRefresh = false)
+    }
+
+    fun refresh(campingId: String, user: AuthenticatedUser? = null) {
+        loadSongs(campingId, user, showLoading = false, isRefresh = true)
+    }
+
+    private fun loadSongs(
+        campingId: String,
+        user: AuthenticatedUser?,
+        showLoading: Boolean,
+        isRefresh: Boolean,
+    ) {
         viewModelScope.launch {
-            _uiState.value = SongbookUiState.Loading
+            if (showLoading) _uiState.value = SongbookUiState.Loading
+            if (isRefresh) _isRefreshing.value = true
             _operationError.value = null
-            runCatching {
-                val camping = runCatching { campingService.fetchCamping(campingId) }.getOrNull()
-                campingTitleById[campingId] = camping?.title ?: stringProvider.get(R.string.common_camping)
-                val campingContext = camping?.let {
-                    CampingPermissionContext(
-                        organizerLevelType = it.organizerLevel.type.wireValue,
-                        organizerLevelValue = it.organizerLevel.value,
-                        createdByUid = it.createdByUid,
-                    )
+            try {
+                runCatching {
+                    val camping = runCatching { campingService.fetchCamping(campingId) }.getOrNull()
+                    campingTitleById[campingId] = camping?.title ?: stringProvider.get(R.string.common_camping)
+                    val campingContext = camping?.let {
+                        CampingPermissionContext(
+                            organizerLevelType = it.organizerLevel.type.wireValue,
+                            organizerLevelValue = it.organizerLevel.value,
+                            createdByUid = it.createdByUid,
+                        )
+                    }
+                    if (campingContext != null) campingContextById[campingId] = campingContext
+                    updateCanManage(user, campingContext)
+                    songsByCampingId[campingId] = songbookService.loadSongs(campingId)
+                    loadedCampingIds.add(campingId)
+                    publish(campingId)
+                }.onFailure { e ->
+                    val message = e.message ?: operationFailedMessage()
+                    if (showLoading || songs(campingId).isEmpty()) {
+                        _uiState.value = SongbookUiState.Error(message)
+                    } else {
+                        _operationError.value = message
+                    }
                 }
-                if (campingContext != null) campingContextById[campingId] = campingContext
-                updateCanManage(user, campingContext)
-                songsByCampingId[campingId] = songbookService.loadSongs(campingId)
-                loadedCampingIds.add(campingId)
-                publish(campingId)
-            }.onFailure { e ->
-                _uiState.value = SongbookUiState.Error(e.message ?: operationFailedMessage())
+            } finally {
+                if (isRefresh) _isRefreshing.value = false
             }
         }
     }
@@ -559,6 +586,7 @@ class SongbookViewModel @Inject constructor(
                     text = form.chordSheetText,
                     existingId = existingSong?.chordSheet?.id ?: songId,
                 )
+                val chordedLyrics = ChordProParser.serialize(chordSheet).trim()
                 val lyrics = resolvedLyrics(form)
                 val draft = SongDraft(
                     id = songId,
@@ -567,7 +595,9 @@ class SongbookViewModel @Inject constructor(
                     artist = form.artist.trim(),
                     composer = form.composer.trim(),
                     lyrics = lyrics,
-                    chords = form.chordSheetText.trim(),
+                    chords = ChordProParser.legacyText(chordSheet).trim(),
+                    chordedLyrics = chordedLyrics,
+                    cantusSlug = form.cantusSlug,
                     existingAudio = form.existingAudioFiles.firstOrNull(),
                     existingAudioFiles = form.existingAudioFiles,
                     pendingAudioFiles = form.pendingAudioFiles,
@@ -575,6 +605,7 @@ class SongbookViewModel @Inject constructor(
                     chordSheet = chordSheet,
                     youtubeLink = form.youtubeLink.trim(),
                     pdfLink = form.pdfLink.trim(),
+                    pptxLink = form.pptxLink.trim(),
                     orderIndex = existingSong?.orderIndex ?: songs(campingId).size,
                     isPinnedTheme = form.isPinnedTheme,
                     favoriteUserIds = existingSong?.favoriteUserIds.orEmpty(),
@@ -791,6 +822,52 @@ class SongbookViewModel @Inject constructor(
     fun clearOperationMessage() { _operationMessage.value = null }
     fun clearOperationError() { _operationError.value = null }
 
+    fun importedCantusSlugs(campingId: String): Set<String> =
+        songs(campingId).mapNotNull { it.cantusSlug.takeUnless(String::isBlank) }.toSet()
+
+    fun songCount(campingId: String): Int = songs(campingId).size
+
+    fun importCantusDrafts(
+        drafts: List<SongDraft>,
+        campingId: String,
+        onFinished: (Int) -> Unit = {},
+    ) {
+        if (drafts.isEmpty()) {
+            onFinished(0)
+            return
+        }
+        if (!canManageOrWarn()) {
+            onFinished(0)
+            return
+        }
+
+        viewModelScope.launch {
+            _isSaving.value = true
+            _operationError.value = null
+            var importedCount = 0
+            drafts.forEach { draft ->
+                runCatching {
+                    val saved = songbookService.saveSong(draft)
+                    upsert(saved, campingId)
+                    importedCount += 1
+                }.onFailure { e ->
+                    _operationError.value = e.message ?: operationFailedMessage()
+                }
+            }
+            if (importedCount > 0) {
+                loadedCampingIds.add(campingId)
+                publish(campingId)
+                _operationMessage.value = stringProvider.getQuantity(
+                    R.plurals.songbook_catalog_added_count,
+                    importedCount,
+                    importedCount,
+                )
+            }
+            _isSaving.value = false
+            onFinished(importedCount)
+        }
+    }
+
     override fun onCleared() {
         stopAudio()
         super.onCleared()
@@ -869,10 +946,13 @@ class SongbookViewModel @Inject constructor(
         composer = song.composer,
         lyrics = plainLyrics(song),
         lyricsParts = lyricsPartsFor(song),
-        chordSheetText = ChordProParser.toText(song.chordSheet).ifBlank { song.chords },
+        cantusSlug = song.cantusSlug,
+        chordSheetText = ChordProParser.serialize(song.chordSheet)
+            .ifBlank { song.chordedLyrics.ifBlank { song.chords } },
         existingAudioFiles = song.normalizedAudioFiles,
         youtubeLink = song.youtubeLink,
         pdfLink = song.pdfLink,
+        pptxLink = song.pptxLink,
         isPinnedTheme = song.isPinnedTheme,
     )
 
@@ -985,236 +1065,6 @@ class SongbookViewModel @Inject constructor(
             else -> form
         }
     }
-}
-
-internal object ChordProParser {
-    private val bracketRegex = Regex("""\[(.+?)]""")
-    private val leadingSectionRegex = Regex("""^\s*\[([^\]]+)]""")
-    private val sectionWords = setOf(
-        "intro", "verse", "pre-chorus", "prechorus", "chorus", "bridge",
-        "instrumental", "outro", "tag", "ending",
-    )
-
-    fun parse(text: String, existingId: String = UUID.randomUUID().toString()): ChordSheet {
-        val lines = text.lines().flatMap(::parseLine)
-        return ChordSheet(
-            id = existingId,
-            originalKey = detectOriginalKey(lines),
-            lines = lines,
-        )
-    }
-
-    fun toText(sheet: ChordSheet): String {
-        if (sheet.lines.isEmpty()) return ""
-        return buildString {
-            sheet.lines.forEach { line ->
-                if (line.isSectionHeader) {
-                    appendLine(line.text)
-                } else {
-                    if (line.chords.isNotEmpty()) {
-                        appendLine(chordLineFor(line))
-                    }
-                    appendLine(line.text)
-                }
-            }
-        }.trimEnd()
-    }
-
-    fun renderedChordLine(line: ChordLine): String = chordLineFor(line)
-
-    private fun parseLine(raw: String): List<ChordLine> {
-        val trimmed = raw.trim()
-        if (trimmed.isEmpty()) return listOf(ChordLine(id = UUID.randomUUID().toString()))
-
-        val onlyBracket = bracketRegex.matchEntire(trimmed)
-        if (onlyBracket != null) {
-            val value = onlyBracket.groupValues[1].trim()
-            if (isSectionHeader(value)) {
-                return listOf(
-                    ChordLine(
-                        id = UUID.randomUUID().toString(),
-                        text = "[$value]",
-                        isSectionHeader = true,
-                    ),
-                )
-            }
-        }
-
-        val leadingSection = leadingSectionRegex.find(raw)
-        if (leadingSection != null && isSectionHeader(leadingSection.groupValues[1])) {
-            val header = ChordLine(
-                id = UUID.randomUUID().toString(),
-                text = "[${leadingSection.groupValues[1].trim()}]",
-                isSectionHeader = true,
-            )
-            val trailingStart = leadingSection.range.last + 1
-            val trailingText = raw.substring(trailingStart)
-            val trailingTokens = ChordSymbolParser.chordTokensIn(trailingText)
-            if (trailingTokens.isEmpty()) return listOf(header)
-
-            return listOf(
-                header,
-                ChordLine(
-                    id = UUID.randomUUID().toString(),
-                    text = "",
-                    chords = trailingTokens.map { token ->
-                        Chord(
-                            id = UUID.randomUUID().toString(),
-                            chord = token.symbol,
-                            position = trailingStart + token.start,
-                        )
-                    },
-                ),
-            )
-        }
-
-        val inline = parseInlineChordPro(raw)
-        if (inline != null) return inline
-
-        if (looksLikeChordLine(trimmed)) {
-            val chords = ChordSymbolParser.chordTokensIn(raw)
-                .map { token ->
-                    Chord(
-                        id = UUID.randomUUID().toString(),
-                        chord = token.symbol,
-                        position = token.start,
-                    )
-                }
-            return listOf(
-                ChordLine(
-                    id = UUID.randomUUID().toString(),
-                    text = "",
-                    chords = chords,
-                ),
-            )
-        }
-
-        return listOf(ChordLine(id = UUID.randomUUID().toString(), text = raw))
-    }
-
-    private fun parseInlineChordPro(raw: String): List<ChordLine>? {
-        val matches = bracketRegex.findAll(raw).toList()
-        if (matches.none()) return null
-
-        val output = StringBuilder()
-        val chords = mutableListOf<Chord>()
-        var cursor = 0
-
-        matches.forEach { match ->
-            output.append(raw.substring(cursor, match.range.first))
-            val token = match.groupValues[1].trim()
-            val parsedChord = ChordSymbolParser.parseOrNull(token)
-            if (parsedChord != null) {
-                chords += Chord(
-                    id = UUID.randomUUID().toString(),
-                    chord = parsedChord.canonicalSymbol,
-                    position = output.length,
-                )
-            } else if (output.toString().isBlank() && isSectionHeader(token)) {
-                output.append("[$token]")
-            } else {
-                output.append(match.value)
-            }
-            cursor = match.range.last + 1
-        }
-        output.append(raw.substring(cursor))
-
-        val rendered = output.toString()
-        if (chords.isEmpty() && !isSectionHeader(rendered.removeSurrounding("[", "]"))) {
-            return null
-        }
-
-        if (chords.isEmpty() && isSectionHeader(rendered.removeSurrounding("[", "]"))) {
-            return listOf(
-                ChordLine(
-                    id = UUID.randomUUID().toString(),
-                    text = rendered,
-                    isSectionHeader = true,
-                ),
-            )
-        }
-
-        return listOf(
-            ChordLine(
-                id = UUID.randomUUID().toString(),
-                text = rendered,
-                chords = chords,
-            ),
-        )
-    }
-
-    private fun chordLineFor(line: ChordLine): String {
-        val sorted = line.chords.sortedWith(compareBy<Chord> { it.position }.thenBy { it.chord })
-        val output = StringBuilder()
-        var cursor = 0
-        sorted.forEach { chord ->
-            val target = chord.position.coerceAtLeast(cursor)
-            if (target > cursor) {
-                output.append(" ".repeat(target - cursor))
-            } else if (output.isNotEmpty()) {
-                output.append(' ')
-            }
-            output.append(chord.chord)
-            cursor = output.length
-        }
-        return output.toString()
-    }
-
-    private fun looksLikeChordLine(text: String): Boolean {
-        val semanticTokens = text.split(Regex("""\s+"""))
-            .map { stripChartPunctuation(it) }
-            .filter { it.isNotBlank() }
-        if (semanticTokens.isEmpty()) return false
-
-        val chordTokens = ChordSymbolParser.chordTokensIn(text)
-        if (chordTokens.isEmpty()) return false
-
-        val validChordTokens = semanticTokens.count { isChord(it) }
-        val chordRatio = validChordTokens.toDouble() / semanticTokens.size
-        val musicRatio = semanticTokens.sumOf(::countMusicCharacters).toDouble() / text.trim().length.coerceAtLeast(1)
-
-        return chordRatio >= 0.65 || (chordRatio >= 0.45 && musicRatio >= 0.18)
-    }
-
-    private fun isSectionHeader(text: String): Boolean {
-        val normalized = text.trim()
-            .lowercase()
-            .replace(Regex("""\s+\d+$"""), "")
-        return normalized in sectionWords
-    }
-
-    private fun isChord(text: String): Boolean =
-        ChordSymbolParser.isChord(stripChartPunctuation(text))
-
-    private fun stripChartPunctuation(token: String): String {
-        var stripped = token.trim().trim { it in "|:[]{};," }
-        if (stripped.length > 2 && stripped.first() == '(' && stripped.last() == ')') {
-            val inner = stripped.substring(1, stripped.lastIndex)
-            if (ChordSymbolParser.isChord(inner)) stripped = inner
-        }
-        return stripped
-    }
-
-    private fun countMusicCharacters(text: String): Int =
-        text.count { char ->
-            char.isDigit() || char in setOf('#', '♯', 'b', '♭', '/', '°', 'º', 'ø', 'Δ', '+', '-', '(', ')', ',')
-        }
-
-    private fun detectOriginalKey(lines: List<ChordLine>): String =
-        lines.asSequence()
-            .flatMap { it.chords.asSequence() }
-            .map { it.chord.trim() }
-            .firstOrNull { it.startsWith("G") || it.startsWith("D") || it.startsWith("A") || it.startsWith("F") ||
-                it.startsWith("Bb") || it.startsWith("B♭") || it.startsWith("Am") || it.startsWith("Em") }
-            ?.let { chord ->
-                when {
-                    chord.startsWith("Bb") || chord.startsWith("B♭") -> "Bb"
-                    chord.startsWith("Am") -> "Am"
-                    chord.startsWith("Em") -> "Em"
-                    else -> chord.take(1)
-                }
-            }
-            ?: "C"
 }
 
 private val songComparator = compareByDescending<Song> { it.isPinnedTheme }

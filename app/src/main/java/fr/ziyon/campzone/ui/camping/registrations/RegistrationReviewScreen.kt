@@ -49,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -315,8 +316,9 @@ private fun ReviewCampingSection(
                             modifier = Modifier.size(14.dp),
                         )
                         Text(
-                            text = stringResource(
-                                R.string.registration_review_waitlist_count,
+                            text = pluralStringResource(
+                                R.plurals.registration_review_waitlist_count,
+                                camping.waitlistedAttendees.size,
                                 camping.waitlistedAttendees.size,
                             ),
                             color = MaterialTheme.czColors.textSecondary,

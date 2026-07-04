@@ -85,6 +85,30 @@ class SongbookViewModelTest {
     }
 
     @Test
+    fun saveSongPersistsChordedLyricsAndPptxLink() = runTest {
+        val viewModel = viewModel()
+        viewModel.load(campingId, admin)
+        advanceUntilIdle()
+        viewModel.prepareNewSong(campingId)
+        viewModel.updateForm {
+            it.copy(
+                title = "Catalog Format",
+                chordSheetText = "{Verse}\nA[G]mazing grace",
+                pdfLink = "https://cdn.example.org/catalog-format.pdf",
+                pptxLink = "https://cdn.example.org/catalog-format.pptx",
+            )
+        }
+
+        viewModel.saveSong(campingId)
+        advanceUntilIdle()
+
+        val saved = viewModel.songs(campingId).first { it.title == "Catalog Format" }
+        assertEquals("{Verse}\nA[G]mazing grace", saved.chordedLyrics)
+        assertEquals("[Verse]\n G\nAmazing grace", saved.chords)
+        assertEquals("https://cdn.example.org/catalog-format.pptx", saved.pptxLink)
+    }
+
+    @Test
     fun editingSongPreservesStructuredLyricsParts() = runTest {
         val structuredSong = Song(
             id = "structured",

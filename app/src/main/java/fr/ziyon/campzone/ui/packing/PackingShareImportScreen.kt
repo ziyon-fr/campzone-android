@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -115,7 +116,7 @@ private fun PackingShareImportScreen(
             ) {
                 Icon(Icons.Rounded.CheckCircle, null, tint = MaterialTheme.czColors.success, modifier = Modifier.size(56.dp))
                 Text(stringResource(R.string.packing_added_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = CzSpacing.lg))
-                Text(stringResource(R.string.packing_items_added, state.importedCount), color = MaterialTheme.czColors.textSecondary, modifier = Modifier.padding(vertical = CzSpacing.md))
+                Text(pluralStringResource(R.plurals.packing_items_added, state.importedCount, state.importedCount), color = MaterialTheme.czColors.textSecondary, modifier = Modifier.padding(vertical = CzSpacing.md))
                 CzButton(stringResource(R.string.packing_view_my_checklist), onOpenChecklist)
             }
             else -> Column(
@@ -127,7 +128,7 @@ private fun PackingShareImportScreen(
                     Column(Modifier.fillMaxWidth().padding(CzSpacing.lg), verticalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
                         Text(stringResource(R.string.packing_shared_by, state.share?.ownerName.orEmpty()), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         state.share?.campName?.let { Text(it, color = MaterialTheme.czColors.textSecondary) }
-                        Text(if (newCount == 0) stringResource(R.string.packing_shared_all_present) else stringResource(R.string.packing_shared_new_count, newCount), style = MaterialTheme.typography.labelMedium, color = if (newCount == 0) MaterialTheme.czColors.success else MaterialTheme.czColors.textSecondary)
+                        Text(if (newCount == 0) stringResource(R.string.packing_shared_all_present) else pluralStringResource(R.plurals.packing_shared_new_count, newCount, newCount), style = MaterialTheme.typography.labelMedium, color = if (newCount == 0) MaterialTheme.czColors.success else MaterialTheme.czColors.textSecondary)
                     }
                 }
                 Surface(color = MaterialTheme.czColors.surface, shape = RoundedCornerShape(CzRadius.xl)) {

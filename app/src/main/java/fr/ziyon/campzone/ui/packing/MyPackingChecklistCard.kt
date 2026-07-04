@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -93,7 +94,7 @@ fun MyPackingChecklistCard(
                     }
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.packing_title), fontWeight = FontWeight.SemiBold, color = MaterialTheme.czColors.textPrimary)
-                        Text(if (snapshot.isComplete) stringResource(R.string.packing_complete) else stringResource(R.string.packing_items_ready, snapshot.checkedItems, snapshot.totalItems), style = MaterialTheme.typography.labelMedium, color = if (snapshot.isComplete) MaterialTheme.czColors.success else MaterialTheme.czColors.textSecondary)
+                        Text(if (snapshot.isComplete) stringResource(R.string.packing_complete) else pluralStringResource(R.plurals.packing_items_ready, snapshot.totalItems, snapshot.checkedItems, snapshot.totalItems), style = MaterialTheme.typography.labelMedium, color = if (snapshot.isComplete) MaterialTheme.czColors.success else MaterialTheme.czColors.textSecondary)
                     }
                     Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.czColors.textSecondary)
                 }

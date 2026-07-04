@@ -929,20 +929,30 @@ MediaItem (full `set`, ordered `uploadedAt` desc): `campingID`, `kind`
 | `artist` / `composer` | string | `""` | |
 | `lyrics` | string | `""` | plain blob |
 | `chords` | string | `""` | legacy ChordPro-ish text |
+| `chordedLyrics` | string | `""` | canonical cross-platform ChordPro text (`{Verse}` headers, `[G]inline chords`) |
+| `chordedLyricsUpdatedAt` | timestamp/date | `nil` | freshness marker for `chordedLyrics`; raw client date fallback on write |
+| `cantusSlug` | string | `""` | source slug when imported from the authenticated Cantus catalog |
 | `lyricsParts` | array\<map> | `[]` | element `{ id, kind (`intro`/`verse`/`preChorus`/`chorus`/`bridge`/`instrumental`/`outro`/`custom`), number (int ≥1), title, text }` |
 | `chordSheet` | map | parsed/empty | see below |
 | `audio` | map | `nil` | primary take; **delete-when-empty** |
 | `audioFiles` | array\<map> | `[]` | all takes; falls back to `[audio]` |
-| `youtubeLink` / `pdfLink` | string | `""` | |
+| `youtubeLink` / `pdfLink` / `pptxLink` | string | `""` | media/link actions in Song detail |
 | `orderIndex` | int | `0` | list order |
 | `isPinnedTheme` | bool | `false` | one per camp (others batch-cleared) |
 | `favoriteUserIDs` | array\<string> | `[]` | `arrayUnion`/`arrayRemove` |
 | `createdAt` | timestamp | `now` | first create only |
 | `updatedAt` | timestamp | `now` | every write |
 
-`chordSheet` map: `id`, `originalKey` (string - **lossy**: only
-`G/D/A/F/Bb/B♭/Am/A minor/Em/E minor` decode back, everything else → C
-major), `tempo` (int, omit-when-nil), `timeSignature` (string e.g.
+`chordedLyrics` is the preferred canonical chord text. Clients parse it into
+`chordSheet` unless a non-empty stored `chordSheet.updatedAt` is more than one
+second newer than `chordedLyricsUpdatedAt`; that tolerance preserves edits made
+by older structured-sheet clients. `chords` remains the legacy chord-over-lyrics
+fallback for older app builds.
+
+`chordSheet` map: `id`, `originalKey` (string - decoded keys include common
+major/minor sharp and flat spellings such as `C`, `F#`, `Bb`, `Am`, `Bbm`;
+unknown values still fall back to C major), `tempo` (int, omit-when-nil),
+`timeSignature` (string e.g.
 `"4/4"`, omit-when-nil), `capo` (int, omit-when-nil), `updatedAt`
 (**raw Date**, not serverTimestamp), `lines` (array\<map>). `lines[]`:
 `id` (UUID string), `text`, `isSectionHeader` (bool), `chords`
@@ -957,10 +967,11 @@ if unparseable - **not** a structured object), `position` (int),
 `""` when nil), `kind` (`mp3`/`m4a`/`wav`/`aac`/`other`), `duration`
 (double sec), `fileSize` (int64 bytes), `voiceType`, and `displayName`.
 `voiceType` is `mainSong`, `playback`, `instrumental`, `soprano`,
-`mezzoSoprano`, `alto`, `tenor`, `baritone`, `bass`, or `other`. Exactly one
-normalized entry is `mainSong`; the denormalized `audio` map points to that
-entry. Legacy missing/blank types promote the first take to `mainSong` without
-a migration. `displayName` is the optional free-form label for `other` tracks.
+`mezzoSoprano`, `contralto`, `alto`, `tenor`, `baritone`, `bass`, or `other`.
+Exactly one normalized entry is `mainSong`; the denormalized `audio` map points
+to that entry. Legacy missing/blank types promote the first take to `mainSong`
+without a migration. `displayName` is the optional free-form label for imported
+catalog tracks and custom/`other` tracks.
 
 ### 7.8 `campings/{id}/payments/{paymentIntentId}` - Payment audit (BACKEND-ONLY)
 

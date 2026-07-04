@@ -401,6 +401,12 @@ fun SongEditorScreen(
                         textStyle = CzTypeScale.body.copy(color = colors.textPrimary, fontFamily = FontFamily.Monospace),
                         colors = transparentTextFieldColors(),
                     )
+                    Text(
+                        text = stringResource(R.string.songbook_chord_sheet_hint),
+                        style = CzTypeScale.caption,
+                        color = colors.textSecondary,
+                        modifier = Modifier.padding(horizontal = CzSpacing.base, vertical = CzSpacing.sm),
+                    )
                 }
 
                 EditorSectionHeader(stringResource(R.string.songbook_links), Icons.Rounded.Link)
@@ -409,6 +415,13 @@ fun SongEditorScreen(
                         value = form.pdfLink,
                         onValueChange = { value -> onUpdateForm { it.copy(pdfLink = value) } },
                         placeholder = stringResource(R.string.songbook_pdf_url),
+                        keyboardType = KeyboardType.Uri,
+                    )
+                    DividerInset()
+                    SongTextField(
+                        value = form.pptxLink,
+                        onValueChange = { value -> onUpdateForm { it.copy(pptxLink = value) } },
+                        placeholder = stringResource(R.string.songbook_pptx_url),
                         keyboardType = KeyboardType.Uri,
                     )
                     DividerInset()

@@ -62,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -347,7 +348,7 @@ private fun PackingProgressHeader(snapshot: PackingChecklistSnapshot) {
             }
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.packing_progress_prompt), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.czColors.textSecondary)
-                Text(stringResource(R.string.packing_items_ready, snapshot.checkedItems, snapshot.totalItems), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.czColors.textPrimary)
+                Text(pluralStringResource(R.plurals.packing_items_ready, snapshot.totalItems, snapshot.checkedItems, snapshot.totalItems), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.czColors.textPrimary)
                 snapshot.campName?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.czColors.textSecondary, maxLines = 1) }
             }
         }

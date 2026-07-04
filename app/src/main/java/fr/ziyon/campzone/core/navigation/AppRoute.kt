@@ -440,6 +440,11 @@ sealed interface AppRoute {
             "${CampingDetail(campingId).route}/${AppRoutePath.Songbook}"
     }
 
+    data class CantusImport(val campingId: String) : AppRoute {
+        override val route =
+            "${CampingSongbook(campingId).route}/${AppRoutePath.CantusImport}"
+    }
+
     data class SongDetail(
         val campingId: String,
         val songId: String,
@@ -621,6 +626,7 @@ internal object AppRoutePath {
     const val ProgramAttendanceScanner = "attendance-scanner"
     const val FoodMenu = "food-menu"
     const val Songbook = "songbook"
+    const val CantusImport = "cantus-import"
     const val SongEditor = "song-editor"
     const val TeamEditor = "team-editor"
     const val Guidelines = "guidelines"
@@ -698,6 +704,7 @@ internal object AppRoutePattern {
     const val CampingFoodMenu = "$CampingDetail/${AppRoutePath.FoodMenu}"
     const val CampingFoodMenuEditor = "$CampingFoodMenu/${AppRoutePath.CampingEdit}"
     const val CampingSongbook = "$CampingDetail/${AppRoutePath.Songbook}"
+    const val CantusImport = "$CampingSongbook/${AppRoutePath.CantusImport}"
     const val SongEditor = "$CampingSongbook/${AppRoutePath.SongEditor}"
     const val SongEdit = "$SongEditor/{${AppRouteArgs.SongId}}"
     const val SongDetail = "$CampingSongbook/{${AppRouteArgs.SongId}}"

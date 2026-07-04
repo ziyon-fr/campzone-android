@@ -46,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -166,7 +167,16 @@ private fun PackingTemplateEditorScreen(
         is EditorDialog.DeleteCategory -> AlertDialog(
             onDismissRequest = { dialog = null },
             title = { Text(stringResource(R.string.packing_delete_section_title)) },
-            text = { Text(stringResource(R.string.packing_delete_section_message, value.category.title, value.category.items.size)) },
+            text = {
+                Text(
+                    pluralStringResource(
+                        R.plurals.packing_delete_section_message,
+                        value.category.items.size,
+                        value.category.title,
+                        value.category.items.size,
+                    ),
+                )
+            },
             confirmButton = { TextButton(onClick = { onDeleteCategory(value.category.id); dialog = null }) { Text(stringResource(R.string.packing_delete_named_section, value.category.title), color = MaterialTheme.czColors.error) } },
             dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.packing_keep_section)) } },
         )

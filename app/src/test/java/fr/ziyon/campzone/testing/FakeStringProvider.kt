@@ -64,6 +64,8 @@ class FakeStringProvider : StringProvider {
             R.string.songbook_remote_url_duplicate -> "This audio file is already attached."
             R.string.songbook_remote_url_unsupported -> "Remote audio must point to an MP3, M4A, AAC, or WAV file."
             R.string.songbook_restricted_message -> "Only admins can manage the songbook."
+            R.string.songbook_catalog_load_failed -> "The song catalog could not be loaded."
+            R.string.songbook_catalog_import_failed -> "The selected catalog songs could not be imported."
             R.string.program_not_found_message -> "The selected schedule program could not be loaded."
             R.string.program_attendance_load_failed -> "Program attendance could not be loaded."
             R.string.program_attendance_recorded -> "Attendance recorded."
@@ -75,7 +77,6 @@ class FakeStringProvider : StringProvider {
             R.string.camping_template_create_failed -> "Template camp could not be created."
             R.string.packing_title -> "Packing Checklist"
             R.string.packing_share_title_camp -> "Packing checklist · %1\$s"
-            R.string.packing_items_ready -> "%1\$d of %2\$d items ready"
             R.string.packing_personal_notes -> "Personal notes"
             R.string.packing_my_items -> "My items"
             R.string.packing_category_spiritual -> "Spiritual & Essentials"
@@ -111,6 +112,27 @@ class FakeStringProvider : StringProvider {
             R.string.packing_item_sunglasses -> "Sunglasses"
             R.string.packing_item_medicine -> "Medication"
             else -> ""
+        }
+        return if (args.isEmpty()) value else value.format(*args)
+    }
+
+    override fun getQuantity(id: Int, quantity: Int, vararg args: Any): String {
+        val value = when (id) {
+            R.plurals.songbook_catalog_added_count -> {
+                if (quantity == 1) {
+                    "Added %1\$d song to the songbook."
+                } else {
+                    "Added %1\$d songs to the songbook."
+                }
+            }
+            R.plurals.packing_items_ready -> {
+                if (quantity == 1) {
+                    "%1\$d of %2\$d item ready"
+                } else {
+                    "%1\$d of %2\$d items ready"
+                }
+            }
+            else -> "%1\$d"
         }
         return if (args.isEmpty()) value else value.format(*args)
     }

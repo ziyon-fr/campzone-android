@@ -94,6 +94,9 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     private var observeJob: Job? = null
     private var currentUserId: String? = null
     private var currentUser: AuthenticatedUser? = null
@@ -119,65 +122,79 @@ class HomeViewModel @Inject constructor(
         observeDashboard(forUserId, user)
     }
 
+    fun refresh(user: AuthenticatedUser) {
+        currentUserId = user.uid
+        currentUser = user
+        observeDashboard(user.uid, user, isRefresh = true)
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun observeDashboard(forUserId: String?, user: AuthenticatedUser?) {
+    private fun observeDashboard(forUserId: String?, user: AuthenticatedUser?, isRefresh: Boolean = false) {
         observeJob?.cancel()
         observeJob = viewModelScope.launch {
-            val localCampings = campingService.observeCampings()
-                // Home can still render tiers 2-4 if the local camping observer
-                // is unavailable; the registered override is best-effort local
-                // context, matching iOS' separate CampingObserver dependency.
-                .catch { emit(emptyList()) }
-                .shareIn(this, SharingStarted.Eagerly, replay = 1)
-            val registeredCampingIds = campingService.observeApprovedCampingIds(forUserId)
-                .catch { emit(campingService.approvedCampingIds(forUserId)) }
-                .onStart { emit(campingService.approvedCampingIds(forUserId)) }
-                .distinctUntilChanged()
-            val featuredCampings = registeredCampingIds
-                .flatMapLatest { ids -> dashboardRepository.observeFeaturedCamping(ids) }
-            combine(
-                featuredCampings,
-                localCampings.onStart { emit(emptyList()) },
-                announcementService.loadAnnouncements(),
-                registeredCampingIds,
-            ) { featuredCamping, campings, announcements, registeredIds ->
-                val displayCamping = featuredCamping
-                    ?.let { camping ->
-                        campings.firstOrNull { it.id == camping.id }
-                            ?: campingService.cachedCamping(camping.id)
-                            ?: camping
-                    }
-                val visibleCampingIds = campings
-                    .filter { camping ->
-                        camping.id in registeredIds || canManageScopedResources(user, camping)
-                    }
-                    .mapTo(registeredIds.toMutableSet()) { it.id }
-                HomeDashboardFrame(
-                    featuredCamping = displayCamping,
-                    announcements = announcements.homePreviews(
-                        roleRawValue = user?.role?.rawValue,
-                        visibleCampingIds = visibleCampingIds,
-                        canViewAll = user?.role?.isAdmin == true,
-                        featuredCampingId = displayCamping?.id,
-                        registeredCampingIds = registeredIds,
-                    ),
-                )
-            }
-                .flatMapLatest { frame ->
-                    observeLoadedPhase(
-                        featuredCamping = frame.featuredCamping,
-                        announcementPreviews = frame.announcements,
-                        forUserId = forUserId,
+            if (isRefresh) _isRefreshing.value = true
+            try {
+                val localCampings = campingService.observeCampings()
+                    // Home can still render tiers 2-4 if the local camping observer
+                    // is unavailable; the registered override is best-effort local
+                    // context, matching iOS' separate CampingObserver dependency.
+                    .catch { emit(emptyList()) }
+                    .shareIn(this, SharingStarted.Eagerly, replay = 1)
+                val registeredCampingIds = campingService.observeApprovedCampingIds(forUserId)
+                    .catch { emit(campingService.approvedCampingIds(forUserId)) }
+                    .onStart { emit(campingService.approvedCampingIds(forUserId)) }
+                    .distinctUntilChanged()
+                val featuredCampings = registeredCampingIds
+                    .flatMapLatest { ids -> dashboardRepository.observeFeaturedCamping(ids) }
+                combine(
+                    featuredCampings,
+                    localCampings.onStart { emit(emptyList()) },
+                    announcementService.loadAnnouncements(),
+                    registeredCampingIds,
+                ) { featuredCamping, campings, announcements, registeredIds ->
+                    val displayCamping = featuredCamping
+                        ?.let { camping ->
+                            campings.firstOrNull { it.id == camping.id }
+                                ?: campingService.cachedCamping(camping.id)
+                                ?: camping
+                        }
+                    val visibleCampingIds = campings
+                        .filter { camping ->
+                            camping.id in registeredIds || canManageScopedResources(user, camping)
+                        }
+                        .mapTo(registeredIds.toMutableSet()) { it.id }
+                    HomeDashboardFrame(
+                        featuredCamping = displayCamping,
+                        announcements = announcements.homePreviews(
+                            roleRawValue = user?.role?.rawValue,
+                            visibleCampingIds = visibleCampingIds,
+                            canViewAll = user?.role?.isAdmin == true,
+                            featuredCampingId = displayCamping?.id,
+                            registeredCampingIds = registeredIds,
+                        ),
                     )
                 }
-                .catch { error ->
-                    _uiState.update { it.copy(phase = HomePhase.Error(error.message)) }
-                }
-                .collect { loaded ->
-                    _uiState.update {
-                        it.copy(phase = loaded)
+                    .flatMapLatest { frame ->
+                        observeLoadedPhase(
+                            featuredCamping = frame.featuredCamping,
+                            announcementPreviews = frame.announcements,
+                            forUserId = forUserId,
+                        )
                     }
-                }
+                    .catch { error ->
+                        if (!isRefresh || _uiState.value.phase !is HomePhase.Loaded) {
+                            _uiState.update { it.copy(phase = HomePhase.Error(error.message)) }
+                        }
+                    }
+                    .collect { loaded ->
+                        _uiState.update {
+                            it.copy(phase = loaded)
+                        }
+                        if (isRefresh) _isRefreshing.value = false
+                    }
+            } finally {
+                if (isRefresh) _isRefreshing.value = false
+            }
         }
     }
 
