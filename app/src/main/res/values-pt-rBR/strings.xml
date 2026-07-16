@@ -2149,6 +2149,13 @@
     <string name="album_title">Album</string>
     <string name="album_permissions">Permissoes do album</string>
     <string name="album_add_media">Adicionar midia</string>
+    <string name="album_upload_from_library">Enviar da galeria</string>
+    <string name="album_add_external_video">Adicionar video externo</string>
+    <string name="album_external_video_title">Video externo</string>
+    <string name="album_video_url">URL do video</string>
+    <string name="album_thumbnail_url">URL da miniatura</string>
+    <string name="album_invalid_video_url">Insira uma URL de video HTTP ou HTTPS valida.</string>
+    <string name="album_invalid_thumbnail_url">Insira uma URL de miniatura HTTP ou HTTPS valida.</string>
     <string name="album_caption_next">Legenda do proximo envio</string>
     <string name="album_participants_only_title">Apenas participantes aprovados</string>
     <string name="album_participants_only_message">Quando sua inscricao for aprovada, voce podera ver o album do acampamento.</string>

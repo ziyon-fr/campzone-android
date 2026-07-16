@@ -9,12 +9,16 @@ import fr.ziyon.campzone.data.media.ImageUploader
 import fr.ziyon.campzone.data.model.AlbumSettings
 import fr.ziyon.campzone.data.model.MediaItem
 import fr.ziyon.campzone.data.model.MediaKind
+import fr.ziyon.campzone.data.model.MediaSource
 import fr.ziyon.campzone.testing.MainDispatcherRule
+import java.io.File
 import java.util.Date
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -59,8 +63,81 @@ class AlbumViewModelTest {
 
         val saved = service.loadMedia("camp-1").single()
         assertEquals("Sunset", saved.caption)
+        assertEquals(MediaSource.Cloudinary, saved.source)
         assertEquals("cloudinary/photo", saved.publicId)
         assertTrue(saved.thumbnailUrl.orEmpty().contains("f_auto,q_auto,w_600,c_limit"))
+    }
+
+    @Test
+    fun addExternalVideoWritesLinkBackedVideoWithoutCloudinaryId() = runTest {
+        val service = FakeAlbumService()
+        val viewModel = AlbumViewModel(service, FakeImageUploader(), FakeAudioUploader())
+        viewModel.load("camp-1")
+        advanceUntilIdle()
+
+        viewModel.addExternalVideo(
+            campingId = "camp-1",
+            videoUrl = " drive.google.com/file/d/video-id/view ",
+            thumbnailUrl = " https://drive.google.com/thumbnail?id=video-id ",
+            caption = "  Replay  ",
+            uploader = user(),
+        )
+        advanceUntilIdle()
+
+        val saved = service.loadMedia("camp-1").single()
+        assertEquals(MediaKind.Video, saved.kind)
+        assertEquals(MediaSource.ExternalVideo, saved.source)
+        assertEquals("https://drive.google.com/file/d/video-id/view", saved.secureUrl)
+        assertEquals(saved.secureUrl, saved.externalUrl)
+        assertNull(saved.publicId)
+        assertEquals("https://drive.google.com/thumbnail?id=video-id", saved.thumbnailUrl)
+        assertEquals("Replay", saved.caption)
+        assertTrue(saved.opensExternally)
+    }
+
+    @Test
+    fun uploadFileCleansTemporaryFileAfterSaving() = runTest {
+        val service = FakeAlbumService()
+        val viewModel = AlbumViewModel(service, FakeImageUploader(), FakeAudioUploader())
+        val file = File.createTempFile("campzone-album", ".mp4").apply {
+            writeBytes(byteArrayOf(1, 2, 3))
+        }
+        viewModel.load("camp-1")
+        advanceUntilIdle()
+
+        viewModel.uploadMediaFile(
+            campingId = "camp-1",
+            kind = MediaKind.Video,
+            file = file,
+            mimeType = "video/mp4",
+            fileExtension = "mp4",
+            caption = "Clip",
+            uploader = user(),
+        )
+        advanceUntilIdle()
+
+        val saved = service.loadMedia("camp-1").single()
+        assertEquals(MediaKind.Video, saved.kind)
+        assertEquals("cloudinary/video", saved.publicId)
+        assertFalse(file.exists())
+    }
+
+    @Test
+    fun refreshFailurePreservesLoadedMedia() = runTest {
+        val service = FakeAlbumService(
+            initialMedia = listOf(media(id = "old", uploadedAt = Date(1)), media(id = "new", uploadedAt = Date(2))),
+        )
+        val viewModel = AlbumViewModel(service, FakeImageUploader(), FakeAudioUploader())
+        viewModel.load("camp-1")
+        advanceUntilIdle()
+
+        service.shouldFail = true
+        viewModel.refresh("camp-1")
+        advanceUntilIdle()
+
+        val loaded = viewModel.uiState.value as AlbumUiState.Loaded
+        assertEquals(listOf("new", "old"), loaded.media.map { it.id })
+        assertTrue(viewModel.operationMessage.value.orEmpty().contains("FakeAlbumService"))
     }
 
     @Test
@@ -115,6 +192,22 @@ private class FakeImageUploader : ImageUploader {
         width = 1200,
         height = 800,
     )
+
+    override suspend fun uploadImageFile(
+        assetIdPrefix: String,
+        folder: String,
+        tags: List<String>,
+        file: File,
+        mimeType: String,
+        fileExtension: String,
+    ): CloudinaryUploadResult = uploadImage(
+        assetIdPrefix = assetIdPrefix,
+        folder = folder,
+        tags = tags,
+        bytes = file.readBytes(),
+        mimeType = mimeType,
+        fileExtension = fileExtension,
+    )
 }
 
 private class FakeAudioUploader : AudioUploader {
@@ -129,5 +222,21 @@ private class FakeAudioUploader : AudioUploader {
         secureUrl = "https://res.cloudinary.com/demo/video/upload/clip.mp4",
         publicId = "cloudinary/video",
         duration = 12.0,
+    )
+
+    override suspend fun uploadAudioFile(
+        assetIdPrefix: String,
+        folder: String,
+        tags: List<String>,
+        file: File,
+        mimeType: String,
+        fileExtension: String,
+    ): CloudinaryUploadResult = uploadAudio(
+        assetIdPrefix = assetIdPrefix,
+        folder = folder,
+        tags = tags,
+        bytes = file.readBytes(),
+        mimeType = mimeType,
+        fileExtension = fileExtension,
     )
 }

@@ -26,16 +26,53 @@ class MediaSongTest {
         )
         val payload = MediaPayload.mediaPayload(media, TS)
         assertEquals("photo", payload["kind"])
+        assertEquals("cloudinary", payload["source"])
+        assertEquals("campzone/album/m1", payload["publicID"])
         assertEquals(TS, payload["uploadedAt"])
         assertFalse(payload.containsKey("thumbnailURL")) // omit-when-nil
         assertFalse(payload.containsKey("width"))
 
         val decoded = payload.toMediaItemOrNull("m1")!!
         assertEquals(MediaKind.Photo, decoded.kind)
+        assertEquals(MediaSource.Cloudinary, decoded.source)
         assertEquals("Sunset", decoded.caption)
+        assertEquals("https://cdn/img.jpg", decoded.playbackUrl)
 
         val broken = payload.toMutableMap().apply { remove("secureURL") }
         assertNull(broken.toMediaItemOrNull("m1"))
+    }
+
+    @Test
+    fun externalVideoOmitsPublicIdAndRoundTrips() {
+        val videoUrl = "https://drive.google.com/file/d/video-id/view"
+        val media = MediaItem(
+            id = "m2",
+            campingId = "camp-1",
+            kind = MediaKind.Video,
+            source = MediaSource.ExternalVideo,
+            secureUrl = videoUrl,
+            externalUrl = videoUrl,
+            publicId = null,
+            uploaderId = "u1",
+            uploaderName = "Maria",
+            caption = "Replay",
+        )
+        val payload = MediaPayload.mediaPayload(media, TS)
+        assertEquals("video", payload["kind"])
+        assertEquals("externalVideo", payload["source"])
+        assertEquals(videoUrl, payload["secureURL"])
+        assertEquals(videoUrl, payload["externalURL"])
+        assertFalse(payload.containsKey("publicID"))
+
+        val decoded = payload.toMediaItemOrNull("m2")!!
+        assertEquals(MediaSource.ExternalVideo, decoded.source)
+        assertEquals(videoUrl, decoded.playbackUrl)
+        assertTrue(decoded.opensExternally)
+        assertNull(decoded.displayThumbnailUrl)
+
+        val legacy = payload.toMutableMap().apply { remove("externalURL") }
+        val legacyDecoded = legacy.toMediaItemOrNull("m2")!!
+        assertEquals(videoUrl, legacyDecoded.externalUrl)
     }
 
     @Test
@@ -47,7 +84,7 @@ class MediaSongTest {
         )
         val decoded = mapOf("allowedUploadRoles" to listOf("admin", "photographer")).toAlbumSettings()
         assertTrue(decoded.allows(UserRole.Admin))
-        assertFalse(decoded.allows(UserRole.Guest))
+        assertFalse(decoded.allows(UserRole.User))
     }
 
     // --- Song ---

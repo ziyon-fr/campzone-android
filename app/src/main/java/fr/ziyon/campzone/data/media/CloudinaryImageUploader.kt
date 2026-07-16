@@ -3,6 +3,7 @@ package fr.ziyon.campzone.data.media
 import com.google.firebase.auth.FirebaseAuth
 import fr.ziyon.campzone.BuildConfig
 import java.io.DataOutputStream
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
@@ -32,6 +33,15 @@ interface ImageUploader {
         mimeType: String,
         fileExtension: String,
     ): CloudinaryUploadResult
+
+    suspend fun uploadImageFile(
+        assetIdPrefix: String,
+        folder: String,
+        tags: List<String>,
+        file: File,
+        mimeType: String,
+        fileExtension: String,
+    ): CloudinaryUploadResult
 }
 
 /** Cloudinary audio uploads use the `video` resource type. */
@@ -41,6 +51,15 @@ interface AudioUploader {
         folder: String,
         tags: List<String>,
         bytes: ByteArray,
+        mimeType: String,
+        fileExtension: String,
+    ): CloudinaryUploadResult
+
+    suspend fun uploadAudioFile(
+        assetIdPrefix: String,
+        folder: String,
+        tags: List<String>,
+        file: File,
         mimeType: String,
         fileExtension: String,
     ): CloudinaryUploadResult
@@ -120,6 +139,70 @@ class CloudinaryImageUploader @Inject constructor(
             uploadToCloudinary(
                 signature = signature,
                 bytes = bytes,
+                mimeType = mimeType,
+                fileName = "$assetId.$fileExtension",
+            )
+        }
+    }
+
+    override suspend fun uploadImageFile(
+        assetIdPrefix: String,
+        folder: String,
+        tags: List<String>,
+        file: File,
+        mimeType: String,
+        fileExtension: String,
+    ): CloudinaryUploadResult {
+        val token = auth.currentUser
+            ?.getIdToken(false)
+            ?.await()
+            ?.token
+            ?: error("There is no signed-in user.")
+
+        return withContext(Dispatchers.IO) {
+            val assetId = "$assetIdPrefix-${UUID.randomUUID()}"
+            val signature = requestSignature(
+                token = token,
+                assetId = assetId,
+                folder = folder,
+                tags = tags,
+                resourceType = "image",
+            )
+            uploadToCloudinary(
+                signature = signature,
+                file = file,
+                mimeType = mimeType,
+                fileName = "$assetId.$fileExtension",
+            )
+        }
+    }
+
+    override suspend fun uploadAudioFile(
+        assetIdPrefix: String,
+        folder: String,
+        tags: List<String>,
+        file: File,
+        mimeType: String,
+        fileExtension: String,
+    ): CloudinaryUploadResult {
+        val token = auth.currentUser
+            ?.getIdToken(false)
+            ?.await()
+            ?.token
+            ?: error("There is no signed-in user.")
+
+        return withContext(Dispatchers.IO) {
+            val assetId = "$assetIdPrefix-${UUID.randomUUID()}"
+            val signature = requestSignature(
+                token = token,
+                assetId = assetId,
+                folder = folder,
+                tags = tags,
+                resourceType = "video",
+            )
+            uploadToCloudinary(
+                signature = signature,
+                file = file,
                 mimeType = mimeType,
                 fileName = "$assetId.$fileExtension",
             )
@@ -220,6 +303,43 @@ class CloudinaryImageUploader @Inject constructor(
         )
     }
 
+    private fun uploadToCloudinary(
+        signature: CloudinarySignature,
+        file: File,
+        mimeType: String,
+        fileName: String,
+    ): CloudinaryUploadResult {
+        val boundary = "Campzone-${UUID.randomUUID()}"
+        val connection = (URL(signature.uploadUrl).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            doOutput = true
+            setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+        }
+
+        DataOutputStream(connection.outputStream).use { output ->
+            signature.signedParams.forEach { (key, value) ->
+                output.writeFormField(boundary, key, value)
+            }
+            output.writeFormField(boundary, "api_key", signature.apiKey)
+            output.writeFormField(boundary, "signature", signature.signature)
+            output.writeFormField(boundary, "timestamp", signature.timestamp)
+            output.writeFileField(boundary, "file", fileName, mimeType, file)
+            output.writeBytes("--$boundary--\r\n")
+            output.flush()
+        }
+
+        val response = connection.readResponse()
+        val json = JSONObject(response)
+        return CloudinaryUploadResult(
+            secureUrl = json.getString("secure_url"),
+            publicId = json.getString("public_id"),
+            duration = json.optDoubleOrNull("duration"),
+            bytes = json.optLongOrNull("bytes"),
+            width = json.optIntOrNull("width"),
+            height = json.optIntOrNull("height"),
+        )
+    }
+
     private fun postJson(
         url: String,
         bearerToken: String,
@@ -270,6 +390,22 @@ class CloudinaryImageUploader @Inject constructor(
         writeBytes("Content-Disposition: form-data; name=\"$name\"; filename=\"$fileName\"\r\n")
         writeBytes("Content-Type: $mimeType\r\n\r\n")
         write(bytes)
+        writeBytes("\r\n")
+    }
+
+    private fun DataOutputStream.writeFileField(
+        boundary: String,
+        name: String,
+        fileName: String,
+        mimeType: String,
+        file: File,
+    ) {
+        writeBytes("--$boundary\r\n")
+        writeBytes("Content-Disposition: form-data; name=\"$name\"; filename=\"$fileName\"\r\n")
+        writeBytes("Content-Type: $mimeType\r\n\r\n")
+        file.inputStream().use { input ->
+            input.copyTo(this, bufferSize = 512 * 1024)
+        }
         writeBytes("\r\n")
     }
 

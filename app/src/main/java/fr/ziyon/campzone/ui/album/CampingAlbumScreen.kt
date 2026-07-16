@@ -1,5 +1,6 @@
 package fr.ziyon.campzone.ui.album
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.webkit.MimeTypeMap
@@ -10,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.PlayCircle
@@ -37,7 +40,8 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -45,6 +49,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,6 +60,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
@@ -84,7 +90,12 @@ import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.AlbumSettings
 import fr.ziyon.campzone.data.model.MediaItem
 import fr.ziyon.campzone.data.model.MediaKind
+import java.io.File
 import java.util.Date
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun CampingAlbumRoute(
@@ -99,6 +110,7 @@ fun CampingAlbumRoute(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isUploading by viewModel.isUploading.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val operationMessage by viewModel.operationMessage.collectAsState()
 
     LaunchedEffect(campingId, canViewAlbum) {
@@ -113,10 +125,13 @@ fun CampingAlbumRoute(
         canManageAlbum = canManageAlbum,
         canManageAlbumSettings = canManageAlbumSettings,
         isUploading = isUploading,
+        isRefreshing = isRefreshing,
         operationMessage = operationMessage,
         onBack = onBack,
         onRetry = { viewModel.load(campingId) },
-        onUpload = viewModel::uploadMedia,
+        onRefresh = { viewModel.refresh(campingId) },
+        onUploadFile = viewModel::uploadMediaFile,
+        onAddExternalVideo = viewModel::addExternalVideo,
         onDelete = viewModel::deleteMedia,
         onUpdateCaption = viewModel::updateCaption,
         onSetRoleAllowed = viewModel::setRoleAllowed,
@@ -134,10 +149,13 @@ fun CampingAlbumScreen(
     canManageAlbum: Boolean,
     canManageAlbumSettings: Boolean,
     isUploading: Boolean,
+    isRefreshing: Boolean,
     operationMessage: String?,
     onBack: () -> Unit,
     onRetry: () -> Unit,
-    onUpload: (String, MediaKind, ByteArray, String, String, String, AuthenticatedUser) -> Unit,
+    onRefresh: () -> Unit,
+    onUploadFile: (String, MediaKind, File, String, String, String, AuthenticatedUser) -> Unit,
+    onAddExternalVideo: (String, String, String?, String, AuthenticatedUser) -> Unit,
     onDelete: (String, String) -> Unit,
     onUpdateCaption: (String, String, String) -> Unit,
     onSetRoleAllowed: (String, UserRole, Boolean) -> Unit,
@@ -145,8 +163,11 @@ fun CampingAlbumScreen(
 ) {
     val colors = MaterialTheme.czColors
     val context = LocalContext.current
+    val uploadScope = rememberCoroutineScope()
     var selectedItem by remember { mutableStateOf<MediaItem?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    var showAddMenu by remember { mutableStateOf(false) }
+    var showExternalVideoDialog by remember { mutableStateOf(false) }
     var uploadCaption by remember { mutableStateOf("") }
     val settings = (uiState as? AlbumUiState.Loaded)?.settings ?: AlbumSettings()
     val canUpload = canManageAlbum || (canViewAlbum && settings.allows(authenticatedUser.role))
@@ -155,9 +176,12 @@ fun CampingAlbumScreen(
         val mimeType = context.contentResolver.getType(uri).orEmpty()
         val kind = if (mimeType.startsWith("video/")) MediaKind.Video else MediaKind.Photo
         val extension = extensionFor(uri, mimeType)
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@rememberLauncherForActivityResult
-        onUpload(campingId, kind, bytes, mimeType.ifBlank { kind.defaultMimeType }, extension, uploadCaption, authenticatedUser)
+        val caption = uploadCaption
         uploadCaption = ""
+        uploadScope.launch {
+            val file = cacheAlbumUpload(context, uri, extension) ?: return@launch
+            onUploadFile(campingId, kind, file, mimeType.ifBlank { kind.defaultMimeType }, extension, caption, authenticatedUser)
+        }
     }
 
     Scaffold(
@@ -188,12 +212,35 @@ fun CampingAlbumScreen(
         },
         floatingActionButton = {
             if (canUpload) {
-                FloatingActionButton(
-                    onClick = { mediaPicker.launch(arrayOf("image/*", "video/*")) },
-                    containerColor = colors.ember,
-                    contentColor = Color.White,
-                ) {
-                    Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.album_add_media))
+                Box {
+                    FloatingActionButton(
+                        onClick = { showAddMenu = true },
+                        containerColor = colors.ember,
+                        contentColor = Color.White,
+                    ) {
+                        Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.album_add_media))
+                    }
+                    DropdownMenu(
+                        expanded = showAddMenu,
+                        onDismissRequest = { showAddMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.album_upload_from_library)) },
+                            leadingIcon = { Icon(Icons.Rounded.PhotoLibrary, contentDescription = null) },
+                            onClick = {
+                                showAddMenu = false
+                                mediaPicker.launch(arrayOf("image/*", "video/*"))
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.album_add_external_video)) },
+                            leadingIcon = { Icon(Icons.Rounded.Link, contentDescription = null) },
+                            onClick = {
+                                showAddMenu = false
+                                showExternalVideoDialog = true
+                            },
+                        )
+                    }
                 }
             }
         },
@@ -227,7 +274,9 @@ fun CampingAlbumScreen(
                 uiState = uiState,
                 canViewAlbum = canViewAlbum,
                 canUpload = canUpload,
+                isRefreshing = isRefreshing,
                 onRetry = onRetry,
+                onRefresh = onRefresh,
                 onOpen = { selectedItem = it },
                 modifier = Modifier.weight(1f),
             )
@@ -243,7 +292,7 @@ fun CampingAlbumScreen(
             canManageAlbum = canManageAlbum,
             onDismiss = { selectedItem = null },
             onOpenExternal = { current ->
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(current.secureUrl)))
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(current.playbackUrl)))
             },
             onDelete = { current ->
                 onDelete(campingId, current.id)
@@ -251,6 +300,16 @@ fun CampingAlbumScreen(
             },
             onUpdateCaption = { current, caption ->
                 onUpdateCaption(campingId, current.id, caption)
+            },
+        )
+    }
+
+    if (showExternalVideoDialog && canUpload) {
+        ExternalVideoDialog(
+            onDismiss = { showExternalVideoDialog = false },
+            onSave = { videoUrl, thumbnailUrl, caption ->
+                onAddExternalVideo(campingId, videoUrl, thumbnailUrl, caption, authenticatedUser)
+                showExternalVideoDialog = false
             },
         )
     }
@@ -320,15 +379,19 @@ private fun FullScreenGalleryDialog(
             ) { page ->
                 val item = media[page]
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    AsyncImage(
-                        model = if (item.kind == MediaKind.Video) item.thumbnailUrl ?: item.secureUrl else item.secureUrl,
-                        contentDescription = item.caption.ifBlank { stringResource(R.string.album_media_cd) },
+                    MediaPreviewImage(
+                        item = item,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit,
                     )
                     if (item.kind == MediaKind.Video) {
                         IconButton(onClick = { onOpenExternal(item) }, modifier = Modifier.size(72.dp)) {
-                            Icon(Icons.Rounded.PlayCircle, null, tint = Color.White, modifier = Modifier.fillMaxSize())
+                            Icon(
+                                if (item.opensExternally) Icons.Rounded.Link else Icons.Rounded.PlayCircle,
+                                null,
+                                tint = Color.White,
+                                modifier = Modifier.fillMaxSize(),
+                            )
                         }
                     }
                 }
@@ -373,7 +436,9 @@ private fun AlbumContent(
     uiState: AlbumUiState,
     canViewAlbum: Boolean,
     canUpload: Boolean,
+    isRefreshing: Boolean,
     onRetry: () -> Unit,
+    onRefresh: () -> Unit,
     onOpen: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -386,48 +451,60 @@ private fun AlbumContent(
         )
         return
     }
-    when (uiState) {
-        AlbumUiState.Loading -> CzLoadingView(
-            modifier = modifier.fillMaxSize(),
-            message = stringResource(R.string.album_loading),
-        )
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxSize(),
+    ) {
+        when (uiState) {
+            AlbumUiState.Loading -> CzLoadingView(
+                modifier = Modifier.fillMaxSize(),
+                message = stringResource(R.string.album_loading),
+            )
 
-        is AlbumUiState.Error -> CzErrorState(
-            title = stringResource(R.string.album_error_title),
-            message = uiState.message,
-            onRetry = onRetry,
-            retryLabel = stringResource(R.string.common_retry),
-            modifier = modifier.fillMaxSize(),
-        )
+            is AlbumUiState.Error -> CzErrorState(
+                title = stringResource(R.string.album_error_title),
+                message = uiState.message,
+                onRetry = onRetry,
+                retryLabel = stringResource(R.string.common_retry),
+                modifier = Modifier.fillMaxSize(),
+            )
 
-        is AlbumUiState.Loaded -> {
-            if (uiState.media.isEmpty()) {
-                CzEmptyState(
-                    title = stringResource(R.string.album_empty_title),
-                    message = if (canUpload) {
-                        stringResource(R.string.album_empty_upload_message)
-                    } else {
-                        stringResource(R.string.album_empty_view_message)
-                    },
-                    icon = {
-                        Icon(
-                            Icons.Rounded.PhotoLibrary,
-                            contentDescription = null,
-                            modifier = Modifier.size(36.dp),
-                        )
-                    },
-                    modifier = modifier.fillMaxSize(),
-                )
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 112.dp),
-                    modifier = modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = CzSpacing.xxxl),
-                    horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
-                ) {
-                    items(uiState.media, key = { it.id }) { item ->
-                        MediaTile(item = item, onClick = { onOpen(item) })
+            is AlbumUiState.Loaded -> {
+                if (uiState.media.isEmpty()) {
+                    CzEmptyState(
+                        title = stringResource(R.string.album_empty_title),
+                        message = if (canUpload) {
+                            stringResource(R.string.album_empty_upload_message)
+                        } else {
+                            stringResource(R.string.album_empty_view_message)
+                        },
+                        icon = {
+                            Icon(
+                                Icons.Rounded.PhotoLibrary,
+                                contentDescription = null,
+                                modifier = Modifier.size(36.dp),
+                            )
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 112.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = CzSpacing.xxxl),
+                        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+                    ) {
+                        items(uiState.media, key = { it.id }) { item ->
+                            MediaTile(
+                                item = item,
+                                onClick = { onOpen(item) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f),
+                            )
+                        }
                     }
                 }
             }
@@ -436,23 +513,25 @@ private fun AlbumContent(
 }
 
 @Composable
-private fun MediaTile(item: MediaItem, onClick: () -> Unit) {
+private fun MediaTile(
+    item: MediaItem,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Box(
-        modifier = Modifier
-            .height(118.dp)
+        modifier = modifier
             .clip(RoundedCornerShape(CzRadius.md))
             .background(MaterialTheme.czColors.surface)
             .clickable(onClick = onClick),
     ) {
-        AsyncImage(
-            model = item.thumbnailUrl ?: item.secureUrl,
-            contentDescription = item.caption.ifBlank { stringResource(R.string.album_media_cd) },
-            modifier = Modifier.fillMaxSize(),
+        MediaPreviewImage(
+            item = item,
             contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
         )
         if (item.kind == MediaKind.Video) {
             Icon(
-                Icons.Rounded.PlayCircle,
+                if (item.opensExternally) Icons.Rounded.Link else Icons.Rounded.PlayCircle,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier
@@ -478,6 +557,35 @@ private fun MediaTile(item: MediaItem, onClick: () -> Unit) {
 }
 
 @Composable
+private fun MediaPreviewImage(
+    item: MediaItem,
+    contentScale: ContentScale,
+    modifier: Modifier = Modifier,
+) {
+    val thumbnail = item.displayThumbnailUrl
+    Box(
+        modifier = modifier.background(MaterialTheme.czColors.surface),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (thumbnail != null) {
+            AsyncImage(
+                model = thumbnail,
+                contentDescription = item.caption.ifBlank { stringResource(R.string.album_media_cd) },
+                modifier = Modifier.fillMaxSize(),
+                contentScale = contentScale,
+            )
+        } else {
+            Icon(
+                if (item.kind == MediaKind.Video) Icons.Rounded.Link else Icons.Rounded.PhotoLibrary,
+                contentDescription = item.caption.ifBlank { stringResource(R.string.album_media_cd) },
+                tint = MaterialTheme.czColors.textSecondary,
+                modifier = Modifier.size(36.dp),
+            )
+        }
+    }
+}
+
+@Composable
 private fun MediaDetailDialog(
     item: MediaItem,
     canDelete: Boolean,
@@ -493,9 +601,8 @@ private fun MediaDetailDialog(
         title = { Text(if (item.kind == MediaKind.Video) stringResource(R.string.album_video) else stringResource(R.string.album_photo)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
-                AsyncImage(
-                    model = item.thumbnailUrl ?: item.secureUrl,
-                    contentDescription = item.caption.ifBlank { stringResource(R.string.album_media_cd) },
+                MediaPreviewImage(
+                    item = item,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(220.dp)
@@ -537,6 +644,74 @@ private fun MediaDetailDialog(
                     }
                 }
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) }
+            }
+        },
+    )
+}
+
+@Composable
+private fun ExternalVideoDialog(
+    onDismiss: () -> Unit,
+    onSave: (String, String?, String) -> Unit,
+) {
+    var videoUrl by remember { mutableStateOf("") }
+    var thumbnailUrl by remember { mutableStateOf("") }
+    var caption by remember { mutableStateOf("") }
+    val normalizedVideoUrl = normalizedWebUrlOrNull(videoUrl)
+    val normalizedThumbnailUrl = normalizedWebUrlOrNull(thumbnailUrl)
+    val videoUrlInvalid = videoUrl.isNotBlank() && normalizedVideoUrl == null
+    val thumbnailUrlInvalid = thumbnailUrl.isNotBlank() && normalizedThumbnailUrl == null
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.album_external_video_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(CzSpacing.md)) {
+                OutlinedTextField(
+                    value = videoUrl,
+                    onValueChange = { videoUrl = it },
+                    label = { Text(stringResource(R.string.album_video_url)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = videoUrlInvalid,
+                    supportingText = {
+                        if (videoUrlInvalid) {
+                            Text(stringResource(R.string.album_invalid_video_url))
+                        }
+                    },
+                )
+                OutlinedTextField(
+                    value = thumbnailUrl,
+                    onValueChange = { thumbnailUrl = it },
+                    label = { Text(stringResource(R.string.album_thumbnail_url)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = thumbnailUrlInvalid,
+                    supportingText = {
+                        if (thumbnailUrlInvalid) {
+                            Text(stringResource(R.string.album_invalid_thumbnail_url))
+                        }
+                    },
+                )
+                OutlinedTextField(
+                    value = caption,
+                    onValueChange = { caption = it },
+                    label = { Text(stringResource(R.string.album_caption)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = normalizedVideoUrl != null && !thumbnailUrlInvalid,
+                onClick = { onSave(normalizedVideoUrl.orEmpty(), normalizedThumbnailUrl, caption) },
+            ) {
+                Text(stringResource(R.string.common_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_cancel))
             }
         },
     )
@@ -591,6 +766,37 @@ private fun extensionFor(uri: Uri, mimeType: String): String {
     }
 }
 
+private suspend fun cacheAlbumUpload(context: Context, uri: Uri, extension: String): File? =
+    withContext(Dispatchers.IO) {
+        val uploadDirectory = File(context.cacheDir, "album-uploads").apply { mkdirs() }
+        val safeExtension = extension.filter { it.isLetterOrDigit() }.ifBlank { "bin" }
+        val file = File(uploadDirectory, "album-${UUID.randomUUID()}.$safeExtension")
+        runCatching {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                file.outputStream().use { output -> input.copyTo(output, bufferSize = 512 * 1024) }
+            } ?: error("Could not open album media.")
+            file
+        }.getOrElse {
+            file.delete()
+            null
+        }
+    }
+
+private fun normalizedWebUrlOrNull(value: String): String? {
+    val trimmed = value.trim()
+    if (trimmed.isBlank()) return null
+    val lower = trimmed.lowercase()
+    if ("://" in lower && !lower.startsWith("http://") && !lower.startsWith("https://")) {
+        return null
+    }
+    val candidate = if (lower.startsWith("http://") || lower.startsWith("https://")) trimmed else "https://$trimmed"
+    val uri = runCatching { Uri.parse(candidate) }.getOrNull() ?: return null
+    val scheme = uri.scheme?.lowercase()
+    return candidate.takeIf {
+        (scheme == "http" || scheme == "https") && !uri.host.isNullOrBlank()
+    }
+}
+
 @Preview
 @Composable
 private fun CampingAlbumPreview() {
@@ -629,10 +835,13 @@ private fun CampingAlbumPreview() {
             canManageAlbum = true,
             canManageAlbumSettings = true,
             isUploading = false,
+            isRefreshing = false,
             operationMessage = null,
             onBack = {},
             onRetry = {},
-            onUpload = { _, _, _, _, _, _, _ -> },
+            onRefresh = {},
+            onUploadFile = { _, _, _, _, _, _, _ -> },
+            onAddExternalVideo = { _, _, _, _, _ -> },
             onDelete = { _, _ -> },
             onUpdateCaption = { _, _, _ -> },
             onSetRoleAllowed = { _, _, _ -> },

@@ -912,10 +912,13 @@ or neither.
 ### 7.6 `campings/{id}/media/{mediaId}` - MediaItem + `albumSettings/default`
 
 MediaItem (full `set`, ordered `uploadedAt` desc): `campingID`, `kind`
-(`photo`/`video`, req), `secureURL` (req, Cloudinary), `publicID` (req),
-`uploaderID` (req), `uploaderName` (req), `uploadedAt` (req,
-`serverTimestamp()`), `caption` (`""`), `thumbnailURL` (opt),
-`width`/`height` (int, opt), `durationSeconds` (double, opt).
+(`photo`/`video`, req), `source` (`cloudinary` default or
+`externalVideo`), `secureURL` (req; Cloudinary delivery URL or external
+playback fallback), `externalURL` (req for `source=externalVideo`),
+`publicID` (req only for Cloudinary-backed rows), `uploaderID` (req),
+`uploaderName` (req), `uploadedAt` (req, `serverTimestamp()`), `caption`
+(`""`), `thumbnailURL` (opt), `width`/`height` (int, opt),
+`durationSeconds` (double, opt).
 
 `albumSettings/default` (single doc): `allowedUploadRoles`
 (array\<string> of `UserRole` raws, sorted; default

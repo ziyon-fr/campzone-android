@@ -1,3 +1,27 @@
+# Project Status - Album performance and external video parity
+
+Updated: 2026-07-16
+
+- Source of truth audited: the iOS Album performance pass in
+  `MediaItem.swift`, `AlbumObserver.swift`, `MediaThumbnailView.swift`,
+  `CampingAlbumView.swift`, and `MediaDetailView.swift`.
+- Album media now matches the iOS external-video contract: Cloudinary-backed
+  rows continue to use `source=cloudinary`, `secureURL`, and `publicID`, while
+  link-backed videos use `source=externalVideo`, `externalURL`, and no
+  Cloudinary public id.
+- Android Album add actions now split local library uploads from external video
+  links. Library picks are cached to a temporary file before upload instead of
+  reading the whole selected media item into memory, and external links open via
+  the stored playback URL.
+- Album refresh now preserves already loaded media when a warm reload fails,
+  and the grid uses stable square cells with thumbnail placeholders for
+  external videos so scrolling does not jump or stack thumbnails.
+- Updated the shared Firestore schema/tracker notes plus English, French,
+  Portuguese, and Portuguese-Brazil album strings for the new add-video flow.
+- Verification in this pass: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :app:testDebugUnitTest --tests fr.ziyon.campzone.data.model.MediaSongTest --tests fr.ziyon.campzone.ui.album.AlbumViewModelTest --console=plain` passed.
+
+---
+
 # Project Status - Home, Schedule, and Songbook pull-to-refresh parity
 
 Updated: 2026-07-04

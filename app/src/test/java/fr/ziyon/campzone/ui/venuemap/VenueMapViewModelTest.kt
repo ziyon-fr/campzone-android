@@ -17,6 +17,7 @@ import fr.ziyon.campzone.data.model.VenuePoint
 import fr.ziyon.campzone.data.venuemap.FakeVenueMapService
 import fr.ziyon.campzone.data.venuemap.ParsedGpxPoint
 import fr.ziyon.campzone.testing.MainDispatcherRule
+import java.io.File
 import java.util.Date
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -240,6 +241,22 @@ class VenueMapViewModelTest {
         ): CloudinaryUploadResult = CloudinaryUploadResult(
             secureUrl = "https://cdn/uploaded.png",
             publicId = "campzone/uploaded",
+        )
+
+        override suspend fun uploadImageFile(
+            assetIdPrefix: String,
+            folder: String,
+            tags: List<String>,
+            file: File,
+            mimeType: String,
+            fileExtension: String,
+        ): CloudinaryUploadResult = uploadImage(
+            assetIdPrefix = assetIdPrefix,
+            folder = folder,
+            tags = tags,
+            bytes = file.readBytes(),
+            mimeType = mimeType,
+            fileExtension = fileExtension,
         )
     }
 }

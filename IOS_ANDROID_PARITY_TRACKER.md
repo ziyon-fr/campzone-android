@@ -1,6 +1,6 @@
 # iOS → Android Parity Tracker
 
-Last updated: 2026-07-04
+Last updated: 2026-07-16
 
 Android repository: `/Users/leon/AndroidStudioProjects/Campzone`
 iOS source of truth: `/Users/leon/Desktop/Business Projects/Campzone/Campzone`
@@ -36,7 +36,7 @@ must be intentional and recorded here.
 | Bucket | Count | Meaning |
 | --- | ---: | --- |
 | Remaining implementation gaps | 0 | No source-confirmed implementation gap remains in the current iOS working-tree audit; device findings can reopen this count |
-| Partial / verification queue | 21 | Includes the broader audits plus the latest high-visibility polish and Cantus catalog import awaiting device/UI or external-service acceptance |
+| Partial / verification queue | 22 | Includes the broader audits plus the latest high-visibility polish, Cantus catalog import, and Album device scroll/gesture smoke awaiting device/UI or external-service acceptance |
 | Automated-verified implementations | 35 | Baseline slices plus the completed correctness, Songbook, resource-gate, album-permission, family-query, stale-link, structured-menu, Camping-management, team-scoring, auto-balance, Songbook-row, checklist-share, vehicle-offer, vehicle self-removal, and vehicle seat-accounting closures |
 | Intentional platform adaptations | 5 | Do not port literally |
 
@@ -47,6 +47,18 @@ must be intentional and recorded here.
 3. High-visibility Campings/Home visual parity.
 4. Feature-by-feature device verification.
 5. Localization, accessibility, full tests, lint, and debug assembly.
+
+---
+
+## Parity updates from the 2026-07-16 iOS Album performance pass
+
+iOS source reviewed: current Album performance/layout changes in
+`MediaItem.swift`, `AlbumObserver.swift`, `MediaThumbnailView.swift`,
+`CampingAlbumView.swift`, and `MediaDetailView.swift`.
+
+| ID | Status | iOS source / behavior | Android evidence | Required Android result | Verification |
+| --- | --- | --- | --- | --- | --- |
+| ALBUM-003 | VERIFY | iOS adds the external-video media source contract, avoids rereading/reloading Album content during warm refresh, stabilizes the square grid thumbnails, and keeps remote media handling lightweight. | Android now decodes/writes `source`, `externalURL`, optional `publicID`, and playback URLs; Album refresh preserves loaded media on failure; library uploads stream from a temporary cache file instead of a whole in-memory byte array; the add menu separates library upload from external-video links; and grid tiles use stable `aspectRatio(1f)` cells with external-video placeholders. | Device-check scroll/drag behavior and external-video launch on a real/emulated phone, while keeping the Firestore media contract compatible with Cloudinary rows and link-backed videos. | Focused `MediaSongTest` and `AlbumViewModelTest` passed 2026-07-16; `:app:testDebugUnitTest` included an up-to-date debug Kotlin compile path for these changes. |
 
 ---
 
@@ -186,7 +198,7 @@ change may move them back to `PARTIAL` or `OPEN`.
 | ATTEND-001 | DONE | Per-program attendance records, manual corrections/removal, missing list, and QR scanner. | `data/attendance/*`, `ui/attendance/*`. |
 | TEMPLATE-001 | DONE | Recurring camp cloning with shifted schedule, reset teams, copied songbook/guidelines, and no live data. | `data/model/CampingTemplateClone.kt`, `ui/camping/template/*`. |
 | DATA-001 | DONE | GDPR/self-service data export and profile entry. | `data/profile/UserDataExportRepository.kt`, `ui/profile/UserDataExportScreen.kt`. |
-| ALBUM-001 | DONE | Swipeable full-screen gallery, media metadata, delete/caption actions. | `ui/album/CampingAlbumScreen.kt`, `data/model/MediaItem.kt`. |
+| ALBUM-001 | DONE | Swipeable full-screen gallery, Cloudinary media metadata, external-video links, delete/caption actions. | `ui/album/CampingAlbumScreen.kt`, `ui/album/AlbumViewModel.kt`, `data/model/MediaItem.kt`. |
 | AUTH-001 | DONE | Adaptive sign-in/onboarding/splash presentation and profile-field parity. | `ui/auth/AuthGate.kt`, `ui/onboarding/OnboardingScreen.kt`. |
 | NOTIF-001 | DONE | Deep links, scoped feed queries, camping/team channel visibility, and badge/registration/transport actions. | `data/notifications/*`, `ui/notifications/*`, navigation tests. |
 | GAME-SCOPE-001 | DONE | Activity listeners issue no query for unauthorized/guardian-only viewers and constrain participants to immediate visibility before reveal. | `data/games/ActivityReadScope.kt`, `GameService.kt`, games tests. |
@@ -237,6 +249,7 @@ change may move them back to `PARTIAL` or `OPEN`.
 | 2026-07-02 | iOS working-tree parity implementation pass | Ported the iOS vehicle `offeredSeats` carpool cap into Android model/service/ViewModel/form UI, exposed the iOS participant-allergy manager list in Android Food Menu, documented the vehicle schema/RBAC contract, and confirmed checklist-share deep links/notifications already matched Android. Fixed the Android lint locale issue in the new allergy row and cleaned iOS whitespace plus a Food Menu accessibility typo. Full Android `:app:testDebugUnitTest`, `:app:assembleDebug`, `:app:lintDebug`, Android `git diff --check`, iOS app build, targeted iOS unit slices, iOS string-catalog JSON parse, iOS `git diff --check`, and Firebase RBAC tests passed. |
 | 2026-07-04 | Cantus catalog Songbook import parity | Ported the iOS Cantus catalog import flow to Android with authenticated backend proxy client, search/filter/select UI, duplicate Added state, Browse Song Catalog primary add action, manual fallback, canonical `chordedLyrics` persistence, `cantusSlug`, PPTX link editing/opening, and focused parser/model/catalog/ViewModel tests. Full unit tests, `compileDebugKotlin`, `lintDebug`, `assembleDebug`, and `git diff --check` passed; live `/cantus/*` proxy and device visual import comparison remain VERIFY. |
 | 2026-07-04 | Home/Schedule/Songbook pull-to-refresh parity | Added native pull-to-refresh to iOS Home, Schedule, and Songbook plus Material3 `PullToRefreshBox` parity on Android. Warm refresh paths preserve existing loaded content while forcing a fresh read/restarted stream. iOS `xcodebuild build`, focused iOS observer tests, Android `compileDebugKotlin`, focused Home/Songbook ViewModel tests, and both repo diff checks passed; device gesture smoke remains. |
+| 2026-07-16 | Album performance and external video parity | Ported the iOS Album performance pass to Android with external-video media source payloads, file-backed library uploads, warm refresh preservation, stable square grid cells, external-video thumbnail placeholders, localized add-video copy, and focused model/ViewModel tests. Device scroll/gesture and external-link smoke remain VERIFY. |
 
 ## Change log
 

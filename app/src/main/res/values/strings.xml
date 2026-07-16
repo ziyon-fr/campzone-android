@@ -2165,6 +2165,13 @@
     <string name="album_title">Album</string>
     <string name="album_permissions">Album permissions</string>
     <string name="album_add_media">Add media</string>
+    <string name="album_upload_from_library">Upload from library</string>
+    <string name="album_add_external_video">Add external video</string>
+    <string name="album_external_video_title">External video</string>
+    <string name="album_video_url">Video URL</string>
+    <string name="album_thumbnail_url">Thumbnail URL</string>
+    <string name="album_invalid_video_url">Enter a valid HTTP or HTTPS video URL.</string>
+    <string name="album_invalid_thumbnail_url">Enter a valid HTTP or HTTPS thumbnail URL.</string>
     <string name="album_caption_next">Caption for next upload</string>
     <string name="album_participants_only_title">Approved participants only</string>
     <string name="album_participants_only_message">Once your registration is approved you can view the camp album.</string>

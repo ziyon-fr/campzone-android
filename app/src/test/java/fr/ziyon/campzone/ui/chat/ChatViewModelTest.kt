@@ -13,6 +13,7 @@ import fr.ziyon.campzone.data.model.ChatMessage
 import fr.ziyon.campzone.data.model.ContentReportReason
 import fr.ziyon.campzone.data.model.ContentReportTarget
 import fr.ziyon.campzone.testing.MainDispatcherRule
+import java.io.File
 import java.util.Date
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -268,5 +269,23 @@ class ChatViewModelTest {
             mimeType: String,
             fileExtension: String,
         ) = CloudinaryUploadResult("https://aud/$assetIdPrefix.m4a", "pid", duration = 3.0)
+
+        override suspend fun uploadImageFile(
+            assetIdPrefix: String,
+            folder: String,
+            tags: List<String>,
+            file: File,
+            mimeType: String,
+            fileExtension: String,
+        ) = uploadImage(assetIdPrefix, folder, tags, file.readBytes(), mimeType, fileExtension)
+
+        override suspend fun uploadAudioFile(
+            assetIdPrefix: String,
+            folder: String,
+            tags: List<String>,
+            file: File,
+            mimeType: String,
+            fileExtension: String,
+        ) = uploadAudio(assetIdPrefix, folder, tags, file.readBytes(), mimeType, fileExtension)
     }
 }
