@@ -36,7 +36,8 @@ internal fun Map<String, Any?>.toNotificationTokenOrNull(): NotificationToken? {
 /**
  * `users/{uid}/notificationSettings/default` (`02-firestore-schema.md` §2.3) -
  * single doc. The stored field is **`subscribedRoleRawValues`** (Swift's
- * `subscribedRoles` is computed). No client `createdAt`.
+ * `subscribedRoles` is computed). `subscribedStaffRoleIDs` stores private
+ * camp staff/ministry chat channels. No client `createdAt`.
  */
 data class NotificationSettings(
     val isEnabled: Boolean = true,
@@ -49,6 +50,7 @@ data class NotificationSettings(
     val subscribedCampingIds: List<String> = emptyList(),
     val subscribedRoles: List<UserRole> = emptyList(),
     val subscribedTeamIds: List<String> = emptyList(),
+    val subscribedStaffRoleIds: List<String> = emptyList(),
     val updatedAt: Date? = null,
 )
 
@@ -64,6 +66,7 @@ internal fun Map<String, Any?>.toNotificationSettings(): NotificationSettings =
         subscribedCampingIds = stringListValue("subscribedCampingIDs"),
         subscribedRoles = rawStringListValue("subscribedRoleRawValues").map(UserRole::fromWire),
         subscribedTeamIds = stringListValue("subscribedTeamIDs"),
+        subscribedStaffRoleIds = stringListValue("subscribedStaffRoleIDs"),
         updatedAt = dateValue("updatedAt"),
     )
 
@@ -104,6 +107,8 @@ internal object NotificationPrefsPayload {
             "subscribedRoleRawValues" to settings.subscribedRoles
                 .map { it.rawValue }.distinct().sorted(),
             "subscribedTeamIDs" to settings.subscribedTeamIds
+                .map { it.trim() }.filter { it.isNotEmpty() }.distinct().sorted(),
+            "subscribedStaffRoleIDs" to settings.subscribedStaffRoleIds
                 .map { it.trim() }.filter { it.isNotEmpty() }.distinct().sorted(),
             "updatedAt" to serverTimestamp,
         )

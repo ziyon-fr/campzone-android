@@ -17,7 +17,7 @@ endpoints in `04-backend-api.md`; gates in `03-rbac-and-security.md`.
 | Capability | Data / API | Notes |
 | --- | --- | --- |
 | Firebase init (Auth, Firestore w/ offline persistence) | - | Apple + Google providers, same project. Enable Firestore local persistence/cache (web: `persistentLocalCache`; Android: default + `setPersistenceEnabled`) |
-| Auth + session | `users/{uid}` | first sign-in creates the doc (role `guest`); see §2 schema. iOS requests notif permission **after** onboarding, not at launch |
+| Auth + session | `users/{uid}` | first sign-in creates the doc (role `user`); see §2 schema. iOS requests notif permission **after** onboarding, not at launch |
 | Onboarding | `users/{uid}` | collect age, church, preferred language, gender; derive `ageGroup`; set `onboardingCompleted` |
 | Profile view/edit + account-deletion flags | `users/{uid}` (+ denormalization fan-out §10) | 30-day deletion grace flag; purge is server-side |
 | Family participants (CRUD) | `users/{uid}/children/{id}` | role `adult`/`admin`; full CRUD mandatory |
@@ -46,7 +46,8 @@ endpoints in `04-backend-api.md`; gates in `03-rbac-and-security.md`.
 | Teams (list/ranking/detail), members, captain/vice, scores, penalties, auto-balance | `campings/{id}/teams` (rewrite full doc + `memberUserIDs`) |
 | Games + point rules + award points + immutable activity audit | `games`, `activities` |
 | Winner reveal policy + ceremony | camping `winnerRevealPolicy` (reveal gate) |
-| Camping chat + team chat (pin/report/soft-delete) + per-user block | `chat`, `teams/{id}/chat`, `users/{uid}/blockedUsers`; dispatch `chat` |
+| Camping chat + team chat + staff-role private chat (pin/report/soft-delete) + per-user block | `chat`, `teams/{id}/chat`, `staffRoles/{id}/chat`, `users/{uid}/blockedUsers`; dispatch `chat` |
+| Organizer-defined camping staff roles (games, kitchen, cleaning, reception, worship, logistics, media, safety, prayer, custom) with self-service CRUD and private chat | `campings/{id}/staffRoles` (rewrite full doc + `memberUserIDs`) |
 | Live polls (create/vote/results, transactional vote) | `polls`, `polls/{id}/votes/{voterId}`; dispatch `poll` |
 | QR check-in (scanner + records) | `checkIns/{attendeeId}`; QR payload in `05` |
 | Badges/achievements (read-only display) | `users/{uid}/badges` (backend-awarded) |

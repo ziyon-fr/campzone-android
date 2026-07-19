@@ -11,4 +11,13 @@
     <color name="light_blue_600">#FF039BE5</color>
     <color name="gray_400">#FFBDBDBD</color>
     <color name="gray_600">#FF757575</color>
+    <color name="cz_widget_background">#FFF8F4EE</color>
+    <color name="cz_widget_accent">#FFD97706</color>
+    <color name="cz_widget_text">#FF1C1917</color>
+    <color name="cz_widget_text_secondary">#FF6B6052</color>
+    <color name="cz_widget_text_on_dark">#FFF7F4EE</color>
+    <color name="cz_widget_text_on_dark_secondary">#CCF7F4EE</color>
+    <color name="cz_widget_ticket_background">#FF171A21</color>
+    <color name="cz_widget_success">#FF3D9E5C</color>
+    <color name="cz_widget_progress_track">#33D97706</color>
 </resources>

@@ -121,6 +121,7 @@ import fr.ziyon.campzone.data.chat.ChatAudioRecorder
 import fr.ziyon.campzone.data.chat.MentionCandidate
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
+import fr.ziyon.campzone.data.model.CampingStaffRole
 import fr.ziyon.campzone.data.model.ChatAttachmentKind
 import fr.ziyon.campzone.data.model.ChatMention
 import fr.ziyon.campzone.data.model.ChatReactionSummary
@@ -153,13 +154,21 @@ private data class ChatActionContext(
 private sealed interface ChatScope {
     val campingId: String
     val teamId: String?
+    val staffRoleId: String?
 
     data class Camping(override val campingId: String) : ChatScope {
         override val teamId: String? = null
+        override val staffRoleId: String? = null
     }
 
     data class Team(override val campingId: String, val team: String) : ChatScope {
         override val teamId: String = team
+        override val staffRoleId: String? = null
+    }
+
+    data class StaffRole(override val campingId: String, val role: String) : ChatScope {
+        override val teamId: String? = null
+        override val staffRoleId: String = role
     }
 }
 
@@ -263,6 +272,55 @@ fun TeamChatRoute(
     )
 }
 
+@Composable
+fun StaffRoleChatRoute(
+    campingId: String,
+    staffRoleId: String,
+    camping: Camping?,
+    role: CampingStaffRole?,
+    authenticatedUser: AuthenticatedUser,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: ChatViewModel = hiltViewModel(),
+) {
+    if (camping == null || role == null) {
+        ChatLoading(modifier)
+        return
+    }
+    val evaluator = remember { AppPermissionEvaluator() }
+    val permissionUser = remember(authenticatedUser) {
+        PermissionUser(authenticatedUser.role, authenticatedUser.uid, authenticatedUser.church)
+    }
+    val canModerate = evaluator.canManageStaffRoles(permissionUser, camping.permissionContext())
+    val isMember = role.containsUser(authenticatedUser.uid)
+    val people = remember(role, authenticatedUser.uid) {
+        role.members
+            .asSequence()
+            .filter { it.userId.isNotBlank() && it.userId != authenticatedUser.uid }
+            .distinctBy { it.userId }
+            .map { MentionCandidate(it.userId, it.displayName, it.church, it.photoUrl, isEveryone = false) }
+            .sortedBy { it.displayName.lowercase() }
+            .toList()
+    }
+    val mentionableUserIds = remember(people) { people.map { it.id } }
+
+    ChatConversation(
+        viewModel = viewModel,
+        scope = ChatScope.StaffRole(campingId, staffRoleId),
+        title = role.name.ifBlank { stringResource(R.string.staff_roles_title) },
+        restrictedMessage = stringResource(R.string.staff_role_chat_restricted, role.name),
+        emptyMessage = stringResource(R.string.staff_role_chat_empty),
+        canAccess = role.chatEnabled && (isMember || canModerate),
+        canModerate = canModerate,
+        sender = authenticatedUser,
+        mentionCandidates = listOf(everyoneCandidate()) + people,
+        mentionableUserIds = mentionableUserIds,
+        header = { StaffRoleChatHeader(role) },
+        onBack = onBack,
+        modifier = modifier,
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatConversation(
@@ -317,8 +375,8 @@ private fun ChatConversation(
         label = "chatBlur",
     )
 
-    LaunchedEffect(canAccess, scope.campingId, scope.teamId, sender.uid) {
-        if (canAccess) viewModel.start(scope.campingId, scope.teamId, sender.uid)
+    LaunchedEffect(canAccess, scope.campingId, scope.teamId, scope.staffRoleId, sender.uid) {
+        if (canAccess) viewModel.start(scope.campingId, scope.teamId, sender.uid, scope.staffRoleId)
     }
 
     Box(
@@ -377,7 +435,9 @@ private fun ChatConversation(
                     state = state,
                     emptyMessage = emptyMessage,
                     currentUserId = sender.uid,
-                    onRetry = { viewModel.retry(scope.campingId, scope.teamId, sender.uid) },
+                    onRetry = {
+                        viewModel.retry(scope.campingId, scope.teamId, sender.uid, scope.staffRoleId)
+                    },
                     onReact = { message, emoji -> viewModel.toggleReaction(message, emoji, sender.uid) },
                     onReply = viewModel::beginReply,
                     onShowActions = { message, bubbleCenterY ->
@@ -397,15 +457,41 @@ private fun ChatConversation(
                     mentionCandidates = mentionCandidates,
                     recorder = recorder,
                     onDraftChange = viewModel::updateDraft,
-                    onSend = { viewModel.send(scope.campingId, scope.teamId, sender, mentionableUserIds) },
-                    onCommitEdit = { viewModel.commitEdit(scope.campingId, scope.teamId) },
+                    onSend = {
+                        viewModel.send(
+                            scope.campingId,
+                            scope.teamId,
+                            sender,
+                            mentionableUserIds,
+                            scope.staffRoleId,
+                        )
+                    },
+                    onCommitEdit = {
+                        viewModel.commitEdit(scope.campingId, scope.teamId, scope.staffRoleId)
+                    },
                     onCancelEdit = viewModel::cancelEditing,
                     onCancelReply = viewModel::cancelReply,
                     onSendImage = { bytes, mime, ext ->
-                        viewModel.sendImage(bytes, mime, ext, "", scope.campingId, scope.teamId, sender)
+                        viewModel.sendImage(
+                            bytes,
+                            mime,
+                            ext,
+                            "",
+                            scope.campingId,
+                            scope.teamId,
+                            sender,
+                            scope.staffRoleId,
+                        )
                     },
                     onSendVoice = { bytes, duration ->
-                        viewModel.sendVoice(bytes, duration, scope.campingId, scope.teamId, sender)
+                        viewModel.sendVoice(
+                            bytes,
+                            duration,
+                            scope.campingId,
+                            scope.teamId,
+                            sender,
+                            scope.staffRoleId,
+                        )
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -1554,6 +1640,45 @@ private fun TeamChatHeader(team: Team) {
         }
         Text(
             text = stringResource(R.string.chat_private_team_chat).uppercase(LocalLocale.current.platformLocale),
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textSecondary,
+        )
+        Spacer(Modifier.weight(1f))
+        Icon(
+            imageVector = Icons.Rounded.Lock,
+            contentDescription = null,
+            tint = colors.textSecondary,
+            modifier = Modifier.size(12.dp),
+        )
+    }
+    HorizontalDivider()
+}
+
+@Composable
+private fun StaffRoleChatHeader(role: CampingStaffRole) {
+    val colors = MaterialTheme.czColors
+    val roleColor = role.colorHex.toComposeColor() ?: colors.ember
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.surface)
+            .padding(horizontal = CzSpacing.lg, vertical = CzSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        Box(
+            modifier = Modifier.size(32.dp).clip(CircleShape).background(roleColor.copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = symbolIcon(role.symbolName),
+                contentDescription = null,
+                tint = roleColor,
+                modifier = Modifier.size(14.dp),
+            )
+        }
+        Text(
+            text = stringResource(R.string.staff_role_private_chat).uppercase(LocalLocale.current.platformLocale),
             style = MaterialTheme.typography.labelSmall,
             color = colors.textSecondary,
         )

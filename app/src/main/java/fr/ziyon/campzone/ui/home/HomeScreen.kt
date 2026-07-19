@@ -105,6 +105,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -134,6 +135,12 @@ import fr.ziyon.campzone.core.designsystem.CzColorPalette
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
+import fr.ziyon.campzone.core.widgets.CampzoneWidgetPublisher
+import fr.ziyon.campzone.core.widgets.WidgetAnnouncementSummary
+import fr.ziyon.campzone.core.widgets.WidgetCampPassSummary
+import fr.ziyon.campzone.core.widgets.WidgetCampSummary
+import fr.ziyon.campzone.core.widgets.WidgetProgramSummary
+import fr.ziyon.campzone.core.widgets.toWidgetMillis
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.Announcement
 import fr.ziyon.campzone.data.model.Camping
@@ -365,6 +372,53 @@ private fun HomeDashboard(
 ) {
     val isLiveMode = featuredCamping?.isLiveForUser(authenticatedUser.uid) == true
     val scheduleCampingId = featuredCamping?.id ?: upcomingPrograms.firstOrNull()?.campingId
+    val context = LocalContext.current
+    LaunchedEffect(featuredCamping, upcomingPrograms, announcements, livePassInfo, isLiveMode) {
+        val primaryPass = livePassInfo.primaryPass
+        CampzoneWidgetPublisher.updateHome(
+            context = context,
+            camp = featuredCamping?.let {
+                WidgetCampSummary(it.id, it.title, it.startDate.toWidgetMillis(), it.endDate.toWidgetMillis())
+            },
+            programs = upcomingPrograms
+                .filter { it.endDate.time > System.currentTimeMillis() }
+                .sortedBy { it.startDate.time }
+                .take(12)
+                .map {
+                    WidgetProgramSummary(
+                        id = it.id,
+                        title = it.title,
+                        startMillis = it.startDate.toWidgetMillis(),
+                        endMillis = it.endDate.toWidgetMillis(),
+                        location = it.location.takeUnless { value -> value.isBlank() },
+                        campId = it.campingId,
+                    )
+                },
+            pass = if (isLiveMode && primaryPass != null) {
+                WidgetCampPassSummary(
+                    campId = featuredCamping.id,
+                    campName = featuredCamping.title,
+                    qrValue = CheckInQrPayload(
+                        campingId = featuredCamping.id,
+                        attendeeId = primaryPass.attendee.id,
+                        userId = primaryPass.attendee.userId,
+                    ).encoded(),
+                    attendeeName = primaryPass.attendee.displayName,
+                    teamName = primaryPass.teamName,
+                    lodgingName = primaryPass.lodgingName,
+                )
+            } else null,
+            announcement = announcements.firstOrNull()?.let {
+                WidgetAnnouncementSummary(
+                    id = it.id,
+                    title = it.title,
+                    body = it.summary,
+                    createdMillis = it.createdAt?.toWidgetMillis() ?: System.currentTimeMillis(),
+                    campName = featuredCamping?.title,
+                )
+            },
+        )
+    }
 
     Column(
         modifier = modifier.fillMaxSize(),

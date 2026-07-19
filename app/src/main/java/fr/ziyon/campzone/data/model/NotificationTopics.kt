@@ -8,6 +8,7 @@ data class NotificationTopicSubscription(
     val campingId: String? = null,
     val role: String? = null,
     val teamId: String? = null,
+    val staffRoleId: String? = null,
 )
 
 /**
@@ -51,6 +52,8 @@ object NotificationTopics {
 
     fun teamChat(teamId: String): String = topic(scope = "team_chat", value = teamId)
 
+    fun staffRoleChat(staffRoleId: String): String = topic(scope = "staff_role_chat", value = staffRoleId)
+
     /** Reads `campzone_role_<role>` back out of a topic string, else null. */
     fun roleFromTopic(topic: String): String? {
         val prefix = "${AppId}_role_"
@@ -82,14 +85,15 @@ object NotificationTopics {
     /**
      * Builds the exact metadata predicates Firestore rules use for each
      * listener. A topic-only camping/team query cannot be authorized because
-     * Security Rules do not infer `campingID`, `role`, or `teamID` from topic
-     * text.
+     * Security Rules do not infer `campingID`, `role`, `teamID`, or
+     * `staffRoleID` from topic text.
      */
     fun visibleTopicSubscriptions(
         role: UserRole,
         settings: NotificationSettings? = null,
         userId: String? = null,
         teamCampingIds: Map<String, String?> = emptyMap(),
+        staffRoleCampingIds: Map<String, String?> = emptyMap(),
     ): Set<NotificationTopicSubscription> {
         if (settings?.isEnabled == false) return emptySet()
 
@@ -176,6 +180,20 @@ object NotificationTopics {
                 }
             }
         }
+        val staffRoleTopics = (settings?.subscribedStaffRoleIds ?: emptyList()).flatMap { staffRoleId ->
+            val campingId = staffRoleCampingIds[staffRoleId]?.takeUnless { it.isBlank() }
+            if (!chatMessagesEnabled || campingId == null) {
+                emptyList()
+            } else {
+                listOf(
+                    NotificationTopicSubscription(
+                        topic = staffRoleChat(staffRoleId),
+                        campingId = campingId,
+                        staffRoleId = staffRoleId,
+                    ),
+                )
+            }
+        }
 
         val globalTopics = if (announcementsEnabled) {
             listOf(NotificationTopicSubscription(topic = globalAnnouncement))
@@ -187,7 +205,7 @@ object NotificationTopics {
             ?.takeUnless { it.isBlank() }
             ?.let { listOf(NotificationTopicSubscription(topic = userTopic(it))) }
             ?: emptyList()
-        return (directUserTopics + globalTopics + roleTopics + campingTopics + teamTopics).toSet()
+        return (directUserTopics + globalTopics + roleTopics + campingTopics + teamTopics + staffRoleTopics).toSet()
     }
 
     private fun sanitizePart(value: String): String =

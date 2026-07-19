@@ -57,6 +57,7 @@ import fr.ziyon.campzone.ui.camping.registrations.CampingAttendeesRoute
 import fr.ziyon.campzone.ui.camping.registrations.RegistrationReviewRoute
 import fr.ziyon.campzone.ui.camping.register.CampingRegistrationRoute
 import fr.ziyon.campzone.ui.chat.CampingChatRoute
+import fr.ziyon.campzone.ui.chat.StaffRoleChatRoute
 import fr.ziyon.campzone.ui.chat.TeamChatRoute
 import fr.ziyon.campzone.ui.checkin.CheckInQrPassesRoute
 import fr.ziyon.campzone.ui.checkin.CheckInRecordsRoute
@@ -94,6 +95,10 @@ import fr.ziyon.campzone.ui.games.PointHistoryRoute
 import fr.ziyon.campzone.ui.games.WinnerRevealRoute
 import fr.ziyon.campzone.ui.teams.TeamDetailRoute
 import fr.ziyon.campzone.ui.teams.TeamEditorRoute
+import fr.ziyon.campzone.ui.teams.StaffRoleDetailRoute
+import fr.ziyon.campzone.ui.teams.StaffRoleEditorRoute
+import fr.ziyon.campzone.ui.teams.StaffRoleViewModel
+import fr.ziyon.campzone.ui.teams.StaffRolesRoute
 import fr.ziyon.campzone.ui.teams.TeamViewModel
 import fr.ziyon.campzone.ui.teams.TeamsRoute
 import fr.ziyon.campzone.ui.schedule.food.FoodMenuEditorScreen
@@ -109,6 +114,7 @@ import androidx.compose.runtime.remember
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.ui.announcements.AnnouncementComposerRoute
+import fr.ziyon.campzone.ui.camping.registrations.permissionContext
 import fr.ziyon.campzone.ui.announcements.AnnouncementDetailRoute
 import fr.ziyon.campzone.ui.announcements.AnnouncementViewModel
 import fr.ziyon.campzone.ui.announcements.AnnouncementsRoute
@@ -592,6 +598,9 @@ fun CampzoneNavigationShell(
                     },
                     onOpenTeams = { campingId ->
                         navController.navigate(AppRoute.CampingTeams(campingId).route)
+                    },
+                    onOpenStaffRoles = { campingId ->
+                        navController.navigate(AppRoute.CampingStaffRoles(campingId).route)
                     },
                     onOpenGames = { campingId ->
                         navController.navigate(AppRoute.CampingGames(campingId).route)
@@ -1326,6 +1335,209 @@ fun CampzoneNavigationShell(
                     },
                     onOpenGames = {
                         navController.navigate(AppRoute.CampingGames(campingId).route)
+                    },
+                )
+            }
+            // Operations teams - editor routes precede the role-id route.
+            composable(
+                route = AppRoutePattern.StaffRoleEditor,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val rolesEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingStaffRoles(campingId).route)
+                    }.getOrNull()
+                }
+                val rolesViewModel: StaffRoleViewModel =
+                    if (rolesEntry != null) hiltViewModel(rolesEntry) else hiltViewModel()
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                LaunchedEffect(campingId, authenticatedUser.uid) {
+                    campingDetailVm.load(campingId, authenticatedUser)
+                }
+                val detailState by campingDetailVm.uiState.collectAsState()
+                StaffRoleEditorRoute(
+                    campingId = campingId,
+                    staffRoleId = null,
+                    camping = detailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    approvedAttendees = detailState.attendees,
+                    viewModel = rolesViewModel,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { roleId ->
+                        navController.popBackStack()
+                        navController.navigate(AppRoute.StaffRoleDetail(campingId, roleId).route)
+                    },
+                    onDeleted = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.StaffRoleEdit,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.StaffRoleId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val staffRoleId = backStackEntry.stringArg(AppRouteArgs.StaffRoleId)
+                val rolesEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingStaffRoles(campingId).route)
+                    }.getOrNull()
+                }
+                val rolesViewModel: StaffRoleViewModel =
+                    if (rolesEntry != null) hiltViewModel(rolesEntry) else hiltViewModel()
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                LaunchedEffect(campingId, authenticatedUser.uid) {
+                    campingDetailVm.load(campingId, authenticatedUser)
+                }
+                val detailState by campingDetailVm.uiState.collectAsState()
+                StaffRoleEditorRoute(
+                    campingId = campingId,
+                    staffRoleId = staffRoleId,
+                    camping = detailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    approvedAttendees = detailState.attendees,
+                    viewModel = rolesViewModel,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                    onDeleted = {
+                        navController.popBackStack(
+                            AppRoute.CampingStaffRoles(campingId).route,
+                            inclusive = false,
+                        )
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.StaffRoleChat,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.StaffRoleId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val staffRoleId = backStackEntry.stringArg(AppRouteArgs.StaffRoleId)
+                val rolesEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingStaffRoles(campingId).route)
+                    }.getOrNull()
+                }
+                val rolesViewModel: StaffRoleViewModel =
+                    if (rolesEntry != null) hiltViewModel(rolesEntry) else hiltViewModel()
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                LaunchedEffect(campingId, authenticatedUser.uid) {
+                    campingDetailVm.load(campingId, authenticatedUser)
+                }
+                val detailState by campingDetailVm.uiState.collectAsState()
+                val canManage = detailState.camping?.let { camping ->
+                    AppPermissionEvaluator().canManageStaffRoles(
+                        PermissionUser(authenticatedUser.role, authenticatedUser.uid, authenticatedUser.church),
+                        camping.permissionContext(),
+                    )
+                } ?: false
+                LaunchedEffect(campingId, authenticatedUser.uid, canManage) {
+                    rolesViewModel.start(campingId, authenticatedUser.uid, canManage)
+                }
+                val rolesState by rolesViewModel.uiState.collectAsState()
+                val role = remember(rolesState, staffRoleId) { rolesViewModel.role(staffRoleId) }
+                StaffRoleChatRoute(
+                    campingId = campingId,
+                    staffRoleId = staffRoleId,
+                    camping = detailState.camping,
+                    role = role,
+                    authenticatedUser = authenticatedUser,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = AppRoutePattern.StaffRoleDetail,
+                arguments = listOf(
+                    navArgument(AppRouteArgs.CampingId) { type = NavType.StringType },
+                    navArgument(AppRouteArgs.StaffRoleId) { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val staffRoleId = backStackEntry.stringArg(AppRouteArgs.StaffRoleId)
+                val rolesEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingStaffRoles(campingId).route)
+                    }.getOrNull()
+                }
+                val rolesViewModel: StaffRoleViewModel =
+                    if (rolesEntry != null) hiltViewModel(rolesEntry) else hiltViewModel()
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                LaunchedEffect(campingId, authenticatedUser.uid) {
+                    campingDetailVm.load(campingId, authenticatedUser)
+                }
+                val detailState by campingDetailVm.uiState.collectAsState()
+                StaffRoleDetailRoute(
+                    campingId = campingId,
+                    staffRoleId = staffRoleId,
+                    camping = detailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = rolesViewModel,
+                    onBack = { navController.popBackStack() },
+                    onEdit = {
+                        navController.navigate(AppRoute.StaffRoleEditor(campingId, staffRoleId).route)
+                    },
+                    onOpenChat = {
+                        navController.navigate(AppRoute.StaffRoleChat(campingId, staffRoleId).route)
+                    },
+                )
+            }
+            composable(
+                route = AppRoutePattern.CampingStaffRoles,
+                arguments = listOf(navArgument(AppRouteArgs.CampingId) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val campingId = backStackEntry.stringArg(AppRouteArgs.CampingId)
+                val campingDetailEntry = remember(backStackEntry) {
+                    runCatching {
+                        navController.getBackStackEntry(AppRoute.CampingDetail(campingId).route)
+                    }.getOrNull()
+                }
+                val campingDetailVm: CampingDetailViewModel =
+                    if (campingDetailEntry != null) hiltViewModel(campingDetailEntry) else hiltViewModel()
+                LaunchedEffect(campingId, authenticatedUser.uid) {
+                    campingDetailVm.load(campingId, authenticatedUser)
+                }
+                val detailState by campingDetailVm.uiState.collectAsState()
+                val rolesViewModel: StaffRoleViewModel = hiltViewModel()
+                StaffRolesRoute(
+                    campingId = campingId,
+                    camping = detailState.camping,
+                    authenticatedUser = authenticatedUser,
+                    viewModel = rolesViewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenDetail = { roleId ->
+                        navController.navigate(AppRoute.StaffRoleDetail(campingId, roleId).route)
+                    },
+                    onOpenEditor = { roleId ->
+                        navController.navigate(AppRoute.StaffRoleEditor(campingId, roleId).route)
                     },
                 )
             }
@@ -2187,7 +2399,7 @@ private fun CampzoneNavigationShellPreview() {
                 email = "preview@example.com",
                 displayName = "Preview Camper",
                 photoUrl = null,
-                role = UserRole.Guest,
+                role = UserRole.User,
                 church = "Paris Central SDA",
                 age = 22,
                 preferredLanguage = "fr",

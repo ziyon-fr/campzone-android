@@ -1,9 +1,37 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.google.services)
     alias(libs.plugins.hilt.android)
+}
+
+val localProperties = Properties().apply {
+    val propertiesFile = rootProject.file("local.properties")
+    if (propertiesFile.isFile) {
+        propertiesFile.inputStream().use(::load)
+    }
+}
+
+fun releaseSigningProperty(name: String): String? =
+    localProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(name)?.takeIf { it.isNotBlank() }
+
+val releaseSigningStoreFile = releaseSigningProperty("CAMPZONE_RELEASE_STORE_FILE")
+val releaseSigningStorePassword = releaseSigningProperty("CAMPZONE_RELEASE_STORE_PASSWORD")
+val releaseSigningKeyAlias = releaseSigningProperty("CAMPZONE_RELEASE_KEY_ALIAS")
+val releaseSigningKeyPassword = releaseSigningProperty("CAMPZONE_RELEASE_KEY_PASSWORD")
+val releaseSigningValues = mapOf(
+    "CAMPZONE_RELEASE_STORE_FILE" to releaseSigningStoreFile,
+    "CAMPZONE_RELEASE_STORE_PASSWORD" to releaseSigningStorePassword,
+    "CAMPZONE_RELEASE_KEY_ALIAS" to releaseSigningKeyAlias,
+    "CAMPZONE_RELEASE_KEY_PASSWORD" to releaseSigningKeyPassword,
+)
+val hasReleaseSigningConfig = releaseSigningValues.values.all { it != null }
+check(releaseSigningValues.values.none { it != null } || hasReleaseSigningConfig) {
+    "Release signing is partially configured. Provide all of: ${releaseSigningValues.keys.joinToString()}."
 }
 
 android {
@@ -19,10 +47,21 @@ android {
         minSdk = 24
         //noinspection OldTargetApi
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.0.3.4"
+        versionCode = 10
+        versionName = "1.0.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (hasReleaseSigningConfig) {
+            create("release") {
+                storeFile = rootProject.file(releaseSigningStoreFile!!)
+                storePassword = releaseSigningStorePassword
+                keyAlias = releaseSigningKeyAlias
+                keyPassword = releaseSigningKeyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -45,6 +84,9 @@ android {
                 "BACKEND_BASE_URL",
                 "\"https://notification-backend-chi.vercel.app\""
             )
+            if (hasReleaseSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {

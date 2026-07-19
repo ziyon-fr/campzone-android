@@ -674,9 +674,6 @@ private fun TransportationCameraCard(
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         hasPermission = granted
     }
-    LaunchedEffect(Unit) {
-        if (!hasPermission) launcher.launch(Manifest.permission.CAMERA)
-    }
     Box(
         modifier = Modifier
             .fillMaxWidth()

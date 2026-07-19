@@ -11,7 +11,13 @@ import fr.ziyon.campzone.data.model.Team
 import fr.ziyon.campzone.data.model.TeamMember
 import fr.ziyon.campzone.data.model.TeamMemberRole
 import fr.ziyon.campzone.data.model.TeamPenalty
+import fr.ziyon.campzone.data.model.CampingStaffRole
+import fr.ziyon.campzone.data.model.StaffCapability
+import fr.ziyon.campzone.data.model.StaffRoleKind
+import fr.ziyon.campzone.data.model.StaffRoleMember
+import fr.ziyon.campzone.data.model.StaffRolePayload
 import fr.ziyon.campzone.data.model.TeamPayload
+import fr.ziyon.campzone.data.model.toStaffRoleOrNull
 import fr.ziyon.campzone.data.model.toTeamOrNull
 import java.util.Date
 import java.util.UUID
@@ -35,6 +41,20 @@ data class TeamDraft(
     val photoPublicId: String?,
 )
 
+data class StaffRoleDraft(
+    val id: String,
+    val campingId: String,
+    val name: String,
+    val kind: StaffRoleKind = StaffRoleKind.Custom,
+    val description: String = "",
+    val symbolName: String = CampingStaffRole.DEFAULT_SYMBOL,
+    val colorHex: String = CampingStaffRole.DEFAULT_COLOR,
+    val members: List<StaffRoleMember> = emptyList(),
+    val capabilities: List<StaffCapability> = emptyList(),
+    val chatEnabled: Boolean = true,
+    val createdByUid: String? = null,
+)
+
 data class TeamScoreRequest(
     val teamId: String,
     val campingId: String,
@@ -47,6 +67,10 @@ interface TeamService {
     suspend fun loadTeams(campingId: String): List<Team>
     suspend fun saveTeam(draft: TeamDraft): Team
     suspend fun deleteTeam(id: String, campingId: String)
+    fun observeStaffRoles(campingId: String, memberUserId: String? = null): Flow<List<CampingStaffRole>>
+    suspend fun loadStaffRoles(campingId: String, memberUserId: String? = null): List<CampingStaffRole>
+    suspend fun saveStaffRole(draft: StaffRoleDraft): CampingStaffRole
+    suspend fun deleteStaffRole(id: String, campingId: String)
     suspend fun assignMember(member: TeamMember, toTeamId: String, campingId: String): List<Team>
     suspend fun removeMember(memberId: String, fromTeamId: String, campingId: String): List<Team>
     suspend fun updateMemberRole(memberId: String, role: TeamMemberRole, teamId: String, campingId: String): List<Team>
@@ -110,6 +134,68 @@ class FirestoreTeamService @Inject constructor(
 
     override suspend fun deleteTeam(id: String, campingId: String) {
         teamsCollection(campingId).document(id).delete().await()
+    }
+
+    override fun observeStaffRoles(campingId: String, memberUserId: String?): Flow<List<CampingStaffRole>> = callbackFlow {
+        val collection = staffRolesCollection(campingId)
+        val query = memberUserId?.trim()?.takeUnless { it.isBlank() }
+            ?.let { collection.whereArrayContains("memberUserIDs", it) }
+            ?: collection
+        val listener = query
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) { close(error); return@addSnapshotListener }
+                val roles = snapshot?.documents?.mapNotNull { doc ->
+                    doc.data?.toStaffRoleOrNull(doc.id)
+                }?.sortedWith(staffRoleComparator) ?: emptyList()
+                trySend(roles)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    override suspend fun loadStaffRoles(campingId: String, memberUserId: String?): List<CampingStaffRole> {
+        val collection = staffRolesCollection(campingId)
+        val query = memberUserId?.trim()?.takeUnless { it.isBlank() }
+            ?.let { collection.whereArrayContains("memberUserIDs", it) }
+            ?: collection
+        val snapshot = query.get().await()
+        return snapshot.documents
+            .mapNotNull { it.data?.toStaffRoleOrNull(it.id) }
+            .sortedWith(staffRoleComparator)
+    }
+
+    override suspend fun saveStaffRole(draft: StaffRoleDraft): CampingStaffRole {
+        val doc = staffRolesCollection(draft.campingId).document(draft.id)
+        val existingSnapshot = doc.get().await()
+        val existing = if (existingSnapshot.exists()) {
+            existingSnapshot.data?.toStaffRoleOrNull(draft.id)
+        } else null
+        val role = CampingStaffRole(
+            id = draft.id,
+            campingId = draft.campingId,
+            name = draft.name.trim(),
+            kind = draft.kind,
+            description = draft.description,
+            symbolName = draft.symbolName,
+            colorHex = draft.colorHex,
+            members = draft.members.distinctBy { it.userId },
+            capabilities = draft.capabilities.distinct(),
+            chatEnabled = draft.chatEnabled,
+            createdByUid = existing?.createdByUid ?: draft.createdByUid,
+            createdAt = existing?.createdAt,
+            updatedAt = Date(),
+        )
+        val payload = StaffRolePayload.staffRolePayload(
+            role = role,
+            serverTimestamp = FieldValue.serverTimestamp(),
+            includeCreatedAt = !existingSnapshot.exists(),
+        )
+        doc.set(payload, SetOptions.merge()).await()
+        return doc.get().await().data?.toStaffRoleOrNull(draft.id)
+            ?: throw IllegalStateException("Staff role could not be loaded after save.")
+    }
+
+    override suspend fun deleteStaffRole(id: String, campingId: String) {
+        staffRolesCollection(campingId).document(id).delete().await()
     }
 
     override suspend fun assignMember(
@@ -239,8 +325,14 @@ class FirestoreTeamService @Inject constructor(
     private fun teamsCollection(campingId: String) =
         db.collection("campings").document(campingId).collection("teams")
 
+    private fun staffRolesCollection(campingId: String) =
+        db.collection("campings").document(campingId).collection("staffRoles")
+
     private val teamComparator: Comparator<Team> = compareByDescending<Team> { it.totalScore }
         .thenBy { it.name.lowercase() }
+
+    private val staffRoleComparator: Comparator<CampingStaffRole> =
+        compareBy<CampingStaffRole> { it.name.lowercase() }.thenBy { it.id }
 }
 
 class FakeTeamService(
@@ -277,8 +369,27 @@ class FakeTeamService(
             updatedAt = Date(),
         ),
     ),
+    private val staffRoles: MutableList<CampingStaffRole> = mutableListOf(
+        CampingStaffRole(
+            id = "worship",
+            campingId = "preview-camping",
+            name = "Worship Team",
+            kind = StaffRoleKind.Worship,
+            description = "Songs, prayer moments, and spiritual programming.",
+            symbolName = "music.mic",
+            colorHex = "#6A4C93",
+            members = listOf(
+                StaffRoleMember(id = "preview-user", userId = "preview-user", displayName = "Preview Admin", church = "Central SDA", title = "Lead"),
+                StaffRoleMember(id = "member-1", userId = "member-1", displayName = "Ana Silva", church = "Central SDA"),
+            ),
+            capabilities = listOf(StaffCapability.ManageSchedule, StaffCapability.ManageAnnouncements),
+            createdAt = Date(),
+            updatedAt = Date(),
+        ),
+    ),
 ) : TeamService {
     private val teamsState = MutableStateFlow(teams.toList())
+    private val staffRolesState = MutableStateFlow(staffRoles.toList())
 
     override fun observeTeams(campingId: String): Flow<List<Team>> =
         teamsState.map { list -> sorted(list.filter { it.campingId == campingId }) }
@@ -312,6 +423,53 @@ class FakeTeamService(
 
     override suspend fun deleteTeam(id: String, campingId: String) {
         teams.removeAll { it.id == id && it.campingId == campingId }
+        publish()
+    }
+
+    override fun observeStaffRoles(campingId: String, memberUserId: String?): Flow<List<CampingStaffRole>> =
+        staffRolesState.map { list ->
+            sortedStaffRoles(
+                list.filter { role ->
+                    role.campingId == campingId &&
+                        (memberUserId.isNullOrBlank() || role.containsUser(memberUserId))
+                },
+            )
+        }
+
+    override suspend fun loadStaffRoles(campingId: String, memberUserId: String?): List<CampingStaffRole> =
+        sortedStaffRoles(
+            staffRoles.filter { role ->
+                role.campingId == campingId &&
+                    (memberUserId.isNullOrBlank() || role.containsUser(memberUserId))
+            },
+        )
+
+    override suspend fun saveStaffRole(draft: StaffRoleDraft): CampingStaffRole {
+        val now = Date()
+        val existing = staffRoles.firstOrNull { it.id == draft.id && it.campingId == draft.campingId }
+        val saved = CampingStaffRole(
+            id = draft.id,
+            campingId = draft.campingId,
+            name = draft.name.trim(),
+            kind = draft.kind,
+            description = draft.description,
+            symbolName = draft.symbolName,
+            colorHex = draft.colorHex,
+            members = draft.members.distinctBy { it.userId },
+            capabilities = draft.capabilities.distinct(),
+            chatEnabled = draft.chatEnabled,
+            createdByUid = existing?.createdByUid ?: draft.createdByUid,
+            createdAt = existing?.createdAt ?: now,
+            updatedAt = now,
+        )
+        staffRoles.removeAll { it.id == draft.id && it.campingId == draft.campingId }
+        staffRoles.add(saved)
+        publish()
+        return saved
+    }
+
+    override suspend fun deleteStaffRole(id: String, campingId: String) {
+        staffRoles.removeAll { it.id == id && it.campingId == campingId }
         publish()
     }
 
@@ -381,10 +539,14 @@ class FakeTeamService(
 
     private fun publish() {
         teamsState.value = teams.toList()
+        staffRolesState.value = staffRoles.toList()
     }
 
     private fun sorted(list: List<Team>): List<Team> =
         list.sortedWith(compareByDescending<Team> { it.totalScore }.thenBy { it.name.lowercase() })
+
+    private fun sortedStaffRoles(list: List<CampingStaffRole>): List<CampingStaffRole> =
+        list.sortedWith(compareBy<CampingStaffRole> { it.name.lowercase() }.thenBy { it.id })
 }
 
 @Module

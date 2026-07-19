@@ -163,6 +163,40 @@ sealed interface AppRoute {
         override val route = "${TeamDetail(campingId, teamId).route}/${AppRoutePath.Chat}"
     }
 
+    data class CampingStaffRoles(val campingId: String) : AppRoute {
+        override val route = "${CampingDetail(campingId).route}/${AppRoutePath.StaffRoles}"
+    }
+
+    data class StaffRoleDetail(
+        val campingId: String,
+        val staffRoleId: String,
+    ) : AppRoute {
+        override val route =
+            "${CampingStaffRoles(campingId).route}/${staffRoleId.asRouteSegment()}"
+    }
+
+    data class StaffRoleEditor(
+        val campingId: String,
+        val staffRoleId: String? = null,
+    ) : AppRoute {
+        override val route = buildString {
+            append(CampingStaffRoles(campingId).route)
+            append("/")
+            append(AppRoutePath.StaffRoleEditor)
+            staffRoleId?.takeUnless { it.isBlank() }?.let { id ->
+                append("/")
+                append(id.asRouteSegment())
+            }
+        }
+    }
+
+    data class StaffRoleChat(
+        val campingId: String,
+        val staffRoleId: String,
+    ) : AppRoute {
+        override val route = "${StaffRoleDetail(campingId, staffRoleId).route}/${AppRoutePath.Chat}"
+    }
+
     data class PointHistory(
         val campingId: String,
         val teamId: String? = null,
@@ -549,6 +583,7 @@ internal object AppRouteArgs {
     const val CampingId = "campingId"
     const val AnnouncementId = "announcementId"
     const val TeamId = "teamId"
+    const val StaffRoleId = "staffRoleId"
     const val PollId = "pollId"
     const val AttendeeId = "attendeeId"
     const val ProgramId = "programId"
@@ -587,6 +622,7 @@ internal object AppRoutePath {
     const val AppSupport = "support"
     const val Chat = "chat"
     const val Teams = "teams"
+    const val StaffRoles = "operations-teams"
     const val PointHistory = "points"
     const val Polls = "polls"
     const val Album = "album"
@@ -629,6 +665,7 @@ internal object AppRoutePath {
     const val CantusImport = "cantus-import"
     const val SongEditor = "song-editor"
     const val TeamEditor = "team-editor"
+    const val StaffRoleEditor = "operations-team-editor"
     const val Guidelines = "guidelines"
     const val PackingChecklist = "packing"
     const val PackingShare = "shared"
@@ -649,6 +686,11 @@ internal object AppRoutePattern {
     const val TeamEdit = "$TeamEditor/{${AppRouteArgs.TeamId}}"
     const val TeamDetail = "$CampingTeams/{${AppRouteArgs.TeamId}}"
     const val TeamChat = "$TeamDetail/${AppRoutePath.Chat}"
+    const val CampingStaffRoles = "$CampingDetail/${AppRoutePath.StaffRoles}"
+    const val StaffRoleEditor = "$CampingStaffRoles/${AppRoutePath.StaffRoleEditor}"
+    const val StaffRoleEdit = "$StaffRoleEditor/{${AppRouteArgs.StaffRoleId}}"
+    const val StaffRoleDetail = "$CampingStaffRoles/{${AppRouteArgs.StaffRoleId}}"
+    const val StaffRoleChat = "$StaffRoleDetail/${AppRoutePath.Chat}"
     const val PointHistory = "$CampingDetail/${AppRoutePath.PointHistory}"
     const val TeamPointHistory = "$PointHistory/{${AppRouteArgs.TeamId}}"
     const val CampingPolls = "$CampingDetail/${AppRoutePath.Polls}"

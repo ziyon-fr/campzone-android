@@ -60,6 +60,50 @@ data class TeamPenalty(
     val createdAt: Date,
 )
 
+/**
+ * `campings/{id}/staffRoles/{roleId}`. These are organizer-defined ministry
+ * roles for the camp operations team (kitchen, games, reception, worship,
+ * custom, etc.). They are deliberately separate from game teams and global
+ * `UserRole`; membership is scoped to one camping.
+ */
+data class CampingStaffRole(
+    val id: String,
+    val campingId: String,
+    val name: String,
+    val kind: StaffRoleKind = StaffRoleKind.Custom,
+    val description: String = "",
+    val symbolName: String = DEFAULT_SYMBOL,
+    val colorHex: String = DEFAULT_COLOR,
+    val members: List<StaffRoleMember> = emptyList(),
+    val capabilities: List<StaffCapability> = emptyList(),
+    val chatEnabled: Boolean = true,
+    val createdByUid: String? = null,
+    val createdAt: Date? = null,
+    val updatedAt: Date? = null,
+) {
+    val memberUserIds: List<String>
+        get() = members.map { it.userId }.distinct()
+
+    fun containsUser(userId: String?): Boolean =
+        !userId.isNullOrBlank() && memberUserIds.contains(userId)
+
+    companion object {
+        const val DEFAULT_SYMBOL = "person.2.badge.gearshape.fill"
+        const val DEFAULT_COLOR = "#4F7CAC"
+    }
+}
+
+data class StaffRoleMember(
+    val id: String,
+    val userId: String,
+    val displayName: String,
+    val church: String = "",
+    val title: String = "",
+    val notificationUserId: String? = null,
+    val preferredLanguage: String = "",
+    val photoUrl: String? = null,
+)
+
 fun CampingAttendee.toTeamMember(role: TeamMemberRole = TeamMemberRole.Member): TeamMember =
     TeamMember(
         id = userId,
@@ -73,6 +117,18 @@ fun CampingAttendee.toTeamMember(role: TeamMemberRole = TeamMemberRole.Member): 
         gender = gender,
         preferredLanguage = preferredLanguage,
         languages = languages,
+        photoUrl = photoUrl,
+    )
+
+fun TeamMember.toStaffRoleMember(title: String = ""): StaffRoleMember =
+    StaffRoleMember(
+        id = id,
+        userId = userId,
+        displayName = displayName,
+        church = church,
+        title = title,
+        notificationUserId = notificationUserId,
+        preferredLanguage = preferredLanguage,
         photoUrl = photoUrl,
     )
 
@@ -122,6 +178,40 @@ internal fun Map<String, Any?>.toTeamPenaltyOrNull(): TeamPenalty? {
         reason = rawStringValue("reason").orEmpty(),
         points = intValue("points") ?: 0,
         createdAt = createdAt,
+    )
+}
+
+internal fun Map<String, Any?>.toStaffRoleOrNull(documentId: String): CampingStaffRole? {
+    val campingId = stringValue("campingID") ?: return null
+    val name = rawStringValue("name") ?: return null
+    return CampingStaffRole(
+        id = stringValue("id") ?: documentId,
+        campingId = campingId,
+        name = name,
+        kind = StaffRoleKind.fromWire(stringValue("kind")),
+        description = rawStringValue("description").orEmpty(),
+        symbolName = stringValue("symbolName") ?: CampingStaffRole.DEFAULT_SYMBOL,
+        colorHex = stringValue("colorHex") ?: CampingStaffRole.DEFAULT_COLOR,
+        members = mapListValue("members").mapNotNull { it.toStaffRoleMemberOrNull() },
+        capabilities = rawStringListValue("capabilities").mapNotNull(StaffCapability::fromWire),
+        chatEnabled = boolValue("chatEnabled") ?: true,
+        createdByUid = stringValue("createdByUID"),
+        createdAt = dateValue("createdAt"),
+        updatedAt = dateValue("updatedAt"),
+    )
+}
+
+internal fun Map<String, Any?>.toStaffRoleMemberOrNull(): StaffRoleMember? {
+    val userId = stringValue("userID") ?: stringValue("id") ?: return null
+    return StaffRoleMember(
+        id = stringValue("id") ?: userId,
+        userId = userId,
+        displayName = rawStringValue("displayName") ?: "Staff member",
+        church = rawStringValue("church").orEmpty(),
+        title = rawStringValue("title").orEmpty(),
+        notificationUserId = stringValue("notificationUserID"),
+        preferredLanguage = rawStringValue("preferredLanguage").orEmpty(),
+        photoUrl = stringValue("photoURL"),
     )
 }
 
@@ -204,5 +294,48 @@ internal object TeamPayload {
                 TeamMemberRole.Member -> member
             }
         }
+    }
+}
+
+internal object StaffRolePayload {
+
+    fun staffRolePayload(
+        role: CampingStaffRole,
+        serverTimestamp: Any,
+        includeCreatedAt: Boolean,
+    ): Map<String, Any?> {
+        val members = role.members.distinctBy { it.userId }
+        val payload = linkedMapOf<String, Any?>(
+            "id" to role.id,
+            "campingID" to role.campingId,
+            "name" to role.name.trim(),
+            "kind" to role.kind.wireValue,
+            "description" to role.description,
+            "symbolName" to role.symbolName,
+            "colorHex" to role.colorHex,
+            "members" to members.map(::memberMap),
+            "memberUserIDs" to members.map { it.userId },
+            "capabilities" to role.capabilities.map { it.wireValue }.distinct(),
+            "chatEnabled" to role.chatEnabled,
+            "updatedAt" to serverTimestamp,
+        )
+        role.createdByUid?.trim()?.takeUnless { it.isBlank() }?.let { payload["createdByUID"] = it }
+        if (includeCreatedAt) payload["createdAt"] = serverTimestamp
+        return payload
+    }
+
+    fun memberMap(member: StaffRoleMember): Map<String, Any?> {
+        val map = linkedMapOf<String, Any?>(
+            "id" to member.id,
+            "userID" to member.userId,
+            "displayName" to member.displayName,
+            "church" to member.church,
+            "title" to member.title,
+            "preferredLanguage" to member.preferredLanguage,
+        )
+        member.notificationUserId?.trim()?.takeUnless { it.isBlank() }
+            ?.let { map["notificationUserID"] = it }
+        member.photoUrl?.trim()?.takeUnless { it.isBlank() }?.let { map["photoURL"] = it }
+        return map
     }
 }

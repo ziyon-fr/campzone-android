@@ -72,14 +72,19 @@ data class Camping(
      * the stored field; `Closed`/`Cancelled` pass through unchanged.
      */
     val effectiveRegistrationStatus: CampingRegistrationStatus
-        get() = if (registrationStatus == CampingRegistrationStatus.Open && isRegistrationDeadlinePassed) {
-            CampingRegistrationStatus.Closed
-        } else {
-            registrationStatus
+        get() = when {
+            registrationStatus == CampingRegistrationStatus.Cancelled -> CampingRegistrationStatus.Cancelled
+            registrationStatus == CampingRegistrationStatus.Closed -> CampingRegistrationStatus.Closed
+            phase() == CampingPhase.Finished -> CampingRegistrationStatus.Closed
+            registrationStatus == CampingRegistrationStatus.Open && isRegistrationDeadlinePassed ->
+                CampingRegistrationStatus.Closed
+            else -> registrationStatus
         }
 
     val acceptsRegistrations: Boolean
-        get() = isPublished && effectiveRegistrationStatus == CampingRegistrationStatus.Open
+        get() = isPublished &&
+            currentPhase != CampingPhase.Finished &&
+            effectiveRegistrationStatus == CampingRegistrationStatus.Open
 
     val isDraft: Boolean
         get() = publicationStatus == CampingPublicationStatus.Draft
@@ -92,6 +97,23 @@ data class Camping(
 
     val isPubliclyVisible: Boolean
         get() = isPublished
+
+    val currentPhase: CampingPhase
+        get() = phase()
+
+    val isFinished: Boolean
+        get() = currentPhase == CampingPhase.Finished
+
+    val isLive: Boolean
+        get() = currentPhase == CampingPhase.Live
+
+    fun phase(now: Date = Date()): CampingPhase = when {
+        registrationStatus == CampingRegistrationStatus.Cancelled -> CampingPhase.Cancelled
+        isDraft -> CampingPhase.Draft
+        now.before(startDate) -> CampingPhase.Upcoming
+        !now.after(endDate) -> CampingPhase.Live
+        else -> CampingPhase.Finished
+    }
 
     val approvedAttendees: List<CampingAttendee>
         get() = attendees.filter { it.registrationStatus == RegistrationApprovalStatus.Approved }

@@ -31,9 +31,15 @@ data class NotificationVisibleTeam(
     val campingId: String?,
 )
 
+data class NotificationVisibleStaffRole(
+    val staffRoleId: String,
+    val campingId: String?,
+)
+
 data class NotificationVisibilityScope(
     val visibleCampingIds: Set<String> = emptySet(),
     val visibleTeams: Set<NotificationVisibleTeam>? = emptySet(),
+    val visibleStaffRoles: Set<NotificationVisibleStaffRole>? = emptySet(),
     val canViewAllCampings: Boolean = false,
 ) {
     fun canSeeCamping(campingId: String): Boolean =
@@ -41,6 +47,9 @@ data class NotificationVisibilityScope(
 
     fun canSeeTeam(teamId: String): Boolean =
         canViewAllCampings || visibleTeams?.any { it.teamId == teamId } == true
+
+    fun canSeeStaffRole(staffRoleId: String): Boolean =
+        canViewAllCampings || visibleStaffRoles?.any { it.staffRoleId == staffRoleId } == true
 
     fun filteredCampingIds(configuredIds: List<String>): List<String> =
         configuredIds.cleanIds().filter { canSeeCamping(it) }
@@ -56,10 +65,22 @@ data class NotificationVisibilityScope(
             .sortedWith(compareBy(NotificationVisibleTeam::teamId, { it.campingId.orEmpty() }))
     }
 
+    fun filteredStaffRoles(configuredIds: List<String>): List<NotificationVisibleStaffRole> {
+        val configured = configuredIds.cleanIds().toSet()
+        if (canViewAllCampings) {
+            return configured.map { NotificationVisibleStaffRole(staffRoleId = it, campingId = null) }
+                .sortedBy { it.staffRoleId }
+        }
+        return visibleStaffRoles.orEmpty()
+            .filter { it.staffRoleId in configured }
+            .sortedWith(compareBy(NotificationVisibleStaffRole::staffRoleId, { it.campingId.orEmpty() }))
+    }
+
     companion object {
         val Unrestricted = NotificationVisibilityScope(
             canViewAllCampings = true,
             visibleTeams = null,
+            visibleStaffRoles = null,
         )
     }
 }
@@ -79,6 +100,7 @@ interface NotificationChannelsLoader {
             visibleTeams = personalTeams(uid).mapTo(mutableSetOf()) {
                 NotificationVisibleTeam(teamId = it.team.id, campingId = it.camping.id)
             },
+            visibleStaffRoles = emptySet(),
         )
     }
 }
@@ -142,10 +164,22 @@ class FirestoreNotificationChannelsLoader @Inject constructor(
                     }
             }
         }
+        val visibleStaffRoles = buildSet {
+            visibleCampings.forEach { camping ->
+                val canSeeEveryStaffRole = canManageScopedNotifications(permissionUser, camping)
+                runCatching { teamService.loadStaffRoles(camping.id) }
+                    .getOrDefault(emptyList())
+                    .filter { canSeeEveryStaffRole || it.containsUser(uid) }
+                    .mapTo(this) {
+                        NotificationVisibleStaffRole(staffRoleId = it.id, campingId = camping.id)
+                    }
+            }
+        }
 
         return NotificationVisibilityScope(
             visibleCampingIds = visibleCampingIds,
             visibleTeams = visibleTeams,
+            visibleStaffRoles = visibleStaffRoles,
         )
     }
 

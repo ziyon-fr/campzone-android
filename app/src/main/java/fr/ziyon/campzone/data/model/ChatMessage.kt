@@ -99,9 +99,10 @@ data class ChatReactionSummary(
  * (`02-firestore-schema.md` §6.1, extended to match the shipped iOS chat:
  * @mentions, image/voice attachments, inline edits). Doc ID is a client UUID;
  * `senderID == auth.uid`. Send is a full `set` (no merge); pin / soft-delete /
- * edit are `updateData`. `teamID` is written only in team chat. Decode drops the
- * message if `campingID`/`senderID`/`senderName`/`text` is missing — `text` may
- * be `""` (a voice note carries no text).
+ * edit are `updateData`. `teamID` is written only in team chat and
+ * `staffRoleID` only in staff-role chat. Decode drops the message if
+ * `campingID`/`senderID`/`senderName`/`text` is missing — `text` may be `""`
+ * (a voice note carries no text).
  */
 data class ChatMessage(
     val id: String,
@@ -110,6 +111,7 @@ data class ChatMessage(
     val senderName: String,
     val text: String,
     val teamId: String? = null,
+    val staffRoleId: String? = null,
     val senderChurch: String = "",
     val senderPreferredLanguage: String = "",
     val senderGender: UserGender? = null,
@@ -197,6 +199,7 @@ internal fun Map<String, Any?>.toChatMessageOrNull(documentId: String): ChatMess
         senderName = senderName,
         text = text,
         teamId = stringValue("teamID"),
+        staffRoleId = stringValue("staffRoleID"),
         senderChurch = rawStringValue("senderChurch").orEmpty(),
         senderPreferredLanguage = rawStringValue("senderPreferredLanguage").orEmpty(),
         senderGender = UserGender.fromWire(stringValue("senderGender")),
@@ -257,16 +260,18 @@ private fun Map<String, Any?>.toChatReplyReferenceOrNull(): ChatReplyReference? 
 internal object ChatMessagePayload {
 
     /**
-     * Full-set send. `teamID` is included only for team chat. `text` is written
-     * unmodified so persisted @mention offsets stay aligned (the composer caps
-     * input at [ChatMessage.CLIENT_TEXT_CAP]). Mentions/attachment are written
-     * only when present; mentions also write the flat `mentionedUserIDs` list
-     * (required alongside `mentions` by the security rules).
+     * Full-set send. `teamID` is included only for team chat and `staffRoleID`
+     * only for staff-role chat. `text` is written unmodified so persisted
+     * @mention offsets stay aligned (the composer caps input at
+     * [ChatMessage.CLIENT_TEXT_CAP]). Mentions/attachment are written only when
+     * present; mentions also write the flat `mentionedUserIDs` list (required
+     * alongside `mentions` by the security rules).
      */
     fun sendPayload(
         message: ChatMessage,
         serverTimestamp: Any,
         isTeamChat: Boolean,
+        isStaffRoleChat: Boolean = false,
     ): Map<String, Any?> {
         val payload = linkedMapOf<String, Any?>(
             "campingID" to message.campingId,
@@ -281,6 +286,9 @@ internal object ChatMessagePayload {
         )
         if (isTeamChat) {
             message.teamId?.trim()?.takeUnless { it.isBlank() }?.let { payload["teamID"] = it }
+        }
+        if (isStaffRoleChat) {
+            message.staffRoleId?.trim()?.takeUnless { it.isBlank() }?.let { payload["staffRoleID"] = it }
         }
         message.senderGender?.let { payload["senderGender"] = it.wireValue }
         message.senderPhotoUrl?.trim()?.takeUnless { it.isBlank() }?.let { payload["senderPhotoURL"] = it }

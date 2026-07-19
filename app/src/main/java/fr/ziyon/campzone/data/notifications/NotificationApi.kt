@@ -188,6 +188,14 @@ class BackendNotificationApi @Inject constructor(
                 .sorted()
                 .forEach { put(it) }
         }
+        val staffRoleIds = JSONArray().apply {
+            settings.subscribedStaffRoleIds
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+                .sorted()
+                .forEach { put(it) }
+        }
 
         val body = JSONObject()
             .put("appID", CampzoneAppId)
@@ -205,6 +213,7 @@ class BackendNotificationApi @Inject constructor(
             .put("subscribedRoleRawValues", roleRaws)
             .put("subscribedRoles", roleRaws)
             .put("subscribedTeamIDs", teamIds)
+            .put("subscribedStaffRoleIDs", staffRoleIds)
 
         post("settings", body)
     }

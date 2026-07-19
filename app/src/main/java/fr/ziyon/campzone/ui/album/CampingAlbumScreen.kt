@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -352,10 +354,14 @@ private fun FullScreenGalleryDialog(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .padding(top = CzSpacing.lg, bottom = CzSpacing.lg),
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(top = CzSpacing.sm, bottom = CzSpacing.lg),
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = CzSpacing.md),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .padding(horizontal = CzSpacing.lg),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onDismiss) {
@@ -497,12 +503,10 @@ private fun AlbumContent(
                         verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
                     ) {
                         items(uiState.media, key = { it.id }) { item ->
-                            MediaTile(
+                            AlbumGridCell(
                                 item = item,
                                 onClick = { onOpen(item) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .aspectRatio(1f),
+                                modifier = Modifier.fillMaxWidth(),
                             )
                         }
                     }
@@ -513,17 +517,31 @@ private fun AlbumContent(
 }
 
 @Composable
-private fun MediaTile(
+private fun AlbumGridCell(
     item: MediaItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
+            .aspectRatio(1f)
             .clip(RoundedCornerShape(CzRadius.md))
             .background(MaterialTheme.czColors.surface)
             .clickable(onClick = onClick),
     ) {
+        MediaTileContent(
+            item = item,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Composable
+private fun MediaTileContent(
+    item: MediaItem,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier) {
         MediaPreviewImage(
             item = item,
             contentScale = ContentScale.Crop,

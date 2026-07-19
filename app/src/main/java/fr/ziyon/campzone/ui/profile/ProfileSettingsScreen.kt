@@ -555,7 +555,6 @@ private fun ProfileSettingsBaseRow(
 private fun UserRole.localizedName(): String =
     stringResource(
         when (this) {
-            UserRole.Guest -> R.string.role_guest
             UserRole.User -> R.string.role_user
             UserRole.Adult -> R.string.role_adult
             UserRole.YouthDirector -> R.string.role_youth_director

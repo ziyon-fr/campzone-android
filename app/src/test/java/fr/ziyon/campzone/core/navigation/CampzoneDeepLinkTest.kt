@@ -122,6 +122,30 @@ class CampzoneDeepLinkTest {
     }
 
     @Test
+    fun parsesWidgetSurfaceLinks() {
+        assertEquals(
+            CampzoneDeepLink.Schedule("camp-1"),
+            CampzoneDeepLink.fromCampzoneUrl("campzone://schedule/camp-1"),
+        )
+        assertEquals(
+            CampzoneDeepLink.CampPass("camp-1"),
+            CampzoneDeepLink.fromCampzoneUrl("campzone://camp-pass/camp-1"),
+        )
+        assertEquals(
+            CampzoneDeepLink.Packing("camp-1"),
+            CampzoneDeepLink.fromCampzoneUrl("campzone://packing/camp-1"),
+        )
+        assertEquals(
+            CampzoneDeepLink.Teams("camp-1"),
+            CampzoneDeepLink.fromCampzoneUrl("campzone://camping-teams/camp-1"),
+        )
+        assertEquals(
+            CampzoneDeepLink.TeamUpdate("camp-1", "team-1"),
+            CampzoneDeepLink.fromCampzoneUrl("campzone://team/team-1?c=camp-1"),
+        )
+    }
+
+    @Test
     fun rejectsUnsupportedUrls() {
         assertNull(CampzoneDeepLink.fromCampzoneUrl("https://example.com/campings/camp-1"))
         assertNull(CampzoneDeepLink.fromCampzoneUrl("campzone://unknown/camp-1"))

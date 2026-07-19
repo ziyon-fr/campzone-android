@@ -7,7 +7,7 @@ import org.junit.Test
 
 class OnboardingProfilePayloadTest {
     @Test
-    fun userMergePayloadCompletesOnboardingWithAdultRole() {
+    fun userMergePayloadCompletesOnboardingWithoutChangingRole() {
         val payload = OnboardingProfilePayload.userMergePayload(
             profile = OnboardingProfile(
                 age = 17,
@@ -25,7 +25,7 @@ class OnboardingProfilePayloadTest {
         assertEquals(listOf("pt"), payload["languages"])
         assertEquals("pt", payload["preferredLanguage"])
         assertEquals("female", payload["gender"])
-        assertEquals("adult", payload["role"])
+        assertFalse(payload.containsKey("role"))
         assertEquals(true, payload["onboardingCompleted"])
         assertEquals(Timestamp, payload["updatedAt"])
         assertFalse(payload.containsKey("uid"))
@@ -65,7 +65,7 @@ class OnboardingProfilePayloadTest {
             email = "camper@example.com",
             displayName = "",
             photoUrl = null,
-            role = UserRole.Guest,
+            role = UserRole.User,
             church = "",
             age = null,
             preferredLanguage = "",

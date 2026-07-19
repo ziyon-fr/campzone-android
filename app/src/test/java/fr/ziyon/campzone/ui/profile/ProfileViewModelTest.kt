@@ -24,7 +24,7 @@ class ProfileViewModelTest {
 
     private val authenticatedUser = AuthenticatedUser(
         uid = "preview-user",
-        email = "guest@campzone.app",
+        email = "user@campzone.app",
         displayName = "Campzone Guest",
         photoUrl = null,
         role = UserRole.User,

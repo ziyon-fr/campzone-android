@@ -81,6 +81,8 @@ import fr.ziyon.campzone.core.designsystem.CampzoneTheme
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
+import fr.ziyon.campzone.core.widgets.CampzoneWidgetPublisher
+import fr.ziyon.campzone.core.widgets.WidgetTeamSummary
 import fr.ziyon.campzone.core.permissions.AppPermissionEvaluator
 import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
@@ -491,6 +493,7 @@ private fun TeamsScreen(
                     is TeamsUiState.Loaded -> {
                         val showTrophy = revealPolicyTriggered && ceremonyAcknowledged
                         TeamsLoadedContent(
+                            campingId = campingId,
                             teams = uiState.teams,
                             showTrophy = showTrophy,
                             scoresHidden = scoresHidden,
@@ -915,6 +918,7 @@ private data class AutoBalanceSheetSignature(
 
 @Composable
 private fun TeamsLoadedContent(
+    campingId: String,
     teams: List<Team>,
     showTrophy: Boolean,
     scoresHidden: Boolean,
@@ -922,7 +926,25 @@ private fun TeamsLoadedContent(
     onOpenTeamDetail: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val personalTeam = teams.firstOrNull { t -> t.members.any { it.userId == authenticatedUserId } }
+    val rankedTeams = teams.sortedByDescending { it.totalScore }
+    val widgetRank = personalTeam?.let { team -> rankedTeams.indexOfFirst { it.id == team.id }.takeIf { it >= 0 }?.plus(1) }
+    LaunchedEffect(personalTeam?.id, personalTeam?.totalScore, widgetRank, teams.size, scoresHidden) {
+        CampzoneWidgetPublisher.updateTeam(
+            context,
+            if (!scoresHidden && personalTeam != null && widgetRank != null) {
+                WidgetTeamSummary(
+                    teamName = personalTeam.name,
+                    rank = widgetRank,
+                    totalTeams = teams.size,
+                    points = personalTeam.totalScore,
+                    teamId = personalTeam.id,
+                    campId = campingId,
+                )
+            } else null,
+        )
+    }
     val displayTeams = if (scoresHidden) {
         teams.sortedBy { it.name.lowercase() }
     } else {

@@ -1,6 +1,7 @@
 package fr.ziyon.campzone.data.auth
 
 import android.app.Activity
+import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
@@ -10,7 +11,9 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
+import dagger.hilt.android.qualifiers.ApplicationContext
 import fr.ziyon.campzone.core.permissions.UserRole
+import fr.ziyon.campzone.core.widgets.CampzoneWidgetPublisher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +37,7 @@ class FirebaseAuthSessionRepository @Inject constructor(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
     private val authProviders: AuthProviders,
+    @param:ApplicationContext private val appContext: Context,
 ) : AuthSessionRepository {
     private val _authState = MutableStateFlow<AuthState>(AuthState.SignedOut)
     override val authState: StateFlow<AuthState> = _authState.asStateFlow()
@@ -45,6 +49,7 @@ class FirebaseAuthSessionRepository @Inject constructor(
             userRegistration?.remove()
             val user = firebaseAuth.currentUser
             if (user == null) {
+                CampzoneWidgetPublisher.clearAll(appContext)
                 _authState.value = AuthState.SignedOut
             } else {
                 observeUserDocument(user)
@@ -152,6 +157,7 @@ class FirebaseAuthSessionRepository @Inject constructor(
     override fun signOut() {
         userRegistration?.remove()
         userRegistration = null
+        CampzoneWidgetPublisher.clearAll(appContext)
         auth.signOut()
         _authState.value = AuthState.SignedOut
     }

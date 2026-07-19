@@ -69,7 +69,6 @@ class AppPermissionEvaluatorTest {
     fun userRoleOrderAndSelfAssignmentMatchIos() {
         assertEquals(
             listOf(
-                UserRole.Guest,
                 UserRole.User,
                 UserRole.YouthDirector,
                 UserRole.Pastor,
@@ -81,7 +80,9 @@ class AppPermissionEvaluatorTest {
             ),
             UserRole.allWireRoles,
         )
-        assertEquals(listOf(UserRole.Guest, UserRole.User, UserRole.Adult), UserRole.selfAssignableRoles.toList())
+        assertEquals(listOf(UserRole.User, UserRole.Adult), UserRole.selfAssignableRoles.toList())
+        assertEquals(UserRole.User, UserRole.fromWire("guest"))
+        assertEquals(UserRole.User, UserRole.fromWire(null))
     }
 
     @Test
@@ -111,7 +112,6 @@ class AppPermissionEvaluatorTest {
         assertTrue(evaluator.canModerateContent(PermissionUser(role = UserRole.Leader)))
         assertTrue(evaluator.canModerateContent(PermissionUser(role = UserRole.Admin)))
 
-        assertFalse(evaluator.canModerateContent(PermissionUser(role = UserRole.Guest)))
         assertFalse(evaluator.canModerateContent(PermissionUser(role = UserRole.User)))
         assertFalse(evaluator.canModerateContent(PermissionUser(role = UserRole.Adult)))
         assertFalse(evaluator.canModerateContent(PermissionUser(role = UserRole.GameMaster)))
@@ -120,7 +120,6 @@ class AppPermissionEvaluatorTest {
 
     @Test
     fun rawRolePermissionsMatchIosPermissionSets() {
-        val guest = PermissionUser(role = UserRole.Guest)
         val user = PermissionUser(role = UserRole.User)
         val adult = PermissionUser(role = UserRole.Adult)
         val youthDirector = PermissionUser(role = UserRole.YouthDirector)
@@ -129,10 +128,10 @@ class AppPermissionEvaluatorTest {
         val leader = PermissionUser(role = UserRole.Leader)
         val photographer = PermissionUser(role = UserRole.Photographer)
 
-        assertTrue(evaluator.can(guest, AppPermission.ViewPublishedCampings))
-        assertTrue(evaluator.can(guest, AppPermission.ViewAnnouncements))
-        assertTrue(evaluator.can(guest, AppPermission.ViewSongbook))
-        assertFalse(evaluator.can(guest, AppPermission.RegisterForCampings))
+        assertTrue(evaluator.can(null, AppPermission.ViewPublishedCampings))
+        assertTrue(evaluator.can(null, AppPermission.ViewAnnouncements))
+        assertTrue(evaluator.can(null, AppPermission.ViewSongbook))
+        assertFalse(evaluator.can(null, AppPermission.RegisterForCampings))
 
         assertTrue(evaluator.can(user, AppPermission.RegisterForCampings))
         assertFalse(evaluator.can(user, AppPermission.ViewAdminTools))
@@ -186,9 +185,6 @@ class AppPermissionEvaluatorTest {
                 evaluator.can(PermissionUser(role = role), AppPermission.ManageFamilyRegistrations),
             )
         }
-        assertFalse(
-            evaluator.can(PermissionUser(role = UserRole.Guest), AppPermission.ManageFamilyRegistrations),
-        )
         assertFalse(
             evaluator.can(PermissionUser(role = UserRole.User), AppPermission.ManageFamilyRegistrations),
         )
@@ -261,13 +257,34 @@ class AppPermissionEvaluatorTest {
         assertTrue(evaluator.canEditCamping(creator, creatorCamping))
         assertTrue(evaluator.canManageSchedule(creator, creatorCamping))
         assertTrue(evaluator.canManageTeams(creator, creatorCamping))
+        assertTrue(evaluator.canManageStaffRoles(creator, creatorCamping))
         assertFalse(evaluator.canManageAnnouncements(creator, creatorCamping))
         assertTrue(evaluator.canApproveRegistrations(creator, creatorCamping))
         assertTrue(evaluator.canViewParticipantProfiles(creator, creatorCamping))
 
         assertFalse(evaluator.canEditCamping(otherUser, creatorCamping))
         assertFalse(evaluator.canManageSchedule(otherUser, creatorCamping))
+        assertFalse(evaluator.canManageStaffRoles(otherUser, creatorCamping))
         assertFalse(evaluator.canViewParticipantProfiles(otherUser, creatorCamping))
+    }
+
+    @Test
+    fun staffRoleManagementMatchesDeployedRulesExactly() {
+        val ownChurchLeaders = listOf(UserRole.YouthDirector, UserRole.Pastor, UserRole.Leader)
+        ownChurchLeaders.forEach { role ->
+            val user = PermissionUser(role, userId = "leader", church = "Paris Central SDA")
+            assertTrue(role.name, evaluator.canManageStaffRoles(user, ownChurchCamping))
+            assertFalse(role.name, evaluator.canManageStaffRoles(user, otherChurchCamping))
+            assertFalse(role.name, evaluator.canManageStaffRoles(user, regionalCamping))
+        }
+
+        assertTrue(evaluator.canManageStaffRoles(PermissionUser(UserRole.Admin), regionalCamping))
+        assertFalse(
+            evaluator.canManageStaffRoles(
+                PermissionUser(UserRole.GameMaster, church = "Paris Central SDA"),
+                ownChurchCamping,
+            ),
+        )
     }
 
     @Test
@@ -324,7 +341,7 @@ class AppPermissionEvaluatorTest {
     }
 
     @Test
-    fun legacyRoleValuesReadAsUserAndUnknownValuesReadAsGuest() {
+    fun legacyAndUnknownRoleValuesReadAsUser() {
         assertTrue(
             evaluator.can(
                 PermissionUser(UserRole.fromWire("senior")),
@@ -337,7 +354,7 @@ class AppPermissionEvaluatorTest {
                 AppPermission.RegisterForCampings,
             ),
         )
-        assertFalse(
+        assertTrue(
             evaluator.can(
                 PermissionUser(UserRole.fromWire("unknown")),
                 AppPermission.RegisterForCampings,

@@ -25,6 +25,64 @@
     <string name="common_no">No</string>
     <string name="common_saving_ellipsis">Saving...</string>
 
+    <string name="widget_countdown_name">Camp Countdown</string>
+    <string name="widget_countdown_description">Time until your next camp, then the day count while it runs.</string>
+    <string name="widget_up_next_name">Up Next</string>
+    <string name="widget_up_next_description">The current or next program on your camp schedule.</string>
+    <string name="widget_pass_name">Camp Pass</string>
+    <string name="widget_pass_description">Your check-in QR for the gate and meals.</string>
+    <string name="widget_packing_name">Packing</string>
+    <string name="widget_packing_description">How much of your camp packing list is done.</string>
+    <string name="widget_team_name">Team Standings</string>
+    <string name="widget_team_description">Your team rank and points.</string>
+    <string name="widget_announcement_name">Latest Announcement</string>
+    <string name="widget_announcement_description">The most recent announcement from your camp.</string>
+    <string name="widget_no_camp">No upcoming camp</string>
+    <string name="widget_see_you_next_time">See you next time</string>
+    <string name="widget_day_of">Day %1$d of %2$d</string>
+    <string name="widget_until_camp">until %1$s</string>
+    <string name="widget_now">NOW</string>
+    <string name="widget_up_next_label">UP NEXT</string>
+    <string name="widget_starts">Starts %1$s</string>
+    <string name="widget_ends">Ends %1$s</string>
+    <string name="widget_nothing_scheduled">Nothing scheduled</string>
+    <string name="widget_no_active_pass">No active pass</string>
+    <string name="widget_no_packing_list">No packing list</string>
+    <string name="widget_packing_done">%1$d of %2$d done</string>
+    <string name="widget_no_team_standings">No team standings</string>
+    <string name="widget_rank_of">%1$d of %2$d</string>
+    <string name="widget_team_detail">%1$s · %2$d pts</string>
+    <string name="widget_no_announcements">No announcements yet</string>
+    <string name="widget_qr_content_description">Camp pass QR code</string>
+    <string name="widget_brand_name">Campzone</string>
+    <string name="widget_day_number">Day %1$d</string>
+    <string name="widget_of_days_camp">of %1$d · %2$s</string>
+    <string name="widget_items_packed">items packed</string>
+    <string name="widget_all_packed">All packed!</string>
+    <string name="widget_my_team">My Team</string>
+    <string name="widget_rank_badge">#%1$d</string>
+    <string name="widget_points">%1$d pts</string>
+    <string name="widget_announcement_label">ANNOUNCEMENT</string>
+    <string name="widget_new_badge">NEW</string>
+    <string name="widget_preview_camp_name" translatable="false">Alem das Fronteiras</string>
+    <string name="widget_preview_attendee" translatable="false">Sarah Miller</string>
+    <string name="widget_preview_team" translatable="false">Blue Team</string>
+    <string name="widget_preview_cabin" translatable="false">Cabin 3</string>
+    <string name="widget_preview_program" translatable="false">Morning Worship</string>
+    <string name="widget_preview_location" translatable="false">Main Hall</string>
+    <string name="widget_preview_ends" translatable="false">Ends in 24 min</string>
+    <string name="widget_preview_announcement_title" translatable="false">Bring a flashlight tonight</string>
+    <string name="widget_preview_announcement_body" translatable="false">Evening vespers will be held outdoors by the lake.</string>
+    <string name="widget_preview_announcement_time" translatable="false">1h ago</string>
+    <string name="widget_preview_day_two" translatable="false">Day 2</string>
+    <string name="widget_preview_day_context" translatable="false">of 5 · Alem das Fronteiras</string>
+    <string name="widget_preview_pass_detail" translatable="false">Blue Team · Cabin 3</string>
+    <string name="widget_preview_packing_ratio" translatable="false">12/20</string>
+    <string name="widget_preview_rank_badge" translatable="false">#2</string>
+    <string name="widget_preview_team_detail" translatable="false">340 pts · 2 of 6</string>
+    <string name="widget_preview_announcement_label" translatable="false">ANNOUNCEMENT · NEW</string>
+    <string name="widget_preview_announcement_footer" translatable="false">Alem das Fronteiras · 1h ago</string>
+
     <string name="nav_home">Home</string>
     <string name="nav_campings">Campings</string>
     <string name="nav_announcements">Announcements</string>
@@ -253,7 +311,6 @@
     <string name="age_group_kids">Kids</string>
     <string name="age_group_youth">Youth</string>
     <string name="age_group_adult">Young Adult</string>
-    <string name="role_guest">Guest</string>
     <string name="role_user">User</string>
     <string name="role_adult">Adult</string>
     <string name="role_youth_director">Youth Director</string>
@@ -484,6 +541,10 @@
     <string name="camping_status_open">Registration open</string>
     <string name="camping_status_closed">Registration closed</string>
     <string name="camping_status_cancelled">Cancelled</string>
+    <string name="camping_phase_draft">Draft</string>
+    <string name="camping_phase_upcoming">Upcoming</string>
+    <string name="camping_phase_live">Live</string>
+    <string name="camping_phase_finished">Finished</string>
     <string name="camping_location">Location</string>
     <string name="camping_organizer">Organizer</string>
     <string name="camping_about">About</string>
@@ -669,6 +730,8 @@
     <string name="checkin_camera_permission_title">Camera access needed</string>
     <string name="checkin_camera_permission_message">Allow camera access to scan participant QR passes.</string>
     <string name="checkin_camera_permission_action">Allow Camera</string>
+    <string name="checkin_camera_unavailable_title">Camera unavailable</string>
+    <string name="checkin_camera_unavailable_message">The camera could not be started. Close the scanner and try again.</string>
     <string name="checkin_saving">Saving</string>
     <string name="checkin_point_camera">Point the camera at a participant QR pass.</string>
     <string name="checkin_view_records">View records</string>
@@ -2278,6 +2341,25 @@
     <string name="songbook_no_chord_sheet">No chord sheet available.</string>
     <string name="songbook_open_sheet_pdf">Open Sheet PDF</string>
     <string name="songbook_open_slides_pptx">Open Slides PPTX</string>
+    <string name="songbook_read_sheet_music">Read Sheet Music</string>
+    <string name="songbook_present_slides">Present Slides</string>
+    <string name="songbook_loading_sheet">Loading sheet...</string>
+    <string name="songbook_preparing_presentation">Preparing presentation...</string>
+    <string name="songbook_document_load_error_title">Document unavailable</string>
+    <string name="songbook_sheet_load_error_message">The sheet could not be loaded. Check your connection and try again.</string>
+    <string name="songbook_slides_load_error_message">The slides could not be loaded. Check your connection and try again.</string>
+    <string name="songbook_sheet_layout">Layout</string>
+    <string name="songbook_sheet_layout_scroll">Scroll</string>
+    <string name="songbook_sheet_layout_pages">Pages</string>
+    <string name="songbook_share_sheet_pdf">Share sheet PDF</string>
+    <string name="songbook_open_with">Open with...</string>
+    <string name="songbook_end_presentation">End presentation</string>
+    <string name="songbook_nothing_to_present">Nothing to present</string>
+    <string name="songbook_nothing_to_present_message">This song has no lyrics to project yet.</string>
+    <string name="songbook_sheet_page">Sheet page %1$d</string>
+    <string name="songbook_pptx_preview_unavailable">Slides preview unavailable</string>
+    <string name="songbook_pptx_preview_unavailable_message">The deck is cached on this device. Share it or open it with a presentation app.</string>
+    <string name="songbook_no_document_app">No app on this device can open this document.</string>
     <string name="songbook_theme_song">Theme Song</string>
     <string name="songbook_audio_available">Audio available</string>
     <string name="songbook_lyrics_and_chords_available">Lyrics and chords</string>
@@ -2871,5 +2953,75 @@
     <plurals name="food_menu_participant_allergy_count">
         <item quantity="one">%1$d participant with food restrictions</item>
         <item quantity="other">%1$d participants with food restrictions</item>
+    </plurals>
+    <string name="staff_roles_title">Operations teams</string>
+    <string name="camping_operations_teams">Operations teams</string>
+    <string name="camping_operations_teams_subtitle">Your ministry responsibilities and private team chats</string>
+    <string name="staff_roles_loading">Loading operations teams...</string>
+    <string name="staff_roles_intro">Coordinate camp ministries with focused responsibilities and a private space for each team.</string>
+    <string name="staff_roles_empty_title">No operations teams yet</string>
+    <string name="staff_roles_empty_manager_message">Create teams for worship, reception, meals, games, cleaning, and camp logistics.</string>
+    <string name="staff_roles_empty_member_message">You have not been assigned to an operations team for this camping.</string>
+    <string name="staff_roles_load_error_title">Operations teams unavailable</string>
+    <string name="staff_roles_load_error_message">We could not load the operations teams. Try again.</string>
+    <string name="staff_roles_operation_error">The operations team could not be updated. Try again.</string>
+    <string name="staff_role_saved_message">Operations team saved.</string>
+    <string name="staff_role_deleted_message">Operations team deleted.</string>
+    <string name="staff_role_create">Create operations team</string>
+    <string name="staff_role_create_title">New operations team</string>
+    <string name="staff_role_edit_title">Edit operations team</string>
+    <string name="staff_role_not_found_title">Team not found</string>
+    <string name="staff_role_not_found_message">This operations team is no longer available.</string>
+    <string name="staff_role_restricted_title">Private operations team</string>
+    <string name="staff_role_restricted_message">Only assigned members and camp leadership can view this team.</string>
+    <string name="staff_role_manage_restricted_message">Only camp leadership can manage operations teams.</string>
+    <string name="staff_role_about">About</string>
+    <string name="staff_role_details">Team details</string>
+    <string name="staff_role_name">Team name</string>
+    <string name="staff_role_description">Purpose and instructions</string>
+    <string name="staff_role_type">Team type</string>
+    <string name="staff_role_appearance">Appearance</string>
+    <string name="staff_role_color">Color</string>
+    <string name="staff_role_select_color">Select team color</string>
+    <string name="staff_role_responsibilities">Responsibilities</string>
+    <string name="staff_role_responsibilities_help">Choose the camping tools this team helps coordinate.</string>
+    <string name="staff_role_members">Members</string>
+    <string name="staff_role_members_help">Assign approved participants and add an optional responsibility title.</string>
+    <string name="staff_role_search_members">Search approved participants</string>
+    <string name="staff_role_no_approved_members">No approved participants match this search.</string>
+    <string name="staff_role_no_members">No members have been assigned yet.</string>
+    <string name="staff_role_member_title">Responsibility title</string>
+    <string name="staff_role_member_title_hint">Coordinator, shift lead, sound...</string>
+    <string name="staff_role_private_chat">Private team chat</string>
+    <string name="staff_role_chat_enabled">Enable private chat</string>
+    <string name="staff_role_chat_help">Assigned members and camp leadership can use this conversation.</string>
+    <string name="staff_role_open_private_chat">Open private team chat</string>
+    <string name="staff_role_chat_restricted">Only members of %1$s and camp leadership can read this chat.</string>
+    <string name="staff_role_chat_empty">Start the private team conversation.</string>
+    <string name="staff_role_save">Save operations team</string>
+    <string name="staff_role_delete">Delete operations team</string>
+    <string name="staff_role_delete_title">Delete this operations team?</string>
+    <string name="staff_role_delete_message">The team and its private chat will be permanently deleted.</string>
+    <string name="staff_role_you">You</string>
+    <string name="staff_role_kind_games">Games</string>
+    <string name="staff_role_kind_kitchen">Kitchen</string>
+    <string name="staff_role_kind_cleaning">Cleaning</string>
+    <string name="staff_role_kind_reception">Reception</string>
+    <string name="staff_role_kind_worship">Worship</string>
+    <string name="staff_role_kind_logistics">Logistics</string>
+    <string name="staff_role_kind_media">Media</string>
+    <string name="staff_role_kind_safety">Safety</string>
+    <string name="staff_role_kind_prayer">Prayer</string>
+    <string name="staff_role_kind_custom">Other</string>
+    <string name="staff_capability_games">Manage games</string>
+    <string name="staff_capability_food_menu">Manage food menu</string>
+    <string name="staff_capability_schedule">Manage schedule</string>
+    <string name="staff_capability_check_ins">Manage check-ins</string>
+    <string name="staff_capability_album">Manage album media</string>
+    <string name="staff_capability_announcements">Manage announcements</string>
+    <string name="staff_capability_transportation">Manage transportation</string>
+    <plurals name="staff_role_member_count">
+        <item quantity="one">%1$d member</item>
+        <item quantity="other">%1$d members</item>
     </plurals>
 </resources>

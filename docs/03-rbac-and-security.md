@@ -16,13 +16,15 @@
 
 Stored on `users/{uid}.role` as these **exact** strings:
 
-`guest`, `user`, `youth_director`, `pastor`, `game_master`, `leader`,
+`user`, `youth_director`, `pastor`, `game_master`, `leader`,
 `photographer`, `adult`, `admin`.
 
-Legacy values `senior` / `youth` are read as `user` (never written).
+Legacy values `guest` / `senior` / `youth` are read as `user` (never written).
+Signed-out public browsing is not a stored role; clients expose only the public
+viewing permissions before authentication.
 
 - **Self-assignable** (a user may set their own role only within this
-  set): `guest`, `user`, `adult`. Anything else must be granted by an
+  set): `user`, `adult`. Anything else must be granted by an
   authorized leader/admin (`validChurchRoleAssignment` /
   `isAdmin` update rules).
 - **Leadership roles**: `youth_director`, `pastor`, `game_master`,
@@ -37,9 +39,11 @@ Legacy values `senior` / `youth` are read as `user` (never written).
 A non-admin leadership action on a camping is allowed **only when**
 `camping.organizerLevel.type == "church"` **and**
 `camping.organizerLevel.value` equals the acting user’s
-`users/{uid}.church`. Regional/international/custom campings are
-**admin-only** until a future staff-assignment model exists. Web/Android
-must replicate this exact gate before showing management UI.
+`users/{uid}.church`. Regional/international/custom camping create/edit stays
+**admin-only** unless a future owner-approved rules change grants a
+camping-specific override. Camping staff roles are camp-local operational
+groups/private chat scopes; they do not bypass this organizer gate.
+Web/Android must replicate this exact gate before showing management UI.
 
 ---
 
@@ -55,43 +59,43 @@ permission globally. Several user-created camping helpers also allow the
 creator even when the raw role permission is absent; see helper notes
 below the table.
 
-| AppPermission | guest | user | adult | youth_director | pastor | game_master | leader | photographer | admin |
-| --- |:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| View published campings | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Register for campings |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Approve registrations |  |  |  | C |  |  | C |  | ✓ |
-| Create campings |  |  |  |  |  |  |  |  | ✓ |
-| Edit campings |  |  |  |  |  |  |  |  | ✓ |
-| Cancel campings |  |  |  |  |  |  |  |  | ✓ |
-| Create own-church campings |  |  |  | C | C |  |  |  | ✓ |
-| Edit own-church campings |  |  |  | C | C |  |  |  | ✓ |
-| Cancel own-church campings |  |  |  | C | C |  |  |  | ✓ |
-| View announcements | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Create announcements |  |  |  | ✓¹ | ✓¹ |  | ✓¹ |  | ✓ |
-| Edit announcements |  |  |  | ✓¹ | ✓¹ |  | ✓¹ |  | ✓ |
-| Delete announcements |  |  |  |  |  |  |  |  | ✓ |
-| View songbook | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Manage songbook |  |  |  | C |  |  | C |  | ✓ |
-| Manage schedule |  |  |  | C | C |  | C |  | ✓ |
-| Manage teams |  |  |  | C |  | C | C |  | ✓ |
-| Manage games |  |  |  | C | C | C | C |  | ✓ |
-| Assign points |  |  |  | C |  | C | C |  | ✓ |
-| Reveal winners |  |  |  |  |  | C |  |  | ✓ |
-| Manage album media |  |  |  |  |  |  |  | C | ✓ |
-| Manage album settings |  |  |  | C | C |  | C |  | ✓ |
-| Manage transportation |  |  |  |  |  |  |  |  | ✓ |
-| Manage own-church transportation |  |  |  | C | C |  | C |  | ✓ |
-| Award achievements |  |  |  | C | C | C | C |  | ✓ |
-| Revoke achievements |  |  |  |  |  |  |  |  | ✓ |
-| Manage check-ins |  |  |  |  |  |  |  |  | ✓ |
-| Manage own-church check-ins |  |  |  | C | C |  | C |  | ✓ |
-| View participant profiles |  |  |  | C | C | C | C |  | ✓ |
-| Assign leadership roles |  |  |  |  |  |  |  |  | ✓ |
-| Assign own-church roles |  |  |  | C | C |  |  |  | ✓ |
-| View admin tools |  |  |  |  |  |  |  |  | ✓ |
-| Manage family registrations |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Edit guidelines |  |  |  |  |  |  |  |  | ✓ |
-| Edit own-church guidelines |  |  |  | C | C |  | C |  | ✓ |
+| AppPermission | user | adult | youth_director | pastor | game_master | leader | photographer | admin |
+| --- |:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| View published campings | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Register for campings | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Approve registrations |  |  | C |  |  | C |  | ✓ |
+| Create campings |  |  |  |  |  |  |  | ✓ |
+| Edit campings |  |  |  |  |  |  |  | ✓ |
+| Cancel campings |  |  |  |  |  |  |  | ✓ |
+| Create own-church campings |  |  | C | C |  |  |  | ✓ |
+| Edit own-church campings |  |  | C | C |  |  |  | ✓ |
+| Cancel own-church campings |  |  | C | C |  |  |  | ✓ |
+| View announcements | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Create announcements |  |  | ✓¹ | ✓¹ |  | ✓¹ |  | ✓ |
+| Edit announcements |  |  | ✓¹ | ✓¹ |  | ✓¹ |  | ✓ |
+| Delete announcements |  |  |  |  |  |  |  | ✓ |
+| View songbook | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Manage songbook |  |  | C |  |  | C |  | ✓ |
+| Manage schedule |  |  | C | C |  | C |  | ✓ |
+| Manage teams |  |  | C |  | C | C |  | ✓ |
+| Manage games |  |  | C | C | C | C |  | ✓ |
+| Assign points |  |  | C |  | C | C |  | ✓ |
+| Reveal winners |  |  |  |  | C |  |  | ✓ |
+| Manage album media |  |  |  |  |  |  | C | ✓ |
+| Manage album settings |  |  | C | C |  | C |  | ✓ |
+| Manage transportation |  |  |  |  |  |  |  | ✓ |
+| Manage own-church transportation |  |  | C | C |  | C |  | ✓ |
+| Award achievements |  |  | C | C | C | C |  | ✓ |
+| Revoke achievements |  |  |  |  |  |  |  | ✓ |
+| Manage check-ins |  |  |  |  |  |  |  | ✓ |
+| Manage own-church check-ins |  |  | C | C |  | C |  | ✓ |
+| View participant profiles |  |  | C | C | C | C |  | ✓ |
+| Assign leadership roles |  |  |  |  |  |  |  | ✓ |
+| Assign own-church roles |  |  | C | C |  |  |  | ✓ |
+| View admin tools |  |  |  |  |  |  |  | ✓ |
+| Manage family registrations | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Edit guidelines |  |  |  |  |  |  |  | ✓ |
+| Edit own-church guidelines |  |  | C | C |  | C |  | ✓ |
 
 ¹ Raw announcement create/edit permissions are role-level. Camping-scoped
 announcement management uses `canManageAnnouncements(for:)`, which scopes
@@ -114,8 +118,8 @@ Derived helpers are **not** enum cases:
   `canViewParticipantProfiles` allow `createdByUID == auth.uid`, matching
   iOS creator-owned camping behavior.
 
-Assignable roles when granting: admin → any role; own-church role
-assigners → only the self-assignable set (`guest`/`user`/`adult`), so a
+Assignable roles when granting: admin -> any role; own-church role
+assigners -> only the self-assignable set (`user`/`adult`), so a
 non-admin can never escalate someone to leadership.
 
 ---
@@ -139,8 +143,8 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
   - `badges`: `read` self / content-moderator / camp achievement-awarder.
     `create`/`update` only by admin or camp achievement-awarder **and
     `request.auth.uid != uid`** (no self-award). `delete` admin only.
-  - `children`: self **and** any onboarded role (every role except
-    `guest`). The privileged collection-group `read` above (cross-guardian
+  - `children`: self **and** any signed-in app role. The privileged
+    collection-group `read` above (cross-guardian
     duplicate detection) stays `adult`/`admin`; for other roles that read is
     denied and the client skips cross-guardian duplicate detection gracefully.
 - **`ziyon_notifications`**: `read` if signed-in and the doc’s `topic`
@@ -148,8 +152,10 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
   direct topic `campzone_user_<uid>`, or (admin) any role topic. Camping
   topics require a direct registration or an effective camping-management
   capability; team topics require membership or team/chat management.
-  Scoped listeners must query the matching `campingID`/`role`/`teamID`
-  fields so Rules can prove that access. `create/update/delete: false`
+  Staff-role chat topics require staff-role membership or staff-role
+  management. Scoped listeners must query the matching
+  `campingID`/`role`/`teamID`/`staffRoleID` fields so Rules can prove that
+  access. `create/update/delete: false`
   (backend-only).
 - **`campings/{id}`**: `read` public (`true`). `create` by admin or
   own-church youth_director/pastor whose proposed `organizerLevel`
@@ -181,6 +187,14 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
       `create` team member, `senderID==auth.uid`, `campingID==path`,
       `teamID==path`, `text` string ≤2000. `update` own non-deleted msg
       OR moderator. `delete` admin.
+  - `staffRoles`: `read` staff-role member OR `canManageStaffRoles`; write
+    `canManageStaffRoles`. Payload must include `id==path`, `campingID==path`,
+    `memberUserIDs == members[].userID`, bounded text fields, valid
+    `kind`/`capabilities`, and `chatEnabled`.
+    - `staffRoles/{id}/chat`: `read` staff-role member OR staff-role manager.
+      `create` same scope, `senderID==auth.uid`, `campingID==path`,
+      `staffRoleID==path`, `teamID` absent, `text` string ≤2000. `update` own
+      non-deleted msg OR staff-role manager. `delete` admin.
   - `games`: `read` signed-in; write `canManageGames`.
   - `activities`: `read` `canManageGames` OR `canRevealWinners` OR
     (approved participant AND (`visibility=="immediate"` OR the winner
@@ -260,8 +274,8 @@ Exact helper logic lives in `firestore-rbac.rules`. Summary of the
    `approved` `registrations/{auth.uid}` doc in that camping. Build the
    UI so these surfaces are hidden until approved.
 3. **Field allowlists on `users` self-update**: only the documented
-   self-profile fields may change, and `role` only within
-   `guest/user/adult`. Sending an extra/unknown key fails the update.
+   self-profile fields may change, and `role` only within `user/adult`.
+   Sending an extra/unknown key fails the update.
 4. **Deterministic IDs are security-relevant**: `registrations/{id}`,
    `checkIns/{id}`, `feedback/{uid}`, poll `votes/{voterId}` doc IDs are
    asserted by rules. Use the exact ID conventions from

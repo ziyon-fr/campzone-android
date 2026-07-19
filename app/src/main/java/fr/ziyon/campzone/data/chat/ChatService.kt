@@ -2,6 +2,7 @@ package fr.ziyon.campzone.data.chat
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
@@ -29,20 +30,21 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
 
 interface ChatService {
-    fun observeMessages(campingId: String, teamId: String? = null): Flow<List<ChatMessage>>
-    suspend fun loadMessages(campingId: String, teamId: String? = null): List<ChatMessage>
-    suspend fun sendMessage(message: ChatMessage, teamId: String? = null): ChatMessage
+    fun observeMessages(campingId: String, teamId: String? = null, staffRoleId: String? = null): Flow<List<ChatMessage>>
+    suspend fun loadMessages(campingId: String, teamId: String? = null, staffRoleId: String? = null): List<ChatMessage>
+    suspend fun sendMessage(message: ChatMessage, teamId: String? = null, staffRoleId: String? = null): ChatMessage
     suspend fun editMessage(
         messageId: String,
         campingId: String,
         teamId: String?,
         newText: String,
         mentions: List<ChatMention>,
+        staffRoleId: String? = null,
     )
-    suspend fun setPinned(messageId: String, campingId: String, teamId: String?, pinned: Boolean)
-    suspend fun setReaction(messageId: String, campingId: String, teamId: String?, userId: String, emoji: String)
-    suspend fun removeReaction(messageId: String, campingId: String, teamId: String?, userId: String)
-    suspend fun softDelete(messageId: String, campingId: String, teamId: String?, deletedById: String)
+    suspend fun setPinned(messageId: String, campingId: String, teamId: String?, pinned: Boolean, staffRoleId: String? = null)
+    suspend fun setReaction(messageId: String, campingId: String, teamId: String?, userId: String, emoji: String, staffRoleId: String? = null)
+    suspend fun removeReaction(messageId: String, campingId: String, teamId: String?, userId: String, staffRoleId: String? = null)
+    suspend fun softDelete(messageId: String, campingId: String, teamId: String?, deletedById: String, staffRoleId: String? = null)
     suspend fun submitContentReport(report: ContentReport): ContentReport
     suspend fun loadBlockedUsers(userId: String): List<BlockedUser>
     suspend fun setBlocked(
@@ -59,9 +61,9 @@ class FirestoreChatService @Inject constructor(
     private val auth: FirebaseAuth,
 ) : ChatService {
 
-    override fun observeMessages(campingId: String, teamId: String?): Flow<List<ChatMessage>> =
+    override fun observeMessages(campingId: String, teamId: String?, staffRoleId: String?): Flow<List<ChatMessage>> =
         callbackFlow {
-            val listener = chatCollection(campingId, teamId)
+            val listener = chatCollection(campingId, teamId, staffRoleId)
                 .orderBy(Field.CreatedAt, Query.Direction.ASCENDING)
                 .limitToLast(RecentMessageLimit)
                 .addSnapshotListener { snapshot, error ->
@@ -81,8 +83,8 @@ class FirestoreChatService @Inject constructor(
             awaitClose { listener.remove() }
         }
 
-    override suspend fun loadMessages(campingId: String, teamId: String?): List<ChatMessage> {
-        val snapshot = chatCollection(campingId, teamId)
+    override suspend fun loadMessages(campingId: String, teamId: String?, staffRoleId: String?): List<ChatMessage> {
+        val snapshot = chatCollection(campingId, teamId, staffRoleId)
             .orderBy(Field.CreatedAt, Query.Direction.ASCENDING)
             .limitToLast(RecentMessageLimit)
             .get()
@@ -93,7 +95,7 @@ class FirestoreChatService @Inject constructor(
         }.sortedBy { it.createdAt?.time ?: Long.MAX_VALUE }
     }
 
-    override suspend fun sendMessage(message: ChatMessage, teamId: String?): ChatMessage {
+    override suspend fun sendMessage(message: ChatMessage, teamId: String?, staffRoleId: String?): ChatMessage {
         val currentUserId = auth.currentUser?.uid
         require(currentUserId == message.senderId) { "You can only send chat messages as yourself." }
         require(message.campingId.isNotBlank()) { "Camping is required." }
@@ -105,6 +107,7 @@ class FirestoreChatService @Inject constructor(
         // the composer already caps draft input at CLIENT_TEXT_CAP.
         val scopedMessage = message.copy(
             teamId = teamId?.trim()?.takeUnless { it.isBlank() },
+            staffRoleId = staffRoleId?.trim()?.takeUnless { it.isBlank() },
             pinned = false,
             isDeleted = false,
         )
@@ -112,9 +115,10 @@ class FirestoreChatService @Inject constructor(
             message = scopedMessage,
             serverTimestamp = FieldValue.serverTimestamp(),
             isTeamChat = scopedMessage.teamId != null,
+            isStaffRoleChat = scopedMessage.staffRoleId != null,
         )
 
-        chatCollection(scopedMessage.campingId, scopedMessage.teamId)
+        chatCollection(scopedMessage.campingId, scopedMessage.teamId, scopedMessage.staffRoleId)
             .document(scopedMessage.id)
             .set(payload)
             .await()
@@ -128,9 +132,10 @@ class FirestoreChatService @Inject constructor(
         teamId: String?,
         newText: String,
         mentions: List<ChatMention>,
+        staffRoleId: String?,
     ) {
         require(auth.currentUser != null) { "You must be signed in to edit a message." }
-        chatCollection(campingId, teamId)
+        chatCollection(campingId, teamId, staffRoleId)
             .document(messageId)
             .update(
                 ChatMessagePayload.editPayload(
@@ -148,8 +153,9 @@ class FirestoreChatService @Inject constructor(
         campingId: String,
         teamId: String?,
         pinned: Boolean,
+        staffRoleId: String?,
     ) {
-        chatCollection(campingId, teamId)
+        chatCollection(campingId, teamId, staffRoleId)
             .document(messageId)
             .update(ChatMessagePayload.pinPayload(pinned))
             .await()
@@ -161,8 +167,9 @@ class FirestoreChatService @Inject constructor(
         teamId: String?,
         userId: String,
         emoji: String,
+        staffRoleId: String?,
     ) {
-        chatCollection(campingId, teamId)
+        chatCollection(campingId, teamId, staffRoleId)
             .document(messageId)
             .update("reactions.$userId", emoji)
             .await()
@@ -173,8 +180,9 @@ class FirestoreChatService @Inject constructor(
         campingId: String,
         teamId: String?,
         userId: String,
+        staffRoleId: String?,
     ) {
-        chatCollection(campingId, teamId)
+        chatCollection(campingId, teamId, staffRoleId)
             .document(messageId)
             .update("reactions.$userId", FieldValue.delete())
             .await()
@@ -185,8 +193,9 @@ class FirestoreChatService @Inject constructor(
         campingId: String,
         teamId: String?,
         deletedById: String,
+        staffRoleId: String?,
     ) {
-        chatCollection(campingId, teamId)
+        chatCollection(campingId, teamId, staffRoleId)
             .document(messageId)
             .update(ChatMessagePayload.softDeletePayload(deletedById, FieldValue.serverTimestamp()))
             .await()
@@ -237,18 +246,23 @@ class FirestoreChatService @Inject constructor(
         }
     }
 
-    private fun chatCollection(campingId: String, teamId: String?) =
-        if (teamId.isNullOrBlank()) {
-            db.collection(Collection.Campings)
-                .document(campingId)
+    private fun chatCollection(campingId: String, teamId: String?, staffRoleId: String?): CollectionReference {
+        require(teamId.isNullOrBlank() || staffRoleId.isNullOrBlank()) {
+            "A chat scope can target either a team or a staff role, not both."
+        }
+        val campingDocument = db.collection(Collection.Campings).document(campingId)
+        return when {
+            !staffRoleId.isNullOrBlank() -> campingDocument
+                .collection(Collection.StaffRoles)
+                .document(staffRoleId)
                 .collection(Collection.Chat)
-        } else {
-            db.collection(Collection.Campings)
-                .document(campingId)
+            !teamId.isNullOrBlank() -> campingDocument
                 .collection(Collection.Teams)
                 .document(teamId)
                 .collection(Collection.Chat)
+            else -> campingDocument.collection(Collection.Chat)
         }
+    }
 
     private fun blockedUsersCollection(userId: String) =
         db.collection(Collection.Users)
@@ -258,6 +272,7 @@ class FirestoreChatService @Inject constructor(
     private object Collection {
         const val Campings = "campings"
         const val Teams = "teams"
+        const val StaffRoles = "staffRoles"
         const val Chat = "chat"
         const val Users = "users"
         const val BlockedUsers = "blockedUsers"
@@ -279,7 +294,7 @@ class FakeChatService(
     var shouldFail: Boolean = false,
 ) : ChatService {
     private val messagesByScope = initialMessages
-        .groupBy { scopeKey(it.campingId, it.teamId) }
+        .groupBy { scopeKey(it.campingId, it.teamId, it.staffRoleId) }
         .mapValues { it.value.toMutableList() }
         .toMutableMap()
     private val blockedByUser = mutableMapOf<String, MutableList<BlockedUser>>()
@@ -291,25 +306,26 @@ class FakeChatService(
         }
     }
 
-    override fun observeMessages(campingId: String, teamId: String?): Flow<List<ChatMessage>> = flow {
+    override fun observeMessages(campingId: String, teamId: String?, staffRoleId: String?): Flow<List<ChatMessage>> = flow {
         failIfNeeded()
-        emit(messages(campingId, teamId))
+        emit(messages(campingId, teamId, staffRoleId))
     }
 
-    override suspend fun loadMessages(campingId: String, teamId: String?): List<ChatMessage> {
+    override suspend fun loadMessages(campingId: String, teamId: String?, staffRoleId: String?): List<ChatMessage> {
         failIfNeeded()
-        return messages(campingId, teamId)
+        return messages(campingId, teamId, staffRoleId)
     }
 
-    override suspend fun sendMessage(message: ChatMessage, teamId: String?): ChatMessage {
+    override suspend fun sendMessage(message: ChatMessage, teamId: String?, staffRoleId: String?): ChatMessage {
         failIfNeeded()
         val scoped = message.copy(
             teamId = teamId?.takeUnless { it.isBlank() },
+            staffRoleId = staffRoleId?.takeUnless { it.isBlank() },
             createdAt = message.createdAt ?: Date(),
             pinned = false,
             isDeleted = false,
         )
-        val key = scopeKey(scoped.campingId, scoped.teamId)
+        val key = scopeKey(scoped.campingId, scoped.teamId, scoped.staffRoleId)
         messagesByScope.getOrPut(key) { mutableListOf() }.add(scoped)
         return scoped
     }
@@ -320,9 +336,10 @@ class FakeChatService(
         teamId: String?,
         newText: String,
         mentions: List<ChatMention>,
+        staffRoleId: String?,
     ) {
         failIfNeeded()
-        mutateMessage(messageId, campingId, teamId) {
+        mutateMessage(messageId, campingId, teamId, staffRoleId) {
             it.copy(text = newText, mentions = mentions, editedAt = Date())
         }
     }
@@ -332,9 +349,10 @@ class FakeChatService(
         campingId: String,
         teamId: String?,
         pinned: Boolean,
+        staffRoleId: String?,
     ) {
         failIfNeeded()
-        mutateMessage(messageId, campingId, teamId) { it.copy(pinned = pinned) }
+        mutateMessage(messageId, campingId, teamId, staffRoleId) { it.copy(pinned = pinned) }
     }
 
     override suspend fun setReaction(
@@ -343,9 +361,10 @@ class FakeChatService(
         teamId: String?,
         userId: String,
         emoji: String,
+        staffRoleId: String?,
     ) {
         failIfNeeded()
-        mutateMessage(messageId, campingId, teamId) { it.copy(reactions = it.reactions + (userId to emoji)) }
+        mutateMessage(messageId, campingId, teamId, staffRoleId) { it.copy(reactions = it.reactions + (userId to emoji)) }
     }
 
     override suspend fun removeReaction(
@@ -353,9 +372,10 @@ class FakeChatService(
         campingId: String,
         teamId: String?,
         userId: String,
+        staffRoleId: String?,
     ) {
         failIfNeeded()
-        mutateMessage(messageId, campingId, teamId) { it.copy(reactions = it.reactions - userId) }
+        mutateMessage(messageId, campingId, teamId, staffRoleId) { it.copy(reactions = it.reactions - userId) }
     }
 
     override suspend fun softDelete(
@@ -363,9 +383,10 @@ class FakeChatService(
         campingId: String,
         teamId: String?,
         deletedById: String,
+        staffRoleId: String?,
     ) {
         failIfNeeded()
-        mutateMessage(messageId, campingId, teamId) {
+        mutateMessage(messageId, campingId, teamId, staffRoleId) {
             it.copy(isDeleted = true, deletedById = deletedById, deletedAt = Date())
         }
     }
@@ -401,8 +422,8 @@ class FakeChatService(
         }
     }
 
-    private fun messages(campingId: String, teamId: String?): List<ChatMessage> =
-        messagesByScope[scopeKey(campingId, teamId)]
+    private fun messages(campingId: String, teamId: String?, staffRoleId: String?): List<ChatMessage> =
+        messagesByScope[scopeKey(campingId, teamId, staffRoleId)]
             .orEmpty()
             .sortedBy { it.createdAt?.time ?: Long.MAX_VALUE }
 
@@ -410,9 +431,10 @@ class FakeChatService(
         messageId: String,
         campingId: String,
         teamId: String?,
+        staffRoleId: String?,
         update: (ChatMessage) -> ChatMessage,
     ) {
-        val key = scopeKey(campingId, teamId)
+        val key = scopeKey(campingId, teamId, staffRoleId)
         val messages = messagesByScope[key] ?: return
         val index = messages.indexOfFirst { it.id == messageId }
         if (index >= 0) messages[index] = update(messages[index])
@@ -423,8 +445,11 @@ class FakeChatService(
     }
 
     private companion object {
-        fun scopeKey(campingId: String, teamId: String?): String =
-            if (teamId.isNullOrBlank()) "camping:$campingId" else "camping:$campingId|team:$teamId"
+        fun scopeKey(campingId: String, teamId: String?, staffRoleId: String?): String = when {
+            !staffRoleId.isNullOrBlank() -> "camping:$campingId|staffRole:$staffRoleId"
+            !teamId.isNullOrBlank() -> "camping:$campingId|team:$teamId"
+            else -> "camping:$campingId"
+        }
     }
 }
 

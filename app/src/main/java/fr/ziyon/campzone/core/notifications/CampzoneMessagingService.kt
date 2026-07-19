@@ -100,5 +100,5 @@ class CampzoneMessagingService : FirebaseMessagingService() {
     private suspend fun currentRole(uid: String): UserRole = runCatching {
         val snapshot = db.collection("users").document(uid).get().await()
         UserRole.fromWire(snapshot.getString("role"))
-    }.getOrDefault(UserRole.Guest)
+    }.getOrDefault(UserRole.User)
 }

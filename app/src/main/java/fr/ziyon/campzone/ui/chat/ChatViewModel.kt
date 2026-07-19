@@ -86,8 +86,13 @@ class ChatViewModel @Inject constructor(
     private var messages: List<ChatMessage> = emptyList()
     private var blockedUsers: List<BlockedUser> = emptyList()
 
-    fun start(campingId: String, teamId: String?, currentUserId: String) {
-        val nextScope = ScopeKey(campingId, teamId?.takeUnless { it.isBlank() }, currentUserId)
+    fun start(campingId: String, teamId: String?, currentUserId: String, staffRoleId: String? = null) {
+        val nextScope = ScopeKey(
+            campingId = campingId,
+            teamId = teamId?.takeUnless { it.isBlank() },
+            staffRoleId = staffRoleId?.takeUnless { it.isBlank() },
+            currentUserId = currentUserId,
+        )
         if (loadedScope == nextScope && observeJob?.isActive == true) return
 
         observeJob?.cancel()
@@ -100,7 +105,7 @@ class ChatViewModel @Inject constructor(
         observeJob = viewModelScope.launch {
             try {
                 blockedUsers = service.loadBlockedUsers(currentUserId)
-                service.observeMessages(campingId, nextScope.teamId).collect { latest ->
+                service.observeMessages(campingId, nextScope.teamId, nextScope.staffRoleId).collect { latest ->
                     messages = latest
                     publishLoaded()
                 }
@@ -110,9 +115,9 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun retry(campingId: String, teamId: String?, currentUserId: String) {
+    fun retry(campingId: String, teamId: String?, currentUserId: String, staffRoleId: String? = null) {
         loadedScope = null
-        start(campingId, teamId, currentUserId)
+        start(campingId, teamId, currentUserId, staffRoleId)
     }
 
     /** Replaces the composer draft (text + committed @mentions). */
@@ -129,6 +134,7 @@ class ChatViewModel @Inject constructor(
         teamId: String?,
         sender: AuthenticatedUser,
         mentionableUserIds: List<String>,
+        staffRoleId: String? = null,
     ) {
         val current = _draft.value
         if (!current.isValid || _isSending.value) return
@@ -137,6 +143,7 @@ class ChatViewModel @Inject constructor(
             id = UUID.randomUUID().toString(),
             campingId = campingId,
             teamId = teamId?.takeUnless { it.isBlank() },
+            staffRoleId = staffRoleId?.takeUnless { it.isBlank() },
             senderId = sender.uid,
             senderName = sender.preferredDisplayName,
             senderChurch = sender.church,
@@ -160,10 +167,10 @@ class ChatViewModel @Inject constructor(
             _isSending.value = false
 
             try {
-                val saved = service.sendMessage(message, teamId)
+                val saved = service.sendMessage(message, teamId, staffRoleId)
                 appendLocal(saved)
                 publishLoaded()
-                finalizeDispatch(saved, teamId, mentionableUserIds)
+                finalizeDispatch(saved, teamId, mentionableUserIds, staffRoleId)
             } catch (e: Exception) {
                 rollbackFailedSend(message.id, current, replyBeforeSend)
                 _operationError.value = e.message ?: "Could not send message."
@@ -181,6 +188,7 @@ class ChatViewModel @Inject constructor(
         campingId: String,
         teamId: String?,
         sender: AuthenticatedUser,
+        staffRoleId: String? = null,
     ) {
         viewModelScope.launch {
             _isUploadingAttachment.value = true
@@ -202,7 +210,7 @@ class ChatViewModel @Inject constructor(
                     width = result.width,
                     height = result.height,
                 )
-                deliverMedia(messageId, caption.trim(), attachment, campingId, teamId, sender)
+                deliverMedia(messageId, caption.trim(), attachment, campingId, teamId, sender, staffRoleId)
             } catch (e: Exception) {
                 _operationError.value = e.message ?: "Could not send photo."
             } finally {
@@ -217,6 +225,7 @@ class ChatViewModel @Inject constructor(
         campingId: String,
         teamId: String?,
         sender: AuthenticatedUser,
+        staffRoleId: String? = null,
     ) {
         viewModelScope.launch {
             _isUploadingAttachment.value = true
@@ -237,7 +246,7 @@ class ChatViewModel @Inject constructor(
                     publicId = result.publicId,
                     durationSeconds = result.duration ?: durationSeconds,
                 )
-                deliverMedia(messageId, "", attachment, campingId, teamId, sender)
+                deliverMedia(messageId, "", attachment, campingId, teamId, sender, staffRoleId)
             } catch (e: Exception) {
                 _operationError.value = e.message ?: "Could not send voice message."
             } finally {
@@ -268,7 +277,7 @@ class ChatViewModel @Inject constructor(
         _draft.value = ChatMessageDraft()
     }
 
-    fun commitEdit(campingId: String, teamId: String?) {
+    fun commitEdit(campingId: String, teamId: String?, staffRoleId: String? = null) {
         val editingId = _editingMessageId.value ?: return
         val current = _draft.value
         if (!current.isValid || _isSending.value) return
@@ -278,7 +287,7 @@ class ChatViewModel @Inject constructor(
             _operationError.value = null
             try {
                 val resolved = current.resolvedMentions
-                service.editMessage(editingId, campingId, teamId, current.text, resolved)
+                service.editMessage(editingId, campingId, teamId, current.text, resolved, staffRoleId)
                 messages = messages.map {
                     if (it.id == editingId) {
                         it.copy(text = current.text, mentions = resolved, editedAt = Date())
@@ -302,7 +311,7 @@ class ChatViewModel @Inject constructor(
             _operationError.value = null
             try {
                 val pinned = !message.pinned
-                service.setPinned(message.id, message.campingId, message.teamId, pinned)
+                service.setPinned(message.id, message.campingId, message.teamId, pinned, message.staffRoleId)
                 replaceMessage(message.copy(pinned = pinned))
             } catch (e: Exception) {
                 _operationError.value = e.message ?: "Could not update the pin."
@@ -322,9 +331,9 @@ class ChatViewModel @Inject constructor(
             _operationError.value = null
             try {
                 if (removing) {
-                    service.removeReaction(message.id, message.campingId, message.teamId, userId)
+                    service.removeReaction(message.id, message.campingId, message.teamId, userId, message.staffRoleId)
                 } else {
-                    service.setReaction(message.id, message.campingId, message.teamId, userId, emoji)
+                    service.setReaction(message.id, message.campingId, message.teamId, userId, emoji, message.staffRoleId)
                 }
             } catch (e: Exception) {
                 replaceMessage(current)
@@ -338,7 +347,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _operationError.value = null
             try {
-                service.softDelete(message.id, message.campingId, message.teamId, reviewerId)
+                service.softDelete(message.id, message.campingId, message.teamId, reviewerId, message.staffRoleId)
                 replaceMessage(
                     message.copy(isDeleted = true, deletedById = reviewerId, deletedAt = Date()),
                 )
@@ -411,11 +420,13 @@ class ChatViewModel @Inject constructor(
         campingId: String,
         teamId: String?,
         sender: AuthenticatedUser,
+        staffRoleId: String? = null,
     ) {
         val message = ChatMessage(
             id = messageId,
             campingId = campingId,
             teamId = teamId?.takeUnless { it.isBlank() },
+            staffRoleId = staffRoleId?.takeUnless { it.isBlank() },
             senderId = sender.uid,
             senderName = sender.preferredDisplayName,
             senderChurch = sender.church,
@@ -429,11 +440,11 @@ class ChatViewModel @Inject constructor(
         appendLocal(message)
         publishLoaded()
         try {
-            val saved = service.sendMessage(message, teamId)
+            val saved = service.sendMessage(message, teamId, staffRoleId)
             appendLocal(saved)
             publishLoaded()
             // Media carries no mentions, so this always uses the broadcast dispatch.
-            finalizeDispatch(saved, teamId, emptyList())
+            finalizeDispatch(saved, teamId, emptyList(), staffRoleId)
         } catch (e: Exception) {
             removeLocal(message.id)
             publishLoaded()
@@ -450,6 +461,7 @@ class ChatViewModel @Inject constructor(
         message: ChatMessage,
         teamId: String?,
         mentionableUserIds: List<String>,
+        staffRoleId: String? = null,
     ) {
         viewModelScope.launch {
             runCatching {
@@ -465,6 +477,7 @@ class ChatViewModel @Inject constructor(
                             mentionedUserIds = recipients,
                             isEveryoneMention = message.mentions.any { it.isEveryone },
                             teamId = teamId,
+                            staffRoleId = staffRoleId,
                         ),
                     )
                 } else {
@@ -476,6 +489,7 @@ class ChatViewModel @Inject constructor(
                             senderName = message.senderName,
                             body = message.text,
                             teamId = teamId,
+                            staffRoleId = staffRoleId,
                             replyToMessageId = message.replyTo?.messageId,
                             replyToSenderId = message.replyTo?.senderId,
                             replyToSenderName = message.replyTo?.senderName,
@@ -548,6 +562,7 @@ class ChatViewModel @Inject constructor(
     private data class ScopeKey(
         val campingId: String,
         val teamId: String?,
+        val staffRoleId: String?,
         val currentUserId: String,
     )
 

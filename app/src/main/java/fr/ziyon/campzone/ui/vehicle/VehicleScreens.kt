@@ -224,7 +224,7 @@ fun VehicleFormRoute(
             onRetry = { viewModel.retry(campingId, authenticatedUser) },
             modifier = Modifier.padding(padding),
         ) {
-            val attendee = state.selfAttendee(authenticatedUser)
+            val attendee = state.primarySubjectAttendee(authenticatedUser)
             if (attendee == null) {
                 CzEmptyState(
                     title = stringResource(R.string.vehicle_approval_needed_title),
@@ -523,7 +523,7 @@ fun MyVehicleCard(
     onOpenTransport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val attendee = state.selfAttendee(user) ?: return
+    val attendee = state.primarySubjectAttendee(user) ?: return
     val driven = state.vehicleDriven(attendee.id)
     val ridden = state.vehicleRidden(attendee.id)
     val pending = state.pendingVehicle(attendee.id)
@@ -2573,9 +2573,6 @@ private fun CameraCard(isScanning: Boolean, onQrScanned: (String) -> Unit) {
     }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         hasPermission = granted
-    }
-    LaunchedEffect(Unit) {
-        if (!hasPermission) launcher.launch(Manifest.permission.CAMERA)
     }
     VehicleCard {
         if (hasPermission) {

@@ -17,31 +17,30 @@
   app dev). Cloudinary/Stripe are server-side only - the app calls the
   backend; you do **not** need their secrets.
 
-## 2. Project state & first steps
+## 2. Project state & release baseline
 
-The scaffold is a bare Compose app (`com.example.campzone`, single
-`MainActivity`, Material3, no Firebase yet). To start:
+The Android package/application id is finalized as `fr.ziyon.campzone`;
+it matches the checked-in Firebase Android config (`app/google-services.json`)
+and must stay stable for Play releases, Google Sign-In fingerprints, and App
+Links. The current app is a single-Activity Compose app with Firebase, Hilt,
+Navigation-Compose, Coil, Stripe PaymentSheet, osmdroid, Markwon, CameraX,
+ML Kit, ZXing, and the notification backend wired through the version catalog.
 
-1. **Finalize the application id / package** (e.g.
-   `org.<org>.campzone`) - it must equal the Firebase Android app’s
-   package name. Do this **before** registering the Firebase app and
-   before any release; renaming later invalidates `google-services.json`
-   and signing config.
-2. Add the Google services Gradle plugin + Firebase BoM and the
-   modules: `firebase-auth`, `firebase-firestore`,
-   `firebase-messaging`, `firebase-analytics`. Add Navigation-Compose,
-   Coil, coroutines, Hilt (DI), and the Stripe Android SDK
-   (`com.stripe:stripe-android` / `payments-ui` for PaymentSheet).
-   Wire them through `gradle/libs.versions.toml` (version catalog), not
-   ad-hoc strings.
-3. Drop `google-services.json` (the shared Firebase project’s Android
-   app) into `app/`. **Do not commit** it if it carries project-private
-   config - gitignore and document where to obtain it.
-4. Apply `CampzoneTheme` (tokens from `06`) at the `setContent` root;
-   enable Firestore disk persistence in the `Application`.
-5. Implement Auth (Google via Credential Manager + Apple via Firebase
-   `OAuthProvider`), the onboarding gate (`onboardingCompleted`), and
-   the FCM service before feature work.
+Before a release:
+
+1. Confirm `app/build.gradle.kts` `versionCode` has increased from the last
+   Play upload and that `versionName` matches the release notes.
+2. Confirm the release signing key SHA-1/SHA-256 remains registered in the
+   shared Firebase project for Google Sign-In.
+3. Keep `BuildConfig.BACKEND_BASE_URL` pointed at
+   `https://notification-backend-chi.vercel.app` unless deliberately testing a
+   staging backend.
+4. Configure release signing through ignored `local.properties` or CI
+   environment variables:
+   `CAMPZONE_RELEASE_STORE_FILE`, `CAMPZONE_RELEASE_STORE_PASSWORD`,
+   `CAMPZONE_RELEASE_KEY_ALIAS`, and `CAMPZONE_RELEASE_KEY_PASSWORD`.
+5. Run `testDebugUnitTest`, `lintDebug`, and a release artifact build
+   (`assembleRelease` or `bundleRelease`) with the Android Studio JBR.
 
 ## 3. Secrets / configuration
 
@@ -51,6 +50,17 @@ Nothing Stripe/Cloudinary/cron lives in the app. The only “config” is
 URL in a build config field / resource, overridable per build type
 (debug vs release) if needed. FCM web push is N/A; Android uses native
 FCM (no VAPID key).
+
+Release signing secrets must stay out of git. The Gradle release build
+automatically uses these values when all are present in ignored
+`local.properties` or the process environment:
+
+```properties
+CAMPZONE_RELEASE_STORE_FILE=/absolute/path/to/upload-keystore.jks
+CAMPZONE_RELEASE_STORE_PASSWORD=...
+CAMPZONE_RELEASE_KEY_ALIAS=...
+CAMPZONE_RELEASE_KEY_PASSWORD=...
+```
 
 ## 4. Firebase project checklist
 

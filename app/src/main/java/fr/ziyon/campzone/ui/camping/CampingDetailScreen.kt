@@ -124,6 +124,7 @@ import fr.ziyon.campzone.ui.guardian.GuardianUpdatesCard
 import fr.ziyon.campzone.data.auth.CampingAgeGroup
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
+import fr.ziyon.campzone.data.model.CampingPhase
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
@@ -167,6 +168,7 @@ fun CampingDetailRoute(
     onOpenFoodMenu: (String) -> Unit = {},
     onOpenSongbook: (String) -> Unit = {},
     onOpenTeams: (String) -> Unit = {},
+    onOpenStaffRoles: (String) -> Unit = {},
     onOpenGames: (String) -> Unit = {},
     onOpenTeamDetail: (String, String) -> Unit = { _, _ -> },
     onOpenTeamEditor: (String, String?) -> Unit = { _, _ -> },
@@ -252,6 +254,7 @@ fun CampingDetailRoute(
             viewModel.trackTeamsView(id)
             onOpenTeams(id)
         },
+        onOpenStaffRoles = onOpenStaffRoles,
         onOpenGames = onOpenGames,
         onOpenTeamDetail = onOpenTeamDetail,
         onOpenTeamEditor = onOpenTeamEditor,
@@ -299,6 +302,7 @@ fun CampingDetailScreen(
     onOpenSupport: (String) -> Unit = {},
     onOpenSchedule: (String) -> Unit = {},
     onOpenTeams: (String) -> Unit = {},
+    onOpenStaffRoles: (String) -> Unit = {},
     onOpenGames: (String) -> Unit = {},
     onOpenChat: (String) -> Unit = {},
     onOpenPolls: (String) -> Unit = {},
@@ -433,6 +437,7 @@ fun CampingDetailScreen(
                     onOpenSupport = onOpenSupport,
                     onOpenSchedule = onOpenSchedule,
                     onOpenTeams = onOpenTeams,
+                    onOpenStaffRoles = onOpenStaffRoles,
                     onOpenGames = onOpenGames,
                     onOpenTeamDetail = onOpenTeamDetail,
                     onOpenTeamEditor = onOpenTeamEditor,
@@ -603,6 +608,7 @@ private fun CampingDetailContent(
     onOpenSupport: (String) -> Unit,
     onOpenSchedule: (String) -> Unit,
     onOpenTeams: (String) -> Unit,
+    onOpenStaffRoles: (String) -> Unit,
     onOpenGames: (String) -> Unit,
     myTeam: Team?,
     teamScoresHidden: Boolean,
@@ -760,6 +766,7 @@ private fun CampingDetailContent(
                         myTeam = myTeam,
                         teamScoresHidden = teamScoresHidden,
                         onOpenTeams = onOpenTeams,
+                        onOpenStaffRoles = onOpenStaffRoles,
                         onOpenGames = onOpenGames,
                         onOpenTeamDetail = onOpenTeamDetail,
                         onOpenTeamEditor = onOpenTeamEditor,
@@ -1054,7 +1061,7 @@ private fun HeaderSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
             ) {
-                StatusPill(camping.effectiveRegistrationStatus)
+                StatusPill(camping)
                 Row(
                     modifier = Modifier
                         .weight(1f, fill = false)
@@ -1125,8 +1132,8 @@ private fun CampingLogoBadge(
 }
 
 @Composable
-private fun StatusPill(status: CampingRegistrationStatus) {
-    val color = status.statusColor()
+private fun StatusPill(camping: Camping) {
+    val color = camping.displayStatusColor()
     Row(
         modifier = Modifier
             .clip(CircleShape)
@@ -1142,7 +1149,7 @@ private fun StatusPill(status: CampingRegistrationStatus) {
                 .background(color),
         )
         Text(
-            text = status.shortLabel(),
+            text = camping.displayStatusLabel(),
             color = color,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
@@ -1765,6 +1772,7 @@ private fun TeamsSection(
     myTeam: Team?,
     teamScoresHidden: Boolean,
     onOpenTeams: (String) -> Unit,
+    onOpenStaffRoles: (String) -> Unit,
     onOpenGames: (String) -> Unit,
     onOpenTeamDetail: (String, String) -> Unit,
     onOpenTeamEditor: (String, String?) -> Unit,
@@ -1795,6 +1803,14 @@ private fun TeamsSection(
                 onOpenTeams(camping.id)
             },
         )
+        if (state.isApprovedParticipant || state.canManageStaffRoles) {
+            DetailResourceButton(
+                title = stringResource(R.string.camping_operations_teams),
+                subtitle = stringResource(R.string.camping_operations_teams_subtitle),
+                icon = Icons.Filled.Groups,
+                onClick = { onOpenStaffRoles(camping.id) },
+            )
+        }
         DetailResourceButton(
             title = stringResource(R.string.camping_games_points),
             subtitle = stringResource(R.string.camping_games_points_subtitle),
@@ -2679,6 +2695,18 @@ private fun CampingRegistrationStatus.shortLabel(): String = stringResource(
         CampingRegistrationStatus.Cancelled -> R.string.camping_status_cancelled
     },
 )
+
+@Composable
+private fun Camping.displayStatusLabel(): String =
+    if (currentPhase == CampingPhase.Finished) currentPhase.label() else effectiveRegistrationStatus.shortLabel()
+
+@Composable
+private fun Camping.displayStatusColor(): Color =
+    if (currentPhase == CampingPhase.Finished) {
+        MaterialTheme.czColors.textSecondary
+    } else {
+        effectiveRegistrationStatus.statusColor()
+    }
 
 @Composable
 private fun CampingRegistrationStatus.statusColor(): Color = when (this) {

@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
@@ -38,6 +39,8 @@ import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CzRadius
 import fr.ziyon.campzone.core.designsystem.CzSpacing
 import fr.ziyon.campzone.core.designsystem.czColors
+import fr.ziyon.campzone.core.widgets.CampzoneWidgetPublisher
+import fr.ziyon.campzone.core.widgets.WidgetPackingSummary
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 
 @Composable
@@ -49,6 +52,7 @@ fun MyPackingChecklistCard(
     viewModel: PackingChecklistViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
     LaunchedEffect(campingId, user.uid) { viewModel.load(campingId, user) }
     when {
         state.loading -> Unit
@@ -75,6 +79,19 @@ fun MyPackingChecklistCard(
         }
         state.snapshot != null -> {
             val snapshot = requireNotNull(state.snapshot)
+            LaunchedEffect(snapshot.checkedItems, snapshot.totalItems, snapshot.campName) {
+                CampzoneWidgetPublisher.updatePacking(
+                    context,
+                    if (snapshot.hasItems) {
+                        WidgetPackingSummary(
+                            campName = snapshot.campName.orEmpty(),
+                            packedCount = snapshot.checkedItems,
+                            totalCount = snapshot.totalItems,
+                            campId = campingId,
+                        )
+                    } else null,
+                )
+            }
             Surface(
                 onClick = onOpenChecklist,
                 color = packingOverviewCardColor(),

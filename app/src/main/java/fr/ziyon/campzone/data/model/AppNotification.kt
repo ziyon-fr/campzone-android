@@ -28,6 +28,7 @@ data class AppNotification(
     val programId: String? = null,
     val pollId: String? = null,
     val teamId: String? = null,
+    val staffRoleId: String? = null,
     val role: String? = null,
     val senderId: String? = null,
     val messageId: String? = null,
@@ -93,7 +94,11 @@ data class AppNotification(
             }
 
             AppNotificationKind.ChatMessage, AppNotificationKind.ChatMention -> campingId?.let {
-                if (teamId != null) CampzoneDeepLink.TeamChat(it, teamId) else CampzoneDeepLink.CampingChat(it)
+                when {
+                    staffRoleId != null -> null
+                    teamId != null -> CampzoneDeepLink.TeamChat(it, teamId)
+                    else -> CampzoneDeepLink.CampingChat(it)
+                }
             }
 
             AppNotificationKind.Checklist -> if (campingId != null && shareId != null) {
@@ -199,6 +204,7 @@ internal fun Map<String, Any?>.toAppNotificationOrNull(documentId: String): AppN
         programId = programId,
         pollId = pollId,
         teamId = stringValue("teamID"),
+        staffRoleId = stringValue("staffRoleID"),
         role = stringValue("role") ?: NotificationTopics.roleFromTopic(rawStringValue("topic").orEmpty()),
         senderId = stringValue("senderId"),
         messageId = stringValue("messageId"),

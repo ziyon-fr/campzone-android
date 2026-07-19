@@ -756,7 +756,7 @@ private fun OnboardingScreenPreview() {
                 email = "preview@example.com",
                 displayName = "Preview Camper",
                 photoUrl = null,
-                role = UserRole.Guest,
+                role = UserRole.User,
                 church = "",
                 age = null,
                 preferredLanguage = "",

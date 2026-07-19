@@ -78,6 +78,27 @@ class NotificationTopicsTest {
     }
 
     @Test
+    fun subscribedStaffRoleAddsPrivateChatTopicWhenCampingScopeIsKnown() {
+        val settings = NotificationSettings(
+            subscribedStaffRoleIds = listOf("staff-worship"),
+            subscribedRoles = listOf(UserRole.User),
+        )
+        val subscriptions = NotificationTopics.visibleTopicSubscriptions(
+            role = UserRole.User,
+            settings = settings,
+            staffRoleCampingIds = mapOf("staff-worship" to "camp-1"),
+        )
+
+        assertTrue(subscriptions.contains(
+            NotificationTopicSubscription(
+                topic = "campzone_staff_role_chat_staff-worship",
+                campingId = "camp-1",
+                staffRoleId = "staff-worship",
+            ),
+        ))
+    }
+
+    @Test
     fun directUserTopicIsSuppressedWhenNotificationsAreDisabled() {
         val settings = NotificationSettings(isEnabled = false)
         val topics = NotificationTopics.visibleTopics(UserRole.User, settings, userId = "u1")
@@ -89,6 +110,7 @@ class NotificationTopicsTest {
         val settings = NotificationSettings(
             subscribedCampingIds = listOf("c1"),
             subscribedTeamIds = listOf("t1"),
+            subscribedStaffRoleIds = listOf("staff-worship"),
             subscribedRoles = listOf(UserRole.Adult),
         )
 
@@ -97,6 +119,7 @@ class NotificationTopicsTest {
             settings = settings,
             userId = "adult-1",
             teamCampingIds = mapOf("t1" to "c1"),
+            staffRoleCampingIds = mapOf("staff-worship" to "c1"),
         )
 
         assertTrue(subscriptions.contains(
@@ -117,6 +140,13 @@ class NotificationTopicsTest {
                 topic = "campzone_team_t1",
                 campingId = "c1",
                 teamId = "t1",
+            ),
+        ))
+        assertTrue(subscriptions.contains(
+            NotificationTopicSubscription(
+                topic = "campzone_staff_role_chat_staff-worship",
+                campingId = "c1",
+                staffRoleId = "staff-worship",
             ),
         ))
     }

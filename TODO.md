@@ -58,21 +58,21 @@
 ### A6. Auth & Session (`ui/auth/`) ✅
 
 - [x] Sign-in screen: Google + Apple buttons ( follow iOS design)
-- [x] On first sign-in: create `users/{uid}` doc with `role: "adult"`, `createdAt: serverTimestamp()`, `onboardingCompleted: false` - **merge: true**; do not overwrite existing `email`/`displayName`/`photoURL`
+- [x] On first sign-in: create `users/{uid}` doc with `role: "user"`, `createdAt: serverTimestamp()`, `onboardingCompleted: false` - **merge: true**; do not overwrite existing `email`/`displayName`/`photoURL`
 - [x] Session state: `StateFlow<AuthState>` (signed-out / onboarding-incomplete / signed-in)
 - [x] Sign-out clears local session; navigates to auth screen
 
 ### A7. Onboarding (`ui/onboarding/`) ✅
 
 - [x] Collect: age (derive `ageGroup`), church, preferred language, gender
-- [x] Write `users/{uid}` with `role: "adult"`, `onboardingCompleted: true`, `languages: [preferredLanguage]` (single element) - **merge: true**
+- [x] Write `users/{uid}` with `onboardingCompleted: true`, `languages: [preferredLanguage]` (single element), preserving the first-sign-in role - **merge: true**
 - [x] Apply `07` pre-write checklist: `age`/`ageGroup`/`gender` are **delete-when-nil** if blank; role stays within the self-assignable set
 - [x] Gate: show onboarding when `onboardingCompleted == false`; request FCM permission **after** onboarding completes (not at launch)
 
 ### A8. Profile View/Edit + Account Deletion (`ui/profile/`) ✅
 
 - [x] Profile screen: display all `users/{uid}` fields
-- [x] Edit screen: update self-profile field allowlist only (`displayName`, `age`, `ageGroup`, `gender`, `church`, `skills`, `profession`, `education`, `pathfinderRank`, `phone`, `preferredLanguage`, `languages`, `role` ∈ {guest/user/adult} only)
+- [x] Edit screen: update self-profile field allowlist only (`displayName`, `age`, `ageGroup`, `gender`, `church`, `skills`, `profession`, `education`, `pathfinderRank`, `phone`, `preferredLanguage`, `languages`, `role` in {user/adult} only)
 - [x] **Denormalization fan-out on save** (`02` §10): update `registrations` (CG `userID==uid`), `teams.members[]` (CG), `checkIns` (CG `userID==uid`), `chat` (CG `senderID==uid`), `announcements` (`authorID==uid`), `polls` (CG `createdByID==uid`)
 - [x] Profile photo upload: call `POST /cloudinary/sign` → upload multipart → persist `photoURL` + `photoPublicID` (delete-when-nil on clear)
 - [x] Account deletion: set `pendingDeletionAt: serverTimestamp()` + `deletionRequestedBy: uid`; cancel = `FieldValue.delete()` on both fields; purge is server-side (30-day grace)
@@ -354,7 +354,7 @@
 
 - [x] Admin tools: user management (read/update `users` docs; admin can set any role) — `RoleManagementScreen` + `RoleAssignmentService` (interface + Firestore + fake) + `RoleManagementViewModel`; `ManagedUser` decoded manually from the raw map (no POJO), `id`→`uid`→docId fallback
 - [x] Onboarding checklist UI (`AdminOnboardingScreen`, SharedPreferences-backed `AdminOnboardingViewModel`, 5 steps mirroring iOS — camping/announcement navigate, roles/rules/notifications toggle, progress ring + bar + reset); moderation queue reused (C9)
-- [x] Role assignment: admin → any (`assignableRoles` = all wire roles); own-church `youth_director`/`pastor` → only `guest`/`user`/`adult` (`selfAssignableRoles`); list church-filtered for non-admin assigners to match the RBAC read rule; church-scoped write stays `{role, updatedAt}` only
+- [x] Role assignment: admin -> any (`assignableRoles` = all wire roles); own-church `youth_director`/`pastor` -> only `user`/`adult` (`selfAssignableRoles`); list church-filtered for non-admin assigners to match the RBAC read rule; church-scoped write stays `{role, updatedAt}` only
 - [x] `id` field written on `users` doc for admin list decoder compatibility — stamped on the **admin** role-update only (`writeIdField`); the self-profile allowlist and `validChurchRoleAssignment` (affectedOnly role+updatedAt) forbid `id` on every other write path, so this is the only RBAC-compliant place
 - [x] Hub expanded (`AdminToolsScreen`): Operations (Setup Guide / Registration Review / Role Assignment) + Moderation + Infrastructure; restricted unless moderator OR admin-tools OR any-role-assigner; typed routes `RoleManagement`/`AdminOnboarding`; EN/FR/PT strings; build + unit tests (7 `RoleManagementViewModelTest`) + lint green
 
@@ -446,7 +446,7 @@ B9 Guidelines
 C1 Teams ✅
 C2 Games + points ✅
 C3 Winner reveal ✅
-C4 Chat (camping + team) ✅
+C4 Chat (camping + team + operations team) ✅
 C5 Polls ✅
 C6 QR check-in ✅
 C7 Badges ✅
@@ -454,6 +454,7 @@ C8 Album media ✅
 C9 Content moderation ✅
 C10 Notifications (FCM + in-app feed) ✅
 C11 Analytics ✅
+C12 Organizer-defined operations teams ✅
 
 D1 Transportation tickets ✅
 D2 Stripe payments ✅

@@ -94,7 +94,7 @@ duplicate/ghost record and (often) a denied read.
   approver UI sets status (`canApproveRegistrations`, only
   `registrationStatus`+`updatedAt`); the **backend** sets payment.
 - `users` self-update only the documented self-profile fields, `role`
-  only within `guest/user/adult`; extra/unknown keys fail the write.
+  only within `user/adult`; extra/unknown keys fail the write.
 - `activities` are immutable (`update:false`) and create requires
   `campingID==path` + `createdBy==auth.uid`.
 - camping `winnerRevealPolicy` is writable only via the reveal gate;
@@ -102,8 +102,8 @@ duplicate/ghost record and (often) a denied read.
 - camp `delete` needs `createdByUID==auth.uid` (or admin/own-church
   canceller) - **stamp `createdByUID` on create** or the creator can’t
   delete later.
-- Team writes must include a correct `memberUserIDs` (RBAC team-chat
-  membership reads it).
+- Team and staff-role writes must include a correct `memberUserIDs` (RBAC
+  private-chat membership reads it).
 - songs are **admin-only** writes (camping-scoped subcollection); legacy
   top-level `teams`/`schedules` are admin-only - never write them from a
   client; use `campings/{id}/teams` / `campings/{id}/schedule`.
@@ -130,7 +130,7 @@ store a float amount.
 ## 8. Denormalization fan-out on profile edit (or data drifts)
 
 Editing a profile must fan the new values, including `allergies`, into `registrations`,
-`teams.members[]`, `checkIns`, `chat` (as `sender*`), `announcements`
+`teams.members[]`, `staffRoles.members[]`, `checkIns`, `chat` (as `sender*`), `announcements`
 (as `author*`), `polls` (as `createdBy*`) via collection-group queries -
 see `02` §10. Skipping this leaves stale names/photos across the app.
 The Menu↔Program sync (`02` §4.5) is likewise application-level: write
@@ -146,7 +146,8 @@ subscription. Skipping the API = no pushes. The in-app feed
 (`ziyon_notifications`) is **backend-written, client read-only**; filter
 by `appID == "campzone"` + visible topics. Scoped feed queries must also
 carry the authorization metadata predicates: `campingID`, `role`, and/or
-`teamID` as appropriate. Firestore Rules are not post-query filters.
+`teamID`/`staffRoleID` as appropriate. Firestore Rules are not post-query
+filters.
 
 ## 10. Tolerant vs brittle reads
 
@@ -165,6 +166,7 @@ fails. Validate writes to `contentReports` especially strictly.
 4. Timestamps in the exact per-field form? (§2)
 5. Money in integer cents, currency case correct? (§7)
 6. Not writing a rule-forbidden field; writing rule-required ones
-   (`memberUserIDs`, `createdByUID`, `campingID==path`, …)? (§5)
+   (`memberUserIDs`, `createdByUID`, `campingID==path`, `staffRoleID==path`,
+   …)? (§5)
 7. Denormalized copies + paired docs fanned out? (§8, §4.5)
 8. Notifications: Firestore **and** backend API? (§9)

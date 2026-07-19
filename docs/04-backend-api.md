@@ -113,8 +113,9 @@ Body mirrors the settings doc (`02` §2.3): `appID`, `isEnabled`,
 `authorizationState`, `announcementsEnabled`, `chatMessagesEnabled`,
 `scheduleRemindersEnabled`, `roleMessagesEnabled`, `teamUpdatesEnabled`,
 `subscribedCampingIDs[]`, `subscribedRoles[]` **or**
-`subscribedRoleRawValues[]`, `subscribedTeamIDs[]`. Empty
-`subscribedRoleRawValues` defaults to `[req.user.role]`. The backend
+`subscribedRoleRawValues[]`, `subscribedTeamIDs[]`,
+`subscribedStaffRoleIDs[]`. Empty `subscribedRoleRawValues` defaults to
+`[req.user.role]`. The backend
 re-derives topics for every token of the user and re-subscribes.
 
 ### 3.4 `POST /notifications/reminders`
@@ -168,15 +169,18 @@ to any signed-in registrant.
 - `dispatch/announcement` - `{ announcementID, title, body,
   target?: { campingID?, role?, teamID? } }`. Topic =
   target-specific or global `campzone_announcements`.
-- `dispatch/chat` - `{ campingID, messageID, teamID?, replyToMessageID?,
-  replyToSenderID?, replyToSenderName? }`. The backend loads the chat
-  message, verifies `senderID == caller` and not deleted, pushes to
-  `campzone_camping_chat_<campingID>` (or `campzone_team_chat_<teamID>`),
-  and uses the persisted `replyTo` map (payload fields are fallback only) to
-  render reply-aware copy and send an extra direct-user notification/feed row
-  to the original author when appropriate. `dispatch/chatMention` also honors
-  reply targeting, but suppresses the extra direct reply notification when the
-  original author already receives the mention.
+- `dispatch/chat` - `{ campingID, messageID, teamID?, staffRoleID?,
+  replyToMessageID?, replyToSenderID?, replyToSenderName? }`. `teamID` and
+  `staffRoleID` are mutually exclusive. The backend loads the chat message,
+  verifies `senderID == caller` and not deleted, pushes to
+  `campzone_camping_chat_<campingID>`, `campzone_team_chat_<teamID>`, or
+  `campzone_staff_role_chat_<staffRoleID>`, and uses the persisted `replyTo`
+  map (payload fields are fallback only) to render reply-aware copy and send
+  an extra direct-user notification/feed row to the original author when
+  appropriate. `dispatch/chatMention` also honors reply targeting and derives
+  staff-role mention recipients from the role `members[]`, but suppresses the
+  extra direct reply notification when the original author already receives
+  the mention.
 - `dispatch/poll` - `{ campingID, pollID, title, body, event:
   "created"|"closed"|"reopened" }`. Topic `campzone_camping_<campingID>`.
 - `dispatch/team` - `{ campingID, teamID, teamName, title, body,
@@ -230,7 +234,8 @@ topics the in-app feed filters on:
 - Camping: `campzone_camping_<id>`; camping chat
   `campzone_camping_chat_<id>`; camping reminders
   `campzone_camping_reminders_<id>`; team `campzone_team_<id>`; team chat
-  `campzone_team_chat_<id>`.
+  `campzone_team_chat_<id>`; staff role chat
+  `campzone_staff_role_chat_<staffRoleID>`.
 
 The **feed** (`ziyon_notifications`) is filtered client-side by
 `appID == "campzone"` and visible topics (global + the user’s role
@@ -240,16 +245,18 @@ and `/notifications/settings`.
 
 Firestore feed listeners must be rules-provable: all use `topic == ...`;
 camping topics also constrain `campingID`, camping-role topics constrain both
-`campingID` and `role`, and team topics constrain `teamID` plus `campingID`
-for non-admin viewers. A topic-only scoped listener is denied because Rules
-cannot infer metadata fields from the topic text.
+`campingID` and `role`, team topics constrain `teamID` plus `campingID` for
+non-admin viewers, and staff-role topics constrain `staffRoleID` plus
+`campingID`. A topic-only scoped listener is denied because Rules cannot infer
+metadata fields from the topic text.
 
 ### 3.7 In-app feed records
 
 Backend writes to `ziyon_notifications` with: `appID`, `kind`
 (`announcement`/`badge`/`chat_message`/`poll`/`team_update`/`registration`),
-ids (`announcementID`/`achievementID`/`campingID`/`pollID`/`teamID` as relevant),
-`topic`, `messageId`, `title`, `body`, `role?`, `senderId`, `sentAt`
+ids (`announcementID`/`achievementID`/`campingID`/`pollID`/`teamID`/
+`staffRoleID` as relevant), `topic`, `messageId`, `title`, `body`, `role?`,
+`senderId`, `sentAt`
 (**ISO-8601 string** `…SSSZ`). Clients are **readers only** (RBAC
 forbids client writes). See `02` §6.5 for the read schema + tolerant
 decoder requirements.

@@ -56,7 +56,7 @@ class NotificationSettingsViewModel @Inject constructor(
     val channels: StateFlow<NotificationChannelsState> = _channels.asStateFlow()
 
     private var uid: String = ""
-    private var role: UserRole = UserRole.Guest
+    private var role: UserRole = UserRole.User
     private var loadedUid: String? = null
     private var channelsLoadedUid: String? = null
 

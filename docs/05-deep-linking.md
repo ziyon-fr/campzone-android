@@ -24,6 +24,10 @@ registrationReview(campingID)   // leadership: pending registrations
 achievements(userID, displayName?, photoURLString?, campingID?)
 achievement(userID, achievementID, ...)
 scheduleProgram(campingID, programID)
+schedule(campingID)
+campPass(campingID)
+packing(campingID)
+teams(campingID)
 transportation(campingID)
 transportationJoin(campingID, invitationCode)
 transportationInvitation(campingID, vehicleID, registrationID)
@@ -106,6 +110,10 @@ are deep-link destinations only and have **no** canonical share URL.
 | team update | route/host `team`/`teams`, `teamID` = first path component or `?teamID`/`?t`, camping id = `?c`/`?campingID` | none |
 | team points | route/host `points`/`point-history`, camping id = first path component or `?id`/`?c`/`?campingID`, optional `?teamID`/`?t` | none |
 | poll | route/host `poll`/`polls`, camping id = `?c`/`?campingID` or first path component, optional `?pollID`/`?p` | none |
+| schedule | route/host `schedule`/`camping-schedule`, camping id = first path component or `?id`/`?c`/`?campingID` | none |
+| camp pass | route/host `camp-pass`/`camp-passes`/`qr-pass`/`qr-passes`, camping id = first path component or `?id`/`?c`/`?campingID` | none |
+| packing checklist | route/host `packing`, camping id = first path component or `?id`/`?c`/`?campingID` | none |
+| teams | route/host `camping-teams`, camping id = first path component or `?id`/`?c`/`?campingID` | none |
 | registration review | route/host `registration`/`registration-review`, camping id = first path component or `?id`/`?c`/`?campingID` | none |
 | achievements/badge | route/host `achievement`/`achievements`/`badge`/`badges`, user id = first path component, optional `?achievementID`/`?badgeID`/`?a` | `https://campzone-web.vercel.app/badges/<userID>?achievementID=<id>` |
 | transportation join | route/host `transportation-join`, camping id = first path component, code = `?code`/`?invitationCode`/`?i` | `https://campzone-web.vercel.app/transportation-join/<campingID>?code=<code>` |
@@ -136,6 +144,10 @@ work in a browser. Recommended structure:
 | `registrationReview(campingID)` | `/campings/[id]` (admin section shows pending) |
 | `achievements(userID, ...)` | `/badges/[userId]` |
 | `scheduleProgram(campingID, programID)` | `/campings/[id]?programID=...` |
+| `schedule(campingID)` | `/campings/[id]` (schedule section) |
+| `campPass(campingID)` | `/campings/[id]` (QR passes section) |
+| `packing(campingID)` | `/campings/[id]` (packing checklist section) |
+| `teams(campingID)` | `/campings/[id]/teams` |
 | `transportation(campingID)` | `/campings/[id]?transportation=true` |
 | `packingShare(campingID, shareID, registrationID?)` | `/packing-share/[shareId]?c=<campingID>[&registrationID=<subjectRegistrationID>]` |
 | Home / Campings / Announcements / Profile | `/`, `/campings`, `/announcements`, `/profile` |
@@ -160,6 +172,10 @@ lands sensibly. Mirror this:
 - `registrationReview` → focused registration review for that camping
 - `achievements` → tab Profile → `[achievements]`; exact badge links open its detail sheet
 - `scheduleProgram` → `[campingDetail, scheduleProgram]`
+- `schedule` → `[campingDetail, campingSchedule]`
+- `campPass` → `[campingDetail, checkInQrPasses]`
+- `packing` → `[campingDetail, packingChecklist]`
+- `teams` → `[campingDetail, campingTeams]`
 - `transportation` → `[campingDetail, myTransportation]`; invitation and
   request links additionally open the relevant decision bottom sheet
 - `packingShare` → `[campingDetail, packingChecklistImport]`; optional

@@ -1,7 +1,6 @@
 package fr.ziyon.campzone.core.permissions
 
 enum class UserRole(val rawValue: String) {
-    Guest("guest"),
     User("user"),
     YouthDirector("youth_director"),
     Pastor("pastor"),
@@ -16,7 +15,6 @@ enum class UserRole(val rawValue: String) {
 
     val displayName: String
         get() = when (this) {
-            Guest -> "Guest"
             User -> "User"
             Adult -> "Adult"
             YouthDirector -> "Youth Director"
@@ -35,7 +33,7 @@ enum class UserRole(val rawValue: String) {
 
     companion object {
         val allWireRoles = entries
-        val selfAssignableRoles = setOf(Guest, User, Adult)
+        val selfAssignableRoles = setOf(User, Adult)
         val leadershipRoles = setOf(
             YouthDirector,
             Pastor,
@@ -46,8 +44,7 @@ enum class UserRole(val rawValue: String) {
         )
 
         fun fromWire(rawValue: String?): UserRole = when (rawValue?.trim()?.lowercase()) {
-            "guest" -> Guest
-            "user", "senior", "youth" -> User
+            "guest", "user", "senior", "youth" -> User
             "adult" -> Adult
             "youth_director" -> YouthDirector
             "pastor" -> Pastor
@@ -55,7 +52,7 @@ enum class UserRole(val rawValue: String) {
             "leader" -> Leader
             "photographer" -> Photographer
             "admin" -> Admin
-            else -> Guest
+            else -> User
         }
     }
 }

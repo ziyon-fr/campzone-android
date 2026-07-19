@@ -33,6 +33,29 @@ class CommunicationTest {
     }
 
     @Test
+    fun chatSendIncludesStaffRoleIdOnlyForStaffRoleChat() {
+        val message = ChatMessage(
+            id = "m1",
+            campingId = "camp-1",
+            senderId = "u1",
+            senderName = "Maria",
+            text = "Worship set is ready.",
+            staffRoleId = "staff-worship",
+        )
+        val campingChat = ChatMessagePayload.sendPayload(message, TS, isTeamChat = false)
+        assertFalse(campingChat.containsKey("staffRoleID"))
+
+        val staffRoleChat = ChatMessagePayload.sendPayload(
+            message,
+            TS,
+            isTeamChat = false,
+            isStaffRoleChat = true,
+        )
+        assertEquals("staff-worship", staffRoleChat["staffRoleID"])
+        assertEquals("staff-worship", staffRoleChat.toChatMessageOrNull("m1")?.staffRoleId)
+    }
+
+    @Test
     fun chatReplyAndReactionsRoundTrip() {
         val reply = ChatReplyReference(
             messageId = "orig",

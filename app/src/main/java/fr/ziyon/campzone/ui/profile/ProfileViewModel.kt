@@ -88,7 +88,7 @@ data class ProfileFormState(
     val email: String = "",
     val preferredLanguageCode: String = "",
     val languageCodes: List<String> = emptyList(),
-    val role: UserRole = UserRole.Guest,
+    val role: UserRole = UserRole.User,
 ) {
     val displayLanguages: String
         get() = languageCodes.joinToString(", ")

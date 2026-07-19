@@ -9,17 +9,16 @@
 Stack (from `build.gradle.kts` / `libs.versions.toml`): **Kotlin
 2.2.10**, **Jetpack Compose** (BOM 2026.02.01) + **Material 3**,
 `compileSdk 36`, `minSdk 24`, `targetSdk 36`, AGP 9.2.1, single-Activity.
-Package currently `com.example.campzone` (finalize the real application
-id before any release - keep consistent with the Firebase Android app’s
-package name).
+Package/application id is finalized as `fr.ziyon.campzone` and must stay
+consistent with the Firebase Android app, `google-services.json`, and Play
+Console signing fingerprints.
 
-Dependencies to add (not yet in the scaffold): Firebase BoM
+Core dependencies are wired through the version catalog: Firebase BoM
 (`firebase-auth`, `firebase-firestore`, `firebase-messaging`,
-`firebase-analytics`), Google Identity / Credential Manager + Sign in
-with Apple (Firebase `OAuthProvider`), Coil (Cloudinary image/video
-thumbs), Navigation-Compose, a DI framework (Hilt recommended),
-kotlinx-coroutines, and the Stripe Android SDK (PaymentSheet). See
-`09-setup.md`.
+`firebase-analytics`), Google Identity / Credential Manager + Sign in with
+Apple (Firebase `OAuthProvider`), Coil (Cloudinary image/video thumbs),
+Navigation-Compose, Hilt, kotlinx-coroutines, osmdroid, Markwon, ML Kit,
+ZXing, and the Stripe Android SDK (PaymentSheet). See `09-setup.md`.
 
 ---
 
@@ -87,7 +86,7 @@ mirroring iOS `Features/<Domain>/{Model,View,Observer,Service,Components}`.
 - **Auth**: Firebase Auth with **Google** (Credential Manager /
   Google Identity) and **Apple** (Firebase
   `OAuthProvider("apple.com")` web flow). First sign-in creates
-  `users/{uid}` (role `guest`); onboarding sets `onboardingCompleted`.
+  `users/{uid}` (role `user`); onboarding sets `onboardingCompleted`.
 - **Firestore**: enable disk persistence
   (`FirebaseFirestoreSettings` / `setLocalCacheSettings` persistent) for
   offline parity (songbook/schedule/camp program prioritized).

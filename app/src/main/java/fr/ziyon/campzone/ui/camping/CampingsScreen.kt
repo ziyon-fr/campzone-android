@@ -103,6 +103,7 @@ import fr.ziyon.campzone.core.permissions.CampingPermissionContext
 import fr.ziyon.campzone.core.permissions.PermissionUser
 import fr.ziyon.campzone.data.auth.AuthenticatedUser
 import fr.ziyon.campzone.data.model.Camping
+import fr.ziyon.campzone.data.model.CampingPhase
 import fr.ziyon.campzone.data.model.CampingPublicationStatus
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.OrganizerLevel
@@ -589,7 +590,7 @@ private fun HistoryCampingRow(
                     }
                 }
             }
-            CampingStatusPill(camping.effectiveRegistrationStatus)
+            CampingStatusPill(camping)
             Icon(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = null,
@@ -938,7 +939,7 @@ private fun CampingCardBanner(
                 ),
         )
         CampingStatusPill(
-            status = camping.effectiveRegistrationStatus,
+            camping = camping,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(CzSpacing.sm),
@@ -1289,7 +1290,7 @@ private fun CampingEventToolbar(
                 Text(stringResource(R.string.common_edit))
             }
         } else {
-            StatusBadge(status = camping.effectiveRegistrationStatus)
+            StatusBadge(camping = camping)
         }
     }
 }
@@ -1520,10 +1521,10 @@ private fun CampingImageFallback(
 // MARK: - Status Badge (mirrors iOS StatusBadge)
 
 @Composable
-private fun StatusBadge(status: CampingRegistrationStatus) {
-    val color = status.statusColor()
+private fun StatusBadge(camping: Camping) {
+    val color = camping.displayStatusColor()
     Text(
-        text = status.label(),
+        text = camping.displayStatusLabel(),
         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
         color = color,
         modifier = Modifier
@@ -1535,12 +1536,12 @@ private fun StatusBadge(status: CampingRegistrationStatus) {
 
 @Composable
 private fun CampingStatusPill(
-    status: CampingRegistrationStatus,
+    camping: Camping,
     modifier: Modifier = Modifier,
 ) {
-    val color = status.statusColor()
+    val color = camping.displayStatusColor()
     Text(
-        text = status.label(),
+        text = camping.displayStatusLabel(),
         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
         color = Color.White,
         modifier = modifier
@@ -1550,6 +1551,18 @@ private fun CampingStatusPill(
             .padding(horizontal = CzSpacing.sm, vertical = 4.dp),
     )
 }
+
+@Composable
+private fun Camping.displayStatusLabel(): String =
+    if (currentPhase == CampingPhase.Finished) currentPhase.label() else effectiveRegistrationStatus.label()
+
+@Composable
+private fun Camping.displayStatusColor(): Color =
+    if (currentPhase == CampingPhase.Finished) {
+        MaterialTheme.czColors.textSecondary
+    } else {
+        effectiveRegistrationStatus.statusColor()
+    }
 
 @Composable
 private fun CampingPublicationPill(

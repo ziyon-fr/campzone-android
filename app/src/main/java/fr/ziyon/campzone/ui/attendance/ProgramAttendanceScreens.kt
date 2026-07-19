@@ -458,10 +458,6 @@ private fun AttendanceCameraCard(
         hasPermission = granted
     }
 
-    LaunchedEffect(Unit) {
-        if (!hasPermission) launcher.launch(Manifest.permission.CAMERA)
-    }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()

@@ -121,6 +121,9 @@ import fr.ziyon.campzone.data.model.SongLyricsPart
 import fr.ziyon.campzone.data.model.SongLyricsPartKind
 import fr.ziyon.campzone.data.songbook.ChordProParser
 import fr.ziyon.campzone.data.songbook.ChordSymbolParser
+import fr.ziyon.campzone.data.songbook.SongDocumentItem
+import fr.ziyon.campzone.data.songbook.SongDocumentKind
+import fr.ziyon.campzone.data.songbook.SongPresentationDeckBuilder
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -213,6 +216,8 @@ fun SongDetailScreen(
     val colors = MaterialTheme.czColors
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var presentedDocument by remember { mutableStateOf<SongDocumentItem?>(null) }
+    var lyricsPresentationSong by remember { mutableStateOf<Song?>(null) }
     var mode by remember { mutableStateOf(SongDisplayMode.Lyrics) }
     val context = LocalContext.current
     val textSizePreferences = remember(context) {
@@ -312,15 +317,29 @@ fun SongDetailScreen(
                                 })
                             }
                             if (song.pdfLink.isNotBlank()) {
-                                DropdownMenuItem(text = { Text(stringResource(R.string.songbook_open_sheet_pdf)) }, leadingIcon = { Icon(Icons.Rounded.Description, null) }, onClick = {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.songbook_read_sheet_music)) }, leadingIcon = { Icon(Icons.Rounded.Description, null) }, onClick = {
                                     menuOpen = false
-                                    openUrl(context, song.pdfLink)
+                                    presentedDocument = SongDocumentItem(
+                                        kind = SongDocumentKind.SheetPdf,
+                                        remoteUrl = song.pdfLink,
+                                        title = song.title,
+                                    )
                                 })
                             }
-                            if (song.pptxLink.isNotBlank()) {
-                                DropdownMenuItem(text = { Text(stringResource(R.string.songbook_open_slides_pptx)) }, leadingIcon = { Icon(Icons.Rounded.Description, null) }, onClick = {
+                            if (song.canPresentSlides()) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.songbook_present_slides)) }, leadingIcon = { Icon(Icons.Rounded.PlayArrow, null) }, onClick = {
                                     menuOpen = false
-                                    openUrl(context, song.pptxLink)
+                                    if (SongPresentationDeckBuilder.deck(song).isNotEmpty()) {
+                                        lyricsPresentationSong = song
+                                    } else if (song.pptxLink.isNotBlank()) {
+                                        presentedDocument = SongDocumentItem(
+                                            kind = SongDocumentKind.Slides,
+                                            remoteUrl = song.pptxLink,
+                                            title = song.title,
+                                        )
+                                    } else {
+                                        lyricsPresentationSong = song
+                                    }
                                 })
                             }
                             if (canManage) {
@@ -427,6 +446,20 @@ fun SongDetailScreen(
             },
         )
     }
+
+    presentedDocument?.let { document ->
+        SongDocumentViewerDialog(
+            document = document,
+            onDismiss = { presentedDocument = null },
+        )
+    }
+
+    lyricsPresentationSong?.let { presentationSong ->
+        SongLyricsPresenterDialog(
+            song = presentationSong,
+            onDismiss = { lyricsPresentationSong = null },
+        )
+    }
 }
 
 private fun availableDisplayModes(song: Song): List<SongDisplayMode> = buildList {
@@ -434,6 +467,9 @@ private fun availableDisplayModes(song: Song): List<SongDisplayMode> = buildList
     val hasChords = song.chordSheet.lines.isNotEmpty() || song.chords.isNotBlank()
     if (hasChords) add(SongDisplayMode.Chords)
 }
+
+private fun Song.canPresentSlides(): Boolean =
+    pptxLink.isNotBlank() || SongPresentationDeckBuilder.deck(this).isNotEmpty()
 
 @Composable
 private fun SongDetailHeader(

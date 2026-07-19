@@ -1219,7 +1219,6 @@ private fun CampingAgeGroup.localizedName(): String =
 private fun UserRole.localizedName(): String =
     stringResource(
         when (this) {
-            UserRole.Guest -> R.string.role_guest
             UserRole.User -> R.string.role_user
             UserRole.Adult -> R.string.role_adult
             UserRole.YouthDirector -> R.string.role_youth_director
@@ -1301,7 +1300,7 @@ private fun ProfileContentPreview() {
         education = "Bachelor",
         pathfinderRank = "Guide",
         phone = "+33 6 00 00 00 00",
-        email = "guest@campzone.app",
+        email = "user@campzone.app",
         preferredLanguage = "fr",
         languages = listOf("pt", "fr"),
         role = UserRole.User,

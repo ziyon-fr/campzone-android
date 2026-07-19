@@ -51,8 +51,10 @@ class NotificationSettingsRulesTest {
         val settings = NotificationSettings(
             subscribedCampingIds = listOf(" camp-b ", "camp-a", "camp-a", "  "),
             subscribedTeamIds = listOf("t2", "t1", "t1"),
+            subscribedStaffRoleIds = listOf(" staff-worship ", "staff-games", "staff-worship"),
         ).sanitized()
         assertEquals(listOf("camp-a", "camp-b"), settings.subscribedCampingIds)
         assertEquals(listOf("t1", "t2"), settings.subscribedTeamIds)
+        assertEquals(listOf("staff-games", "staff-worship"), settings.subscribedStaffRoleIds)
     }
 }

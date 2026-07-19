@@ -1,3 +1,54 @@
+# Project Status - Album grid and Auth keyboard parity
+
+Updated: 2026-07-19
+
+- Source of truth audited: current iOS Album layout ownership in
+  `CampingAlbumView.swift` and `MediaThumbnailView.swift`, plus the current iOS
+  login keyboard behavior in `SignInView.swift`.
+- Mirrored the confirmed iOS Album behavior into Android: Android
+  `CampingAlbumScreen.kt` now routes each media item through an explicit square
+  `AlbumGridCell`, and the thumbnail/content composable only draws inside that
+  reserved clipped slot.
+- Fixed the login keyboard avoidance path on both platforms: iOS `SignInView`
+  no longer ignores the keyboard safe area for scroll content, while Android
+  `AuthScreen` applies IME padding to the scroll container and `MainActivity`
+  uses `adjustResize`.
+- Verification passed: iOS Debug simulator build with the scoped auth/album
+  files, Android `:app:compileDebugKotlin` with Android Studio JBR, and scoped
+  `git diff --check` for the touched iOS/Android files.
+- Remaining verification: device/emulator smoke for Android Album scrolling and
+  both login forms with the keyboard visible.
+
+---
+
+# Project Status - iOS to Android parity closeout
+
+Updated: 2026-07-16
+
+- Source of truth audited: latest clean iOS commit `3cf4f35` plus the current
+  Android dirty parity set, with special attention to auth roles, widgets,
+  Album, Songbook documents, transportation, deep links, backup metadata,
+  localization, and release/build wiring.
+- Fixed a real transportation parity gap from iOS
+  `TransportationActionSubjectResolver`: Android now lets a guardian who is not
+  personally attending arrange transport for the first approved child they
+  registered, instead of requiring a self-registration row. The same resolver is
+  used by the transport card, carpool hub, and vehicle form path.
+- Corrected `TODO.md` so the auth ledger matches the shared iOS contract:
+  first sign-in creates `users/{uid}.role = "user"`, and onboarding preserves
+  that role instead of promoting it.
+- No source-confirmed Android implementation gaps remain from this parity
+  check. Remaining tracker rows are still device/live-service VERIFY items:
+  Album scroll/external-video smoke, widget launcher behavior, Songbook
+  PDF/PPTX/presentation visuals, Cantus proxy/device import, transportation
+  route/device flows, and broad light/dark/TalkBack checks.
+- Verification passed with Android Studio JBR:
+  `./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --console=plain`;
+  EN/FR/PT/PT-BR string-key parity; `xmllint` for manifest/resources/widget XML;
+  and `git diff --check`.
+
+---
+
 # Project Status - Album performance and external video parity
 
 Updated: 2026-07-16
@@ -16,9 +67,135 @@ Updated: 2026-07-16
 - Album refresh now preserves already loaded media when a warm reload fails,
   and the grid uses stable square cells with thumbnail placeholders for
   external videos so scrolling does not jump or stack thumbnails.
+- Full-screen album gallery controls now respect safe drawing insets so the back
+  and open actions stay inside the visible/tappable toolbar area on rounded or
+  notched devices.
 - Updated the shared Firestore schema/tracker notes plus English, French,
   Portuguese, and Portuguese-Brazil album strings for the new add-video flow.
 - Verification in this pass: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :app:testDebugUnitTest --tests fr.ziyon.campzone.data.model.MediaSongTest --tests fr.ziyon.campzone.ui.album.AlbumViewModelTest --console=plain` passed.
+  Follow-up toolbar safe-area verification: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :app:compileDebugKotlin --console=plain` passed.
+
+---
+
+# Project Status - Android next-release readiness
+
+Updated: 2026-07-05
+
+- Release audit source of truth: Android `CLAUDE.md`, setup/architecture docs,
+  Gradle release config, manifest/backup metadata, Firebase package alignment,
+  auth/onboarding payload tests, widget metadata, and the minified release
+  bundle path.
+- Fixed the auth release blocker exposed by the full unit test suite:
+  first sign-in now creates the Firestore user mirror with `uid` and the
+  iOS/shared-contract default `role = user`; completing onboarding preserves
+  the existing role while setting profile-completion fields.
+- Hardened Android backup/transfer policy for release: app-private backup is
+  disabled in the manifest and both API 31+ data-extraction rules plus legacy
+  full-backup rules explicitly exclude private root/file/database/sharedpref/
+  external domains instead of shipping the generated TODO templates.
+- Added release signing wiring that reads the upload-key values from ignored
+  `local.properties` or CI environment variables. The build signs release
+  artifacts only when all four `CAMPZONE_RELEASE_*` values are present and
+  fails fast on partial signing configuration.
+- Increased the Gradle daemon heap/metaspace budget after the first R8 release
+  pass warned about exhausting the old 2 GiB daemon heap; the release bundle
+  then rebuilt without the heap warning.
+- Refreshed setup/architecture docs so the release baseline names the real
+  `fr.ziyon.campzone` package, checked-in Firebase Android config, release
+  signing variables, production backend URL, and required release gates.
+- Verification passed with Android Studio JBR:
+  `./gradlew :app:testDebugUnitTest :app:lintDebug :app:bundleRelease --console=plain`;
+  widget/backup XML parsing via `xmllint`; `git diff --check`; and unsigned
+  bundle inspection via `zipinfo`/`jarsigner`.
+- Remaining operational release step: provide the Play upload keystore through
+  `CAMPZONE_RELEASE_STORE_FILE`, `CAMPZONE_RELEASE_STORE_PASSWORD`,
+  `CAMPZONE_RELEASE_KEY_ALIAS`, and `CAMPZONE_RELEASE_KEY_PASSWORD`, then rerun
+  `./gradlew :app:bundleRelease`. Without those local/CI secrets, the current
+  `app-release.aab` is structurally valid but unsigned and not yet uploadable.
+
+---
+
+# Project Status - Android camp widgets parity
+
+Updated: 2026-07-05
+
+- Added native Android App Widgets for the camp countdown, up-next schedule,
+  camp pass QR, packing progress, team standings, and latest announcement
+  surfaces to mirror the new iOS WidgetKit experience.
+- Widget snapshots are published from the existing Home, Packing, and Teams
+  flows and stored locally so launcher widgets can render without depending on
+  a live Compose screen.
+- Android widget UI was rechecked against the iOS widget structure while
+  preserving native AppWidget/RemoteViews components: countdown uses the ember
+  surface, pass uses the dark ticket/QR row, packing/team use metric-forward
+  layouts, and announcements show the recency label.
+- Added `android:previewLayout` metadata plus RemoteViews-safe static preview
+  layouts for every Android widget so the launcher picker shows real Campzone
+  previews instead of falling back to the app icon.
+- Added iOS-equivalent native Android widget families where Android supports
+  them: compact and wide Countdown, Up Next, Camp Pass, and Team Standings;
+  medium and large Announcement; compact Packing.
+- Widget taps now mirror iOS `.widgetURL` destinations instead of always opening
+  camp detail: Up Next opens the active/next program or schedule, Camp Pass opens
+  QR passes, Packing opens the checklist, Team opens the team detail or teams
+  list, and Announcement opens the announcement detail.
+- Widgets schedule native refresh alarms at camp/program boundaries and the next
+  midnight so Up Next and camp day/countdown states flip close to the same time
+  as the iOS WidgetKit timeline.
+- Team standings respect the same score-hidden guard as iOS: when camp scores
+  are hidden, the Android widget clears its team snapshot instead of leaking
+  rank or points.
+- Sign-out and signed-out auth-state transitions clear the local widget
+  snapshot so pass, packing, team, and announcement data do not persist across
+  accounts.
+- Added English, French, Portuguese, and Portuguese-Brazil widget copy plus
+  receiver labels for the launcher widget picker.
+- Verification in this pass: `./gradlew :app:compileDebugKotlin` succeeded;
+  `./gradlew :app:assembleDebug` succeeded after the sign-out privacy cleanup.
+  Final `./gradlew :app:assembleDebug` and widget XML parsing also succeeded
+  after the RemoteViews visual-parity cleanup; `./gradlew :app:assembleDebug`
+  and widget preview XML parsing succeeded after adding launcher previews.
+  Follow-up widget parity verification passed with focused
+  `CampzoneWidgetDeepLinkTest`/`CampzoneDeepLinkTest`, widget/manifest
+  `xmllint`, `./gradlew :app:assembleDebug`, and `./gradlew :app:lintDebug`.
+
+---
+
+# Project Status - Songbook document reader and presentation parity
+
+Updated: 2026-07-05
+
+- Source of truth audited: Android `CLAUDE.md`, shared parity tracker/status,
+  and current iOS dirty-tree Songbook changes in `SongDetailView.swift`,
+  `SheetPerformanceView.swift`, and the new `Components/DocumentViewer/*`
+  stack (`SongSheetReaderView`, `SongSlidesPresenterView`,
+  `SongLyricsPresenterView`, `SongPresentationDeck`,
+  `SongDocumentDownloader`, `SlidesPDFConverter`, and
+  `PPTXSlideSizeReader`).
+- Android Song detail no longer opens sheet PDFs/PPTX links as bare external
+  URLs. `Read Sheet Music` now presents a full-screen in-app PDF reader with
+  cached downloads, keep-awake behavior, continuous-scroll and page-swipe
+  modes, page labels, and PDF sharing through the existing FileProvider.
+- `Present Slides` now mirrors the iOS priority order: build a native
+  full-screen lyrics deck from chorded lyrics/chord sheets or structured
+  lyrics parts first, with centered cream-on-black slides, gold section labels,
+  auto-hiding presentation chrome, landscape presentation mode, and keep-awake
+  behavior.
+- PPTX-only songs are cached under app cache and stay in-app through an
+  embedded document preview; if Android WebView cannot preview the Office deck,
+  the user gets a clear cached share/open-with fallback instead of a silent
+  failure.
+- Added pure Songbook document helpers for deterministic URL-cache naming,
+  native presentation deck building, and PPTX slide-size metadata parsing,
+  plus focused unit coverage for those contracts.
+- Verification (Android Studio JBR): focused `SongPresentationDeckTest`,
+  `:app:compileDebugKotlin`, `:app:lintDebug`, `:app:assembleDebug`,
+  strings-only EN/FR/PT/PT-BR key parity for the new Songbook keys, and
+  `git diff --check` passed. Full `:app:testDebugUnitTest` was also run but
+  remains blocked by four unrelated auth/onboarding payload assertions
+  (`SignInUserPayloadTest`, `OnboardingProfilePayloadTest`) with no auth
+  source or test changes in this patch. Device visual comparison against iOS
+  remains.
 
 ---
 
@@ -619,8 +796,8 @@ Updated: 2026-06-23
   broad feed listeners, while admins retain their unrestricted team scope.
 - Verification: focused games/notification tests, the full
   `testDebugUnitTest` suite, `lintDebug`, and `assembleDebug` passed. The
-  shared Firestore emulator suite passed 26/26 across guest, user,
-  adult, youth director, pastor, leader, game master, photographer, and admin;
+  shared Firestore emulator suite passed 26/26 across user, adult,
+  youth director, pastor, leader, game master, photographer, and admin;
   the tested rules were deployed to Firebase project `campzone-aeb7e`.
 
 ---
@@ -1143,11 +1320,10 @@ Updated: 2026-06-02
 - Church selector: replaced the free-text church field with the shared
   `ChurchPickerBottomSheet` used by the rest of the app; the shared picker now
   localizes its selected-state OK label and load-error fallback.
-- Role default: first sign-in now seeds `users/{uid}.role = "adult"` instead of
-  `"guest"` for new/missing-role profiles, and onboarding completion also
-  stamps `"adult"` while staying inside the self-assignable RBAC set.
-- Handoff sync: updated `TODO.md` A6/A7 notes to reflect the adult initial role
-  and onboarding role write.
+- Role default: first sign-in now seeds `users/{uid}.role = "user"` for
+  new/missing-role profiles, and onboarding completion no longer stamps a role.
+- Handoff sync: updated `TODO.md` A6/A7 notes to reflect the user initial role
+  and onboarding role preservation.
 - Verification (JBR): focused
   `:app:testDebugUnitTest --tests fr.ziyon.campzone.data.auth.OnboardingProfilePayloadTest --tests fr.ziyon.campzone.data.auth.SignInUserPayloadTest`
   green; `:app:assembleDebug` green; `:app:lintDebug` green.
@@ -1398,7 +1574,7 @@ report model were already shipped; D7 reuses them.
   (it falls back to the document id).
 - **Role assignment in-app**: unlike iOS (which defers leadership grants to the
   Firebase console), the Android hub assigns roles in-app — admins can grant any
-  role, church-scoped youth_director/pastor only guest/user/adult, exactly per
+  role, church-scoped youth_director/pastor only user/adult, exactly per
   the deployed `validChurchRoleAssignment` rule. The onboarding "Assign
   leadership roles" step is still a manual toggle to mirror the iOS checklist.
 - Implemented under `ui/admin/role/` + `ui/admin/onboarding/` + `data/admin/`.
@@ -1641,3 +1817,43 @@ report model were already shipped; D7 reuses them.
     notification/action-subject contract.
 - Verification (JAVA_HOME = Android Studio JBR):
   - `./gradlew testDebugUnitTest --tests 'fr.ziyon.campzone.core.navigation.CampzoneDeepLinkTest' --tests 'fr.ziyon.campzone.data.model.AppNotificationDeepLinkTest' --tests 'fr.ziyon.campzone.data.model.AppNotificationTest' --tests 'fr.ziyon.campzone.data.model.EnumWireValueTest' --tests 'fr.ziyon.campzone.ui.vehicle.VehicleUiStateTest' --console=plain` SUCCESSFUL.
+
+---
+
+# Project Status - Cross-Platform Camping Operations Teams UI
+
+- Updated: 2026-07-16 CEST
+- Scope shipped on iOS and Android:
+  - Discoverable Operations Teams entry in Camping detail.
+  - Rules-aware assigned-team list for participants and full list for managers.
+  - Team detail with purpose, responsibility areas, members, per-member titles,
+    and private-chat entry.
+  - Full manager CRUD for organizer-defined team type, name, instructions,
+    appearance, approved-member assignments, responsibility titles,
+    capability labels, private-chat policy, and deletion.
+  - Private staff-role chat reuses the production chat timeline, composer,
+    mentions, attachments, reactions, replies, moderation, blocking, and
+    soft-delete behavior with `staffRoleID` scope.
+- Permission/data integrity:
+  - Client manager gates match deployed `canManageStaffRoles` Rules exactly.
+  - Non-managers query with `memberUserIDs array-contains uid`; no denied
+    unscoped collection read is attempted.
+  - Capabilities describe team responsibility and do not bypass existing
+    Firestore RBAC gates.
+- Localization/accessibility:
+  - Android EN/FR/PT/PT-BR keys are complete for the feature.
+  - iOS FR/PT-BR catalog entries include real singular/plural member variants.
+  - Icon buttons, avatars, and 48dp color swatches expose accessible labels and
+    selection state.
+- Shared contract docs:
+  - Corrected `StaffRoleKind`, `StaffCapability`, default symbol/color/member
+    title, and parity descriptions in Android and web `docs/02` + `docs/08`.
+- Verification:
+  - Android `compileDebugKotlin` SUCCESSFUL.
+  - Android focused permission + `StaffRoleViewModel` tests SUCCESSFUL.
+  - Android `lintDebug assembleDebug` SUCCESSFUL.
+  - iOS simulator build SUCCESSFUL.
+  - iOS focused `AppPermissionTests` + `StaffRoleObserverTests` SUCCESSFUL.
+  - Full Android suite: 595/600 passed; four pre-existing
+    `CampingRegistrationViewModelTest` assertions remain reproducibly failing,
+    and one dashboard ordering test failed once but passed in isolation.

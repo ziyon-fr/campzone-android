@@ -16,14 +16,18 @@ class AppPermissionEvaluator {
     fun can(
         user: PermissionUser?,
         permission: AppPermission,
-    ): Boolean = (user?.role ?: UserRole.Guest).permissions.contains(permission)
+    ): Boolean = if (user == null) {
+        permission in signedOutPermissions
+    } else {
+        user.role.permissions.contains(permission)
+    }
 
     fun hasPermission(
         user: PermissionUser?,
         permission: AppPermission,
         camping: CampingPermissionContext? = null,
     ): Boolean {
-        val role = user?.role ?: UserRole.Guest
+        val role = user?.role ?: UserRole.User
         if (role.isAdmin) return true
 
         return when (permission) {
@@ -145,6 +149,16 @@ class AppPermissionEvaluator {
         camping: CampingPermissionContext?,
     ): Boolean = user.isCampingCreator(camping) ||
         canManageScoped(user, AppPermission.ManageTeams, camping)
+
+    /** Matches the deployed `canManageStaffRoles` Firestore helper exactly. */
+    fun canManageStaffRoles(
+        user: PermissionUser?,
+        camping: CampingPermissionContext?,
+    ): Boolean {
+        if (user?.role == UserRole.Admin || user.isCampingCreator(camping)) return true
+        return user?.role in setOf(UserRole.YouthDirector, UserRole.Pastor, UserRole.Leader) &&
+            user.isOwnChurchCamping(camping)
+    }
 
     fun canManageGames(
         user: PermissionUser?,
@@ -315,14 +329,14 @@ class AppPermissionEvaluator {
     private fun PermissionUser?.normalizedChurch(): String? =
         this?.church?.trim()?.takeUnless { it.isBlank() }
 
+    private val signedOutPermissions = setOf(
+        AppPermission.ViewPublishedCampings,
+        AppPermission.ViewAnnouncements,
+        AppPermission.ViewSongbook,
+    )
+
     private val UserRole.permissions: Set<AppPermission>
         get() = when (this) {
-            UserRole.Guest -> setOf(
-                AppPermission.ViewPublishedCampings,
-                AppPermission.ViewAnnouncements,
-                AppPermission.ViewSongbook,
-            )
-
             UserRole.User -> setOf(
                 AppPermission.ViewPublishedCampings,
                 AppPermission.RegisterForCampings,

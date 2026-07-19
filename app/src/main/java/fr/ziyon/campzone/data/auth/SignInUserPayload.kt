@@ -10,7 +10,7 @@ internal data class SignInIdentity(
 )
 
 internal object SignInUserPayload {
-    private const val InitialRole = "guest"
+    private const val InitialRole = "user"
 
     fun mergePayload(
         identity: SignInIdentity,

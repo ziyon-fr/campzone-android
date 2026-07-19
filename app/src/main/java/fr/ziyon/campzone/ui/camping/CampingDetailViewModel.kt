@@ -68,6 +68,7 @@ data class CampingDetailUiState(
     val canManageFoodMenu: Boolean = false,
     val canEditGuidelines: Boolean = false,
     val canManageTeams: Boolean = false,
+    val canManageStaffRoles: Boolean = false,
     val canManageGames: Boolean = false,
     val canRevealWinners: Boolean = false,
     val canManageAlbumMedia: Boolean = false,
@@ -153,7 +154,7 @@ data class CampingDetailUiState(
 
     val showManagementSection: Boolean
         get() = canManageAnyCamping || canManageTransportation || wasCreatedByCurrentUser ||
-            canManageTeams || canManageSchedule || canManageCheckIns || canManageAlbumMedia ||
+            canManageTeams || canManageStaffRoles || canManageSchedule || canManageCheckIns || canManageAlbumMedia ||
             canCreateRecurringCamp
 
     private fun matchesFilters(attendee: CampingAttendee): Boolean {
@@ -268,6 +269,7 @@ class CampingDetailViewModel @Inject constructor(
                     }
                     val canManageSchedule = permissions.canManageSchedule(permissionUser, context)
                     val canManageTeams = permissions.canManageTeams(permissionUser, context)
+                    val canManageStaffRoles = permissions.canManageStaffRoles(permissionUser, context)
                     val canManageGames = permissions.canManageGames(permissionUser, context)
                     val canCreateRecurringCamp = permissions.canCreateCamping(permissionUser, context) &&
                         (
@@ -302,6 +304,7 @@ class CampingDetailViewModel @Inject constructor(
                         canManageFoodMenu = permissions.canManageFoodMenu(permissionUser, context),
                         canEditGuidelines = permissions.canEditGuidelines(permissionUser, context),
                         canManageTeams = canManageTeams,
+                        canManageStaffRoles = canManageStaffRoles,
                         canManageGames = canManageGames,
                         canRevealWinners = permissions.canRevealWinners(permissionUser, context),
                         canManageAlbumMedia = permissions.canManageAlbumMedia(permissionUser, context),

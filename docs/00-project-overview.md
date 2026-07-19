@@ -27,7 +27,7 @@ achievements, and payments.
 
 ## Product principles
 
-- **Role-based access** (guest → user → adult → leadership → admin),
+- **Role-based access** (public browsing -> user -> adult -> leadership -> admin),
   server-enforced by Firestore Security Rules; church-scoped for
   non-admin leadership. See `03-rbac-and-security.md`.
 - **Registration requires admin/leadership approval** (paid camps

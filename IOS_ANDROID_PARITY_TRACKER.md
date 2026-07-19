@@ -1,6 +1,6 @@
 # iOS → Android Parity Tracker
 
-Last updated: 2026-07-16
+Last updated: 2026-07-19
 
 Android repository: `/Users/leon/AndroidStudioProjects/Campzone`
 iOS source of truth: `/Users/leon/Desktop/Business Projects/Campzone/Campzone`
@@ -36,8 +36,8 @@ must be intentional and recorded here.
 | Bucket | Count | Meaning |
 | --- | ---: | --- |
 | Remaining implementation gaps | 0 | No source-confirmed implementation gap remains in the current iOS working-tree audit; device findings can reopen this count |
-| Partial / verification queue | 22 | Includes the broader audits plus the latest high-visibility polish, Cantus catalog import, and Album device scroll/gesture smoke awaiting device/UI or external-service acceptance |
-| Automated-verified implementations | 35 | Baseline slices plus the completed correctness, Songbook, resource-gate, album-permission, family-query, stale-link, structured-menu, Camping-management, team-scoring, auto-balance, Songbook-row, checklist-share, vehicle-offer, vehicle self-removal, and vehicle seat-accounting closures |
+| Partial / verification queue | 25 | Includes the broader audits plus the latest high-visibility polish, Cantus catalog import, Songbook document presenter, Album device scroll/gesture smoke, and Auth keyboard smoke awaiting device/UI or external-service acceptance |
+| Automated-verified implementations | 38 | Baseline slices plus the completed correctness, Songbook, resource-gate, album-permission, family-query, stale-link, structured-menu, Camping-management, team-scoring, auto-balance, Songbook-row, checklist-share, vehicle-offer, vehicle self-removal, vehicle seat-accounting, widget family/deep-link closures, and guardian-only transport subject closure |
 | Intentional platform adaptations | 5 | Do not port literally |
 
 ## Execution order
@@ -50,6 +50,33 @@ must be intentional and recorded here.
 
 ---
 
+## Parity updates from the 2026-07-19 Album layout and Auth keyboard pass
+
+iOS source reviewed: current iOS fixes in `CampingAlbumView.swift`,
+`MediaThumbnailView.swift`, and `SignInView.swift`.
+
+| ID | Status | iOS source / behavior | Android evidence | Required Android result | Verification |
+| --- | --- | --- | --- | --- | --- |
+| ALBUM-004 | VERIFY | iOS confirms `AlbumGridCell` owns the exact square slot and `MediaThumbnailView` only renders inside the frame it receives, preventing thumbnail views from influencing `LazyVGrid` row height. | Android `CampingAlbumScreen.kt` now routes grid items through `AlbumGridCell`, where the Compose slot owns `aspectRatio(1f)`, clipping, click handling, and media content fills only that stable square. | Album thumbnails must not overlap, stack, or resize out of their grid cells while scrolling; image/video previews draw only inside the reserved slot. | iOS Debug simulator build, Android `:app:compileDebugKotlin`, and scoped `git diff --check` passed 2026-07-19. Device scroll/gesture smoke remains. |
+| AUTH-002 | VERIFY | iOS `SignInView` stops applying `.ignoresSafeArea()` to the scroll content so the keyboard safe area can move the form while the full-bleed background remains intact. | Android `AuthScreen` now applies `imePadding()` to the scroll content and `MainActivity` declares `android:windowSoftInputMode="adjustResize"`. | Login text fields must stay reachable when the keyboard is visible on both platforms. | iOS Debug simulator build, Android `:app:compileDebugKotlin`, and scoped `git diff --check` passed 2026-07-19. Device keyboard smoke remains. |
+
+---
+
+## Parity closeout from the 2026-07-16 iOS remaining-updates commit
+
+iOS source reviewed: clean iOS commit `3cf4f35` ("Commit remaining Campzone
+updates"), including `TransportationHubView.swift`,
+`CampingRegistrationSubmission.swift`, auth/user role changes, widgets/live
+activity changes, check-in/transportation split files, Album, Songbook, and
+localization updates.
+
+| ID | Status | iOS source / behavior | Android evidence | Required Android result | Verification |
+| --- | --- | --- | --- | --- | --- |
+| TRANSPORT-006 | DONE | iOS `TransportationActionSubjectResolver.primarySubject` lets a guardian who registered only approved children arrange transport for the first approved child, while preserving self-registration as the primary flow and invitation links as explicit child subjects. | Android now adds `VehicleUiState.primarySubjectAttendee`, uses it from `actionSubjectAttendee`, `MyVehicleCard`, and `VehicleFormRoute`, and keeps invitation subject routing intact. `TODO.md` was also corrected so the auth ledger says first sign-in creates `role = "user"` and onboarding preserves it. | A guardian without their own approved attendee row can open the transport card/hub/form for an approved child instead of seeing "Approval needed"; pending children are ignored and self-attendee flow still wins when present. | Focused `VehicleUiStateTest` coverage plus full `:app:testDebugUnitTest`, `:app:lintDebug`, `:app:assembleDebug`, EN/FR/PT/PT-BR string-key parity, `xmllint`, and `git diff --check` passed 2026-07-16. |
+| AUD-2026-07-16 | VERIFY | The latest iOS remaining-updates commit touches auth roles, widgets/live activities, registration payloads, check-in, transportation tickets/carpool hub, Album, Songbook, profile/admin polish, backup/rules docs, and localization. | Android source now covers the role-default contract, widget families/deep links/timeline refreshes, Album external-video/performance behavior, Songbook document reader/presenter, check-in camera stability, backup/release metadata, transportation tickets/carpool workflows, and the guardian-only transport resolver above. | Keep zero source-confirmed implementation gaps, but continue device/live-service verification for gesture feel, launcher widgets, external media, Cantus proxy import, PDF/PPTX presentation visuals, transportation decision flows, dark/light screenshots, and TalkBack traversal. | Full local gate passed 2026-07-16 with Android Studio JBR: `:app:testDebugUnitTest`, `:app:lintDebug`, `:app:assembleDebug`, string-key parity, XML parsing, and `git diff --check`. |
+
+---
+
 ## Parity updates from the 2026-07-16 iOS Album performance pass
 
 iOS source reviewed: current Album performance/layout changes in
@@ -59,6 +86,34 @@ iOS source reviewed: current Album performance/layout changes in
 | ID | Status | iOS source / behavior | Android evidence | Required Android result | Verification |
 | --- | --- | --- | --- | --- | --- |
 | ALBUM-003 | VERIFY | iOS adds the external-video media source contract, avoids rereading/reloading Album content during warm refresh, stabilizes the square grid thumbnails, and keeps remote media handling lightweight. | Android now decodes/writes `source`, `externalURL`, optional `publicID`, and playback URLs; Album refresh preserves loaded media on failure; library uploads stream from a temporary cache file instead of a whole in-memory byte array; the add menu separates library upload from external-video links; and grid tiles use stable `aspectRatio(1f)` cells with external-video placeholders. | Device-check scroll/drag behavior and external-video launch on a real/emulated phone, while keeping the Firestore media contract compatible with Cloudinary rows and link-backed videos. | Focused `MediaSongTest` and `AlbumViewModelTest` passed 2026-07-16; `:app:testDebugUnitTest` included an up-to-date debug Kotlin compile path for these changes. |
+
+---
+
+## Parity updates from the 2026-07-05 widget parity recheck
+
+iOS source reviewed: current widget implementation in `HomeWidgetSync.swift`,
+`CampzoneWidgetProvider.swift`, `CampzoneWidgetSharedKit.swift`, and
+`CampzoneWidget/Widgets/*`.
+
+| ID | Status | iOS source / behavior | Android evidence | Required Android result | Verification |
+| --- | --- | --- | --- | --- | --- |
+| WIDGET-001 | DONE | iOS exposes multiple WidgetKit families for the same surfaces: compact cards, medium rows, announcement large, and accessory/keyguard-style variants where the platform supports them. | Android now keeps the compact native AppWidget providers and adds wide native providers for Camp Countdown, Up Next, Camp Pass, and Team Standings; Announcement now defaults to a medium 4x2 provider and adds a large 4x4 provider. Packing remains compact because iOS only has a small home-screen family for that surface; Android keyguard category remains declared where Android launchers honor it. | Android launcher picker should no longer show only 2x2 choices for surfaces that have iOS medium/large equivalents, while still using native AppWidget/RemoteViews providers. | Widget XML parsing, focused widget/deep-link tests, `:app:assembleDebug`, and `:app:lintDebug` passed 2026-07-05. |
+| WIDGET-002 | DONE | iOS widgets use surface-specific `.widgetURL` routes and provider timeline boundaries so taps open the exact destination and Up Next/day counters refresh at program boundaries and midnight. | Android widget snapshots now carry program/camp/team IDs; widget PendingIntents resolve Countdown→camp, Up Next→program or schedule, Pass→camp pass, Packing→packing checklist, Team→team detail or teams list, and Announcement→announcement. Android also parses the iOS widget routes (`schedule`, `camp-pass`, `packing`, `camping-teams`) and schedules native widget refresh alarms at camp/program boundaries and midnight. | Widget taps must match iOS destinations instead of always opening camp detail, and widgets should refresh when their displayed state flips instead of waiting only for the coarse AppWidget period. | Focused `CampzoneWidgetDeepLinkTest` and `CampzoneDeepLinkTest`, `xmllint`, `:app:assembleDebug`, and `:app:lintDebug` passed 2026-07-05. |
+
+---
+
+## Parity updates from the 2026-07-05 iOS document viewer audit
+
+iOS source reviewed: current dirty-tree Songbook document/presenter changes in
+`SongDetailView.swift`, `SheetPerformanceView.swift`, and
+`Components/DocumentViewer/*` (`SongSheetReaderView`,
+`SongSlidesPresenterView`, `SongLyricsPresenterView`,
+`SongPresentationDeck`, `SongDocumentDownloader`, `SlidesPDFConverter`,
+and `PPTXSlideSizeReader`).
+
+| ID | Status | iOS source / behavior | Android evidence | Required Android result | Verification |
+| --- | --- | --- | --- | --- | --- |
+| SONG-005 | VERIFY | iOS replaces external sheet/slides links with in-app full-screen document experiences: cached PDF sheet reader, continuous/page layouts, keep-awake, share, native lyrics slideshow before PPTX fallback, auto-hiding black presentation chrome, landscape presentation, and PPTX metadata/conversion support. | Android now adds cached `SongDocumentDownloader`, `SongPresentationDeckBuilder`, `PptxSlideSizeReader`, full-screen `SongDocumentViewerDialog`, PDF rendering with scroll/page modes and share, native lyrics presenter with iOS-style black/cream/gold slides, landscape/keep-awake/fullscreen effects, and a PPTX-only in-app WebView preview with cached share/open fallback. `SongDetailScreen` now routes `Read Sheet Music` and `Present Slides` into those experiences instead of `openUrl`. | Device-compare PDF scroll/page behavior, presentation chrome/landscape/gesture behavior, and PPTX-only fallback against iOS. Android cannot run iOS-style WebKit/QuickLook PPTX-to-PDF conversion; native lyrics projection remains the primary Cantus deck path. | Focused `SongPresentationDeckTest`, `:app:compileDebugKotlin`, `:app:lintDebug`, `:app:assembleDebug`, strings-only EN/FR/PT/PT-BR key parity for the new keys, and `git diff --check` passed 2026-07-05. Full `:app:testDebugUnitTest` still fails four unrelated auth/onboarding payload assertions (`SignInUserPayloadTest`, `OnboardingProfilePayloadTest`). Device visual smoke remains. |
 
 ---
 
@@ -249,7 +304,9 @@ change may move them back to `PARTIAL` or `OPEN`.
 | 2026-07-02 | iOS working-tree parity implementation pass | Ported the iOS vehicle `offeredSeats` carpool cap into Android model/service/ViewModel/form UI, exposed the iOS participant-allergy manager list in Android Food Menu, documented the vehicle schema/RBAC contract, and confirmed checklist-share deep links/notifications already matched Android. Fixed the Android lint locale issue in the new allergy row and cleaned iOS whitespace plus a Food Menu accessibility typo. Full Android `:app:testDebugUnitTest`, `:app:assembleDebug`, `:app:lintDebug`, Android `git diff --check`, iOS app build, targeted iOS unit slices, iOS string-catalog JSON parse, iOS `git diff --check`, and Firebase RBAC tests passed. |
 | 2026-07-04 | Cantus catalog Songbook import parity | Ported the iOS Cantus catalog import flow to Android with authenticated backend proxy client, search/filter/select UI, duplicate Added state, Browse Song Catalog primary add action, manual fallback, canonical `chordedLyrics` persistence, `cantusSlug`, PPTX link editing/opening, and focused parser/model/catalog/ViewModel tests. Full unit tests, `compileDebugKotlin`, `lintDebug`, `assembleDebug`, and `git diff --check` passed; live `/cantus/*` proxy and device visual import comparison remain VERIFY. |
 | 2026-07-04 | Home/Schedule/Songbook pull-to-refresh parity | Added native pull-to-refresh to iOS Home, Schedule, and Songbook plus Material3 `PullToRefreshBox` parity on Android. Warm refresh paths preserve existing loaded content while forcing a fresh read/restarted stream. iOS `xcodebuild build`, focused iOS observer tests, Android `compileDebugKotlin`, focused Home/Songbook ViewModel tests, and both repo diff checks passed; device gesture smoke remains. |
+| 2026-07-05 | Songbook document reader and presenter parity | Ported the iOS in-app sheet/slides document flow to Android: cached PDF sheet reader with scroll/page modes and share, native lyrics projection deck before PPTX fallback, keep-awake/landscape/fullscreen presentation chrome, PPTX-only in-app preview fallback, localized copy, and focused document/deck tests. Focused `SongPresentationDeckTest`, `compileDebugKotlin`, `lintDebug`, `assembleDebug`, new-key EN/FR/PT/PT-BR parity, and `git diff --check` passed. Full unit suite still has four unrelated auth/onboarding payload failures; device visual smoke remains VERIFY. |
 | 2026-07-16 | Album performance and external video parity | Ported the iOS Album performance pass to Android with external-video media source payloads, file-backed library uploads, warm refresh preservation, stable square grid cells, external-video thumbnail placeholders, localized add-video copy, and focused model/ViewModel tests. Device scroll/gesture and external-link smoke remain VERIFY. |
+| 2026-07-16 | Remaining iOS -> Android parity closeout | Audited iOS commit `3cf4f35` against the current Android dirty set, fixed the guardian-only transportation subject gap, corrected the auth TODO role ledger, and found no remaining source-confirmed Android implementation gaps. Full `:app:testDebugUnitTest`, `:app:lintDebug`, `:app:assembleDebug`, EN/FR/PT/PT-BR string-key parity, manifest/resource/widget XML parsing, and `git diff --check` passed. Device/live-service VERIFY rows remain open. |
 
 ## Change log
 
@@ -395,3 +452,23 @@ change may move them back to `PARTIAL` or `OPEN`.
   `./gradlew testDebugUnitTest --console=plain`, `./gradlew lintDebug
   assembleDebug --console=plain`, and EN/FR/PT/PT-BR translatable string-key
   parity also passed.
+
+### 2026-07-16 — camping operations teams UI and private chat
+
+- Completed iOS and Android UI parity for organizer-defined Operations Teams:
+  camping-detail entry, rules-scoped list, detail, full editor CRUD, approved
+  member assignment, per-member responsibility titles, appearance,
+  responsibility capabilities, and private-chat policy.
+- Added typed list/detail/editor/chat navigation and reused each platform's
+  production chat timeline for `staffRoleID` conversations, including mentions,
+  attachments, reactions, replies, moderation, blocking, pinning, and deletion.
+- Matched deployed Rules in both client gates and member query shapes; ordinary
+  members use `memberUserIDs array-contains uid`, while authorized managers may
+  load the full subcollection.
+- Added EN/FR/PT/PT-BR Android copy plus FR/PT-BR iOS catalog coverage with real
+  singular/plural member variants. Corrected the shared role-kind/capability
+  wire-value documentation in Android and web.
+- Verification: Android compile, focused tests, lint, and APK assembly passed;
+  iOS simulator build and focused permission/observer tests passed. Full Android
+  tests retain four unrelated registration failures documented in
+  `PROJECT_STATUS`.

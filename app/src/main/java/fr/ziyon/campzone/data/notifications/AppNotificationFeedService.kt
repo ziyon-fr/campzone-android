@@ -45,15 +45,18 @@ class FirestoreAppNotificationFeedService @Inject constructor(
                 if (role.isAdmin) NotificationVisibilityScope.Unrestricted else NotificationVisibilityScope()
             }
             val visibleTeams = visibilityScope.filteredTeams(settings.subscribedTeamIds)
+            val visibleStaffRoles = visibilityScope.filteredStaffRoles(settings.subscribedStaffRoleIds)
             val scopedSettings = settings.copy(
                 subscribedCampingIds = visibilityScope.filteredCampingIds(settings.subscribedCampingIds),
                 subscribedTeamIds = visibleTeams.map { it.teamId },
+                subscribedStaffRoleIds = visibleStaffRoles.map { it.staffRoleId },
             )
             val subscriptions = NotificationTopics.visibleTopicSubscriptions(
                 role = role,
                 settings = scopedSettings,
                 userId = uid,
                 teamCampingIds = visibleTeams.associate { it.teamId to it.campingId },
+                staffRoleCampingIds = visibleStaffRoles.associate { it.staffRoleId to it.campingId },
             )
             val topics = subscriptions.mapTo(mutableSetOf()) { it.topic }
 
@@ -99,6 +102,7 @@ class FirestoreAppNotificationFeedService @Inject constructor(
         campingId?.let { query = query.whereEqualTo(CampingIdField, it) }
         role?.let { query = query.whereEqualTo(RoleField, it) }
         teamId?.let { query = query.whereEqualTo(TeamIdField, it) }
+        staffRoleId?.let { query = query.whereEqualTo(StaffRoleIdField, it) }
         return query
     }
 
@@ -108,6 +112,7 @@ class FirestoreAppNotificationFeedService @Inject constructor(
         const val CampingIdField = "campingID"
         const val RoleField = "role"
         const val TeamIdField = "teamID"
+        const val StaffRoleIdField = "staffRoleID"
         const val PerTopicLimit = 200L
     }
 }
@@ -127,7 +132,8 @@ internal class NotificationFeedSnapshotStore(
         val filtered = notifications
             .filter { notification ->
                 notification.campingId?.let(visibilityScope::canSeeCamping) != false &&
-                    notification.teamId?.let(visibilityScope::canSeeTeam) != false
+                    notification.teamId?.let(visibilityScope::canSeeTeam) != false &&
+                    notification.staffRoleId?.let(visibilityScope::canSeeStaffRole) != false
             }
             .filter { it.concerns(userId, role, visibleTopics) }
 

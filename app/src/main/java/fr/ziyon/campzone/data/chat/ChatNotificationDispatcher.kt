@@ -27,6 +27,7 @@ data class ChatNotificationRequest(
     val senderName: String,
     val body: String,
     val teamId: String? = null,
+    val staffRoleId: String? = null,
     val replyToMessageId: String? = null,
     val replyToSenderId: String? = null,
     val replyToSenderName: String? = null,
@@ -46,6 +47,7 @@ data class ChatMentionRequest(
     val mentionedUserIds: List<String>,
     val isEveryoneMention: Boolean,
     val teamId: String? = null,
+    val staffRoleId: String? = null,
 )
 
 interface ChatNotificationDispatcher {
@@ -68,6 +70,7 @@ class BackendChatNotificationDispatcher @Inject constructor(
             .put("senderName", request.senderName)
             .put("body", request.body)
         request.teamId?.trim()?.takeUnless { it.isBlank() }?.let { body.put("teamID", it) }
+        request.staffRoleId?.trim()?.takeUnless { it.isBlank() }?.let { body.put("staffRoleID", it) }
         request.replyToMessageId?.trim()?.takeUnless { it.isBlank() }?.let { body.put("replyToMessageID", it) }
         request.replyToSenderId?.trim()?.takeUnless { it.isBlank() }?.let { body.put("replyToSenderID", it) }
         request.replyToSenderName?.trim()?.takeUnless { it.isBlank() }?.let { body.put("replyToSenderName", it) }
@@ -91,6 +94,7 @@ class BackendChatNotificationDispatcher @Inject constructor(
             .put("mentionedUserIDs", JSONArray(request.mentionedUserIds))
             .put("isEveryoneMention", request.isEveryoneMention)
         request.teamId?.trim()?.takeUnless { it.isBlank() }?.let { body.put("teamID", it) }
+        request.staffRoleId?.trim()?.takeUnless { it.isBlank() }?.let { body.put("staffRoleID", it) }
         post("dispatch/chatMention", body)
     }
 

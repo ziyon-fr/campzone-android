@@ -99,6 +99,15 @@ data class VehicleUiState(
                 (it.id == user.uid || it.userId == user.uid)
         }
 
+    fun primarySubjectAttendee(user: AuthenticatedUser): CampingAttendee? =
+        selfAttendee(user) ?: camping?.attendees
+            ?.filter {
+                it.registrationStatus == RegistrationApprovalStatus.Approved &&
+                    it.participantKind == RegistrationParticipantKind.Child &&
+                    it.guardianId == user.uid
+            }
+            ?.minByOrNull { it.displayName.lowercase(Locale.ROOT) }
+
     fun actionSubjectAttendee(
         user: AuthenticatedUser,
         initialDecisionKind: String?,
@@ -114,7 +123,7 @@ data class VehicleUiState(
             }?.let { return it }
         }
 
-        return selfAttendee(user)
+        return primarySubjectAttendee(user)
     }
 
     fun vehicleDriven(registrationId: String): CampingVehicle? =

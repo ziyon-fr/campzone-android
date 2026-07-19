@@ -70,6 +70,30 @@ fun NavHostController.navigateToDeepLink(deepLink: CampzoneDeepLink) {
             }
         }
 
+        is CampzoneDeepLink.Schedule -> {
+            selectTabForDeepLink(AppRoute.Campings)
+            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.CampingSchedule(deepLink.campingId))
+        }
+
+        is CampzoneDeepLink.CampPass -> {
+            selectTabForDeepLink(AppRoute.Campings)
+            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.CheckInQrPasses(deepLink.campingId))
+        }
+
+        is CampzoneDeepLink.Packing -> {
+            selectTabForDeepLink(AppRoute.Campings)
+            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.CampingPackingChecklist(deepLink.campingId))
+        }
+
+        is CampzoneDeepLink.Teams -> {
+            selectTabForDeepLink(AppRoute.Campings)
+            navigateTyped(AppRoute.CampingDetail(deepLink.campingId))
+            navigateTyped(AppRoute.CampingTeams(deepLink.campingId))
+        }
+
         is CampzoneDeepLink.RegistrationReview -> {
             selectTabForDeepLink(AppRoute.Campings)
             navigateTyped(AppRoute.CampingRegistrationReview(deepLink.campingId))

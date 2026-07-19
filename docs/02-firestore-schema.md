@@ -68,6 +68,8 @@ campings/{campingId}                                Camping (event)
   campings/{id}/foodMenu/{entryId}                  FoodMenuEntry
   campings/{id}/teams/{teamId}                      Team
   campings/{id}/teams/{teamId}/chat/{messageId}     ChatMessage (team)
+  campings/{id}/staffRoles/{staffRoleId}            CampingStaffRole
+  campings/{id}/staffRoles/{staffRoleId}/chat/{messageId} ChatMessage (staff role)
   campings/{id}/games/{gameId}                      Game
   campings/{id}/activities/{activityId}             Activity (immutable audit)
   campings/{id}/chat/{messageId}                    ChatMessage (camping-wide)
@@ -147,7 +149,7 @@ Attendees live exclusively in the `registrations` subcollection.
 | `phone` | string | opt | `""` | |
 | `preferredLanguage` | string | opt | `preferredLanguage ?? languages.first ?? ""` | ISO-639-1-ish code |
 | `languages` | array\<string> | opt | `[]` | language codes |
-| `role` | string | opt | `guest` | `UserRole` raw (§ Enums). Legacy `senior`/`youth` read as `user`. First create writes literal `"guest"` |
+| `role` | string | opt | `user` | `UserRole` raw (§ Enums). Legacy `guest`/`senior`/`youth` read as `user`. First create writes literal `"user"` |
 | `photoURL` | string | opt | `nil` | **absolute URL string**; **delete-when-nil**; on sign-in only written if no existing value |
 | `photoPublicID` | string | opt | `nil` | Cloudinary public id; **delete-when-nil** |
 | `onboardingCompleted` | bool | opt | `false` | **wire key for the Swift `isProfileComplete` property** - there is no `isProfileComplete` field |
@@ -230,6 +232,7 @@ No `appID` field here (that lives only in the backend API payload).
 | `subscribedCampingIDs` | array\<string> | `[]` | trimmed, deduped, sorted on write |
 | `subscribedRoleRawValues` | array\<string> | `[]`→`[user.role]` | `UserRole` raws. **Stored field is `subscribedRoleRawValues`** (the Swift `subscribedRoles` is computed, not stored) |
 | `subscribedTeamIDs` | array\<string> | `[]` | trimmed, deduped, sorted |
+| `subscribedStaffRoleIDs` | array\<string> | `[]` | trimmed, deduped, sorted; drives private staff-role chat topics |
 | `updatedAt` | timestamp | - | every write. **No client `createdAt`** here |
 
 `appID`/`userID` are NOT stored in this doc (path encodes user; appID constant).
@@ -297,6 +300,12 @@ filter; earned badge docs only store the user-specific award instance.
 | `createdByName` | string | opt | `nil` | omit-when-empty |
 | `createdAt` | timestamp | server | - | `serverTimestamp()`, create only |
 | `updatedAt` | timestamp | server | - | `serverTimestamp()`, every save/cancel/guidelines/featured write |
+
+Camp lifecycle phase is computed, not stored: `draft` before publication,
+`upcoming` before `startDate`, `live` between `startDate` and `endDate`, and
+`finished` once `endDate < now`. A finished camping reads as closed for all
+registration CTAs/guards even if its stored `registrationStatus` is still
+`open`; do not add a Firestore `phase`/`finished` field.
 
 ### 3.1 `organizerLevel` map (required)
 
@@ -546,7 +555,43 @@ TeamPenalty: `id` (req UUID), `reason` (req `""`), `points` (req int,
 stored **positive**, subtracted in total), `createdAt` (req, written as a
 raw Date → Timestamp; **not** serverTimestamp).
 
-### 5.3 `campings/{id}/games/{gameId}` - Game
+### 5.3 `campings/{id}/staffRoles/{staffRoleId}` - CampingStaffRole
+
+- **Doc ID**: client UUID or stable slug. `id` is stored in the body and must
+  equal the doc ID.
+- Camp creators/managers define these operational sub-roles for their own
+  admin teams (games, kitchen, cleaning, reception, worship, logistics, media,
+  safety, prayer, or a custom role).
+  Every write rewrites the role doc, re-derives `memberUserIDs =
+  members[].userID`, and bumps `updatedAt`.
+- Private staff-role chat lives at
+  `campings/{id}/staffRoles/{staffRoleId}/chat/{messageId}` and writes
+  `staffRoleID` on every chat message.
+
+| key | type | default | notes |
+| --- | --- | --- | --- |
+| `id` | string | doc ID | **stored in body** + doc ID |
+| `campingID` | string | path arg | must equal parent camping id |
+| `name` | string | `""` | display label, e.g. `"Worship Team"` |
+| `kind` | string | `custom` | `StaffRoleKind` raw |
+| `description` | string | `""` | optional operational notes |
+| `symbolName` | string | `"person.2.badge.gearshape.fill"` | SF Symbol id; Android maps to nearest icon |
+| `colorHex` | string | `"#4F7CAC"` | incl. leading `#` |
+| `members` | array\<map> | `[]` | StaffRoleMember maps; see below |
+| `memberUserIDs` | array\<string> | `[]` | **derived**, always written, RBAC-critical |
+| `capabilities` | array\<string> | `[]` | `StaffCapability` raws; UI hints only unless Rules add a gate |
+| `chatEnabled` | bool | `true` | if false, clients hide/disable private chat entry |
+| `createdByUID` | string | auth.uid | creator signature |
+| `createdAt` | timestamp | `now` | create only |
+| `updatedAt` | timestamp | `now` | `serverTimestamp()` every write |
+
+StaffRoleMember: `id` (req, →userID→UUID), `userID` (req), `displayName`
+(req,→`"Participant"`), `notificationUserID` (opt, omit-when-empty), `church`
+(req, `""` allowed), `title` (req, default `""`),
+`preferredLanguage` (opt `""`), `photoURL` (opt, absolute string,
+omit-when-nil).
+
+### 5.4 `campings/{id}/games/{gameId}` - Game
 
 Pure Swift Codable (wire keys == property names; `Date`→Timestamp;
 `updatedAt` is a **client clock** `Date()`, not serverTimestamp).
@@ -557,19 +602,19 @@ Pure Swift Codable (wire keys == property names; `Date`→Timestamp;
 | `campingID` | string | |
 | `name` | string | |
 | `rules` | string | `""` default |
-| `pointRules` | array\<map> | § 5.4 |
+| `pointRules` | array\<map> | § 5.5 |
 | `createdBy` | string | creator uid |
 | `createdAt` | timestamp | model init `Date()`; ordered by this |
 | `updatedAt` | timestamp | client `Date()` every save |
 
-### 5.4 Embedded `pointRules[]` (PointRule)
+### 5.5 Embedded `pointRules[]` (PointRule)
 
 `id` (UUID), `name`, `points` (int, may be negative), `reason` (`""`),
 `ruleBrokenPenalty` (int, omit-when-nil), `maxUses` (int, omit-when-nil),
 `category` (string free-text, omit-when-nil), `appliesTo`
 (`team`/`user`/`any`), `visibility` (`immediate`/`afterReveal`).
 
-### 5.5 `campings/{id}/activities/{activityId}` - Activity (immutable audit)
+### 5.6 `campings/{id}/activities/{activityId}` - Activity (immutable audit)
 
 Full-set write (`merge:false`); `update` is **forbidden** by RBAC.
 Create requires `campingID == path` and `createdBy == auth.uid`.
@@ -607,7 +652,7 @@ ledger append must not roll back or misreport an already-persisted score change.
 
 ## 6. Communication
 
-### 6.1 `campings/{id}/chat/{messageId}` and `campings/{id}/teams/{teamId}/chat/{messageId}` - ChatMessage
+### 6.1 `campings/{id}/chat/{messageId}`, `campings/{id}/teams/{teamId}/chat/{messageId}`, and `campings/{id}/staffRoles/{staffRoleId}/chat/{messageId}` - ChatMessage
 
 - **Doc ID**: client UUID. `senderID == auth.uid`. Send = full `set` (no merge); pin/soft-delete/edit/reaction = `updateData`. Read ordered by `createdAt` asc, `limit(toLast: 200)`.
 - Decode drops the message if any of `campingID`, `senderID`, `senderName`, `text` is missing/non-string. Reply/reaction fields are optional and tolerated on legacy docs.
@@ -616,6 +661,7 @@ ledger append must not roll back or misreport an already-persisted score change.
 | --- | --- | --- | --- | --- |
 | `campingID` | string | **req** | drop | |
 | `teamID` | string | opt | `nil` | written **only** in team chat; not read back |
+| `staffRoleID` | string | opt | `nil` | written **only** in staff-role chat; mutually exclusive with `teamID` |
 | `senderID` | string | **req** | drop | == auth.uid |
 | `senderName` | string | **req** | drop | denormalized |
 | `senderChurch` | string | opt | `""` | denormalized |
@@ -705,10 +751,11 @@ decrement old options, increment new, set vote doc + poll `options`.
 Clients are **readers only** (RBAC: `create/update/delete: false`).
 Every listener filters `topic` and is capped at 200. Camping listeners must
 also filter `campingID`; camping-role listeners additionally filter `role`;
-team listeners filter `teamID` and, for non-admins, `campingID`. These
-predicates are required because Firestore Security Rules are not filters.
-Results are merged & deduped by `id`, sorted `sentAt` desc. Tolerant decoder.
-**`appID` MUST be `"campzone"`** or the doc is ignored client-side.
+team listeners filter `teamID` and, for non-admins, `campingID`; staff-role
+listeners filter both `staffRoleID` and `campingID`. These predicates are
+required because Firestore Security Rules are not filters. Results are merged
+& deduped by `id`, sorted `sentAt` desc. Tolerant decoder. **`appID` MUST be
+`"campzone"`** or the doc is ignored client-side.
 
 | key | type | default | notes |
 | --- | --- | --- | --- |
@@ -724,6 +771,7 @@ Results are merged & deduped by `id`, sorted `sentAt` desc. Tolerant decoder.
 | `campingID` | string | `nil` | → `chatMessage` if no other |
 | `pollID` | string | `nil` | → `poll` |
 | `teamID` | string | `nil` | team-scoped |
+| `staffRoleID` | string | `nil` | staff-role-scoped private chat |
 | `achievementID` | string | `nil` | badge/achievement id for earned-badge notifications |
 | `achievementTitle` | string | `nil` | display title sent by the backend for badge notifications |
 | `role` | string | from topic | derived from topic prefix `campzone_role_` |
@@ -1009,7 +1057,7 @@ announcements and use the existing announcement notification dispatcher.
 
 | Enum | Wire field(s) | Raw strings |
 | --- | --- | --- |
-| `UserRole` | `role` | `guest`, `user`, `youth_director`, `pastor`, `game_master`, `leader`, `photographer`, `adult`, `admin`. Legacy read-only: `senior`,`youth` → `user` |
+| `UserRole` | `role` | `user`, `youth_director`, `pastor`, `game_master`, `leader`, `photographer`, `adult`, `admin`. Legacy read-only: `guest`,`senior`,`youth` -> `user` |
 | `UserGender` | `gender` | `female`, `male`, `prefer_not_to_say` |
 | `CampingAgeGroup` | `ageGroup` | `kids`, `youth`, `adult` (age <13 / 13–35 / ≥36) |
 | `Language` | `preferredLanguage`,`languages[]` | ISO-639-1-ish: `en zh hi es fr ar bn pt ru ur id de ja sw mr te tr ta vi ko it th gu fa pl uk ms kn om ro` (stored as free strings - not validated) |
@@ -1029,6 +1077,8 @@ announcements and use the existing announcement notification dispatcher.
 | `FoodMealKind` | foodMenu `meal` + id | `breakfast`,`lunch`,`dinner`,`snack` |
 | `ScheduleReminderTiming` | `reminderTiming` | `none`,`atStart`,`fiveMinutes`,`fifteenMinutes`,`thirtyMinutes`,`oneHour` |
 | `TeamMemberRole` | `members[].role` | `member`,`captain`,`viceCaptain` |
+| `StaffRoleKind` | staff role `kind` | `games`,`kitchen`,`cleaning`,`reception`,`worship`,`logistics`,`media`,`safety`,`prayer`,`custom` |
+| `StaffCapability` | staff role `capabilities[]` | `manageGames`,`manageFoodMenu`,`manageSchedule`,`manageCheckIns`,`manageAlbumMedia`,`manageAnnouncements`,`manageTransportation` |
 | `PointRuleTarget` | `pointRules[].appliesTo` | `team`,`user`,`any` |
 | `PointRuleVisibility` / Activity `visibility` | `visibility` | `immediate`,`afterReveal` (RBAC literal-checks `immediate`) |
 | `AnnouncementAttachmentKind` | attachment `kind` | `image`,`pdf` |
@@ -1077,6 +1127,7 @@ copies. Web/Android must do the same or data drifts:
 | `registrations` (CG, `userID==uid`) | `userID` | `displayName`,`church`,`photoURL`,`preferredLanguage`,`languages`,`age`,`ageGroup`,`gender`,`allergies`,`updatedAt` |
 | parent `campings/{id}` | - | `updatedAt` bump |
 | `teams` (CG, `members[].userID==uid`) | member | member `displayName`,`church`,`preferredLanguage`,`languages`,`age`,`ageGroup`,`gender`,`photoURL`; doc `members` rewrite + `updatedAt` |
+| `staffRoles` (CG, `members[].userID==uid`) | member | member `displayName`,`church`,`preferredLanguage`,`photoURL`; doc `members` rewrite + `updatedAt` |
 | `checkIns` (CG, `userID==uid`) | `userID` | `displayName`,`church`,`preferredLanguage`,`photoURL`,`updatedAt` |
 | `chat` (CG, `senderID==uid`) | `senderID` | `senderName`,`senderChurch`,`senderPreferredLanguage`,`senderGender`,`senderPhotoURL`,`updatedAt` (note `sender*` rename) |
 | `announcements` (`authorID==uid`) | `authorID` | `authorName`,`authorPhotoURL`,`updatedAt` |

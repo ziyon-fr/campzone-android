@@ -56,7 +56,77 @@ class VehicleUiStateTest {
         )
     }
 
-    private fun camping(): Camping =
+    @Test
+    fun primarySubjectFallsBackToFirstApprovedChildWhenGuardianIsNotAttending() {
+        val user = AuthenticatedUser(
+            uid = "guardian-1",
+            email = "guardian@example.com",
+            displayName = "Ana",
+            photoUrl = null,
+            role = UserRole.Adult,
+            church = "Paris Central",
+            age = 36,
+            preferredLanguage = "en",
+            gender = null,
+            onboardingCompleted = true,
+        )
+        val state = VehicleUiState(
+            camping = camping(
+                listOf(
+                    attendee(
+                        id = "child-zoe",
+                        userId = "child-zoe",
+                        name = "Zoe",
+                        kind = RegistrationParticipantKind.Child,
+                        guardianId = "guardian-1",
+                    ),
+                    attendee(
+                        id = "child-emma",
+                        userId = "child-emma",
+                        name = "Emma",
+                        kind = RegistrationParticipantKind.Child,
+                        guardianId = "guardian-1",
+                    ),
+                    attendee(
+                        id = "child-pending",
+                        userId = "child-pending",
+                        name = "Alice",
+                        kind = RegistrationParticipantKind.Child,
+                        guardianId = "guardian-1",
+                        status = RegistrationApprovalStatus.Pending,
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("child-emma", state.primarySubjectAttendee(user)?.id)
+        assertEquals(
+            "child-emma",
+            state.actionSubjectAttendee(
+                user = user,
+                initialDecisionKind = null,
+                initialRegistrationId = null,
+            )?.id,
+        )
+    }
+
+    private fun camping(
+        attendees: List<CampingAttendee> = listOf(
+            attendee(
+                id = "guardian-1",
+                userId = "guardian-1",
+                name = "Ana",
+                kind = RegistrationParticipantKind.SelfParticipant,
+            ),
+            attendee(
+                id = "child-emma",
+                userId = "child-emma",
+                name = "Emma",
+                kind = RegistrationParticipantKind.Child,
+                guardianId = "guardian-1",
+            ),
+        ),
+    ): Camping =
         Camping(
             id = "camp-1",
             title = "Camp",
@@ -66,21 +136,7 @@ class VehicleUiStateTest {
             organizerLevel = OrganizerLevel(OrganizerType.Church, "Paris Central"),
             location = "Paris",
             registrationStatus = CampingRegistrationStatus.Open,
-            attendees = listOf(
-                attendee(
-                    id = "guardian-1",
-                    userId = "guardian-1",
-                    name = "Ana",
-                    kind = RegistrationParticipantKind.SelfParticipant,
-                ),
-                attendee(
-                    id = "child-emma",
-                    userId = "child-emma",
-                    name = "Emma",
-                    kind = RegistrationParticipantKind.Child,
-                    guardianId = "guardian-1",
-                ),
-            ),
+            attendees = attendees,
         )
 
     private fun attendee(
@@ -89,6 +145,7 @@ class VehicleUiStateTest {
         name: String,
         kind: RegistrationParticipantKind,
         guardianId: String? = null,
+        status: RegistrationApprovalStatus = RegistrationApprovalStatus.Approved,
     ): CampingAttendee =
         CampingAttendee(
             id = id,
@@ -97,7 +154,7 @@ class VehicleUiStateTest {
             church = "Paris Central",
             age = 12,
             languages = emptyList(),
-            registrationStatus = RegistrationApprovalStatus.Approved,
+            registrationStatus = status,
             participantKind = kind,
             guardianId = guardianId,
         )

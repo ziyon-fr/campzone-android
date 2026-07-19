@@ -50,7 +50,7 @@ data class UserProfile(
         get() = displayName
             .takeUnless { it.isBlank() }
             ?: email.takeUnless { it.isBlank() }
-            ?: "Campzone guest"
+            ?: "Campzone user"
 
     companion object {
         const val DeletionGracePeriodMillis: Long = 30L * 24L * 60L * 60L * 1000L

@@ -34,6 +34,10 @@ sealed interface CampzoneDeepLink {
         val campingId: String,
         val programId: String,
     ) : CampzoneDeepLink
+    data class Schedule(val campingId: String) : CampzoneDeepLink
+    data class CampPass(val campingId: String) : CampzoneDeepLink
+    data class Packing(val campingId: String) : CampzoneDeepLink
+    data class Teams(val campingId: String) : CampzoneDeepLink
 
     data class RegistrationReview(val campingId: String) : CampzoneDeepLink
 
@@ -87,8 +91,12 @@ sealed interface CampzoneDeepLink {
         }
         is CampingChat,
         is Poll,
+        is CampPass,
         is RegistrationReview,
+        is Packing,
+        is Schedule,
         is ScheduleProgram,
+        is Teams,
         is TeamChat,
         is TeamPoints,
         is TeamUpdate,
@@ -206,6 +214,34 @@ sealed interface CampzoneDeepLink {
                         ?: return null
                     val campingId = query.firstValue("c", "campingID") ?: return null
                     ScheduleProgram(campingId = campingId, programId = programId)
+                }
+
+                "schedule", "camping-schedule" -> {
+                    val campingId = pathId
+                        ?: query.firstValue("id", "c", "campingID")
+                        ?: return null
+                    Schedule(campingId)
+                }
+
+                "camp-pass", "camp-passes", "qr-pass", "qr-passes" -> {
+                    val campingId = pathId
+                        ?: query.firstValue("id", "c", "campingID")
+                        ?: return null
+                    CampPass(campingId)
+                }
+
+                "packing" -> {
+                    val campingId = pathId
+                        ?: query.firstValue("id", "c", "campingID")
+                        ?: return null
+                    Packing(campingId)
+                }
+
+                "camping-teams" -> {
+                    val campingId = pathId
+                        ?: query.firstValue("id", "c", "campingID")
+                        ?: return null
+                    Teams(campingId)
                 }
 
                 "registration", "registration-review" -> {
@@ -335,6 +371,8 @@ sealed interface CampzoneDeepLink {
                 "checklist", "packing_share", "packingshare", "packing" ->
                     if (campingId != null && shareId != null) {
                         PackingShare(campingId, shareId, actionSubjectRegistrationId)
+                    } else if (campingId != null) {
+                        Packing(campingId)
                     } else {
                         null
                     }

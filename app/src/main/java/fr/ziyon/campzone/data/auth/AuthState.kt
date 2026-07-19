@@ -26,5 +26,5 @@ data class AuthenticatedUser(
         get() = displayName
             .takeUnless { it.isBlank() }
             ?: email.takeUnless { it.isBlank() }
-            ?: "Campzone guest"
+            ?: "Campzone user"
 }

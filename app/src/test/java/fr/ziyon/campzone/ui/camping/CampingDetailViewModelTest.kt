@@ -50,7 +50,7 @@ class CampingDetailViewModelTest {
         val service = service(attendees = listOf(attendee("a1", "Maria", RegistrationApprovalStatus.Approved)))
         val viewModel = CampingDetailViewModel(service)
 
-        viewModel.load("camp-1", user(role = UserRole.Guest, church = "Other", uid = "guest-1"))
+        viewModel.load("camp-1", user(role = UserRole.User, church = "Other", uid = "user-1"))
 
         val state = viewModel.uiState.value
         assertFalse(state.canViewAttendees)
@@ -107,7 +107,7 @@ class CampingDetailViewModelTest {
         val service = service(attendees = emptyList())
         val viewModel = CampingDetailViewModel(service)
 
-        viewModel.load("camp-1", user(role = UserRole.Guest, church = "Other", uid = "guest-1"))
+        viewModel.load("camp-1", user(role = UserRole.User, church = "Other", uid = "user-1"))
         assertFalse(viewModel.uiState.value.canEditCamping)
 
         viewModel.load("camp-1", user(role = UserRole.Pastor, church = church, uid = "pastor-1"))
@@ -199,10 +199,10 @@ class CampingDetailViewModelTest {
         pending.load("camp-1", user(UserRole.User, "Other", "user-1"))
         assertTrue(pending.uiState.value.hasPayablePriceItems)
 
-        val guest = CampingDetailViewModel(service(emptyList(), priceItems = listOf(priceItem)))
-        guest.load("camp-1", user(UserRole.Guest, "Other", "guest-1"))
-        assertTrue(guest.uiState.value.canViewSongbook)
-        assertFalse(guest.uiState.value.isApprovedParticipant)
+        val standardUser = CampingDetailViewModel(service(emptyList(), priceItems = listOf(priceItem)))
+        standardUser.load("camp-1", user(UserRole.User, "Other", "user-1"))
+        assertTrue(standardUser.uiState.value.canViewSongbook)
+        assertFalse(standardUser.uiState.value.isApprovedParticipant)
     }
 
     @Test
@@ -290,7 +290,7 @@ class CampingDetailViewModelTest {
     @Test
     fun fetchFailureSurfacesError() = runTest {
         val viewModel = CampingDetailViewModel(FakeCampingService(emptyList()))
-        viewModel.load("missing", user(role = UserRole.Guest, church = church, uid = "g"))
+        viewModel.load("missing", user(role = UserRole.User, church = church, uid = "u"))
 
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)

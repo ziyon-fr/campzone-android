@@ -96,6 +96,37 @@ class TeamPayloadTest {
         assertEquals(7, decoded.members.first().personalScore)
     }
 
+    @Test
+    fun staffRolePayloadDerivesMemberUserIdsAndCapabilities() {
+        val role = sampleStaffRole()
+        val payload = StaffRolePayload.staffRolePayload(role, TS, includeCreatedAt = true)
+
+        assertEquals("staff-1", payload["id"])
+        assertEquals("camp-1", payload["campingID"])
+        assertEquals("Worship Team", payload["name"])
+        assertEquals("worship", payload["kind"])
+        assertEquals(listOf("u1", "u2"), payload["memberUserIDs"])
+        assertEquals(listOf("manageSchedule", "manageAnnouncements"), payload["capabilities"])
+        assertEquals(true, payload["chatEnabled"])
+        assertEquals(TS, payload["createdAt"])
+    }
+
+    @Test
+    fun staffRoleRoundTripsThroughDecoder() {
+        val original = sampleStaffRole()
+        val payload = StaffRolePayload.staffRolePayload(original, Date(9), includeCreatedAt = false)
+        val decoded = payload.toStaffRoleOrNull(documentId = "staff-1")!!
+
+        assertEquals("staff-1", decoded.id)
+        assertEquals(StaffRoleKind.Worship, decoded.kind)
+        assertEquals(listOf("u1", "u2"), decoded.memberUserIds)
+        assertEquals("Lead", decoded.members.first().title)
+        assertEquals(
+            listOf(StaffCapability.ManageSchedule, StaffCapability.ManageAnnouncements),
+            decoded.capabilities,
+        )
+    }
+
     private companion object {
         const val TS = "serverTimestamp"
         const val DEL = "delete"
@@ -108,6 +139,23 @@ class TeamPayloadTest {
             displayName = "Member $uid",
             church = "Paris Central SDA",
             role = role,
+        )
+
+        fun sampleStaffRole() = CampingStaffRole(
+            id = "staff-1",
+            campingId = "camp-1",
+            name = "Worship Team",
+            kind = StaffRoleKind.Worship,
+            description = "Music and worship moments",
+            symbolName = "music.mic",
+            colorHex = "#6A4C93",
+            members = listOf(
+                StaffRoleMember(id = "u1", userId = "u1", displayName = "Ana", church = "Paris", title = "Lead"),
+                StaffRoleMember(id = "u2", userId = "u2", displayName = "Marc", church = "Lyon"),
+            ),
+            capabilities = listOf(StaffCapability.ManageSchedule, StaffCapability.ManageAnnouncements),
+            chatEnabled = true,
+            createdByUid = "creator",
         )
     }
 }

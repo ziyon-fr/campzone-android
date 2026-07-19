@@ -37,6 +37,7 @@ object NotificationSettingsRules {
         subscribedCampingIds = cleanedIds(subscribedCampingIds),
         subscribedRoles = subscribedRoles.distinct().sortedBy { it.rawValue },
         subscribedTeamIds = cleanedIds(subscribedTeamIds),
+        subscribedStaffRoleIds = cleanedIds(subscribedStaffRoleIds),
     )
 
     private fun cleanedIds(values: List<String>): List<String> =

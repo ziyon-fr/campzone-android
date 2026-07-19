@@ -46,6 +46,19 @@ enum class CampingPublicationStatus(val wireValue: String) {
     }
 }
 
+/**
+ * Computed camping lifecycle. This is never persisted: it is derived from
+ * publication/cancellation plus start/end dates so legacy camping documents
+ * automatically become Finished after their end date.
+ */
+enum class CampingPhase {
+    Draft,
+    Upcoming,
+    Live,
+    Finished,
+    Cancelled,
+}
+
 /** attendee `registrationStatus`. */
 enum class RegistrationApprovalStatus(val wireValue: String) {
     Pending("pending"),
@@ -280,6 +293,41 @@ enum class TeamMemberRole(val wireValue: String) {
     companion object {
         fun fromWire(value: String?): TeamMemberRole =
             entries.firstOrNull { it.wireValue == value } ?: Member
+    }
+}
+
+/** `staffRoles/{roleId}.kind` - organizer-created camp staff/ministry role. */
+enum class StaffRoleKind(val wireValue: String) {
+    Games("games"),
+    Kitchen("kitchen"),
+    Cleaning("cleaning"),
+    Reception("reception"),
+    Worship("worship"),
+    Logistics("logistics"),
+    Media("media"),
+    Safety("safety"),
+    Prayer("prayer"),
+    Custom("custom");
+
+    companion object {
+        fun fromWire(value: String?): StaffRoleKind =
+            entries.firstOrNull { it.wireValue == value } ?: Custom
+    }
+}
+
+/** `staffRoles/{roleId}.capabilities[]` - scoped camp management capabilities. */
+enum class StaffCapability(val wireValue: String) {
+    ManageGames("manageGames"),
+    ManageFoodMenu("manageFoodMenu"),
+    ManageSchedule("manageSchedule"),
+    ManageCheckIns("manageCheckIns"),
+    ManageAlbumMedia("manageAlbumMedia"),
+    ManageAnnouncements("manageAnnouncements"),
+    ManageTransportation("manageTransportation");
+
+    companion object {
+        fun fromWire(value: String?): StaffCapability? =
+            entries.firstOrNull { it.wireValue == value }
     }
 }
 

@@ -144,7 +144,7 @@ class CampingAttendeesViewModelTest {
             service = service(attendees = listOf(attendee("approved-1", RegistrationApprovalStatus.Approved))),
         )
 
-        viewModel.load("camp-1", user(UserRole.Guest, uid = "guest-1", church = lyonChurch))
+        viewModel.load("camp-1", user(UserRole.User, uid = "user-1", church = lyonChurch))
 
         val state = viewModel.uiState.value
         assertFalse(state.canViewAttendees)

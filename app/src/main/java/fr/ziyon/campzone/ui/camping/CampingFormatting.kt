@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import fr.ziyon.campzone.R
 import fr.ziyon.campzone.core.designsystem.CzBadgeTone
+import fr.ziyon.campzone.data.model.CampingPhase
 import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import java.text.SimpleDateFormat
@@ -32,12 +33,31 @@ internal fun CampingRegistrationStatus.badgeTone(): CzBadgeTone = when (this) {
     CampingRegistrationStatus.Cancelled -> CzBadgeTone.Error
 }
 
+internal fun CampingPhase.badgeTone(): CzBadgeTone = when (this) {
+    CampingPhase.Draft -> CzBadgeTone.Neutral
+    CampingPhase.Upcoming -> CzBadgeTone.Primary
+    CampingPhase.Live -> CzBadgeTone.Success
+    CampingPhase.Finished -> CzBadgeTone.Neutral
+    CampingPhase.Cancelled -> CzBadgeTone.Error
+}
+
 @Composable
 internal fun CampingRegistrationStatus.label(): String = stringResource(
     when (this) {
         CampingRegistrationStatus.Open -> R.string.camping_status_open
         CampingRegistrationStatus.Closed -> R.string.camping_status_closed
         CampingRegistrationStatus.Cancelled -> R.string.camping_status_cancelled
+    },
+)
+
+@Composable
+internal fun CampingPhase.label(): String = stringResource(
+    when (this) {
+        CampingPhase.Draft -> R.string.camping_phase_draft
+        CampingPhase.Upcoming -> R.string.camping_phase_upcoming
+        CampingPhase.Live -> R.string.camping_phase_live
+        CampingPhase.Finished -> R.string.camping_phase_finished
+        CampingPhase.Cancelled -> R.string.camping_status_cancelled
     },
 )
 

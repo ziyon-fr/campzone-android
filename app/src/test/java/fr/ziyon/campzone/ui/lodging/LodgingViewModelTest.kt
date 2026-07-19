@@ -49,7 +49,7 @@ class LodgingViewModelTest {
     fun nonManagerIsRestricted() {
         val viewModel = viewModel(units = emptyList(), attendees = emptyList())
 
-        viewModel.load("camp-1", user(uid = "guest-1", role = UserRole.User))
+        viewModel.load("camp-1", user(uid = "user-1", role = UserRole.User))
 
         assertTrue(viewModel.uiState.value is LodgingUiState.Restricted)
     }
