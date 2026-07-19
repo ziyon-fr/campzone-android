@@ -416,6 +416,8 @@
     <string name="home_announcements_empty_title">Aucune annonce</string>
     <string name="home_announcements_empty_message">Les informations importantes du camp apparaîtront ici.</string>
     <string name="home_location_pending">Lieu à confirmer</string>
+    <string name="home_memories_title">Souvenirs passés du camp</string>
+    <string name="home_view_gallery">Voir la galerie</string>
     <string name="home_fully_booked">Complet</string>
     <string name="home_almost_full">Presque complet · %1$d%%</string>
     <string name="home_percent_filled">Rempli à %1$d%%</string>

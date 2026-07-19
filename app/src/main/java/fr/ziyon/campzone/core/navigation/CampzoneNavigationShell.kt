@@ -196,6 +196,9 @@ fun CampzoneNavigationShell(
                     onOpenCamping = { campingId ->
                         navController.navigate(AppRoute.CampingDetail(campingId).route)
                     },
+                    onOpenCampings = {
+                        navController.navigateToTab(AppRoute.Campings)
+                    },
                     onOpenProgram = { campingId, programId ->
                         navController.navigate(AppRoute.CampingScheduleProgram(campingId, programId).route)
                     },

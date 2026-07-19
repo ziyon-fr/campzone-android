@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -603,7 +605,7 @@ fun CampingEditorScreen(
                             onValueChange = { onFormUpdate(form.copy(feeCurrency = it.uppercase())) },
                             placeholder = "EUR",
                             label = stringResource(R.string.camping_editor_fee_currency),
-                            modifier = Modifier.width(88.dp),
+                            modifier = Modifier.width(124.dp),
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Text,
                                 capitalization = KeyboardCapitalization.Characters,
@@ -1020,6 +1022,7 @@ private fun DurationBadge(days: Int) {
 // MARK: - Organizer level row
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun OrganizerLevelRow(
     selected: OrganizerType,
     onSelect: (OrganizerType) -> Unit,
@@ -1027,7 +1030,10 @@ private fun OrganizerLevelRow(
     Column {
         EditorLabel(stringResource(R.string.camping_editor_organizer_level))
         Spacer(Modifier.height(CzSpacing.xs))
-        Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
             OrganizerType.entries.forEach { type ->
                 LevelChip(
                     label = type.displayLabel(),
@@ -1083,6 +1089,7 @@ private fun ChurchSelectorRow(value: String, onClick: () -> Unit) {
 // MARK: - Registration status row
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun RegistrationStatusRow(
     selected: CampingRegistrationStatus,
     onSelect: (CampingRegistrationStatus) -> Unit,
@@ -1094,7 +1101,10 @@ private fun RegistrationStatusRow(
             color = MaterialTheme.czColors.textSecondary,
         )
         Spacer(Modifier.height(CzSpacing.xs))
-        Row(horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+        ) {
             CampingRegistrationStatus.entries.forEach { status ->
                 StatusChip(
                     status = status,

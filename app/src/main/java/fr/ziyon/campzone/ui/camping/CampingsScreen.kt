@@ -6,7 +6,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -70,16 +72,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -110,8 +118,10 @@ import fr.ziyon.campzone.data.model.OrganizerLevel
 import fr.ziyon.campzone.data.model.OrganizerType
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
 import fr.ziyon.campzone.ui.home.FeaturedMountainBackground
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 import java.util.TimeZone
 import kotlin.math.max
 
@@ -247,21 +257,35 @@ fun CampingsScreen(
                 )
             }
 
-            is CampingsPhase.Empty -> CampingsStateColumn(
-                showAdminCard = showAdminCard,
-                onCreateCamping = onCreateCamping,
-                onReviewRegistrations = onReviewRegistrations,
-            ) {
-                if (phase.isSearchResult) {
-                    CzEmptyState(
-                        title = stringResource(R.string.camping_empty_search_title, phase.query),
-                        message = stringResource(R.string.camping_empty_search_message),
+            is CampingsPhase.Empty -> {
+                if (!phase.isSearchResult && state.historyGroups.isNotEmpty()) {
+                    EmptyHistoryResourceList(
+                        showAdminCard = showAdminCard,
+                        onCreateCamping = onCreateCamping,
+                        onReviewRegistrations = onReviewRegistrations,
+                        historyGroups = state.historyGroups,
+                        onOpenHistory = { showHistory = true },
+                        onOpenCamping = onOpenCamping,
                     )
                 } else {
-                    CzEmptyState(
-                        title = stringResource(R.string.camping_empty_title),
-                        message = stringResource(R.string.camping_empty_message),
-                    )
+                    CampingsStateColumn(
+                        showAdminCard = showAdminCard,
+                        onCreateCamping = onCreateCamping,
+                        onReviewRegistrations = onReviewRegistrations,
+                    ) {
+                        CzEmptyState(
+                            title = if (phase.isSearchResult) {
+                                stringResource(R.string.camping_empty_search_title, phase.query)
+                            } else {
+                                stringResource(R.string.camping_empty_title)
+                            },
+                            message = if (phase.isSearchResult) {
+                                stringResource(R.string.camping_empty_search_message)
+                            } else {
+                                stringResource(R.string.camping_empty_message)
+                            },
+                        )
+                    }
                 }
             }
 
@@ -433,6 +457,272 @@ private fun CampingsStateColumn(
             contentAlignment = Alignment.Center,
         ) {
             content()
+        }
+    }
+}
+
+@Composable
+private fun EmptyHistoryResourceList(
+    showAdminCard: Boolean,
+    onCreateCamping: (() -> Unit)?,
+    onReviewRegistrations: (() -> Unit)?,
+    historyGroups: List<CampingHistoryOrganizerGroup>,
+    onOpenHistory: () -> Unit,
+    onOpenCamping: (String) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = CzSpacing.xl,
+            end = CzSpacing.xl,
+            top = CzSpacing.base,
+            bottom = CzSpacing.xxxl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        if (showAdminCard) {
+            item(key = "empty-resource-admin-card") {
+                AdminActionsCard(
+                    onCreateCamping = onCreateCamping,
+                    onReviewRegistrations = onReviewRegistrations,
+                )
+            }
+        }
+        historyGroups.forEach { group ->
+            item(key = "empty-resource-${group.id}") {
+                EmptyHistoryResourceSection(
+                    group = group,
+                    onOpenHistory = onOpenHistory,
+                    onOpenCamping = onOpenCamping,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyHistoryResourceSection(
+    group: CampingHistoryOrganizerGroup,
+    onOpenHistory: () -> Unit,
+    onOpenCamping: (String) -> Unit,
+) {
+    val campings = remember(group) { group.resourceCampings() }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(CzSpacing.sm),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CzSpacing.md),
+        ) {
+            OrganizerInitialBadge(group.organizerLevel)
+            Text(
+                text = group.organizerLevel.value,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.czColors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Surface(
+                onClick = onOpenHistory,
+                shape = CircleShape,
+                color = MaterialTheme.czColors.surface,
+            ) {
+                Text(
+                    text = stringResource(R.string.common_view_all),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.czColors.primary,
+                    modifier = Modifier.padding(horizontal = CzSpacing.lg, vertical = CzSpacing.sm),
+                )
+            }
+        }
+
+        EmptyHistoryResourceCards(
+            campings = campings,
+            onOpenCamping = onOpenCamping,
+        )
+    }
+}
+
+@Composable
+private fun EmptyHistoryResourceCards(
+    campings: List<Camping>,
+    onOpenCamping: (String) -> Unit,
+) {
+    if (campings.size == 1) {
+        EmptyHistoryResourceCard(
+            camping = campings.first(),
+            onClick = { onOpenCamping(campings.first().id) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.12f),
+        )
+    } else {
+        val listState = rememberLazyListState()
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val cardWidth = (maxWidth * 0.64f).coerceIn(220.dp, 260.dp)
+            LazyRow(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalBleed(CzSpacing.xl),
+                contentPadding = PaddingValues(horizontal = CzSpacing.xl),
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.base),
+                flingBehavior = rememberSnapFlingBehavior(lazyListState = listState),
+            ) {
+                items(campings, key = { it.id }) { camping ->
+                    EmptyHistoryResourceCard(
+                        camping = camping,
+                        onClick = { onOpenCamping(camping.id) },
+                        modifier = Modifier
+                            .width(cardWidth)
+                            .aspectRatio(0.8f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OrganizerInitialBadge(organizerLevel: OrganizerLevel) {
+    val locale = LocalLocale.current.platformLocale
+    val initial = organizerLevel.value.trim().take(1).uppercase(locale).ifBlank { "?" }
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .shadow(
+                elevation = 5.dp,
+                shape = CircleShape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.08f),
+                spotColor = Color.Black.copy(alpha = 0.08f),
+            )
+            .clip(CircleShape)
+            .background(organizerResourceColor(organizerLevel.type)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = initial,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            color = Color.White,
+        )
+    }
+}
+
+@Composable
+private fun EmptyHistoryResourceCard(
+    camping: Camping,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptics = LocalHapticFeedback.current
+    val shape = RoundedCornerShape(28.dp)
+    val title = camping.title
+    val location = camping.location.ifBlank { stringResource(R.string.home_location_pending) }
+    val locale = LocalLocale.current.platformLocale
+    val date = remember(camping.endDate, locale) { monthYearLabel(camping.endDate, locale) }
+    Box(
+        modifier = modifier
+            .shadow(
+                elevation = 12.dp,
+                shape = shape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.12f),
+                spotColor = Color.Black.copy(alpha = 0.12f),
+            )
+            .clip(shape)
+            .clickable {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            }
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$title, $date, $location"
+            },
+    ) {
+        if (!camping.logoUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = camping.logoUrl,
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            FeaturedMountainBackground(
+                opacity = if (isSystemInDarkTheme()) 0.82f else 0.48f,
+                modifier = Modifier.matchParentSize(),
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0f to Color.Transparent,
+                            0.45f to Color.Black.copy(alpha = 0.20f),
+                            1f to Color.Black.copy(alpha = 0.80f),
+                        ),
+                    ),
+                ),
+        )
+
+        Text(
+            text = date,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                shadow = campingImageTextShadow(),
+            ),
+            color = Color.White,
+            maxLines = 1,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(CzSpacing.base)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.20f))
+                .border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape)
+                .padding(horizontal = CzSpacing.sm, vertical = 5.dp),
+        )
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(CzSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    shadow = campingImageTextShadow(),
+                ),
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Festival,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.82f),
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = location,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        shadow = campingImageTextShadow(),
+                    ),
+                    color = Color.White.copy(alpha = 0.82f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -1693,6 +1983,24 @@ private fun OrganizerType.icon(): ImageVector = when (this) {
     OrganizerType.Custom -> Icons.Filled.Person
 }
 
+private fun CampingHistoryOrganizerGroup.resourceCampings(): List<Camping> =
+    yearGroups
+        .flatMap { it.campings }
+        .sortedByDescending { it.endDate }
+
+@Composable
+private fun organizerResourceColor(type: OrganizerType): Color = when (type) {
+    OrganizerType.Church -> MaterialTheme.czColors.pine
+    OrganizerType.Regional -> MaterialTheme.czColors.primary
+    OrganizerType.International -> MaterialTheme.czColors.secondary
+    OrganizerType.Custom -> MaterialTheme.czColors.textPrimary
+}
+
+private fun monthYearLabel(date: Date, locale: Locale): String =
+    SimpleDateFormat("LLLL yyyy", locale)
+        .format(date)
+        .uppercase(locale)
+
 @Composable
 private fun campingFillBrush(ratio: Float): Brush {
     val colors = MaterialTheme.czColors
@@ -1812,6 +2120,33 @@ private fun CampingsScreenPreview() {
                         ),
                     ),
                 ),
+            ),
+            onSearchChange = {},
+            onOpenCamping = {},
+            onRetry = {},
+            showAdminInfo = { true },
+            canEditCamping = { true },
+            canManageAnyCamping = true,
+            onRegisterCamping = {},
+            onEditCamping = {},
+            onCreateCamping = {},
+            onReviewRegistrations = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun CampingsEmptyResourcePreview() {
+    val conviva = previewCamping("conviva", "JA Camp - CONVIVA 2026", 2026, Calendar.JUNE)
+        .copy(organizerLevel = OrganizerLevel(OrganizerType.Church, "CONVIVA"))
+    val noisy = previewCamping("noisy", "1er Acampamento Unidos Alem Das Fronteiras", 2025, Calendar.JUNE)
+        .copy(organizerLevel = OrganizerLevel(OrganizerType.Church, "Noisy Le Grand"))
+    CampzoneTheme {
+        CampingsScreen(
+            state = CampingsUiState(
+                phase = CampingsPhase.Empty(isSearchResult = false, query = ""),
+                historyGroups = CampingsViewModel.groupedHistory(listOf(conviva, noisy)),
             ),
             onSearchChange = {},
             onOpenCamping = {},

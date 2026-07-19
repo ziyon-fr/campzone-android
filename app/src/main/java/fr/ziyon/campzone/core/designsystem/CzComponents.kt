@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -476,10 +477,12 @@ fun SectionHeader(icon: ImageVector,title: String, content: @Composable () -> Un
 fun CzSectionHeader(
     title: String,
     modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
     subtitle: String? = null,
     actionLabel: String? = null,
     actionContentDescription: String? = actionLabel,
     onActionClick: (() -> Unit)? = null,
+    trailingContent: (@Composable RowScope.() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
@@ -492,11 +495,25 @@ fun CzSectionHeader(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(CzSpacing.xs),
         ) {
-            Text(
-                text = title,
-                color = MaterialTheme.czColors.textPrimary,
-                style = MaterialTheme.typography.titleSmall,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CzSpacing.xs),
+            ) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.czColors.accent,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Text(
+                    text = title,
+                    color = MaterialTheme.czColors.textPrimary,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
             if (subtitle != null) {
                 Text(
                     text = subtitle,
@@ -505,7 +522,9 @@ fun CzSectionHeader(
                 )
             }
         }
-        if (onActionClick != null && actionLabel != null) {
+        if (trailingContent != null) {
+            trailingContent()
+        } else if (onActionClick != null && actionLabel != null) {
             TextButton(
                 onClick = onActionClick,
                 modifier = Modifier

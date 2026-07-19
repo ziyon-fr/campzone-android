@@ -416,6 +416,8 @@
     <string name="home_announcements_empty_title">Nenhum anúncio</string>
     <string name="home_announcements_empty_message">Atualizações importantes do acampamento aparecerão aqui.</string>
     <string name="home_location_pending">Local a confirmar</string>
+    <string name="home_memories_title">Memórias passadas do acampamento</string>
+    <string name="home_view_gallery">Ver galeria</string>
     <string name="home_fully_booked">Lotado</string>
     <string name="home_almost_full">Quase lotado · %1$d%%</string>
     <string name="home_percent_filled">%1$d%% preenchido</string>

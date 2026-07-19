@@ -448,6 +448,8 @@
     <string name="home_announcements_empty_title">No announcements</string>
     <string name="home_announcements_empty_message">Important camp updates will appear here.</string>
     <string name="home_location_pending">Location pending</string>
+    <string name="home_memories_title">Past camp memories</string>
+    <string name="home_view_gallery">View gallery</string>
     <string name="home_fully_booked">Fully booked</string>
     <string name="home_almost_full">Almost full · %1$d%%</string>
     <string name="home_percent_filled">%1$d%% filled</string>

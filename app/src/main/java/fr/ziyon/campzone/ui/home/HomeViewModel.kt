@@ -16,6 +16,7 @@ import fr.ziyon.campzone.data.model.Announcement
 import fr.ziyon.campzone.data.model.AnnouncementAudienceScope
 import fr.ziyon.campzone.data.model.Camping
 import fr.ziyon.campzone.data.model.CampingAttendee
+import fr.ziyon.campzone.data.model.CampingRegistrationStatus
 import fr.ziyon.campzone.data.model.CheckInRecord
 import fr.ziyon.campzone.data.model.Program
 import fr.ziyon.campzone.data.model.RegistrationApprovalStatus
@@ -65,6 +66,7 @@ sealed interface HomePhase {
         val livePassInfo: HomeLivePassInfo = HomeLivePassInfo(),
         val upcomingPrograms: List<Program> = emptyList(),
         val announcements: List<Announcement> = emptyList(),
+        val memoryCampings: List<Camping> = emptyList(),
     ) : HomePhase
 
     data class Error(val message: String?) : HomePhase
@@ -77,6 +79,7 @@ data class HomeUiState(
 private data class HomeDashboardFrame(
     val featuredCamping: Camping?,
     val announcements: List<Announcement>,
+    val memoryCampings: List<Camping>,
 )
 
 @HiltViewModel
@@ -172,12 +175,14 @@ class HomeViewModel @Inject constructor(
                             featuredCampingId = displayCamping?.id,
                             registeredCampingIds = registeredIds,
                         ),
+                        memoryCampings = campings.homeMemories(),
                     )
                 }
                     .flatMapLatest { frame ->
                         observeLoadedPhase(
                             featuredCamping = frame.featuredCamping,
                             announcementPreviews = frame.announcements,
+                            memoryCampings = frame.memoryCampings,
                             forUserId = forUserId,
                         )
                     }
@@ -201,6 +206,7 @@ class HomeViewModel @Inject constructor(
     private fun observeLoadedPhase(
         featuredCamping: Camping?,
         announcementPreviews: List<Announcement>,
+        memoryCampings: List<Camping>,
         forUserId: String?,
     ): Flow<HomePhase.Loaded> {
         if (featuredCamping == null) {
@@ -208,6 +214,7 @@ class HomeViewModel @Inject constructor(
                 HomePhase.Loaded(
                     featuredCamping = null,
                     announcements = announcementPreviews,
+                    memoryCampings = memoryCampings,
                 ),
             )
         }
@@ -226,6 +233,7 @@ class HomeViewModel @Inject constructor(
                 livePassInfo = livePassInfo,
                 upcomingPrograms = programs,
                 announcements = announcementPreviews,
+                memoryCampings = memoryCampings,
             )
         }
     }
@@ -349,6 +357,15 @@ class HomeViewModel @Inject constructor(
             permissions.canManageCheckIns(permissionUser, context) ||
             permissions.canManageAlbumMedia(permissionUser, context)
     }
+
+    private fun List<Camping>.homeMemories(now: Date = Date()): List<Camping> =
+        filter { camping ->
+            val isPast = camping.endDate.before(now) ||
+                camping.registrationStatus == CampingRegistrationStatus.Cancelled
+            isPast && !camping.isDraft
+        }
+            .sortedByDescending { it.endDate }
+            .take(8)
 
     private fun List<Camping>.approvedCampingIds(forUserId: String?): Set<String> =
         filter { camping -> camping.hasApprovedRegistrationForUser(forUserId) }

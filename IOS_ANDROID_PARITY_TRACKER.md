@@ -36,7 +36,7 @@ must be intentional and recorded here.
 | Bucket | Count | Meaning |
 | --- | ---: | --- |
 | Remaining implementation gaps | 0 | No source-confirmed implementation gap remains in the current iOS working-tree audit; device findings can reopen this count |
-| Partial / verification queue | 25 | Includes the broader audits plus the latest high-visibility polish, Cantus catalog import, Songbook document presenter, Album device scroll/gesture smoke, and Auth keyboard smoke awaiting device/UI or external-service acceptance |
+| Partial / verification queue | 27 | Includes the broader audits plus the latest high-visibility polish, Campings empty-resource smoke, Home memories carousel smoke, Cantus catalog import, Songbook document presenter, Album device scroll/gesture smoke, and Auth keyboard smoke awaiting device/UI or external-service acceptance |
 | Automated-verified implementations | 38 | Baseline slices plus the completed correctness, Songbook, resource-gate, album-permission, family-query, stale-link, structured-menu, Camping-management, team-scoring, auto-balance, Songbook-row, checklist-share, vehicle-offer, vehicle self-removal, vehicle seat-accounting, widget family/deep-link closures, and guardian-only transport subject closure |
 | Intentional platform adaptations | 5 | Do not port literally |
 
@@ -47,6 +47,30 @@ must be intentional and recorded here.
 3. High-visibility Campings/Home visual parity.
 4. Feature-by-feature device verification.
 5. Localization, accessibility, full tests, lint, and debug assembly.
+
+---
+
+## Parity updates from the 2026-07-19 Campings empty-resource pass
+
+iOS source reviewed: current `CampingsView.swift` empty-resource behavior,
+including grouped organizer history carousels and the one-item full-width card
+fallback.
+
+| ID | Status | iOS source / behavior | Android evidence | Required Android result | Verification |
+| --- | --- | --- | --- | --- | --- |
+| CAMP-006 | VERIFY | When the active Campings list is empty, search is blank, and history exists, iOS replaces the generic empty state with organizer-grouped past/cancelled camping cards. Groups with one camping render a full-width card; groups with multiple campings keep a horizontal carousel. | Android `CampingsScreen.kt` now renders `EmptyHistoryResourceList` from existing `historyGroups`, opens card taps through camping detail, opens `View all` through the existing History sheet, uses full-width `1.12` cards for one-item groups, and keeps bounded snapping carousel cards for multi-item groups. | Campings must not show the plain "No campings yet" empty card when history exists, and one-item organizer groups must not leave an empty trailing carousel gap. No new Firestore listeners or data writes are introduced. | Android `:app:compileDebugKotlin`, focused `CampingsViewModelTest`, `:app:lintDebug`, and scoped `git diff --check` passed 2026-07-19. Device visual smoke with real one-item/multi-item history groups remains. |
+
+---
+
+## Parity updates from the 2026-07-19 Home memories carousel pass
+
+iOS source reviewed: current iOS Home polish in `HomeDashboardView.swift`,
+`HomeMemoriesCarousel.swift`, `CZSectionHeader.swift`, `CZFonts.swift`, and
+`HomeAnnouncementsCarousel.swift`.
+
+| ID | Status | iOS source / behavior | Android evidence | Required Android result | Verification |
+| --- | --- | --- | --- | --- | --- |
+| HOME-006 | VERIFY | When Home has no featured camping/next program but past non-draft campings exist, iOS replaces the empty featured-program state with a horizontal Past camp memories album carousel. Section headers use the stronger icon-capable `CZSectionHeader` treatment. | Android `HomeViewModel` now derives `memoryCampings` from the existing camping stream; `HomeScreen` renders `HomeMemoriesCarousel` in the same placeholder slot, opens the selected `CampingAlbum`, routes `See All` to Campings, and shares the icon-capable `CzSectionHeader` plus semibold subhead treatment. | Home must not show the old no-featured empty card when past camp memories are available; cards must keep stable 280x380dp slots, display camping imagery/fallbacks, and navigate into the album without adding extra Firestore listeners. | Android `:app:compileDebugKotlin` and `git diff --check` passed 2026-07-19. Device visual smoke with real past camps remains. |
 
 ---
 

@@ -23,7 +23,7 @@ object CzTypeScale {
     val headline = czTextStyle(size = 17, lineHeight = 22, weight = FontWeight.SemiBold)
     val body = czTextStyle(size = 17, lineHeight = 22, weight = FontWeight.Normal)
     val callout = czTextStyle(size = 16, lineHeight = 21, weight = FontWeight.Normal)
-    val subhead = czTextStyle(size = 15, lineHeight = 20, weight = FontWeight.Medium)
+    val subhead = czTextStyle(size = 15, lineHeight = 20, weight = FontWeight.SemiBold)
     val caption = czTextStyle(size = 12, lineHeight = 16, weight = FontWeight.Normal)
     val caption2 = czTextStyle(size = 11, lineHeight = 14, weight = FontWeight.Medium)
 }

@@ -1,3 +1,85 @@
+# Project Status - Camping editor layout polish
+
+Updated: 2026-07-19
+
+- Fixed the Android Camping Editor organization section by changing organizer
+  type and registration status controls from rigid `Row`s to wrapping
+  `FlowRow`s, preventing chips like "Cancelled" from collapsing into vertical
+  text on narrow screens or larger font scales.
+- Widened the fee currency input so the "Currency" label no longer breaks into
+  stacked text in the Fees & Pricing section.
+
+---
+
+# Project Status - Platform release notes
+
+Updated: 2026-07-19
+
+- Created separated release notes for iOS and Android in English, Portuguese,
+  and French:
+  - iOS: `/Users/leon/Desktop/Business Projects/Campzone/ReleaseNotes-iOS-2026-07-19.md`
+  - Android: `/Users/leon/AndroidStudioProjects/Campzone/ReleaseNotes-Android-2026-07-19.md`
+
+---
+
+# Project Status - Campings empty-resource parity
+
+Updated: 2026-07-19
+
+- Source of truth audited: current iOS `CampingsView.swift` empty-resource
+  behavior, including grouped organizer history cards and the one-card
+  full-width fallback that removes the empty carousel gap.
+- Android `CampingsScreen.kt` now replaces the non-search "No campings yet"
+  empty state with grouped past/cancelled camping resource sections when
+  history exists, using the existing `historyGroups` data already derived by
+  `CampingsViewModel`.
+- Mirrored the iOS responsive layout rule: organizer groups with one camping
+  render a full-width `1.12` aspect-ratio card, while groups with multiple
+  campings keep a snapping horizontal carousel with bounded card widths.
+- Follow-up polish removed the extra empty-resource vertical air by dropping
+  the list's redundant top padding, tightening organizer-section spacing, and
+  keeping each header closer to its card.
+- Second follow-up flattened the Android empty-resource screen so the admin
+  actions and organizer resources live in one `LazyColumn`; this removes the
+  nested scroll boundary that could clip the first organizer header and leave
+  the first image card looking detached.
+- Added an Android Studio preview for the empty-resource state so this branch
+  is visible during UI review.
+- Verification passed: Android `:app:compileDebugKotlin`, focused
+  `CampingsViewModelTest`, `:app:lintDebug`, and scoped `git diff --check`
+  with Android Studio JBR.
+- Remaining verification: device/emulator visual smoke for the empty-resource
+  Campings screen in light/dark mode and with real one-item/multi-item history
+  groups.
+
+---
+
+# Project Status - Home memories carousel parity
+
+Updated: 2026-07-19
+
+- Source of truth audited: current iOS Home changes in
+  `HomeDashboardView.swift`, `HomeMemoriesCarousel.swift`,
+  `CZSectionHeader.swift`, `CZFonts.swift`, and
+  `HomeAnnouncementsCarousel.swift`.
+- Android Home now carries a derived `memoryCampings` list from the existing
+  camping observer, matching iOS history behavior: past or cancelled camps,
+  most recent first, with drafts excluded from the Home memories surface.
+- Replaced the no-featured/no-next-program placeholder with an iOS-style
+  horizontal past-camp album carousel. Cards use fixed 280x380dp image slots,
+  a bottom gradient, location fallback, and a `View gallery` chip; card taps
+  open the selected camping album and `See All` opens the Campings surface.
+- Mirrored the section-heading polish by making Android `CzSectionHeader`
+  icon-capable and bumping the shared subhead weight to semibold; the Home
+  Announcements header now uses that shared treatment while keeping the new
+  announcement badge.
+- Verification passed: Android `:app:compileDebugKotlin` with Android Studio
+  JBR and `git diff --check`.
+- Remaining verification: device/emulator visual smoke for the Home memories
+  carousel with real past camp images and narrow/dark-mode layouts.
+
+---
+
 # Project Status - Album grid and Auth keyboard parity
 
 Updated: 2026-07-19
